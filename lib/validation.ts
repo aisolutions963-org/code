@@ -1,0 +1,81 @@
+import { z } from 'zod'
+
+export const LoginSchema = z.object({
+  email: z.string().email().max(255).transform((v) => v.toLowerCase().trim()),
+  password: z.string().min(8).max(128),
+})
+
+export const CreateUserSchema = z.object({
+  name: z.string().min(1).max(100).transform((v) => v.trim()),
+  email: z.string().email().max(255).transform((v) => v.toLowerCase().trim()),
+  password: z.string().min(8).max(128),
+  role: z.enum(['superadmin', 'manager', 'sed', 'fabrication', 'installation']),
+  airtable_member_id: z.string().optional(),
+})
+
+export const UpdateUserSchema = z.object({
+  name: z.string().min(1).max(100).transform((v) => v.trim()).optional(),
+  email: z.string().email().max(255).transform((v) => v.toLowerCase().trim()).optional(),
+  password: z.string().min(8).max(128).optional(),
+  role: z.enum(['superadmin', 'manager', 'sed', 'fabrication', 'installation']).optional(),
+  active: z.number().int().min(0).max(1).optional(),
+})
+
+export const UpdateTaskSchema = z.object({
+  status: z.enum(['To Do', 'In Progress', 'Completed', 'Locked', 'Pending Approval']).optional(),
+  managerReviewStatus: z.enum(['Not Needed', 'Pending', 'Approved', 'Rejected']).optional(),
+  managerComment: z.string().max(2000).optional(),
+  postVisitOutcome: z.string().max(500).optional(),
+  taskStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  completionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  startedAt: z.string().optional(),
+  completedAt: z.string().optional(),
+  teamDaysRequired: z.number().int().min(1).max(365).optional(),
+  noOfLaborsPerDay: z.number().int().min(1).max(100).optional(),
+  installationDays: z.number().int().min(0).max(365).optional(),
+  plannedProdStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  expectedFabEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  fabricationPath: z.string().max(100).optional(),
+  postCarpentryPath: z.string().max(100).optional(),
+  productionStartPath: z.string().max(100).optional(),
+  conceptDesignApproval: z.string().max(100).optional(),
+  sampleApproval: z.string().max(100).optional(),
+  quotationOutcome: z.string().max(100).optional(),
+  qcCheckAtSiteDone: z.boolean().optional(),
+  fillersDone: z.boolean().optional(),
+  priorityFlag: z.boolean().optional(),
+  requiresManagerReviewManually: z.boolean().optional(),
+  taskDocuments: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),
+  handoverDocument: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),
+  fillersAndMissingList: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),
+})
+
+export const CreatePaymentSchema = z.object({
+  project: z.array(z.string().min(1)).min(1),
+  amount: z.number().positive().max(10_000_000),
+  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment']),
+  paymentStatus: z.enum(['Received', 'Pending', 'Overdue']),
+  paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Cheque']),
+  referenceNo: z.string().max(100).optional(),
+  receivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  stageAtPayment: z.string().max(100).optional(),
+})
+
+export const CreateAnnouncementSchema = z.object({
+  title: z.string().min(1).max(200).transform((v) => v.trim()),
+  message: z.string().max(5000).optional(),
+  pinned: z.boolean().optional(),
+  visibleTo: z.string().max(100).optional(),
+  expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
+export const UpdateAnnouncementSchema = CreateAnnouncementSchema.partial()
+
+export const AssignInstallationSchema = z.object({
+  teamMemberIds: z.array(z.string()).max(20),
+})
+
+export const MaterialDecisionSchema = z.object({
+  orderStatus: z.enum(['Approved', 'Rejected', 'Needs Revision', 'Pending']),
+})
