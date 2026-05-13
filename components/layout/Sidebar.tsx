@@ -83,6 +83,15 @@ function ViewGridIcon() {
   )
 }
 
+function CalendarIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  )
+}
+
 function HomeIcon() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,6 +111,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries', icon: <TruckIcon /> },
     { label: 'Inspections', href: '/dashboard/fix?view=inspections', icon: <ShieldIcon /> },
     { label: 'Install Logs', href: '/dashboard/fix?view=logs', icon: <ClipboardIcon /> },
+    { label: 'Gate Passes', href: '/dashboard/fix?view=gate-passes', icon: <TruckIcon /> },
   ],
   sed: [
     HOME_ITEM,
@@ -123,6 +133,8 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: 'My Tasks', href: '/dashboard/mgr', icon: <CheckIcon /> },
     { label: 'Deliveries', href: '/dashboard/mgr?view=deliveries', icon: <TruckIcon /> },
     { label: 'Payments', href: '/dashboard/mgr?view=payments', icon: <CashIcon /> },
+    { label: 'Payment Calendar', href: '/dashboard/mgr?view=calendar', icon: <CalendarIcon /> },
+    { label: 'Materials', href: '/dashboard/mgr?view=materials', icon: <HammerIcon /> },
     { label: 'Purchase Orders', href: '/dashboard/mgr?view=purchase', icon: <ClipboardIcon /> },
     { label: 'Installation Teams', href: '/dashboard/mgr?view=installation', icon: <HammerIcon /> },
     { label: 'All Projects', href: '/dashboard/mgr?view=projects', icon: <FolderIcon /> },
@@ -132,6 +144,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: 'Overview', href: '/dashboard/superadmin', icon: <ViewGridIcon /> },
     { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases', icon: <ShieldIcon /> },
     { label: 'Payment Tracker', href: '/dashboard/superadmin?view=payments', icon: <CashIcon /> },
+    { label: 'Payment Calendar', href: '/dashboard/superadmin?view=calendar', icon: <CalendarIcon /> },
     { label: 'Warranty', href: '/dashboard/superadmin?view=warranty', icon: <CheckIcon /> },
     { label: 'All Projects', href: '/dashboard/superadmin?view=projects', icon: <FolderIcon /> },
     { label: 'Users', href: '/dashboard/superadmin/users', icon: <ClipboardIcon /> },

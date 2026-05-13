@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getProjectById, updateProject, getIncompleteTasksForProject } from '@/lib/airtable'
+import {
+  getProjectById,
+  updateProject,
+  getIncompleteTasksForProject,
+  generateTasksForProject,
+} from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 
-const STAGE_ORDER = ['Preparing', 'Open', 'Closed']
+const STAGE_ORDER = ['Preparing', 'Open', 'Installation Completed', 'Closed']
 
 export async function POST(
   _request: NextRequest,
@@ -46,6 +51,11 @@ export async function POST(
     const updated = await updateProject(params.id, {
       [PROJECTS.PROJECT_STAGE]: nextStage,
     })
+
+    // A19 — generate tasks for the new stage
+    generateTasksForProject(params.id, nextStage).catch((err) =>
+      console.error('[A19] Task generation failed after advance to', nextStage, ':', err),
+    )
 
     return NextResponse.json({ project: updated, newStage: nextStage })
   } catch (error) {

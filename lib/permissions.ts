@@ -21,6 +21,7 @@ export const EDITABLE_FIELDS: Record<Role, (keyof TaskUpdateInput)[]> = {
     'sampleApproval',
     'quotationOutcome',
     'taskDocuments',
+    'callCount',
   ],
   fabrication: [
     'status',

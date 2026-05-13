@@ -1,16 +1,18 @@
 'use client'
 
+import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput } from '@/lib/types'
-import TaskList from '@/components/tasks/TaskList'
+import { Task, TaskUpdateInput, Project } from '@/lib/types'
 import TaskGroupedList from '@/components/tasks/TaskGroupedList'
+import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function FabDashboard() {
   const searchParams = useSearchParams()
   const view = searchParams.get('view') ?? 'tasks'
+  const [materialProject, setMaterialProject] = useState<Project | null>(null)
 
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks?role=fab',
@@ -18,7 +20,14 @@ export default function FabDashboard() {
     { refreshInterval: 30000, revalidateOnFocus: true },
   )
 
+  const { data: projectData, mutate: mutateProjects } = useSWR<{ projects: Project[] }>(
+    view === 'materials' ? '/api/projects' : null,
+    fetcher,
+    { refreshInterval: 60000 },
+  )
+
   const tasks = data?.tasks ?? []
+  const projects = projectData?.projects ?? []
 
   const handleUpdate = async (id: string, fields: Partial<TaskUpdateInput>) => {
     const res = await fetch(`/api/tasks/${id}`, {
@@ -28,7 +37,7 @@ export default function FabDashboard() {
     })
     if (!res.ok) {
       const body = await res.json()
-      throw new Error(body.error ?? 'Update failed')
+      throw new Error(body.error ?? 'فشل التحديث')
     }
     mutate()
   }
@@ -38,8 +47,7 @@ export default function FabDashboard() {
   const completed = tasks.filter((t) => t.status === 'Completed')
 
   let visibleTasks = tasks
-  if (view === 'team') visibleTasks = tasks
-  if (view === 'materials') visibleTasks = tasks.filter((t) => t.fabricationPath)
+  if (view === 'materials') visibleTasks = tasks.filter((t) => t.fabricationPath || t.plannedProdStartDate)
   if (view === 'timeline') {
     visibleTasks = tasks
       .filter((t) => t.plannedProdStartDate || t.expectedFabEndDate)
@@ -51,31 +59,31 @@ export default function FabDashboard() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto" dir="rtl">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Fabrication Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Production & fabrication tasks</p>
+        <h1 className="text-xl font-bold text-gray-900">لوحة التصنيع</h1>
+        <p className="text-sm text-gray-500 mt-0.5">مهام الإنتاج والتصنيع</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
           <p className="text-2xl font-bold text-gray-900">{open.length}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Open Tasks</p>
+          <p className="text-xs text-gray-500 mt-0.5">المهام المفتوحة</p>
         </div>
         <div className="bg-white rounded-xl border border-blue-200 p-4 text-center shadow-sm">
           <p className="text-2xl font-bold text-blue-600">{inProgress.length}</p>
-          <p className="text-xs text-gray-500 mt-0.5">In Progress</p>
+          <p className="text-xs text-gray-500 mt-0.5">قيد التنفيذ</p>
         </div>
         <div className="bg-white rounded-xl border border-green-200 p-4 text-center shadow-sm">
           <p className="text-2xl font-bold text-green-600">{completed.length}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Completed</p>
+          <p className="text-xs text-gray-500 mt-0.5">مكتمل</p>
         </div>
       </div>
 
       {view === 'timeline' && visibleTasks.length > 0 && (
         <div className="mb-4 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
           <div className="px-4 py-3 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-700">Production Timeline</h2>
+            <h2 className="text-sm font-semibold text-gray-700">الجدول الزمني للإنتاج</h2>
           </div>
           <div className="divide-y divide-gray-50">
             {visibleTasks.map((t) => (
@@ -84,9 +92,9 @@ export default function FabDashboard() {
                   <p className="font-medium text-gray-900">{t.taskName}</p>
                   <p className="text-xs text-gray-400 font-mono">{t.projectId}</p>
                 </div>
-                <div className="text-right text-xs text-gray-500 space-y-0.5">
-                  {t.plannedProdStartDate && <p>Start: {t.plannedProdStartDate}</p>}
-                  {t.expectedFabEndDate && <p>End: {t.expectedFabEndDate}</p>}
+                <div className="text-left text-xs text-gray-500 space-y-0.5">
+                  {t.plannedProdStartDate && <p>البداية: {t.plannedProdStartDate}</p>}
+                  {t.expectedFabEndDate && <p>النهاية: {t.expectedFabEndDate}</p>}
                   {t.fabricationPath && (
                     <span className="inline-block bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-xs">
                       {t.fabricationPath}
@@ -99,6 +107,28 @@ export default function FabDashboard() {
         </div>
       )}
 
+      {/* Materials view: project picker + order button */}
+      {view === 'materials' && (
+        <div className="mb-4 bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+          <p className="text-sm font-semibold text-gray-700">F3 — Order Materials</p>
+          {projects.length === 0 ? (
+            <p className="text-xs text-gray-400">Loading projects…</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {projects.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setMaterialProject(p)}
+                  className="text-xs bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 rounded-lg px-3 py-1.5 font-medium"
+                >
+                  {p.projectId} — {p.projectName}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {isLoading && (
         <div className="flex justify-center py-12">
           <div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" />
@@ -107,12 +137,20 @@ export default function FabDashboard() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-          Failed to load tasks. <button onClick={() => mutate()} className="underline">Retry</button>
+          فشل تحميل المهام. <button onClick={() => mutate()} className="underline">إعادة المحاولة</button>
         </div>
       )}
 
       {!isLoading && !error && view !== 'timeline' && (
         <TaskGroupedList tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} />
+      )}
+
+      {materialProject && (
+        <MaterialOrderModal
+          project={materialProject}
+          onClose={() => setMaterialProject(null)}
+          onCreated={() => mutateProjects()}
+        />
       )}
     </div>
   )

@@ -20,11 +20,16 @@ function isInspectionTask(taskName: string): boolean {
   return INSPECTION_KEYWORDS.some((kw) => lower.includes(kw))
 }
 
-function formatCountdown(targetDate: string): string | null {
+function isArabicRole(role: Role): boolean {
+  return role === 'installation' || role === 'fabrication'
+}
+
+function formatCountdown(targetDate: string, ar: boolean): string | null {
   const diff = new Date(targetDate).getTime() - Date.now()
-  if (diff <= 0) return 'Overdue'
+  if (diff <= 0) return ar ? 'متأخر' : 'Overdue'
   const days = Math.floor(diff / (24 * 60 * 60 * 1000))
   const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
+  if (ar) return days > 0 ? `${days}ي ${hours}س` : `${hours}س`
   if (days > 0) return `${days}d ${hours}h`
   return `${hours}h`
 }
@@ -66,6 +71,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const ar = isArabicRole(role)
   const urgent = isUrgent(task)
 
   const scheduleUpdate = useCallback(
@@ -77,11 +83,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         try {
           await onUpdate(task.id, { [key]: value } as Partial<TaskUpdateInput>)
           setSaveSuccess(true)
-          toast.success('Saved')
+          toast.success(ar ? 'تم الحفظ' : 'Saved')
           setTimeout(() => setSaveSuccess(false), 2000)
         } catch {
-          setSaveError('Save failed — please retry')
-          toast.error('Save failed')
+          setSaveError(ar ? 'فشل الحفظ — أعد المحاولة' : 'Save failed — please retry')
+          toast.error(ar ? 'فشل الحفظ' : 'Save failed')
           setLocalFields((prev) => ({ ...prev, [key]: (task as unknown as Record<string, unknown>)[key] }))
         } finally {
           setSaving(false)
@@ -127,12 +133,12 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             )}
             {urgent && (
               <span className="text-xs text-red-600 font-medium bg-red-50 px-1.5 py-0.5 rounded">
-                Urgent
+                {ar ? 'عاجل' : 'Urgent'}
               </span>
             )}
             {isInspectionTask(task.taskName) && (task.completionDate ?? task.taskStartDate) && (
               <span className="text-xs text-purple-700 font-medium bg-purple-50 px-1.5 py-0.5 rounded">
-                {formatCountdown(task.completionDate ?? task.taskStartDate ?? '')}
+                {formatCountdown(task.completionDate ?? task.taskStartDate ?? '', ar)}
               </span>
             )}
           </div>
@@ -163,7 +169,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
           </svg>
-          <span className="text-xs text-blue-700 font-medium">Client:</span>
+          <span className="text-xs text-blue-700 font-medium">{ar ? 'العميل:' : 'Client:'}</span>
           <a href={`tel:${task.clientPhone}`} className="text-xs text-blue-600 hover:underline font-mono">
             {task.clientPhone}
           </a>
@@ -174,24 +180,38 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       {isOpen && (
         <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-4">
           {/* Read-only info */}
-          {instructions && (
-            <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                Instructions
-              </p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{instructions}</p>
-            </div>
-          )}
-
-          {arabicInstructions && (
-            <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                Arabic Instructions
-              </p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap rtl-text" dir="rtl">
-                {arabicInstructions}
-              </p>
-            </div>
+          {ar ? (
+            (arabicInstructions || instructions) && (
+              <div dir="rtl">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  التعليمات
+                </p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {arabicInstructions || instructions}
+                </p>
+              </div>
+            )
+          ) : (
+            <>
+              {instructions && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                    Instructions
+                  </p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{instructions}</p>
+                </div>
+              )}
+              {arabicInstructions && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                    Arabic Instructions
+                  </p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap rtl-text" dir="rtl">
+                    {arabicInstructions}
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           {/* Editable fields */}
@@ -216,7 +236,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Saving…
+                {ar ? 'جاري الحفظ…' : 'Saving…'}
               </span>
             )}
             {saveSuccess && !saving && (
@@ -224,7 +244,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Saved
+                {ar ? 'تم الحفظ' : 'Saved'}
               </span>
             )}
             {saveError && (

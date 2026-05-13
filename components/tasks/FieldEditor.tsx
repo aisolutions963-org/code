@@ -51,6 +51,40 @@ const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   priorityFlag: 'Priority Flag',
 }
 
+const FIELD_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
+  status: 'الحالة',
+  completionDate: 'تاريخ الانتهاء',
+  teamDaysRequired: 'أيام الفريق',
+  noOfLaborsPerDay: 'عدد العمال / يوم',
+  installationDays: 'أيام التركيب',
+  plannedProdStartDate: 'بداية الإنتاج',
+  expectedFabEndDate: 'نهاية التصنيع',
+  fabricationPath: 'مسار التصنيع',
+  postCarpentryPath: 'مسار ما بعد النجارة',
+  qcCheckAtSiteDone: 'فحص الجودة في الموقع',
+  fillersDone: 'تم الفيلر',
+  taskDocuments: 'مستندات المهمة',
+  handoverDocument: 'وثيقة التسليم',
+  fillersAndMissingList: 'قائمة الفيلر والمواد الناقصة',
+}
+
+const OPTION_LABELS_AR: Partial<Record<string, string>> = {
+  'To Do': 'للتنفيذ',
+  'In Progress': 'قيد التنفيذ',
+  'Completed': 'مكتمل',
+  'Carpentry': 'نجارة',
+  'Paint': 'دهان',
+  'Carpentry + Paint': 'نجارة + دهان',
+  'Done': 'مكتمل',
+  'Purchase Missing Items': 'شراء مواد ناقصة',
+}
+
+const ATTACHMENT_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
+  taskDocuments: 'مستندات المهمة',
+  handoverDocument: 'وثيقة التسليم',
+  fillersAndMissingList: 'قائمة الفيلر والمواد الناقصة',
+}
+
 const ATTACHMENT_FIELDS: (keyof TaskUpdateInput)[] = [
   'taskDocuments',
   'handoverDocument',
@@ -68,11 +102,13 @@ function UrlAttachmentField({
   attachments,
   fieldKey,
   onAdd,
+  ar = false,
 }: {
   label: string
   attachments: Attachment[]
   fieldKey: string
   onAdd: (fieldKey: string, att: { url: string; filename: string }) => void
+  ar?: boolean
 }) {
   const [urlInput, setUrlInput] = useState('')
   const [urlError, setUrlError] = useState('')
@@ -83,11 +119,10 @@ function UrlAttachmentField({
     try {
       new URL(trimmed)
     } catch {
-      setUrlError('Please enter a valid URL')
+      setUrlError(ar ? 'يرجى إدخال رابط صحيح' : 'Please enter a valid URL')
       return
     }
     setUrlError('')
-    // Derive a filename from the URL or use a generic label
     const parts = trimmed.split('/').filter(Boolean)
     const filename = decodeURIComponent(parts[parts.length - 1] || 'Link') || 'Link'
     onAdd(fieldKey, { url: trimmed, filename })
@@ -122,7 +157,7 @@ function UrlAttachmentField({
       <div className="flex gap-2">
         <input
           type="url"
-          placeholder="Paste file link (Google Drive, Dropbox, etc.)"
+          placeholder={ar ? 'الصق رابط الملف (Google Drive، Dropbox...)' : 'Paste file link (Google Drive, Dropbox, etc.)'}
           value={urlInput}
           onChange={(e) => { setUrlInput(e.target.value); setUrlError('') }}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
@@ -134,7 +169,7 @@ function UrlAttachmentField({
           disabled={!urlInput.trim()}
           className="text-xs text-brand-600 hover:text-brand-700 disabled:opacity-40 border border-dashed border-brand-300 rounded-md px-3 py-1.5 hover:bg-brand-50 transition-colors whitespace-nowrap"
         >
-          Add link
+          {ar ? 'إضافة رابط' : 'Add link'}
         </button>
       </div>
       {urlError && <p className="text-xs text-red-500">{urlError}</p>}
@@ -144,11 +179,16 @@ function UrlAttachmentField({
 
 export default function FieldEditor({
   taskId,
+  role,
   fields,
   onChange,
   onFileUploaded,
   existingAttachments,
 }: FieldEditorProps) {
+  const ar = role === 'installation' || role === 'fabrication'
+  const labels = ar ? { ...FIELD_LABELS, ...FIELD_LABELS_AR } : FIELD_LABELS
+  const attachmentLabelMap = ar ? { ...ATTACHMENT_LABELS, ...ATTACHMENT_LABELS_AR } : ATTACHMENT_LABELS
+
   const nonAttachmentFields = Object.keys(fields).filter(
     (k) => !ATTACHMENT_FIELDS.includes(k as keyof TaskUpdateInput),
   ) as (keyof TaskUpdateInput)[]
@@ -158,7 +198,7 @@ export default function FieldEditor({
   return (
     <div className="space-y-4">
       {nonAttachmentFields.map((key) => {
-        const label = FIELD_LABELS[key] ?? key
+        const label = labels[key] ?? key
         const value = fields[key]
         const options = SELECT_OPTIONS[key]
 
@@ -173,9 +213,9 @@ export default function FieldEditor({
                 onChange={(e) => onChange(key, e.target.value || undefined)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white"
               >
-                <option value="">— select —</option>
+                <option value="">{ar ? '— اختر —' : '— select —'}</option>
                 {options.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
+                  <option key={opt} value={opt}>{ar ? (OPTION_LABELS_AR[opt] ?? opt) : opt}</option>
                 ))}
               </select>
             </div>
@@ -185,7 +225,7 @@ export default function FieldEditor({
         if (key === 'managerComment') {
           return (
             <div key={key} className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{labels[key] ?? key}</label>
               <textarea
                 value={(value as string) ?? ''}
                 onChange={(e) => onChange(key, e.target.value)}
@@ -267,10 +307,11 @@ export default function FieldEditor({
       {attachmentFieldsPresent.map((key) => (
         <UrlAttachmentField
           key={key}
-          label={ATTACHMENT_LABELS[key] ?? String(key)}
+          label={attachmentLabelMap[key] ?? String(key)}
           attachments={existingAttachments[key as keyof typeof existingAttachments] ?? []}
           fieldKey={key}
           onAdd={onFileUploaded}
+          ar={ar}
         />
       ))}
     </div>

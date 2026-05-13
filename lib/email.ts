@@ -4,6 +4,52 @@ function getResend() {
   return new Resend(process.env.RESEND_API_KEY)
 }
 
+export async function notifyManager(task: {
+  taskName: string
+  projectId?: string
+  submittedBy?: string
+}): Promise<void> {
+  const to = process.env.MANAGER_EMAIL
+  if (!to) return
+  await getResend().emails.send({
+    from: 'WoodWings <notifications@woodwings.ae>',
+    to,
+    subject: `Task pending review — ${task.projectId ?? 'WoodWings'}`,
+    html: `
+      <h2>Task awaiting your approval</h2>
+      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+        <tr><td><strong>Task</strong></td><td>${task.taskName}</td></tr>
+        ${task.projectId ? `<tr><td><strong>Project</strong></td><td>${task.projectId}</td></tr>` : ''}
+        ${task.submittedBy ? `<tr><td><strong>Submitted by</strong></td><td>${task.submittedBy}</td></tr>` : ''}
+      </table>
+      <p>Log in to the WoodWings dashboard to approve or reject.</p>
+    `,
+  })
+}
+
+export async function notifyManagerEscalation(project: {
+  projectName: string
+  projectId: string
+  clientName: string
+}): Promise<void> {
+  const to = process.env.MANAGER_EMAIL
+  if (!to) return
+  await getResend().emails.send({
+    from: 'WoodWings <notifications@woodwings.ae>',
+    to,
+    subject: `3-call escalation — ${project.projectId} — Client not responding`,
+    html: `
+      <h2>Client not responding — 3 call attempts reached</h2>
+      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+        <tr><td><strong>Project</strong></td><td>${project.projectName} (${project.projectId})</td></tr>
+        <tr><td><strong>Client</strong></td><td>${project.clientName}</td></tr>
+      </table>
+      <p>The project has been automatically marked as <strong>Not-Approved</strong>.</p>
+      <p>Log in to the WoodWings dashboard to review and decide next steps.</p>
+    `,
+  })
+}
+
 export async function notifyAccountant(payment: {
   projectName: string
   projectId: string

@@ -1,5 +1,6 @@
 import {
   TASKS,
+  TASK_TEMPLATES,
   PROJECTS,
   PROJECT_ITEMS,
   PAYMENTS,
@@ -8,14 +9,21 @@ import {
   TEAM_MEMBERS,
   ANNOUNCEMENTS,
   MATERIALS_NEEDED,
+  HANDOVER_SHEETS,
+  QUOTATIONS,
+  ITEM_TYPES,
+  PURCHASE_ORDERS,
+  INSTALLATION_LOGS,
 } from './fieldMap'
 import {
   Role,
   Task,
+  TaskStatus,
   TaskUpdateInput,
   AttachmentInput,
   Attachment,
   Project,
+  ProjectCreateInput,
   Payment,
   PaymentCreateInput,
   GatePass,
@@ -24,6 +32,15 @@ import {
   Announcement,
   AnnouncementCreateInput,
   Material,
+  MaterialCreateInput,
+  HandoverSheet,
+  ItemType,
+  ProjectItem,
+  Quotation,
+  PurchaseOrder,
+  PurchaseOrderCreateInput,
+  InstallationLog,
+  InstallationLogCreateInput,
 } from './types'
 import { ROLE_TO_DEPARTMENT } from './permissions'
 import { validateEnv } from './env'
@@ -40,6 +57,14 @@ function airtableHeaders() {
     Authorization: `Bearer ${API_KEY}`,
     'Content-Type': 'application/json',
   }
+}
+
+function recUrl(tableId: string, id: string): string {
+  return `${BASE_URL}/${BASE_ID}/${tableId}/${id}?returnFieldsByFieldId=true`
+}
+
+function tblUrl(tableId: string): string {
+  return `${BASE_URL}/${BASE_ID}/${tableId}?returnFieldsByFieldId=true`
 }
 
 // ─── Rate limiting + retry ───────────────────────────────────────────────────
@@ -102,8 +127,8 @@ function buildUrl(
   }
   if (opts.maxRecords) parts.push(`maxRecords=${opts.maxRecords}`)
   if (opts.offset) parts.push(`offset=${encodeURIComponent(opts.offset)}`)
-  const qs = parts.length ? `?${parts.join('&')}` : ''
-  return `${BASE_URL}/${BASE_ID}/${tableId}${qs}`
+  parts.push('returnFieldsByFieldId=true')
+  return `${BASE_URL}/${BASE_ID}/${tableId}?${parts.join('&')}`
 }
 
 interface RawRecord {
@@ -208,6 +233,8 @@ function transformTask(record: RawRecord): Task {
     client: strArr(f[TASKS.CLIENT]),
     taskCreated: str(f[TASKS.TASK_CREATED]),
     assignedTo: strArr(f[TASKS.ASSIGNED_TO]),
+    callCount: num(f[TASKS.CALL_COUNT]),
+    pathCondition: str(f[TASKS.PATH_CONDITION]),
   }
 }
 
@@ -217,6 +244,7 @@ function transformProject(record: RawRecord): Project {
   return {
     id: record.id,
     projectName: str(f[PROJECTS.PROJECT_NAME]) ?? '',
+    nickname: str(f[PROJECTS.NICKNAME]),
     projectId: str(f[PROJECTS.PROJECT_ID]) ?? '',
     projectStage: str(f[PROJECTS.PROJECT_STAGE]) ?? '',
     clientName: str(f[PROJECTS.CLIENT_NAME]) ?? '',
@@ -237,6 +265,10 @@ function transformProject(record: RawRecord): Project {
     projectCreatedAt: str(f[PROJECTS.PROJECT_CREATED_AT]),
     clientPhone: str(f[PROJECTS.CLIENT_PHONE]),
     assignedInstallationTeam: strArr(f[PROJECTS.ASSIGNED_INSTALLATION_TEAM]),
+    emirate: str(f[PROJECTS.EMIRATE]),
+    location: str(f[PROJECTS.LOCATION]),
+    detailedLocation: str(f[PROJECTS.DETAILED_LOCATION]),
+    projectDescription: str(f[PROJECTS.PROJECT_DESCRIPTION]),
   }
 }
 
@@ -255,6 +287,10 @@ function transformPayment(record: RawRecord): Payment {
     dueDate: str(f[PAYMENTS.DUE_DATE]),
     accountantApproved: bool(f[PAYMENTS.ACCOUNTANT_APPROVED]),
     stageAtPayment: str(f[PAYMENTS.STAGE_AT_PAYMENT]),
+    payerType: str(f[PAYMENTS.PAYER_TYPE]),
+    payerName: str(f[PAYMENTS.PAYER_NAME]),
+    commissionAmount: num(f[PAYMENTS.COMMISSION_AMOUNT]),
+    notes: str(f[PAYMENTS.NOTES]),
   }
 }
 
@@ -315,6 +351,7 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   fillersAndMissingList: TASKS.FILLERS_MISSING_ITEMS_LIST,
   requiresManagerReviewManually: TASKS.REQUIRES_MANAGER_REVIEW_MANUALLY,
   priorityFlag: TASKS.PRIORITY_FLAG,
+  callCount: TASKS.CALL_COUNT,
 }
 
 function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unknown> {
@@ -347,7 +384,7 @@ export async function getTasksByRole(
 ): Promise<Task[]> {
   let formula = buildDepartmentFormula(role)
   if (options.projectId) {
-    formula = `AND(${formula}, FIND("${options.projectId}", ARRAYJOIN({${TASKS.PROJECT}}, ",")))`
+    formula = `AND(${formula}, FIND("${options.projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")))`
   }
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
@@ -364,7 +401,7 @@ export async function getTasksByRole(
 }
 
 export async function getTaskById(id: string): Promise<Task> {
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${TASKS.TABLE_ID}/${id}`, {
+  const res = await fetchWithRetry(recUrl(TASKS.TABLE_ID, id), {
     headers: airtableHeaders(),
     cache: 'no-store',
   })
@@ -381,7 +418,7 @@ export async function updateTask(
   fields: Partial<TaskUpdateInput>,
 ): Promise<Task> {
   const airtableFields = toAirtableFields(fields)
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${TASKS.TABLE_ID}/${id}`, {
+  const res = await fetchWithRetry(recUrl(TASKS.TABLE_ID, id), {
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields: airtableFields }),
@@ -398,7 +435,7 @@ export async function updateTaskRaw(
   id: string,
   airtableFields: Record<string, unknown>,
 ): Promise<Task> {
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${TASKS.TABLE_ID}/${id}`, {
+  const res = await fetchWithRetry(recUrl(TASKS.TABLE_ID, id), {
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields: airtableFields }),
@@ -415,18 +452,19 @@ export async function getLockedTasksForScope(
   projectId: string,
   itemId?: string,
 ): Promise<Task[]> {
-  let formula: string
-  if (itemId) {
-    formula = `AND(FIND("${itemId}", ARRAYJOIN({${TASKS.PROJECT_ITEM}}, ",")), {${TASKS.STATUS}}="Locked")`
-  } else {
-    formula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}, ",")), {${TASKS.STATUS}}="Locked", {${TASKS.PROJECT_ITEM}}=BLANK())`
-  }
+  // PROJECT_RECORD_ID is a lookup of the project's RECORD_ID() — filterable by record ID string
+  const projectFilter = `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ","))`
+  const formula = itemId
+    ? `AND(${projectFilter}, {${TASKS.STATUS}}="Locked")`
+    : `AND(${projectFilter}, {${TASKS.STATUS}}="Locked", {${TASKS.PROJECT_ITEM}}=BLANK())`
   const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })
-  return records.map(transformTask)
+  const tasks = records.map(transformTask)
+  // For item scope, post-filter in JS since project item linked field isn't filterable by record ID
+  return itemId ? tasks.filter((t) => t.projectItem?.[0] === itemId) : tasks
 }
 
 export async function getProjects(options: { stage?: string } = {}): Promise<Project[]> {
-  let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Warranty Done"))`
+  let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Archived"))`
   if (options.stage) {
     formula = `{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`
   }
@@ -445,7 +483,7 @@ export async function getAllProjects(): Promise<Project[]> {
 }
 
 export async function getProjectById(id: string): Promise<Project> {
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${PROJECTS.TABLE_ID}/${id}`, {
+  const res = await fetchWithRetry(recUrl(PROJECTS.TABLE_ID, id), {
     headers: airtableHeaders(),
     cache: 'no-store',
   })
@@ -461,8 +499,43 @@ export async function updateProject(
   id: string,
   fields: Record<string, unknown>,
 ): Promise<Project> {
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${PROJECTS.TABLE_ID}/${id}`, {
+  const res = await fetchWithRetry(recUrl(PROJECTS.TABLE_ID, id), {
     method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformProject(record)
+}
+
+export async function createProject(input: ProjectCreateInput): Promise<Project> {
+  const fields: Record<string, unknown> = {
+    [PROJECTS.PROJECT_NAME]: input.projectName,
+    [PROJECTS.NICKNAME]: input.nickname,
+    [PROJECTS.CLIENT_NAME]: input.clientName,
+    [PROJECTS.PROJECT_DESCRIPTION]: input.projectDescription,
+    [PROJECTS.DETAILED_LOCATION]: input.detailedLocation,
+    [PROJECTS.PAYMENT_MODE]: input.paymentMode,
+    [PROJECTS.REQUIRED_INTAKE_PATHS]: input.requiredIntakePaths,
+    [PROJECTS.PROJECT_STAGE]: 'Preparing',
+  }
+  if (input.clientPhone) fields[PROJECTS.CLIENT_PHONE] = input.clientPhone
+  if (input.emirate) fields[PROJECTS.EMIRATE] = input.emirate
+  if (input.location) fields[PROJECTS.LOCATION] = input.location
+  if (input.sedNotes) fields[PROJECTS.SED_NOTES] = input.sedNotes
+  if (input.salesOwnerCollaboratorId) {
+    fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
+  }
+  if (input.communSedIds?.length) {
+    fields[PROJECTS.COMMUN_SEDS] = input.communSedIds.map((id) => ({ id }))
+  }
+
+  const res = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
+    method: 'POST',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields }),
   })
@@ -492,8 +565,12 @@ export async function createPayment(input: PaymentCreateInput): Promise<Payment>
   if (input.receivedDate) fields[PAYMENTS.RECEIVED_DATE] = input.receivedDate
   if (input.dueDate) fields[PAYMENTS.DUE_DATE] = input.dueDate
   if (input.stageAtPayment) fields[PAYMENTS.STAGE_AT_PAYMENT] = input.stageAtPayment
+  if (input.payerType) fields[PAYMENTS.PAYER_TYPE] = input.payerType
+  if (input.payerName) fields[PAYMENTS.PAYER_NAME] = input.payerName
+  if (input.commissionAmount != null) fields[PAYMENTS.COMMISSION_AMOUNT] = input.commissionAmount
+  if (input.notes) fields[PAYMENTS.NOTES] = input.notes
 
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${PAYMENTS.TABLE_ID}`, {
+  const res = await fetchWithRetry(tblUrl(PAYMENTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields }),
@@ -521,7 +598,7 @@ export async function createGatePass(input: GatePassCreateInput): Promise<GatePa
   if (input.confirmedDeliveryDate) {
     fields[GATE_PASSES.CONFIRMED_DELIVERY_DATE] = input.confirmedDeliveryDate
   }
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${GATE_PASSES.TABLE_ID}`, {
+  const res = await fetchWithRetry(tblUrl(GATE_PASSES.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields }),
@@ -563,7 +640,7 @@ export async function attachFileToTask(
   const preservedExisting = existing.map((a) => ({ id: a.id }))
   const newAttachment: AttachmentInput = { url, filename }
 
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${TASKS.TABLE_ID}/${taskId}`, {
+  const res = await fetchWithRetry(recUrl(TASKS.TABLE_ID, taskId), {
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({
@@ -586,7 +663,7 @@ export async function getTasksForProject(
 }
 
 export async function getAllTasksForProject(projectId: string): Promise<Task[]> {
-  const formula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}, ",")), {${TASKS.STATUS}} != "Locked")`
+  const formula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), {${TASKS.STATUS}} != "Locked")`
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
     sort: [{ field: TASKS.TEMPLATE_ORDER, direction: 'asc' }],
@@ -597,11 +674,7 @@ export async function getAllTasksForProject(projectId: string): Promise<Task[]> 
 }
 
 export async function getIncompleteTasksForProject(projectId: string): Promise<Task[]> {
-  const formula = `AND(
-    FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}, ",")),
-    {${TASKS.STATUS}} != "Completed",
-    {${TASKS.STATUS}} != "Locked"
-  )`
+  const formula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), {${TASKS.STATUS}} != "Completed", {${TASKS.STATUS}} != "Locked")`
   const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })
   return records.map(transformTask)
 }
@@ -629,7 +702,7 @@ export async function createTeamMember(data: {
   email: string
   role: string
 }): Promise<string> {
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${TEAM_MEMBERS.TABLE_ID}`, {
+  const res = await fetchWithRetry(tblUrl(TEAM_MEMBERS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
     body: JSON.stringify({
@@ -775,7 +848,7 @@ export async function updateTeamMember(
 
   if (Object.keys(fields).length === 0) return
 
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${TEAM_MEMBERS.TABLE_ID}/${recordId}`, {
+  const res = await fetchWithRetry(recUrl(TEAM_MEMBERS.TABLE_ID, recordId), {
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields }),
@@ -841,12 +914,27 @@ function transformAnnouncement(record: RawRecord): Announcement {
   }
 }
 
+const ROLE_TO_AUDIENCE: Record<string, string> = {
+  installation: 'Installation',
+  sed: 'SED',
+  fabrication: 'Fabrication',
+  manager: 'Management',
+}
+
 export async function getAnnouncements(role?: string): Promise<Announcement[]> {
   const today = new Date().toISOString().slice(0, 10)
   const expiryFilter = `OR({${ANNOUNCEMENTS.EXPIRES_AT}}="", IS_AFTER({${ANNOUNCEMENTS.EXPIRES_AT}}, "${today}"), {${ANNOUNCEMENTS.EXPIRES_AT}}=BLANK())`
-  const visibilityFilter = role
-    ? `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="All", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK(), {${ANNOUNCEMENTS.VISIBLE_TO}}="")`
-    : `{${ANNOUNCEMENTS.VISIBLE_TO}}="All"`
+
+  let visibilityFilter: string
+  if (!role || role === 'superadmin') {
+    visibilityFilter = `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="All", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK(), {${ANNOUNCEMENTS.VISIBLE_TO}}="")`
+  } else {
+    const audience = ROLE_TO_AUDIENCE[role]
+    visibilityFilter = audience
+      ? `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="All", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK(), {${ANNOUNCEMENTS.VISIBLE_TO}}="", {${ANNOUNCEMENTS.VISIBLE_TO}}="${audience}")`
+      : `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="All", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK(), {${ANNOUNCEMENTS.VISIBLE_TO}}="")`
+  }
+
   const formula = `AND(${expiryFilter}, ${visibilityFilter})`
   const records = await fetchAll(ANNOUNCEMENTS.TABLE_ID, {
     filterByFormula: formula,
@@ -862,7 +950,7 @@ export async function createAnnouncement(input: AnnouncementCreateInput): Promis
   if (input.visibleTo) fields[ANNOUNCEMENTS.VISIBLE_TO] = input.visibleTo
   if (input.expiresAt) fields[ANNOUNCEMENTS.EXPIRES_AT] = input.expiresAt
 
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${ANNOUNCEMENTS.TABLE_ID}`, {
+  const res = await fetchWithRetry(tblUrl(ANNOUNCEMENTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields }),
@@ -886,7 +974,7 @@ export async function updateAnnouncement(
   if (data.visibleTo !== undefined) fields[ANNOUNCEMENTS.VISIBLE_TO] = data.visibleTo
   if (data.expiresAt !== undefined) fields[ANNOUNCEMENTS.EXPIRES_AT] = data.expiresAt
 
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${ANNOUNCEMENTS.TABLE_ID}/${id}`, {
+  const res = await fetchWithRetry(recUrl(ANNOUNCEMENTS.TABLE_ID, id), {
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields }),
@@ -939,7 +1027,7 @@ export async function updateMaterialOrderStatus(
   id: string,
   orderStatus: string,
 ): Promise<Material> {
-  const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${MATERIALS_NEEDED.TABLE_ID}/${id}`, {
+  const res = await fetchWithRetry(recUrl(MATERIALS_NEEDED.TABLE_ID, id), {
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields: { [MATERIALS_NEEDED.ORDER_STATUS]: orderStatus } }),
@@ -952,19 +1040,189 @@ export async function updateMaterialOrderStatus(
   return transformMaterial(record)
 }
 
+export async function createMaterials(
+  projectId: string,
+  items: MaterialCreateInput[],
+): Promise<Material[]> {
+  const created: Material[] = []
+  for (let i = 0; i < items.length; i += 10) {
+    const chunk = items.slice(i, i + 10)
+    const res = await fetchWithRetry(tblUrl(MATERIALS_NEEDED.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({
+        records: chunk.map((item) => {
+          const fields: Record<string, unknown> = {
+            [MATERIALS_NEEDED.NAME]: item.name,
+            [MATERIALS_NEEDED.PROJECTS]: [projectId],
+          }
+          if (item.supplier) fields[MATERIALS_NEEDED.SUPPLIER] = item.supplier
+          if (item.quantity != null) fields[MATERIALS_NEEDED.QUANTITY] = item.quantity
+          if (item.unit) fields[MATERIALS_NEEDED.UNIT] = item.unit
+          if (item.unitCost != null) fields[MATERIALS_NEEDED.UNIT_COST] = item.unitCost
+          if (item.expectedArrivalDate) fields[MATERIALS_NEEDED.EXPECTED_ARRIVAL_DATE] = item.expectedArrivalDate
+          if (item.notes) fields[MATERIALS_NEEDED.NOTES] = item.notes
+          return { fields }
+        }),
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error ${res.status}: ${body}`)
+    }
+    const data = (await res.json()) as { records: RawRecord[] }
+    created.push(...data.records.map(transformMaterial))
+  }
+  return created
+}
+
+// ─── Handover Sheets ──────────────────────────────────────────────────────────
+
+function transformHandoverSheet(record: RawRecord): HandoverSheet {
+  const f = record.fields
+  return {
+    id: record.id,
+    handoverId: str(f[HANDOVER_SHEETS.HANDOVER_ID]),
+    project: strArr(f[HANDOVER_SHEETS.PROJECT]) ?? [],
+    status: str(f[HANDOVER_SHEETS.STATUS]) ?? 'Pending',
+    notes: str(f[HANDOVER_SHEETS.NOTES]),
+  }
+}
+
+export async function createHandoverSheet(
+  projectId: string,
+  notes?: string,
+): Promise<HandoverSheet> {
+  const fields: Record<string, unknown> = {
+    [HANDOVER_SHEETS.PROJECT]: [projectId],
+    [HANDOVER_SHEETS.STATUS]: 'Generated',
+  }
+  if (notes) fields[HANDOVER_SHEETS.NOTES] = notes
+  const res = await fetchWithRetry(tblUrl(HANDOVER_SHEETS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ records: [{ fields }] }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const data = (await res.json()) as { records: RawRecord[] }
+  return transformHandoverSheet(data.records[0])
+}
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+
+function transformPurchaseOrder(record: RawRecord): PurchaseOrder {
+  const f = record.fields
+  return {
+    id: record.id,
+    name: str(f[PURCHASE_ORDERS.NAME]) ?? '',
+    project: strArr(f[PURCHASE_ORDERS.PROJECT]),
+    supplier: str(f[PURCHASE_ORDERS.SUPPLIER]),
+    totalAmount: num(f[PURCHASE_ORDERS.TOTAL_AMOUNT]),
+    poStatus: str(f[PURCHASE_ORDERS.PO_STATUS]),
+    orderDate: str(f[PURCHASE_ORDERS.ORDER_DATE]),
+    expectedDelivery: str(f[PURCHASE_ORDERS.EXPECTED_DELIVERY]),
+    actualDelivery: str(f[PURCHASE_ORDERS.ACTUAL_DELIVERY]),
+    managerApproved: bool(f[PURCHASE_ORDERS.MANAGER_APPROVED]),
+    notes: str(f[PURCHASE_ORDERS.NOTES]),
+  }
+}
+
+export async function getPurchaseOrdersByProject(projectId: string): Promise<PurchaseOrder[]> {
+  const formula = `FIND("${projectId}", ARRAYJOIN({${PURCHASE_ORDERS.PROJECT}}, ","))`
+  const records = await fetchAll(PURCHASE_ORDERS.TABLE_ID, {
+    filterByFormula: formula,
+    sort: [{ field: PURCHASE_ORDERS.ORDER_DATE, direction: 'desc' }],
+  })
+  return records.map(transformPurchaseOrder)
+}
+
+export async function createPurchaseOrder(input: PurchaseOrderCreateInput): Promise<PurchaseOrder> {
+  const fields: Record<string, unknown> = {
+    [PURCHASE_ORDERS.PROJECT]: input.project,
+    [PURCHASE_ORDERS.SUPPLIER]: input.supplier,
+    [PURCHASE_ORDERS.PO_STATUS]: 'Draft',
+  }
+  if (input.totalAmount != null) fields[PURCHASE_ORDERS.TOTAL_AMOUNT] = input.totalAmount
+  if (input.orderDate) fields[PURCHASE_ORDERS.ORDER_DATE] = input.orderDate
+  if (input.expectedDelivery) fields[PURCHASE_ORDERS.EXPECTED_DELIVERY] = input.expectedDelivery
+  if (input.notes) fields[PURCHASE_ORDERS.NOTES] = input.notes
+  const res = await fetchWithRetry(tblUrl(PURCHASE_ORDERS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformPurchaseOrder(record)
+}
+
+// ─── Installation Logs ────────────────────────────────────────────────────────
+
+function transformInstallationLog(record: RawRecord): InstallationLog {
+  const f = record.fields
+  return {
+    id: record.id,
+    name: str(f[INSTALLATION_LOGS.NAME]) ?? '',
+    project: strArr(f[INSTALLATION_LOGS.PROJECT]),
+    date: str(f[INSTALLATION_LOGS.DATE]) ?? '',
+    installationTeam: str(f[INSTALLATION_LOGS.INSTALLATION_TEAM]),
+    numberOfLaborers: num(f[INSTALLATION_LOGS.NUMBER_OF_LABORERS]),
+    workDescription: str(f[INSTALLATION_LOGS.WORK_DESCRIPTION]),
+    expectedFinishDate: str(f[INSTALLATION_LOGS.EXPECTED_FINISH_DATE]),
+  }
+}
+
+export async function getInstallationLogsByProject(projectId: string): Promise<InstallationLog[]> {
+  const formula = `FIND("${projectId}", ARRAYJOIN({${INSTALLATION_LOGS.PROJECT}}, ","))`
+  const records = await fetchAll(INSTALLATION_LOGS.TABLE_ID, {
+    filterByFormula: formula,
+    sort: [{ field: INSTALLATION_LOGS.DATE, direction: 'desc' }],
+  })
+  return records.map(transformInstallationLog)
+}
+
+export async function createInstallationLog(input: InstallationLogCreateInput): Promise<InstallationLog> {
+  const fields: Record<string, unknown> = {
+    [INSTALLATION_LOGS.PROJECT]: input.project,
+    [INSTALLATION_LOGS.DATE]: input.date,
+  }
+  if (input.installationTeam) fields[INSTALLATION_LOGS.INSTALLATION_TEAM] = input.installationTeam
+  if (input.numberOfLaborers != null) fields[INSTALLATION_LOGS.NUMBER_OF_LABORERS] = input.numberOfLaborers
+  if (input.workDescription) fields[INSTALLATION_LOGS.WORK_DESCRIPTION] = input.workDescription
+  if (input.expectedFinishDate) fields[INSTALLATION_LOGS.EXPECTED_FINISH_DATE] = input.expectedFinishDate
+  const res = await fetchWithRetry(tblUrl(INSTALLATION_LOGS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformInstallationLog(record)
+}
+
 // ─── Calendar data ───────────────────────────────────────────────────────────
 
 export interface CalendarEvent {
   id: string
   title: string
   date: string
-  type: 'installation' | 'delivery' | 'activity'
+  type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received'
   projectId?: string
   projectName?: string
+  amount?: number
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
-  const [gatePasses, tasks] = await Promise.all([
+  const [gatePasses, tasks, payments] = await Promise.all([
     fetchAll(GATE_PASSES.TABLE_ID, {
       filterByFormula: `NOT({${GATE_PASSES.ESTIMATED_SUPPLY_DATE}}=BLANK())`,
       fields: [GATE_PASSES.NAME, GATE_PASSES.ESTIMATED_SUPPLY_DATE, GATE_PASSES.CONFIRMED_DELIVERY_DATE, GATE_PASSES.PROJECT],
@@ -974,6 +1232,10 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       filterByFormula: `AND(NOT({${TASKS.TASK_START_DATE}}=BLANK()), OR({${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="To Do"))`,
       fields: [TASKS.TASK_NAME, TASKS.TASK_START_DATE, TASKS.COMPLETION_DATE, TASKS.DEPARTMENT, TASKS.PROJECT_ID],
       sort: [{ field: TASKS.TASK_START_DATE, direction: 'asc' }],
+    }),
+    fetchAll(PAYMENTS.TABLE_ID, {
+      filterByFormula: `OR(NOT({${PAYMENTS.DUE_DATE}}=BLANK()), NOT({${PAYMENTS.RECEIVED_DATE}}=BLANK()))`,
+      fields: [PAYMENTS.NAME, PAYMENTS.AMOUNT, PAYMENTS.PAYMENT_TYPE, PAYMENTS.DUE_DATE, PAYMENTS.RECEIVED_DATE, PAYMENTS.PROJECT],
     }),
   ])
 
@@ -1007,5 +1269,261 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     })
   }
 
+  for (const r of payments) {
+    const f = r.fields
+    const name = str(f[PAYMENTS.NAME]) ?? str(f[PAYMENTS.PAYMENT_TYPE]) ?? 'Payment'
+    const amount = num(f[PAYMENTS.AMOUNT])
+    const receivedDate = str(f[PAYMENTS.RECEIVED_DATE])
+    const dueDate = str(f[PAYMENTS.DUE_DATE])
+    if (receivedDate) {
+      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', amount })
+    }
+    if (dueDate && dueDate !== receivedDate) {
+      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', amount })
+    }
+  }
+
   return events
+}
+
+// ─── Task Generation (A2) ─────────────────────────────────────────────────────
+
+export interface TaskTemplate {
+  id: string
+  taskName: string
+  templateOrder: number | null
+  department: string[]
+  requiresManagerReview: boolean
+  projectStage: string | null
+  pathCondition: string | null
+  instructions: string | null
+  arabicInstructions: string | null
+}
+
+export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> {
+  const opts: Parameters<typeof buildUrl>[1] = {
+    sort: [{ field: TASK_TEMPLATES.TEMPLATE_ORDER, direction: 'asc' }],
+  }
+  if (stage) {
+    opts.filterByFormula = `{${TASK_TEMPLATES.PROJECT_STAGE}} = "${stage}"`
+  }
+  const records = await fetchAll(TASK_TEMPLATES.TABLE_ID, opts)
+  return records
+    .map((r) => {
+      const f = r.fields
+      const rawDept = f[TASK_TEMPLATES.DEPARTMENT]
+      const dept = Array.isArray(rawDept)
+        ? (rawDept as { name: string }[]).map((d) => d.name)
+        : []
+      const rawStage = f[TASK_TEMPLATES.PROJECT_STAGE] as { name: string } | null | undefined
+      const rawPath = f[TASK_TEMPLATES.PATH_CONDITION] as { name: string } | null | undefined
+      return {
+        id: r.id,
+        taskName: (f[TASK_TEMPLATES.TASK_NAME] as string) ?? '',
+        templateOrder: f[TASK_TEMPLATES.TEMPLATE_ORDER] != null
+          ? (f[TASK_TEMPLATES.TEMPLATE_ORDER] as number)
+          : null,
+        department: dept,
+        requiresManagerReview: (f[TASK_TEMPLATES.REQUIRES_MANAGER_REVIEW] as boolean) ?? false,
+        projectStage: rawStage?.name ?? null,
+        pathCondition: rawPath?.name ?? null,
+        instructions: (f[TASK_TEMPLATES.INSTRUCTIONS] as string) ?? null,
+        arabicInstructions: (f[TASK_TEMPLATES.ARABIC_INSTRUCTIONS] as string) ?? null,
+      }
+    })
+    .filter((t) => t.taskName !== '')
+}
+
+async function createTasksBatch(
+  records: Array<Record<string, unknown>>,
+): Promise<string[]> {
+  const ids: string[] = []
+  for (let i = 0; i < records.length; i += 10) {
+    const chunk = records.slice(i, i + 10)
+    const res = await fetchWithRetry(tblUrl(TASKS.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ records: chunk.map((fields) => ({ fields })) }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error ${res.status}: ${body}`)
+    }
+    const data = (await res.json()) as { records: RawRecord[] }
+    ids.push(...data.records.map((r) => r.id))
+  }
+  return ids
+}
+
+export async function getTaskCountForProject(projectId: string): Promise<number> {
+  const formula = `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ","))`
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [TASKS.STATUS],
+  })
+  return records.length
+}
+
+export async function generateTasksForProject(
+  projectId: string,
+  stage: string,
+): Promise<{ created: number; skipped: number }> {
+  const allTemplates = await getTaskTemplates(stage)
+  if (allTemplates.length === 0) return { created: 0, skipped: 0 }
+
+  const ordered = allTemplates.filter((t) => t.templateOrder !== null)
+  const universalOrdered = ordered.filter((t) => t.pathCondition === null)
+  const pathGroups = new Map<string, typeof ordered>()
+  for (const t of ordered) {
+    if (t.pathCondition !== null) {
+      const g = pathGroups.get(t.pathCondition) ?? []
+      g.push(t)
+      pathGroups.set(t.pathCondition, g)
+    }
+  }
+
+  const minUniversal =
+    universalOrdered.length > 0
+      ? Math.min(...universalOrdered.map((t) => t.templateOrder!))
+      : Infinity
+
+  const pathMinMap = new Map<string, number>()
+  Array.from(pathGroups.entries()).forEach(([path, group]) => {
+    pathMinMap.set(path, Math.min(...group.map((t) => t.templateOrder!)))
+  })
+
+  const records = allTemplates.map((t) => {
+    let status: TaskStatus
+    if (t.templateOrder === null) {
+      status = 'To Do'
+    } else if (t.pathCondition === null) {
+      status = t.templateOrder === minUniversal ? 'To Do' : 'Locked'
+    } else {
+      status = t.templateOrder === pathMinMap.get(t.pathCondition)! ? 'To Do' : 'Locked'
+    }
+    const record: Record<string, unknown> = {
+      [TASKS.TASK_NAME]: t.taskName,
+      [TASKS.PROJECT]: [projectId],
+      [TASKS.STATUS]: status,
+      [TASKS.TASK_TEMPLATES_LINK]: [t.id],
+    }
+    if (t.pathCondition !== null) {
+      record[TASKS.PATH_CONDITION] = t.pathCondition
+    }
+    return record
+  })
+
+  const ids = await createTasksBatch(records)
+  return { created: ids.length, skipped: allTemplates.length - ids.length }
+}
+
+// ─── Item Types ───────────────────────────────────────────────────────────────
+
+export async function getItemTypes(): Promise<ItemType[]> {
+  const records = await fetchAll(ITEM_TYPES.TABLE_ID, {
+    filterByFormula: `{${ITEM_TYPES.ACTIVE}}=1`,
+    sort: [{ field: ITEM_TYPES.ITEM_TYPE_NAME, direction: 'asc' }],
+    fields: [ITEM_TYPES.ITEM_TYPE_NAME, ITEM_TYPES.ACTIVE],
+  })
+  return records.map((r) => ({
+    id: r.id,
+    name: str(r.fields[ITEM_TYPES.ITEM_TYPE_NAME]) ?? '',
+  }))
+}
+
+// ─── Project Items ────────────────────────────────────────────────────────────
+
+function transformProjectItem(record: RawRecord): ProjectItem {
+  const f = record.fields
+  return {
+    id: record.id,
+    itemName: str(f[PROJECT_ITEMS.ITEM_NAME]) ?? '',
+    itemId: str(f[PROJECT_ITEMS.ITEM_ID]) ?? '',
+    project: strArr(f[PROJECT_ITEMS.PROJECT]),
+    status: str(f[PROJECT_ITEMS.STATUS]),
+    quantity: num(f[PROJECT_ITEMS.QUANTITY]),
+    itemCreatedAt: str(f[PROJECT_ITEMS.ITEM_CREATED_AT]),
+  }
+}
+
+export async function createProjectItem(input: {
+  projectId: string
+  itemTypeId: string
+  itemTypeName: string
+  quantity: number
+}): Promise<ProjectItem> {
+  const fields: Record<string, unknown> = {
+    [PROJECT_ITEMS.ITEM_NAME]: input.itemTypeName,
+    [PROJECT_ITEMS.PROJECT]: [input.projectId],
+    [PROJECT_ITEMS.ITEM_TYPE]: [input.itemTypeId],
+    [PROJECT_ITEMS.QUANTITY]: input.quantity,
+  }
+  const res = await fetchWithRetry(tblUrl(PROJECT_ITEMS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformProjectItem(record)
+}
+
+// ─── Quotations ───────────────────────────────────────────────────────────────
+
+function transformQuotation(record: RawRecord): Quotation {
+  const f = record.fields
+  return {
+    id: record.id,
+    name: str(f[QUOTATIONS.NAME]) ?? '',
+    project: strArr(f[QUOTATIONS.PROJECT]),
+    projectItem: strArr(f[QUOTATIONS.PROJECT_ITEM]),
+    description: str(f[QUOTATIONS.DESCRIPTION]),
+    quantity: num(f[QUOTATIONS.QUANTITY]),
+    unitPrice: num(f[QUOTATIONS.UNIT_PRICE]),
+    quotationStatus: str(f[QUOTATIONS.QUOTATION_STATUS]),
+    notes: str(f[QUOTATIONS.NOTES]),
+    sentDate: str(f[QUOTATIONS.SENT_DATE]),
+    approvedDate: str(f[QUOTATIONS.APPROVED_DATE]),
+  }
+}
+
+export async function createQuotation(input: {
+  projectId: string
+  projectItemId: string
+  itemTypeName: string
+  quantity: number
+  unitPrice: number
+  description?: string
+  notes?: string
+}): Promise<Quotation> {
+  const fields: Record<string, unknown> = {
+    [QUOTATIONS.NAME]: input.itemTypeName,
+    [QUOTATIONS.PROJECT]: [input.projectId],
+    [QUOTATIONS.PROJECT_ITEM]: [input.projectItemId],
+    [QUOTATIONS.QUANTITY]: input.quantity,
+    [QUOTATIONS.UNIT_PRICE]: input.unitPrice,
+  }
+  if (input.description) fields[QUOTATIONS.DESCRIPTION] = input.description
+  if (input.notes) fields[QUOTATIONS.NOTES] = input.notes
+
+  const res = await fetchWithRetry(tblUrl(QUOTATIONS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformQuotation(record)
+}
+
+export async function getQuotationsByProject(projectId: string): Promise<Quotation[]> {
+  const formula = `FIND("${projectId}", ARRAYJOIN({${QUOTATIONS.PROJECT}}, ","))`
+  const records = await fetchAll(QUOTATIONS.TABLE_ID, { filterByFormula: formula })
+  return records.map(transformQuotation)
 }

@@ -45,6 +45,7 @@ export const UpdateTaskSchema = z.object({
   fillersDone: z.boolean().optional(),
   priorityFlag: z.boolean().optional(),
   requiresManagerReviewManually: z.boolean().optional(),
+  callCount: z.number().int().min(0).max(10).optional(),
   taskDocuments: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),
   handoverDocument: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),
   fillersAndMissingList: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),
@@ -60,6 +61,10 @@ export const CreatePaymentSchema = z.object({
   receivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   stageAtPayment: z.string().max(100).optional(),
+  payerType: z.enum(['Broker', 'Contractor', 'End User', 'Designer']).optional(),
+  payerName: z.string().max(200).optional(),
+  commissionAmount: z.number().min(0).max(10_000_000).optional(),
+  notes: z.string().max(2000).optional(),
 })
 
 export const CreateAnnouncementSchema = z.object({
@@ -78,4 +83,82 @@ export const AssignInstallationSchema = z.object({
 
 export const MaterialDecisionSchema = z.object({
   orderStatus: z.enum(['Approved', 'Rejected', 'Needs Revision', 'Pending']),
+})
+
+export const CreateQuotationItemsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        itemTypeId: z.string().min(1),
+        itemTypeName: z.string().min(1).max(200),
+        quantity: z.number().int().min(1).max(9999),
+        unitPrice: z.number().min(0).max(10_000_000),
+        description: z.string().max(2000).optional(),
+        notes: z.string().max(2000).optional(),
+      }),
+    )
+    .min(1, 'At least one item is required')
+    .max(50),
+})
+
+export const CreateMaterialsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(300).transform((v) => v.trim()),
+        supplier: z.string().max(200).optional(),
+        quantity: z.number().positive().max(100_000).optional(),
+        unit: z.enum(['m²', 'm', 'pcs', 'kg', 'set', 'box', 'roll']).optional(),
+        unitCost: z.number().min(0).max(10_000_000).optional(),
+        expectedArrivalDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        notes: z.string().max(2000).optional(),
+      }),
+    )
+    .min(1, 'At least one item is required')
+    .max(50),
+})
+
+export const CreateHandoverSchema = z.object({
+  notes: z.string().max(2000).optional(),
+})
+
+export const CreatePurchaseOrderSchema = z.object({
+  project: z.array(z.string().min(1)).min(1),
+  supplier: z.string().min(1).max(200).transform((v) => v.trim()),
+  totalAmount: z.number().min(0).max(100_000_000).optional(),
+  orderDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  expectedDelivery: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  notes: z.string().max(2000).optional(),
+})
+
+export const CreateInstallationLogSchema = z.object({
+  project: z.array(z.string().min(1)).min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  installationTeam: z.enum(['Engr. Abdulkarim', 'Mr. Al Mahdi', 'Mr. Yahia']).optional(),
+  numberOfLaborers: z.number().int().min(1).max(100).optional(),
+  workDescription: z.string().max(5000).optional(),
+  expectedFinishDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+})
+
+export const CreateProjectSchema = z.object({
+  projectName: z.string().min(1).max(200).transform((v) => v.trim()),
+  nickname: z.string().min(1).max(100).transform((v) => v.trim()),
+  clientName: z.string().min(1).max(200).transform((v) => v.trim()),
+  projectDescription: z.string().min(1).max(5000),
+  detailedLocation: z.string().min(1).max(1000),
+  paymentMode: z.enum(['Standard', 'Progressive']),
+  requiredIntakePaths: z.enum([
+    'Make Quotation',
+    'Visit Site to Gather Details',
+    'Assign Installation for Measurement',
+    'Select Material / Order Samples',
+    'Draft Proposal or Photo Ideas',
+    'Client Clarifications & Sketches',
+  ]),
+  clientPhone: z.string().max(30).optional(),
+  emirate: z.string().max(100).optional(),
+  location: z.string().max(200).optional(),
+  sedNotes: z.string().max(5000).optional(),
+  salesOwnerCollaboratorId: z.string().optional(),
+  communSedIds: z.array(z.string().min(1)).max(10).optional(),
 })

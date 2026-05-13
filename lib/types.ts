@@ -69,6 +69,8 @@ export interface Task {
   projectItemName?: string
   assignedTo?: string[]
   assigneeName?: string
+  callCount?: number
+  pathCondition?: string
 }
 
 export interface TaskUpdateInput {
@@ -98,11 +100,13 @@ export interface TaskUpdateInput {
   fillersAndMissingList?: AttachmentInput[]
   requiresManagerReviewManually?: boolean
   priorityFlag?: boolean
+  callCount?: number
 }
 
 export interface Project {
   id: string
   projectName: string
+  nickname?: string
   projectId: string
   projectStage: string
   clientName: string
@@ -123,6 +127,26 @@ export interface Project {
   projectCreatedAt?: string
   clientPhone?: string
   assignedInstallationTeam?: string[]
+  emirate?: string
+  location?: string
+  detailedLocation?: string
+  projectDescription?: string
+}
+
+export interface ProjectCreateInput {
+  projectName: string
+  clientName: string
+  nickname: string
+  projectDescription: string
+  detailedLocation: string
+  paymentMode: string
+  requiredIntakePaths: string
+  clientPhone?: string
+  emirate?: string
+  location?: string
+  sedNotes?: string
+  salesOwnerCollaboratorId?: string
+  communSedIds?: string[]
 }
 
 export interface ProjectWithDetails extends Project {
@@ -144,6 +168,10 @@ export interface Payment {
   dueDate?: string
   accountantApproved?: boolean
   stageAtPayment?: string
+  payerType?: string
+  payerName?: string
+  commissionAmount?: number
+  notes?: string
 }
 
 export interface PaymentCreateInput {
@@ -156,6 +184,10 @@ export interface PaymentCreateInput {
   receivedDate?: string
   dueDate?: string
   stageAtPayment?: string
+  payerType?: string
+  payerName?: string
+  commissionAmount?: number
+  notes?: string
 }
 
 export interface GatePass {
@@ -215,6 +247,105 @@ export interface Material {
   orderStatus?: string
   expectedArrivalDate?: string
   actualArrivalDate?: string
+  notes?: string
+}
+
+export interface MaterialCreateInput {
+  name: string
+  supplier?: string
+  quantity?: number
+  unit?: string
+  unitCost?: number
+  expectedArrivalDate?: string
+  notes?: string
+}
+
+export interface PurchaseOrder {
+  id: string
+  name: string
+  project: string[]
+  supplier?: string
+  totalAmount?: number
+  poStatus?: string
+  orderDate?: string
+  expectedDelivery?: string
+  actualDelivery?: string
+  managerApproved?: boolean
+  notes?: string
+}
+
+export interface PurchaseOrderCreateInput {
+  project: string[]
+  supplier: string
+  totalAmount?: number
+  orderDate?: string
+  expectedDelivery?: string
+  notes?: string
+}
+
+export interface InstallationLog {
+  id: string
+  name: string
+  project: string[]
+  date: string
+  installationTeam?: string
+  numberOfLaborers?: number
+  workDescription?: string
+  expectedFinishDate?: string
+}
+
+export interface InstallationLogCreateInput {
+  project: string[]
+  date: string
+  installationTeam?: string
+  numberOfLaborers?: number
+  workDescription?: string
+  expectedFinishDate?: string
+}
+
+export interface HandoverSheet {
+  id: string
+  handoverId?: string
+  project: string[]
+  status: string
+  notes?: string
+}
+
+export interface ItemType {
+  id: string
+  name: string
+}
+
+export interface ProjectItem {
+  id: string
+  itemName: string
+  itemId: string
+  project: string[]
+  status?: string
+  quantity?: number
+  itemCreatedAt?: string
+}
+
+export interface Quotation {
+  id: string
+  name: string
+  project: string[]
+  projectItem: string[]
+  description?: string
+  quantity?: number
+  unitPrice?: number
+  quotationStatus?: string
+  notes?: string
+  sentDate?: string
+  approvedDate?: string
+}
+
+export interface QuotationItemInput {
+  itemTypeId: string
+  itemTypeName: string
+  quantity: number
+  unitPrice: number
+  description?: string
   notes?: string
 }
 

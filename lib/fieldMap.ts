@@ -1,3 +1,15 @@
+export const TASK_TEMPLATES = {
+  TABLE_ID: 'tblfJFDNd2dcY1rUk',
+  TASK_NAME: 'fldhUOs66e7p0IRhR',
+  DEPARTMENT: 'fldpMqqDluxlVU7Qz',
+  TEMPLATE_ORDER: 'fldQVmI7bzlIIllZQ',
+  PROJECT_STAGE: 'fld7qqK3fUM8gjt6Z',
+  PATH_CONDITION: 'fldBEIquy9HDAprY7',
+  REQUIRES_MANAGER_REVIEW: 'fldypvKqW3vyNsrY4',
+  INSTRUCTIONS: 'fldsfoFM1RtZyT5wX',
+  ARABIC_INSTRUCTIONS: 'fldT16R9UBY0UybHk',
+} as const
+
 export const TASKS = {
   TABLE_ID: 'tblOGEvAGcieHMPeX',
   TASK_NAME: 'fld6CUY7CqGjKS4v6',
@@ -41,6 +53,10 @@ export const TASKS = {
   TASK_CREATED: 'fldHsDqsdVz90uAWc',
   TEMPLATE_ORDER: 'fldXxw74bcJFueDDX',
   PRIORITY_FLAG: 'fld5rZ88NiEmAeB4f',
+  PROJECT_RECORD_ID: 'fldKSFnS37UeQmzNQ',
+  TASK_TEMPLATES_LINK: 'fld5FPm767CTRLC1R',
+  CALL_COUNT: 'fldEw1v5H3SyekCoZ',
+  PATH_CONDITION: 'fldG5Mvt5DzharM3i',
 } as const
 
 export const PROJECTS = {
@@ -67,6 +83,12 @@ export const PROJECTS = {
   COMMUN_SEDS: 'fldEs8LgBmhAC4XyQ',
   CLIENT_PHONE: 'flduN1gfUdUaTN3Af',
   ASSIGNED_INSTALLATION_TEAM: 'fldXdHwEqZLdgBgy4',
+  NICKNAME: 'fldChERvQwVlxO1nR',
+  EMIRATE: 'fldIrxYRfumFm6JjU',
+  LOCATION: 'fld5iIjUh9z7jaJFW',
+  DETAILED_LOCATION: 'fldoRWDUaeNKEtrbi',
+  PROJECT_DESCRIPTION: 'fldhpCCy7ZIrh7pax',
+  REQUIRED_INTAKE_PATHS: 'fld5jHSFxBU9euELy',
 } as const
 
 export const PROJECT_ITEMS = {
@@ -79,11 +101,36 @@ export const PROJECT_ITEMS = {
   TASKS: 'fldDXnVjg1yq7Ed90',
   SED_OWNER: 'fldrM4XWKMwkWaDgD',
   ITEM_CREATED_AT: 'fldPVnEc8tCvwEZIB',
+  ITEM_TYPE: 'fldYEzJXbvQEU9i4Z',
+  QUANTITY: 'fldkzvi3cCcKzwjFc',
+  QUOTATIONS_LINK: 'fldxjXZbDvK39rqJU',
+} as const
+
+export const QUOTATIONS = {
+  TABLE_ID: 'tbllITZymuWCZ9tde',
+  NAME: 'fldgHsELpxTIo2vnC',
+  NOTES: 'fldTAsLNGg6OBSXYw',
+  PROJECT: 'fldOQ2Ly0sPsqBcje',
+  PROJECT_ITEM: 'fld1PRUM7wpcrJXVS',
+  DESCRIPTION: 'fldjyDMxYA33ML3K0',
+  QUANTITY: 'fldZj6k5Gc23tpVaI',
+  UNIT_PRICE: 'fldz9RIVU1xQZgUwT',
+  QUOTATION_STATUS: 'fldJjktB8XgZkoYzr',
+  SENT_DATE: 'fldxIMge4UKFxJeHV',
+  APPROVED_DATE: 'fldURdaSenYkzkWpn',
+} as const
+
+export const ITEM_TYPES = {
+  TABLE_ID: 'tblVNn5uImxSqsDjt',
+  ITEM_TYPE_NAME: 'fld8XfDeP14XUcHr1',
+  ACTIVE: 'fldLkNWxfywYlMzN4',
 } as const
 
 export const PAYMENTS = {
   TABLE_ID: 'tblTrLUuGRGt5iSwD',
   NAME: 'fldMKBSDwUUYEwzFu',
+  NOTES: 'fldUyVVQukyAjcRGX',
+  ASSIGNEE: 'fldx9Ex2woF6NnIzp',
   PROJECT: 'fldzczMvwNb1In9qn',
   AMOUNT: 'fldqduawq8VeBZUY0',
   PAYMENT_TYPE: 'fldoOSKdkyP08LB85',
@@ -94,6 +141,9 @@ export const PAYMENTS = {
   DUE_DATE: 'fldsD73VfEFT4jwVF',
   ACCOUNTANT_APPROVED: 'fldbpfxYepO2cWMCl',
   STAGE_AT_PAYMENT: 'fldWi6SfcwXI1c1Jb',
+  PAYER_TYPE: 'fldPYIgJR10wHyRdK',
+  PAYER_NAME: 'fld7lK5GIkQibmLwe',
+  COMMISSION_AMOUNT: 'fldqLG1zZiGwBu5XQ',
 } as const
 
 export const GATE_PASSES = {
@@ -169,6 +219,43 @@ export const METRICS_SNAPSHOTS = {
   AVG_LATENCY_MS: 'fldWpFYslejhQfadM',
   AIRTABLE_FAILURES: 'flddH6tNLDoqasrr6',
   STATUS: 'fldTN13aaQwGAmniL',
+} as const
+
+export const PURCHASE_ORDERS = {
+  TABLE_ID: 'tblXyum6bJJltk2vE',
+  NAME: 'fldULSfblBR9sjGIY',
+  PROJECT: 'fldU2ouPvvfzAfiMB',
+  SUPPLIER: 'fldCEdbaCZrnMTGCC',
+  TOTAL_AMOUNT: 'fldIsLK1Z3a1mcxTB',
+  PO_STATUS: 'fldKbowPmATj4SdTl',
+  ORDER_DATE: 'fldyMrgYYkcbKmOtt',
+  EXPECTED_DELIVERY: 'fldQLOCcLCBJDX2EL',
+  ACTUAL_DELIVERY: 'fld9kXKTi8ysfa0Ta',
+  MANAGER_APPROVED: 'fld2M9FkIXzuXa8Pa',
+  NOTES: 'fldHpUK9omtuhCtIs',
+} as const
+
+export const INSTALLATION_LOGS = {
+  TABLE_ID: 'tbljrel5tmlHMmJxt',
+  NAME: 'fldRGWvQykJcVFCbk',
+  PROJECT: 'fldrLAT0he9UmGfjQ',
+  DATE: 'fldp4EbfOqn6ez6x0',
+  INSTALLATION_TEAM: 'fldWMb8bIisxlARm4',
+  NUMBER_OF_LABORERS: 'fldqcpTULWzwcGhq9',
+  WORK_DESCRIPTION: 'fldfGXe6BFzxg5akb',
+  EXPECTED_FINISH_DATE: 'fldlQLfHsSb74wz6g',
+  PHOTOS: 'fld7NCGfaED0ICHXw',
+} as const
+
+export const HANDOVER_SHEETS = {
+  TABLE_ID: 'tblm5eS4DqQvxELPw',
+  HANDOVER_ID: 'fldCyPnEeeoujVNEF',
+  PROJECT: 'fldTaOFi4mH8kz1g1',
+  STATUS: 'fldXERlcFEgan6q6x',
+  NOTES: 'fld3j6U1nWqK3Cy4A',
+  PDF: 'fldKBmNaNpvRcWBmt',
+  INSTALLATION_LOGS: 'fldYGozo80I5Wyof0',
+  MAINTENANCE: 'fldQRDYG8E2YqWWSu',
 } as const
 
 export const MATERIALS_NEEDED = {

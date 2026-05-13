@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WoodWings Testing Checklist</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #222;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    h2 {
+      margin-top: 30px;
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 5px;
+    }
+    .section {
+      background: #fff;
+      padding: 15px 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    label {
+      display: block;
+      margin: 6px 0;
+      cursor: pointer;
+    }
+    input[type="checkbox"] {
+      margin-right: 10px;
+      transform: scale(1.1);
+    }
+  </style>
+</head>
+<body>
+
+<h1>WoodWings Testing Checklist</h1>
+
+<div class="section">
+  <h2>🔐 Authentication</h2>
+  <label><input type="checkbox">Login with valid credentials → redirects to correct dashboard per role</label>
+  <label><input type="checkbox">Login with wrong password → shows error, does not log in</label>
+  <label><input type="checkbox">Access /dashboard/superadmin while logged out → redirects to /login</label>
+  <label><input type="checkbox">Logout → clears session, redirects to /login</label>
+  <label><input type="checkbox">Session expires after 8 hours</label>
+</div>
+
+<div class="section">
+  <h2>👑 Superadmin Dashboard</h2>
+  <label><input type="checkbox">Overview tab — correct projects, names, clients, stages</label>
+  <label><input type="checkbox">Metrics show correct counts and totals</label>
+  <label><input type="checkbox">Phase Gates expand + show blocking tasks</label>
+  <label><input type="checkbox">Advance works only when tasks complete</label>
+  <label><input type="checkbox">Advance blocked when tasks incomplete</label>
+  <label><input type="checkbox">Timeline loads without error</label>
+  <label><input type="checkbox">Team Activity filters work</label>
+  <label><input type="checkbox">Priority flag toggles</label>
+  <label><input type="checkbox">Payment Tracker works + payments added</label>
+  <label><input type="checkbox">Warranty Tracker loads</label>
+  <label><input type="checkbox">User Management link works</label>
+  <label><input type="checkbox">Announcements create/edit/delete works</label>
+</div>
+
+<div class="section">
+  <h2>👤 User Management</h2>
+  <label><input type="checkbox">All users visible</label>
+  <label><input type="checkbox">Add user works</label>
+  <label><input type="checkbox">Password validation works (&lt; 8 chars blocked)</label>
+  <label><input type="checkbox">Duplicate email blocked</label>
+  <label><input type="checkbox">Edit user works</label>
+  <label><input type="checkbox">Deactivate user blocks login</label>
+</div>
+
+<div class="section">
+  <h2>🏗 Manager Dashboard</h2>
+  <label><input type="checkbox">Tasks visible</label>
+  <label><input type="checkbox">Approve task updates status</label>
+  <label><input type="checkbox">Reject task saves comment</label>
+  <label><input type="checkbox">Projects view loads</label>
+  <label><input type="checkbox">Payments view loads</label>
+  <label><input type="checkbox">Add payment recorded</label>
+  <label><input type="checkbox">Installation assignment works</label>
+</div>
+
+<div class="section">
+  <h2>🎨 SED Dashboard</h2>
+  <label><input type="checkbox">SED tasks visible</label>
+  <label><input type="checkbox">Task badges correct</label>
+  <label><input type="checkbox">Task updates saved</label>
+  <label><input type="checkbox">Approvals view correct</label>
+  <label><input type="checkbox">Site Visits view correct</label>
+  <label><input type="checkbox">QC view correct</label>
+</div>
+
+<div class="section">
+  <h2>🔨 Fabrication Dashboard</h2>
+  <label><input type="checkbox">Tasks visible</label>
+  <label><input type="checkbox">Fabrication path updates saved</label>
+  <label><input type="checkbox">Production date updates saved</label>
+</div>
+
+<div class="section">
+  <h2>🔧 Installation Dashboard</h2>
+  <label><input type="checkbox">Tasks visible</label>
+  <label><input type="checkbox">Team days update saved</label>
+  <label><input type="checkbox">Labor/day update saved</label>
+  <label><input type="checkbox">Status updates in Airtable</label>
+</div>
+
+<div class="section">
+  <h2>✅ Task Workflow</h2>
+  <label><input type="checkbox">Locked tasks hidden</label>
+  <label><input type="checkbox">Task completion unlocks next</label>
+  <label><input type="checkbox">Pending approval flow works</label>
+  <label><input type="checkbox">Manager approval completes task</label>
+  <label><input type="checkbox">Manager rejection returns task with comment</label>
+  <label><input type="checkbox">Priority flag sorts task to top</label>
+</div>
+
+<div class="section">
+  <h2>💰 Payments</h2>
+  <label><input type="checkbox">Payment via Manager dashboard recorded</label>
+  <label><input type="checkbox">Payment via Superadmin recorded</label>
+  <label><input type="checkbox">Received payment updates totals</label>
+  <label><input type="checkbox">Accountant notified via email</label>
+</div>
+
+<div class="section">
+  <h2>🚪 Gate Passes</h2>
+  <label><input type="checkbox">Create gate pass via API works</label>
+  <label><input type="checkbox">Fetch gate passes works</label>
+</div>
+
+<div class="section">
+  <h2>📦 Materials</h2>
+  <label><input type="checkbox">View materials works</label>
+  <label><input type="checkbox">Update status saves</label>
+</div>
+
+<div class="section">
+  <h2>📢 Announcements</h2>
+  <label><input type="checkbox">VisibleTo rules enforced</label>
+  <label><input type="checkbox">Pinned appears on top</label>
+  <label><input type="checkbox">Expired not shown</label>
+</div>
+
+<div class="section">
+  <h2>🏠 Home Page</h2>
+  <label><input type="checkbox">Loads for all roles</label>
+  <label><input type="checkbox">Announcements visible</label>
+  <label><input type="checkbox">Clock displays correctly</label>
+</div>
+
+<div class="section">
+  <h2>🛡 System / Admin</h2>
+  <label><input type="checkbox">/api/health returns 200</label>
+  <label><input type="checkbox">/api/admin/health (superadmin) works</label>
+  <label><input type="checkbox">Non-superadmin blocked (403)</label>
+  <label><input type="checkbox">/api/admin/logs returns logs</label>
+  <label><input type="checkbox">Cross-role access blocked</label>
+</div>
+
+<div class="section">
+  <h2>🔴 Edge Cases</h2>
+  <label><input type="checkbox">Advance blocked if tasks incomplete</label>
+  <label><input type="checkbox">Empty login validation works</label>
+  <label><input type="checkbox">Rate limiting enforced</label>
+  <label><input type="checkbox">Invalid session treated as logged out</label>
+</div>
+
+</body>
+</html>

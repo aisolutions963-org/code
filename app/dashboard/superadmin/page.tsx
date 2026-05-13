@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, Fragment } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate as globalMutate } from 'swr'
 import {
@@ -9,6 +10,7 @@ import {
 import { Project, MaintenanceRecord, Announcement, Payment, Task } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import PaymentCalendar from '@/components/projects/PaymentCalendar'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -18,9 +20,11 @@ type Page =
   | 'phases'
   | 'activity'
   | 'payments'
+  | 'calendar'
   | 'warranty'
   | 'users'
   | 'announcements'
+  | 'projects'
 
 interface SuperadminMetrics {
   totalProjects: number
@@ -54,9 +58,11 @@ const PAGES: { id: Page; label: string }[] = [
   { id: 'phases', label: 'Phase Gates' },
   { id: 'activity', label: 'All Team Activity' },
   { id: 'payments', label: 'Payment Tracker' },
+  { id: 'calendar', label: 'Payment Calendar' },
   { id: 'warranty', label: 'Warranty Tracker' },
   { id: 'users', label: 'User Management' },
   { id: 'announcements', label: 'Announcements' },
+  { id: 'projects', label: 'All Projects' },
 ]
 
 const VIEW_AS = [
@@ -110,7 +116,11 @@ function OverviewPage() {
   )
 
   const projects = projectsData?.projects ?? []
-  const active = projects.filter((p) => !['Closed', 'Warranty Done'].includes(p.projectStage))
+  const active = projects.filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
+  // Detect silent API error: fetcher resolves but response body has `error` key
+  const projectsApiError = projectsData && !Array.isArray(projectsData.projects)
+    ? (projectsData as unknown as { error?: string }).error ?? 'Unknown error'
+    : null
 
   async function handleAdvance(id: string) {
     const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
@@ -148,6 +158,38 @@ function OverviewPage() {
         <MetricCard label="Remaining" value={`AED ${fmt(m?.totalRemaining ?? 0)}`} color="text-red-500" />
       </div>
 
+      {projectsApiError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+          Failed to load projects: {projectsApiError}.
+          Check the terminal (Next.js dev server) for the full error, or visit{' '}
+          <a href="/api/debug/projects" target="_blank" className="underline font-medium">/api/debug/projects</a> to diagnose.
+        </div>
+      )}
+
+      {/* Inactivity alert */}
+      {(() => {
+        const stalePrep = active.filter(
+          (p) =>
+            p.projectStage === 'Preparing' &&
+            p.approvalStatus !== 'Not-Approved' &&
+            isStale(p.lastModifiedTasks),
+        )
+        return stalePrep.length > 0 ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <p className="text-sm font-semibold text-amber-800">
+              {stalePrep.length} project{stalePrep.length > 1 ? 's' : ''} with no activity for 3+ days
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {stalePrep.map((p) => (
+                <li key={p.id} className="text-xs text-amber-700">
+                  {p.projectName} — {p.clientName} — last activity: {p.lastModifiedTasks?.slice(0, 10) ?? 'unknown'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null
+      })()}
+
       {/* Active projects table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
@@ -184,13 +226,42 @@ function OverviewPage() {
 
 function ProjectRow({ project: p, onAdvance }: { project: Project; onAdvance: (id: string) => Promise<void> }) {
   const [loading, setLoading] = useState(false)
+  const [genLoading, setGenLoading] = useState(false)
   const [err, setErr] = useState('')
+  const [genMsg, setGenMsg] = useState('')
   const stale = isStale(p.lastModifiedTasks)
 
   async function advance() {
-    setLoading(true); setErr('')
+    setLoading(true); setErr(''); setGenMsg('')
     try { await onAdvance(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setLoading(false) }
   }
+
+  async function generateTasks(force = false) {
+    setGenLoading(true); setErr(''); setGenMsg('')
+    try {
+      const res = await fetch(`/api/projects/${p.id}/generate-tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: p.projectStage, force }),
+      })
+      const data = await res.json()
+      if (res.status === 409) {
+        const ok = window.confirm(
+          `${data.existingCount} tasks already exist for this project. Generate more anyway?`
+        )
+        if (ok) await generateTasks(true)
+        return
+      }
+      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
+      setGenMsg(`✓ Created ${data.created} tasks`)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setGenLoading(false)
+    }
+  }
+
+  const canGenerate = p.projectStage === 'Preparing' || p.projectStage === 'Open'
 
   return (
     <>
@@ -205,11 +276,24 @@ function ProjectRow({ project: p, onAdvance }: { project: Project; onAdvance: (i
         </td>
         <td className="px-4 py-3">
           {stale && <span className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5">Stale</span>}
+          {genMsg && <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 ml-1">{genMsg}</span>}
         </td>
         <td className="px-4 py-3 text-right">
-          {p.projectStage !== 'Closed' && (
-            <Button size="sm" variant="secondary" loading={loading} onClick={advance}>Advance →</Button>
-          )}
+          <div className="flex items-center justify-end gap-2">
+            {canGenerate && (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={genLoading}
+                onClick={() => generateTasks()}
+              >
+                ⚡ Tasks
+              </Button>
+            )}
+            {p.projectStage !== 'Closed' && (
+              <Button size="sm" variant="secondary" loading={loading} onClick={advance}>Advance →</Button>
+            )}
+          </div>
         </td>
       </tr>
       {err && (
@@ -351,7 +435,7 @@ function PhasesPage() {
   const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
     '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
   )
-  const projects = (data?.projects ?? []).filter((p) => !['Closed', 'Warranty Done'].includes(p.projectStage))
+  const projects = (data?.projects ?? []).filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
 
   async function handleAdvance(id: string) {
     const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
@@ -698,43 +782,62 @@ function PaymentDetail({
   )
   const payments = data?.project?.payments ?? []
 
+  const today = new Date().toISOString().slice(0, 10)
   const [form, setForm] = useState({
     amount: '',
-    paymentType: 'Instalment',
-    paymentStatus: 'Pending',
+    paymentType: 'Advance',
+    paymentStatus: 'Received',
     paymentMethod: 'Bank Transfer',
     referenceNo: '',
-    receivedDate: '',
+    receivedDate: today,
     dueDate: '',
+    payerType: '',
+    payerName: '',
+    commission: '',
+    notes: '',
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [ferr, setFerr] = useState('')
 
+  function setF(key: string, value: string) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+
   async function submitPayment(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.amount || parseFloat(form.amount) <= 0) { setFerr('Amount is required'); return }
+    if (!form.receivedDate) { setFerr('Date is required'); return }
+    if (!form.referenceNo.trim()) { setFerr('Reference No. is required'); return }
+    if (!form.payerType) { setFerr('Payer Type is required'); return }
     setSaving(true); setFerr(''); setSaved(false)
     try {
+      const body: Record<string, unknown> = {
+        project: [p.id],
+        amount: parseFloat(form.amount),
+        paymentType: form.paymentType,
+        paymentStatus: form.paymentStatus,
+        paymentMethod: form.paymentMethod,
+        referenceNo: form.referenceNo.trim(),
+        receivedDate: form.receivedDate,
+        payerType: form.payerType,
+      }
+      if (form.dueDate) body.dueDate = form.dueDate
+      if (form.payerName.trim()) body.payerName = form.payerName.trim()
+      if (form.payerType === 'Broker' && form.commission) body.commissionAmount = parseFloat(form.commission)
+      if (form.notes.trim()) body.notes = form.notes.trim()
+
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: [p.id],
-          amount: parseFloat(form.amount),
-          paymentType: form.paymentType,
-          paymentStatus: form.paymentStatus,
-          paymentMethod: form.paymentMethod,
-          referenceNo: form.referenceNo || undefined,
-          receivedDate: form.receivedDate || undefined,
-          dueDate: form.dueDate || undefined,
-        }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const d = await res.json()
         throw new Error(d.error ?? 'Failed')
       }
       setSaved(true)
-      setForm({ amount: '', paymentType: 'Instalment', paymentStatus: 'Pending', paymentMethod: 'Bank Transfer', referenceNo: '', receivedDate: '', dueDate: '' })
+      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
       mutate()
       globalMutate('/api/projects?all=true')
     } catch (e) {
@@ -787,84 +890,77 @@ function PaymentDetail({
 
       {showForm && (
         <form onSubmit={submitPayment} className="grid grid-cols-2 gap-3 mt-2 p-3 bg-white rounded-lg border border-gray-200">
+          {ferr && <p className="col-span-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{ferr}</p>}
+
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Date *</label>
+            <input type="date" value={form.receivedDate} onChange={(e) => setF('receivedDate', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
           <div>
             <label className="text-xs text-gray-500 block mb-1">Amount (AED) *</label>
-            <input
-              required
-              type="number"
-              value={form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              placeholder="0"
-            />
+            <input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setF('amount', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="0.00" />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Type</label>
-            <select
-              value={form.paymentType}
-              onChange={(e) => setForm((f) => ({ ...f, paymentType: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              {['Deposit', 'Instalment', 'Final Payment', 'Other'].map((v) => (
-                <option key={v}>{v}</option>
-              ))}
+            <label className="text-xs text-gray-500 block mb-1">Type *</label>
+            <select value={form.paymentType} onChange={(e) => setF('paymentType', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Status</label>
-            <select
-              value={form.paymentStatus}
-              onChange={(e) => setForm((f) => ({ ...f, paymentStatus: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              {['Pending', 'Received', 'Overdue'].map((v) => (
-                <option key={v}>{v}</option>
-              ))}
+            <label className="text-xs text-gray-500 block mb-1">Status *</label>
+            <select value={form.paymentStatus} onChange={(e) => setF('paymentStatus', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+              {['Received', 'Pending', 'Overdue'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Method</label>
-            <select
-              value={form.paymentMethod}
-              onChange={(e) => setForm((f) => ({ ...f, paymentMethod: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              {['Bank Transfer', 'Cheque', 'Cash', 'Other'].map((v) => (
-                <option key={v}>{v}</option>
-              ))}
+            <label className="text-xs text-gray-500 block mb-1">Method *</label>
+            <select value={form.paymentMethod} onChange={(e) => setF('paymentMethod', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+              {['Bank Transfer', 'Cash', 'Cheque'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Reference No.</label>
-            <input
-              type="text"
-              value={form.referenceNo}
-              onChange={(e) => setForm((f) => ({ ...f, referenceNo: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
+            <label className="text-xs text-gray-500 block mb-1">Reference No. *</label>
+            <input type="text" value={form.referenceNo} onChange={(e) => setF('referenceNo', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="TRN / cheque no." />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Received Date</label>
-            <input
-              type="date"
-              value={form.receivedDate}
-              onChange={(e) => setForm((f) => ({ ...f, receivedDate: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
+            <label className="text-xs text-gray-500 block mb-1">Payer Type *</label>
+            <select value={form.payerType} onChange={(e) => setF('payerType', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="">— select —</option>
+              {['Broker', 'Contractor', 'End User', 'Designer'].map((v) => <option key={v}>{v}</option>)}
+            </select>
           </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Payer Name</label>
+            <input type="text" value={form.payerName} onChange={(e) => setF('payerName', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Full name" />
+          </div>
+          {form.payerType === 'Broker' && (
+            <div className="col-span-2">
+              <label className="text-xs text-gray-500 block mb-1">Commission Amount (AED)</label>
+              <input type="number" min="0" step="0.01" value={form.commission} onChange={(e) => setF('commission', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="0.00" />
+            </div>
+          )}
           <div>
             <label className="text-xs text-gray-500 block mb-1">Due Date</label>
-            <input
-              type="date"
-              value={form.dueDate}
-              onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
+            <input type="date" value={form.dueDate} onChange={(e) => setF('dueDate', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Notes</label>
+            <input type="text" value={form.notes} onChange={(e) => setF('notes', e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Optional" />
           </div>
           <div className="col-span-2 flex items-center gap-3">
             <Button type="submit" size="sm" loading={saving}>Save Payment</Button>
             {saved && <span className="text-xs text-green-600">Saved.</span>}
-            {ferr && <span className="text-xs text-red-600">{ferr}</span>}
           </div>
         </form>
       )}
@@ -1160,10 +1256,30 @@ function AnnouncementsPage() {
   )
 }
 
+// ─── Page 9: Payment Calendar ─────────────────────────────────────────────────
+
+function CalendarPage() {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">Payment Calendar</h2>
+        <p className="text-sm text-gray-500">Monthly view of payments and deliveries</p>
+      </div>
+      <PaymentCalendar />
+    </div>
+  )
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
+const VALID_PAGES = new Set<Page>(['overview','timeline','phases','activity','payments','calendar','warranty','users','announcements','projects'])
+
 export default function SuperadminDashboard() {
-  const [page, setPage] = useState<Page>('overview')
+  const searchParams = useSearchParams()
+  const viewParam = searchParams.get('view') as Page | null
+  const [page, setPage] = useState<Page>(
+    viewParam && VALID_PAGES.has(viewParam) ? viewParam : 'overview'
+  )
 
   return (
     <div className="flex min-h-full">
@@ -1206,9 +1322,11 @@ export default function SuperadminDashboard() {
         {page === 'phases' && <PhasesPage />}
         {page === 'activity' && <ActivityPage />}
         {page === 'payments' && <PaymentsPage />}
+        {page === 'calendar' && <CalendarPage />}
         {page === 'warranty' && <WarrantyPage />}
         {page === 'users' && <UsersPage />}
         {page === 'announcements' && <AnnouncementsPage />}
+        {page === 'projects' && <OverviewPage />}
       </div>
     </div>
   )

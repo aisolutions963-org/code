@@ -71,7 +71,7 @@ export default function TaskGroupedList({ tasks, role, onUpdate }: TaskGroupedLi
             <div className="flex items-center gap-2 mb-3">
               <div className="h-px flex-1 bg-gray-200" />
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 shrink-0">
-                General
+                {role === 'installation' || role === 'fabrication' ? 'عام' : 'General'}
               </span>
               <div className="h-px flex-1 bg-gray-200" />
             </div>

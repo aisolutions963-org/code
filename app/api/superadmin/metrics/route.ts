@@ -38,10 +38,10 @@ export const GET = requireRole('superadmin')(async () => {
 
   const totalProjects = projects.length
   const activeProjects = projects.filter(
-    (p) => !['Closed', 'Warranty Done'].includes(p.projectStage),
+    (p) => !['Closed', 'Archived'].includes(p.projectStage),
   ).length
   const staleProjects = projects.filter((p) => {
-    if (!p.lastModifiedTasks || ['Closed', 'Warranty Done'].includes(p.projectStage)) return false
+    if (!p.lastModifiedTasks || ['Closed', 'Archived'].includes(p.projectStage)) return false
     return (Date.now() - new Date(p.lastModifiedTasks).getTime()) / (1000 * 60 * 60 * 24) > 3
   }).length
   const totalRevenue = projects.reduce((s, p) => s + (p.projectTotalCost ?? 0), 0)

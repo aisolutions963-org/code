@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask } from '@/lib/airtable'
+import { getTaskById, updateTask, updateTaskRaw } from '@/lib/airtable'
 import { canEditField, filterAllowedFields } from '@/lib/permissions'
+import { TASKS } from '@/lib/fieldMap'
 import {
   handleTaskCompletion,
   handleManagerApproval,
   handleManagerRejection,
+  handleCallCountEscalation,
 } from '@/lib/workflow'
 import { TaskUpdateInput } from '@/lib/types'
 import { UpdateTaskSchema } from '@/lib/validation'
@@ -53,7 +55,7 @@ export const PATCH = requireRole()(
       }
     }
 
-    const { status, managerReviewStatus, ...otherFields } = fields as Partial<TaskUpdateInput>
+    const { status, managerReviewStatus, callCount, ...otherFields } = fields as Partial<TaskUpdateInput>
 
     if (Object.keys(otherFields).length > 0) {
       const filtered = filterAllowedFields(session.role, otherFields)
@@ -62,8 +64,18 @@ export const PATCH = requireRole()(
       }
     }
 
+    if (callCount !== undefined) {
+      await updateTask(params.id, { callCount })
+      if (callCount >= 3) {
+        const task = await getTaskById(params.id)
+        handleCallCountEscalation(task).catch((err) =>
+          console.error('[A8] Escalation failed:', err),
+        )
+      }
+    }
+
     if (status === 'Completed') {
-      await handleTaskCompletion(params.id)
+      await handleTaskCompletion(params.id, session.name)
     } else if (status === 'In Progress') {
       await updateTask(params.id, { status: 'In Progress', startedAt: new Date().toISOString() })
     } else if (status) {
@@ -80,7 +92,26 @@ export const PATCH = requireRole()(
       await updateTask(params.id, { managerReviewStatus })
     }
 
-    const updated = await getTaskById(params.id)
-    return NextResponse.json({ task: updated })
+    const refreshed = await getTaskById(params.id)
+
+    const allApprovalsSet =
+      refreshed.conceptDesignApproval === 'Approved' &&
+      refreshed.sampleApproval === 'Approved' &&
+      refreshed.quotationOutcome === 'Accepted'
+
+    if (
+      allApprovalsSet &&
+      refreshed.status !== 'Pending Approval' &&
+      refreshed.status !== 'Completed'
+    ) {
+      await updateTaskRaw(params.id, {
+        [TASKS.STATUS]: 'Pending Approval',
+        [TASKS.MANAGER_REVIEW_STATUS]: 'Pending',
+        [TASKS.REQUIRES_MANAGER_REVIEW_MANUALLY]: true,
+      })
+      return NextResponse.json({ task: await getTaskById(params.id) })
+    }
+
+    return NextResponse.json({ task: refreshed })
   },
 )

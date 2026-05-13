@@ -3,10 +3,16 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, Project } from '@/lib/types'
+import { Task, TaskUpdateInput, Project, Material } from '@/lib/types'
 import TaskList from '@/components/tasks/TaskList'
 import ProjectCard from '@/components/projects/ProjectCard'
 import PaymentBar from '@/components/projects/PaymentBar'
+import QuotationModal from '@/components/projects/QuotationModal'
+import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
+import HandoverModal from '@/components/projects/HandoverModal'
+import GatePassModal from '@/components/projects/GatePassModal'
+import PurchaseOrderModal from '@/components/projects/PurchaseOrderModal'
+import PaymentCalendar from '@/components/projects/PaymentCalendar'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 
@@ -80,6 +86,10 @@ function AssignInstallationModal({
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
+const sel = `${inp} bg-white`
+const lbl = 'block text-xs font-medium text-gray-500 mb-1'
+
 function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
   const [projectId, setProjectId] = useState('')
   const [amount, setAmount] = useState('')
@@ -87,26 +97,40 @@ function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: (
   const [status, setStatus] = useState('Received')
   const [method, setMethod] = useState('Bank Transfer')
   const [ref, setRef] = useState('')
-  const [receivedDate, setReceivedDate] = useState('')
+  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10))
+  const [payerType, setPayerType] = useState('')
+  const [payerName, setPayerName] = useState('')
+  const [commission, setCommission] = useState('')
+  const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
   async function handleSave() {
-    if (!projectId || !amount) { setErr('Project ID and amount are required'); return }
+    if (!projectId.trim()) { setErr('Project Record ID is required'); return }
+    if (!amount || parseFloat(amount) <= 0) { setErr('Amount is required'); return }
+    if (!receivedDate) { setErr('Date is required'); return }
+    if (!ref.trim()) { setErr('Reference No. is required'); return }
+    if (!payerType) { setErr('Payer Type is required'); return }
     setSaving(true); setErr('')
     try {
+      const body: Record<string, unknown> = {
+        project: [projectId.trim()],
+        amount: parseFloat(amount),
+        paymentType: type,
+        paymentStatus: status,
+        paymentMethod: method,
+        referenceNo: ref.trim(),
+        receivedDate,
+        payerType,
+      }
+      if (payerName.trim()) body.payerName = payerName.trim()
+      if (payerType === 'Broker' && commission) body.commissionAmount = parseFloat(commission)
+      if (notes.trim()) body.notes = notes.trim()
+
       const res = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: [projectId],
-          amount: parseFloat(amount),
-          paymentType: type,
-          paymentStatus: status,
-          paymentMethod: method,
-          referenceNo: ref || undefined,
-          receivedDate: receivedDate || undefined,
-        }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
       onSaved(); onClose()
@@ -116,30 +140,214 @@ function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: (
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Add Payment"
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={handleSave} loading={saving}>Save</Button></>}
+    <Modal open={open} onClose={onClose} title="F4 — Record Payment" size="lg"
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={handleSave} loading={saving}>Save Payment</Button></>}
     >
-      <div className="space-y-4 text-sm">
-        {err && <p className="text-red-600 text-xs">{err}</p>}
-        <div><label className="block text-xs font-medium text-gray-500 mb-1">Project Record ID</label>
-          <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={projectId} onChange={e => setProjectId(e.target.value)} placeholder="recXXXXXX" /></div>
-        <div><label className="block text-xs font-medium text-gray-500 mb-1">Amount (AED)</label>
-          <input type="number" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={amount} onChange={e => setAmount(e.target.value)} /></div>
-        <div><label className="block text-xs font-medium text-gray-500 mb-1">Payment Type</label>
-          <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={type} onChange={e => setType(e.target.value)}>
-            {['Advance','Delivery','Material','Final','Progressive Payment'].map(o => <option key={o}>{o}</option>)}</select></div>
-        <div><label className="block text-xs font-medium text-gray-500 mb-1">Payment Status</label>
-          <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={status} onChange={e => setStatus(e.target.value)}>
-            {['Received','Pending','Overdue'].map(o => <option key={o}>{o}</option>)}</select></div>
-        <div><label className="block text-xs font-medium text-gray-500 mb-1">Payment Method</label>
-          <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={method} onChange={e => setMethod(e.target.value)}>
-            {['Bank Transfer','Cash','Cheque'].map(o => <option key={o}>{o}</option>)}</select></div>
-        <div><label className="block text-xs font-medium text-gray-500 mb-1">Reference No.</label>
-          <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={ref} onChange={e => setRef(e.target.value)} /></div>
-        <div><label className="block text-xs font-medium text-gray-500 mb-1">Received Date</label>
-          <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={receivedDate} onChange={e => setReceivedDate(e.target.value)} /></div>
+      <div className="grid grid-cols-2 gap-4 text-sm">
+        {err && <p className="col-span-2 text-red-600 text-xs bg-red-50 border border-red-200 rounded px-3 py-2">{err}</p>}
+
+        <div className="col-span-2">
+          <label className={lbl}>Project Record ID *</label>
+          <input className={inp} value={projectId} onChange={e => setProjectId(e.target.value)} placeholder="recXXXXXX" />
+        </div>
+
+        <div>
+          <label className={lbl}>Date *</label>
+          <input type="date" className={inp} value={receivedDate} onChange={e => setReceivedDate(e.target.value)} />
+        </div>
+
+        <div>
+          <label className={lbl}>Amount (AED) *</label>
+          <input type="number" min="0" step="0.01" className={inp} value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" />
+        </div>
+
+        <div>
+          <label className={lbl}>Payment Type *</label>
+          <select className={sel} value={type} onChange={e => setType(e.target.value)}>
+            {['Advance','Delivery','Material','Final','Progressive Payment'].map(o => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className={lbl}>Payment Status *</label>
+          <select className={sel} value={status} onChange={e => setStatus(e.target.value)}>
+            {['Received','Pending','Overdue'].map(o => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className={lbl}>Payment Method *</label>
+          <select className={sel} value={method} onChange={e => setMethod(e.target.value)}>
+            {['Bank Transfer','Cash','Cheque'].map(o => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className={lbl}>Reference No. *</label>
+          <input className={inp} value={ref} onChange={e => setRef(e.target.value)} placeholder="TRN / cheque no." />
+        </div>
+
+        <div>
+          <label className={lbl}>Payer Type *</label>
+          <select className={sel} value={payerType} onChange={e => setPayerType(e.target.value)}>
+            <option value="">— select —</option>
+            {['Broker','Contractor','End User','Designer'].map(o => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className={lbl}>Payer Name</label>
+          <input className={inp} value={payerName} onChange={e => setPayerName(e.target.value)} placeholder="Full name" />
+        </div>
+
+        {payerType === 'Broker' && (
+          <div className="col-span-2">
+            <label className={lbl}>Commission Amount (AED)</label>
+            <input type="number" min="0" step="0.01" className={inp} value={commission} onChange={e => setCommission(e.target.value)} placeholder="0.00" />
+          </div>
+        )}
+
+        <div className="col-span-2">
+          <label className={lbl}>Notes</label>
+          <textarea rows={2} className={`${inp} resize-none`} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any additional notes..." />
+        </div>
       </div>
     </Modal>
+  )
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  Pending: 'bg-gray-100 text-gray-600',
+  Approved: 'bg-green-100 text-green-700',
+  Rejected: 'bg-red-100 text-red-700',
+  'Needs Revision': 'bg-orange-100 text-orange-700',
+  Ordered: 'bg-blue-100 text-blue-700',
+  Received: 'bg-emerald-100 text-emerald-700',
+}
+
+function MaterialsReviewView({ projects }: { projects: Project[] }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selectedProject = projects.find((p) => p.id === selectedId) ?? null
+
+  const { data, isLoading, mutate } = useSWR<{ materials: Material[] }>(
+    selectedId ? `/api/projects/${selectedId}/materials` : null,
+    fetcher,
+    { refreshInterval: 30000 },
+  )
+  const materials = data?.materials ?? []
+
+  async function decide(materialId: string, status: string) {
+    await fetch(`/api/materials/${materialId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderStatus: status }),
+    })
+    mutate()
+  }
+
+  const pending = materials.filter((m) => !m.orderStatus || m.orderStatus === 'Pending')
+  const decided = materials.filter((m) => m.orderStatus && m.orderStatus !== 'Pending')
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+        <p className="text-sm font-semibold text-gray-700">Material Orders — Select Project</p>
+        <div className="flex flex-wrap gap-2">
+          {projects.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedId(p.id)}
+              className={`text-xs border rounded-lg px-3 py-1.5 font-medium transition-colors ${
+                selectedId === p.id
+                  ? 'bg-brand-600 border-brand-600 text-white'
+                  : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {p.projectId} — {p.projectName}
+            </button>
+          ))}
+          {projects.length === 0 && <p className="text-xs text-gray-400">No active projects.</p>}
+        </div>
+      </div>
+
+      {isLoading && <div className="flex justify-center py-8"><div className="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
+
+      {!isLoading && selectedId && materials.length === 0 && (
+        <p className="text-center py-8 text-sm text-gray-400">No material orders for this project.</p>
+      )}
+
+      {pending.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-700">Pending Approval ({pending.length})</p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {pending.map((m) => (
+              <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900">{m.name}</p>
+                  <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-0.5">
+                    {m.supplier && <span>Supplier: {m.supplier}</span>}
+                    {m.quantity != null && <span>Qty: {m.quantity} {m.unit ?? ''}</span>}
+                    {m.unitCost != null && <span>AED {m.unitCost}/unit</span>}
+                    {m.expectedArrivalDate && <span>Expected: {m.expectedArrivalDate}</span>}
+                  </div>
+                  {m.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{m.notes}</p>}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => decide(m.id, 'Approved')}
+                    className="text-xs bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 rounded-lg px-3 py-1.5 font-medium"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => decide(m.id, 'Needs Revision')}
+                    className="text-xs bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 rounded-lg px-3 py-1.5 font-medium"
+                  >
+                    Revise
+                  </button>
+                  <button
+                    onClick={() => decide(m.id, 'Rejected')}
+                    className="text-xs bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg px-3 py-1.5 font-medium"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {decided.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <p className="text-sm font-semibold text-gray-700">Reviewed ({decided.length})</p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {decided.map((m) => (
+              <div key={m.id} className="px-4 py-3 flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-gray-700">{m.name}</p>
+                  <div className="flex flex-wrap gap-3 text-xs text-gray-400 mt-0.5">
+                    {m.supplier && <span>{m.supplier}</span>}
+                    {m.quantity != null && <span>{m.quantity} {m.unit ?? ''}</span>}
+                  </div>
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[m.orderStatus ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
+                  {m.orderStatus}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!selectedId && (
+        <p className="text-center py-10 text-sm text-gray-400">Select a project to review its material orders.</p>
+      )}
+    </div>
   )
 }
 
@@ -148,13 +356,18 @@ export default function MgrDashboard() {
   const view = searchParams.get('view') ?? 'tasks'
   const [paymentModal, setPaymentModal] = useState(false)
   const [assignProject, setAssignProject] = useState<Project | null>(null)
+  const [quotationProject, setQuotationProject] = useState<Project | null>(null)
+  const [materialProject, setMaterialProject] = useState<Project | null>(null)
+  const [handoverProject, setHandoverProject] = useState<Project | null>(null)
+  const [gatePassProject, setGatePassProject] = useState<Project | null>(null)
+  const [purchaseOrderProject, setPurchaseOrderProject] = useState<Project | null>(null)
 
   const { data: taskData, error: taskError, isLoading: taskLoading, mutate: mutateTasks } =
     useSWR<{ tasks: Task[] }>('/api/tasks?role=manager', fetcher, { refreshInterval: 30000, revalidateOnFocus: true })
 
   const { data: projectData, error: projectError, isLoading: projectLoading, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
-      view === 'projects' || view === 'payments' || view === 'installation' ? '/api/projects' : null,
+      view === 'projects' || view === 'payments' || view === 'installation' || view === 'purchase' || view === 'materials' ? '/api/projects' : null,
       fetcher,
       { refreshInterval: 30000, revalidateOnFocus: true },
     )
@@ -167,6 +380,9 @@ export default function MgrDashboard() {
 
   const tasks = taskData?.tasks ?? []
   const projects = projectData?.projects ?? []
+  const projectsApiError = projectData && !Array.isArray(projectData.projects)
+    ? (projectData as unknown as { error?: string }).error ?? 'Unknown error'
+    : null
 
   const handleUpdate = async (id: string, fields: Partial<TaskUpdateInput>) => {
     const res = await fetch(`/api/tasks/${id}`, {
@@ -209,7 +425,7 @@ export default function MgrDashboard() {
       </div>
 
       {/* Task views */}
-      {(view === 'tasks' || view === 'deliveries' || view === 'purchase') && (
+      {(view === 'tasks' || view === 'deliveries') && (
         <>
           {taskLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
           {taskError && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">Failed to load tasks. <button onClick={() => mutateTasks()} className="underline">Retry</button></div>}
@@ -223,14 +439,77 @@ export default function MgrDashboard() {
         </>
       )}
 
+      {/* Purchase Orders view */}
+      {view === 'purchase' && (
+        <>
+          {projectLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
+          {!projectLoading && !projectError && (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">Select a project to create or view purchase orders.</p>
+              <div className="flex flex-wrap gap-2">
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setPurchaseOrderProject(p)}
+                    className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg px-3 py-1.5 font-medium"
+                  >
+                    {p.projectId} — {p.projectName}
+                  </button>
+                ))}
+                {projects.length === 0 && <p className="text-sm text-gray-400">No active projects found.</p>}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Materials view */}
+      {view === 'materials' && (
+        <>
+          {projectLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
+          {!projectLoading && !projectError && (
+            <MaterialsReviewView projects={projects} />
+          )}
+        </>
+      )}
+
       {/* Projects view */}
       {view === 'projects' && (
         <>
           {projectLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
-          {projectError && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">Failed to load projects.</div>}
-          {!projectLoading && !projectError && (
+          {(projectError || projectsApiError) && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+              Failed to load projects: {projectsApiError ?? 'network error'}.
+              Visit <a href="/api/debug/projects" target="_blank" className="underline font-medium">/api/debug/projects</a> to diagnose.
+            </div>
+          )}
+          {!projectLoading && !projectError && !projectsApiError && (
             <div className="grid gap-4 sm:grid-cols-2">
-              {projects.map(p => <ProjectCard key={p.id} project={p} showPayments />)}
+              {projects.map((p) => (
+                <div key={p.id} className="space-y-2">
+                  <ProjectCard project={p} showPayments />
+                  <div className="flex flex-wrap gap-3 px-1">
+                    <button onClick={() => setQuotationProject(p)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                      F5 — Add Quotation Items
+                    </button>
+                    <button onClick={() => setMaterialProject(p)} className="text-xs text-green-600 hover:text-green-700 font-medium">
+                      F3 — Order Materials
+                    </button>
+                    <button onClick={() => setHandoverProject(p)} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
+                      F6 — Handover Sheet
+                    </button>
+                    <button onClick={() => setGatePassProject(p)} className="text-xs text-orange-600 hover:text-orange-700 font-medium">
+                      Gate Pass
+                    </button>
+                    <button onClick={() => setPurchaseOrderProject(p)} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                      New PO
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {projects.length === 0 && (
+                <p className="col-span-2 text-center py-10 text-sm text-gray-400">No active projects found.</p>
+              )}
             </div>
           )}
         </>
@@ -254,6 +533,13 @@ export default function MgrDashboard() {
             </div>
           )}
         </>
+      )}
+
+      {/* Payment Calendar view */}
+      {view === 'calendar' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <PaymentCalendar />
+        </div>
       )}
 
       {/* Installation team assignment view */}
@@ -299,6 +585,47 @@ export default function MgrDashboard() {
           members={teamData?.members ?? []}
           onClose={() => setAssignProject(null)}
           onSaved={() => mutateProjects()}
+        />
+      )}
+
+      {quotationProject && (
+        <QuotationModal
+          project={quotationProject}
+          onClose={() => setQuotationProject(null)}
+          onCreated={() => mutateProjects()}
+        />
+      )}
+
+      {materialProject && (
+        <MaterialOrderModal
+          project={materialProject}
+          onClose={() => setMaterialProject(null)}
+          onCreated={() => mutateProjects()}
+        />
+      )}
+
+      {handoverProject && (
+        <HandoverModal
+          projectId={handoverProject.id}
+          projectName={handoverProject.projectName}
+          onClose={() => setHandoverProject(null)}
+          onCreated={() => mutateProjects()}
+        />
+      )}
+
+      {gatePassProject && (
+        <GatePassModal
+          project={gatePassProject}
+          onClose={() => setGatePassProject(null)}
+          onCreated={() => mutateProjects()}
+        />
+      )}
+
+      {purchaseOrderProject && (
+        <PurchaseOrderModal
+          project={purchaseOrderProject}
+          onClose={() => setPurchaseOrderProject(null)}
+          onCreated={() => mutateProjects()}
         />
       )}
     </div>
