@@ -528,7 +528,7 @@ export async function createProject(input: ProjectCreateInput): Promise<Project>
   if (input.location) fields[PROJECTS.LOCATION] = input.location
   if (input.sedNotes) fields[PROJECTS.SED_NOTES] = input.sedNotes
   if (input.salesOwnerCollaboratorId) {
-    fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
+    fields[PROJECTS.SALES_OWNER] = { id: input.salesOwnerCollaboratorId }
   }
   if (input.communSedIds?.length) {
     fields[PROJECTS.COMMUN_SEDS] = input.communSedIds.map((id) => ({ id }))

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getProjects, getAllProjects, createProject, generateTasksForProject } from '@/lib/airtable'
-import { getUserById } from '@/lib/db'
 import { CreateProjectSchema } from '@/lib/validation'
 
 export async function GET(request: NextRequest) {
@@ -44,14 +43,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Auto-set SED Owner from the logged-in user's airtable_member_id
   const data = { ...parsed.data }
-  if (!data.salesOwnerCollaboratorId) {
-    const dbUser = getUserById(session.id)
-    if (dbUser?.airtable_member_id) {
-      data.salesOwnerCollaboratorId = dbUser.airtable_member_id
-    }
-  }
 
   try {
     const project = await createProject(data)
