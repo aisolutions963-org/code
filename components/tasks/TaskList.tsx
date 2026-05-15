@@ -36,7 +36,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true 
   // Group by project ID
   const groups = new Map<string, Task[]>()
   for (const task of tasks) {
-    const key = task.projectId ?? task.project?.[0] ?? '—'
+    const key = task.projectRef ?? task.project?.[0] ?? '—'
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(task)
   }

@@ -397,6 +397,7 @@ export async function getTasksByRole(
   tasks = await enrichTasksWithClientPhone(tasks)
   tasks = await enrichTasksWithProjectItemNames(tasks)
   tasks = await enrichTasksWithAssigneeNames(tasks)
+  tasks = await enrichTasksWithProjectRef(tasks)
   return tasks
 }
 
@@ -528,10 +529,10 @@ export async function createProject(input: ProjectCreateInput): Promise<Project>
   if (input.location) fields[PROJECTS.LOCATION] = input.location
   if (input.sedNotes) fields[PROJECTS.SED_NOTES] = input.sedNotes
   if (input.salesOwnerCollaboratorId) {
-    fields[PROJECTS.SALES_OWNER] = { id: input.salesOwnerCollaboratorId }
+    fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
   }
   if (input.communSedIds?.length) {
-    fields[PROJECTS.COMMUN_SEDS] = input.communSedIds.map((id) => ({ id }))
+    fields[PROJECTS.COMMUN_SEDS] = input.communSedIds
   }
 
   const res = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
@@ -833,6 +834,37 @@ async function enrichTasksWithClientPhone(tasks: Task[]): Promise<Task[]> {
     const projectId = t.project?.[0]
     const phone = projectId ? phoneMap[projectId] : undefined
     return phone ? { ...t, clientPhone: phone } : t
+  })
+}
+
+async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
+  const projectIds = Array.from(new Set(tasks.flatMap((t) => t.project ?? [])))
+  if (projectIds.length === 0) return tasks
+
+  const refMap: Record<string, string> = {}
+  const chunks: string[][] = []
+  for (let i = 0; i < projectIds.length; i += 10) {
+    chunks.push(projectIds.slice(i, i + 10))
+  }
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
+      const records = await fetchAll(PROJECTS.TABLE_ID, {
+        filterByFormula: formula,
+        fields: [PROJECTS.PROJECT_ID],
+      })
+      for (const r of records) {
+        const ref = str(r.fields[PROJECTS.PROJECT_ID])
+        if (ref) refMap[r.id] = ref
+      }
+    }),
+  )
+
+  return tasks.map((t) => {
+    const pid = t.project?.[0]
+    const ref = pid ? refMap[pid] : undefined
+    return ref ? { ...t, projectRef: ref } : t
   })
 }
 
@@ -1382,22 +1414,26 @@ export async function generateTasksForProject(
     }
   }
 
-  const minUniversal =
-    universalOrdered.length > 0
-      ? Math.min(...universalOrdered.map((t) => t.templateOrder!))
-      : Infinity
+  const universalOrders = universalOrdered.map((t) => t.templateOrder!).sort((a, b) => a - b)
+  // First Call (order 1) is already done by the time the project is created in the system
+  const firstCallOrder = universalOrders[0] ?? Infinity
+  const f1Order = universalOrders[1] ?? Infinity   // F1 — Fill Form is the new active task
 
   const pathMinMap = new Map<string, number>()
   Array.from(pathGroups.entries()).forEach(([path, group]) => {
     pathMinMap.set(path, Math.min(...group.map((t) => t.templateOrder!)))
   })
 
+  const now = new Date().toISOString()
+
   const records = allTemplates.map((t) => {
     let status: TaskStatus
     if (t.templateOrder === null) {
       status = 'To Do'
     } else if (t.pathCondition === null) {
-      status = t.templateOrder === minUniversal ? 'To Do' : 'Locked'
+      if (t.templateOrder === firstCallOrder) status = 'Completed'
+      else if (t.templateOrder === f1Order) status = 'To Do'
+      else status = 'Locked'
     } else {
       status = t.templateOrder === pathMinMap.get(t.pathCondition)! ? 'To Do' : 'Locked'
     }
@@ -1406,6 +1442,9 @@ export async function generateTasksForProject(
       [TASKS.PROJECT]: [projectId],
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
+    }
+    if (status === 'Completed') {
+      record[TASKS.COMPLETED_AT] = now
     }
     if (t.pathCondition !== null) {
       record[TASKS.PATH_CONDITION] = t.pathCondition

@@ -109,7 +109,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     onUpdate(task.id, { [fieldKey]: next } as Partial<TaskUpdateInput>)
   }
 
-  const projectLabel = task.projectId ?? task.project?.[0] ?? ''
+  const projectLabel = task.projectRef ?? task.project?.[0] ?? ''
   const instructions = task.instructions?.join(' ') ?? ''
   const arabicInstructions = task.arabicInstructions?.join(' ') ?? ''
 

@@ -635,7 +635,7 @@ function ActivityPage() {
                   <td className="px-4 py-2.5">
                     <TaskStatusBadge status={t.status} />
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectId ?? '—'}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef ?? t.project?.[0] ?? '—'}</td>
                 </tr>
               ))}
               {filtered.length === 0 && (
