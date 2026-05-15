@@ -50,6 +50,30 @@ export async function notifyManagerEscalation(project: {
   })
 }
 
+export async function notifyCallClient(project: {
+  projectName: string
+  projectId: string
+  clientName: string
+}): Promise<void> {
+  const to = process.env.MANAGER_EMAIL
+  if (!to) return
+  await getResend().emails.send({
+    from: 'WoodWings <notifications@woodwings.ae>',
+    to,
+    subject: `All gates cleared — call client now — ${project.projectId}`,
+    html: `
+      <h2>All approval gates cleared — client call required</h2>
+      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+        <tr><td><strong>Project</strong></td><td>${project.projectName} (${project.projectId})</td></tr>
+        <tr><td><strong>Client</strong></td><td>${project.clientName}</td></tr>
+      </table>
+      <p>Concept design, sample, and quotation have all been approved.<br>
+      Call the client now to get final confirmation and advance the project.</p>
+      <p>Log in to the WoodWings dashboard to complete the <strong>Call the Client — All Approvals</strong> task.</p>
+    `,
+  })
+}
+
 export async function notifyAccountant(payment: {
   projectName: string
   projectId: string

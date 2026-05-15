@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getAllProjects, getPendingApprovalsCount } from '@/lib/airtable'
+import { getAllProjects, getPendingApprovalsCount, getCallClientPendingTasks } from '@/lib/airtable'
 import { PAYMENTS } from '@/lib/fieldMap'
 
 async function getOverduePaymentsCount(): Promise<number> {
@@ -30,10 +30,11 @@ async function getOverduePaymentsCount(): Promise<number> {
 }
 
 export const GET = requireRole('superadmin')(async () => {
-  const [projects, pendingApprovals, overduePayments] = await Promise.all([
+  const [projects, pendingApprovals, overduePayments, callClientTasks] = await Promise.all([
     getAllProjects(),
     getPendingApprovalsCount(),
     getOverduePaymentsCount(),
+    getCallClientPendingTasks(),
   ])
 
   const totalProjects = projects.length
@@ -57,5 +58,6 @@ export const GET = requireRole('superadmin')(async () => {
     totalRevenue,
     totalPaid,
     totalRemaining,
+    callClientTasks,
   })
 })

@@ -35,6 +35,7 @@ interface SuperadminMetrics {
   totalRevenue: number
   totalPaid: number
   totalRemaining: number
+  callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string }[]
 }
 
 interface TimelineProject {
@@ -163,6 +164,34 @@ function OverviewPage() {
           Failed to load projects: {projectsApiError}.
           Check the terminal (Next.js dev server) for the full error, or visit{' '}
           <a href="/api/debug/projects" target="_blank" className="underline font-medium">/api/debug/projects</a> to diagnose.
+        </div>
+      )}
+
+      {/* Call-client alert */}
+      {(m?.callClientTasks?.length ?? 0) > 0 && (
+        <div className="bg-teal-50 border-2 border-teal-400 rounded-xl px-4 py-4">
+          <div className="flex items-center gap-2.5 mb-2">
+            <svg className="w-5 h-5 text-teal-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+            <p className="text-sm font-bold text-teal-800">
+              {m!.callClientTasks.length} project{m!.callClientTasks.length > 1 ? 's' : ''} ready — call client for final confirmation
+            </p>
+          </div>
+          <ul className="space-y-1.5 ml-7">
+            {m!.callClientTasks.map((t) => (
+              <li key={t.taskId} className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0" />
+                <span className="text-xs font-mono text-teal-700 font-semibold">{t.projectRef}</span>
+                <span className="text-xs text-teal-800">{t.projectName}</span>
+                <span className="text-xs text-teal-500">— {t.clientName}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 ml-7 text-xs text-teal-600">
+            All approval gates cleared. Go to Activity → find the &ldquo;Call the Client&rdquo; task to complete it.
+          </p>
         </div>
       )}
 
@@ -623,21 +652,36 @@ function ActivityPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2.5 text-center">
-                    <button onClick={() => toggleFlag(t)} title="Toggle priority">
-                      <span className={`text-sm ${t.priorityFlag ? 'text-red-500' : 'text-gray-200 hover:text-gray-400'}`}>⚑</span>
-                    </button>
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-800 max-w-xs truncate">{t.taskName}</td>
-                  <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') ?? '—'}</td>
-                  <td className="px-4 py-2.5">
-                    <TaskStatusBadge status={t.status} />
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef ?? t.project?.[0] ?? '—'}</td>
-                </tr>
-              ))}
+              {filtered.map((t) => {
+                const isCallClient = t.taskName.toLowerCase().includes('call the client') && t.status === 'To Do'
+                return (
+                  <tr key={t.id} className={isCallClient ? 'bg-teal-50 border-l-4 border-l-teal-400' : 'hover:bg-gray-50'}>
+                    <td className="px-3 py-2.5 text-center">
+                      <button onClick={() => toggleFlag(t)} title="Toggle priority">
+                        <span className={`text-sm ${t.priorityFlag ? 'text-red-500' : 'text-gray-200 hover:text-gray-400'}`}>⚑</span>
+                      </button>
+                    </td>
+                    <td className="px-4 py-2.5 max-w-xs truncate">
+                      {isCallClient ? (
+                        <span className="flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5 text-teal-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          <span className="font-semibold text-teal-800">{t.taskName}</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-800">{t.taskName}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') ?? '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <TaskStatusBadge status={t.status} />
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef ?? t.project?.[0] ?? '—'}</td>
+                  </tr>
+                )
+              })}
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-center py-8 text-sm text-gray-400">No tasks.</td>

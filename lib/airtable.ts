@@ -706,9 +706,68 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
     fields: [TASKS.TASK_NAME],
   })
 
+  if (callRecords.length === 0) return
+
   await Promise.all(
     callRecords.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'To Do' })),
   )
+
+  // Send email notification — fire and forget
+  if (process.env.MANAGER_EMAIL && process.env.RESEND_API_KEY) {
+    const project = await getProjectById(projectId)
+    const { notifyCallClient } = await import('./email')
+    notifyCallClient({
+      projectName: project.projectName,
+      projectId: project.projectId,
+      clientName: project.clientName,
+    }).catch((err) => console.error('[ALL-APPROVALS] email failed:', err))
+  }
+}
+
+export async function getCallClientPendingTasks(): Promise<
+  { taskId: string; projectRef: string; projectName: string; clientName: string }[]
+> {
+  const formula = `AND(FIND("Call the Client", {${TASKS.TASK_NAME}}) > 0, {${TASKS.STATUS}} = "To Do")`
+  const taskRecords = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [TASKS.TASK_NAME, TASKS.PROJECT],
+  })
+  if (taskRecords.length === 0) return []
+
+  const projectIds = Array.from(
+    new Set(taskRecords.flatMap((r) => strArr(r.fields[TASKS.PROJECT]))),
+  )
+  const chunks: string[][] = []
+  for (let i = 0; i < projectIds.length; i += 10) chunks.push(projectIds.slice(i, i + 10))
+
+  const projectMap: Record<string, { projectId: string; projectName: string; clientName: string }> = {}
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const f = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
+      const projects = await fetchAll(PROJECTS.TABLE_ID, {
+        filterByFormula: f,
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.CLIENT_NAME],
+      })
+      for (const p of projects) {
+        projectMap[p.id] = {
+          projectId: str(p.fields[PROJECTS.PROJECT_ID]) ?? '',
+          projectName: str(p.fields[PROJECTS.PROJECT_NAME]) ?? '',
+          clientName: str(p.fields[PROJECTS.CLIENT_NAME]) ?? '',
+        }
+      }
+    }),
+  )
+
+  return taskRecords.map((r) => {
+    const pid = strArr(r.fields[TASKS.PROJECT])[0] ?? ''
+    const proj = projectMap[pid] ?? { projectId: '', projectName: '', clientName: '' }
+    return {
+      taskId: r.id,
+      projectRef: proj.projectId,
+      projectName: proj.projectName,
+      clientName: proj.clientName,
+    }
+  })
 }
 
 export async function getPendingApprovalsCount(): Promise<number> {
