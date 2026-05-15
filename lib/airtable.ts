@@ -680,6 +680,37 @@ export async function getIncompleteTasksForProject(projectId: string): Promise<T
   return records.map(transformTask)
 }
 
+export async function checkAndUnlockCallClientTask(projectId: string): Promise<void> {
+  // Fetch all [GATE] tasks for this project and check their approval fields
+  const gateFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), FIND("[GATE]", {${TASKS.TASK_NAME}}) > 0)`
+  const gateRecords = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: gateFormula,
+    fields: [TASKS.CONCEPT_DESIGN_APPROVAL, TASKS.SAMPLE_APPROVAL, TASKS.QUOTATION_OUTCOME],
+  })
+
+  let conceptApproved = false
+  let sampleApproved = false
+  let quotationApproved = false
+  for (const r of gateRecords) {
+    if (str(r.fields[TASKS.CONCEPT_DESIGN_APPROVAL]) === 'Approved') conceptApproved = true
+    if (str(r.fields[TASKS.SAMPLE_APPROVAL]) === 'Approved') sampleApproved = true
+    if (str(r.fields[TASKS.QUOTATION_OUTCOME]) === 'Accepted') quotationApproved = true
+  }
+
+  if (!conceptApproved || !sampleApproved || !quotationApproved) return
+
+  // All 3 cleared — unlock the locked "Call the Client" task for this project
+  const callFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), FIND("Call the Client", {${TASKS.TASK_NAME}}) > 0, {${TASKS.STATUS}} = "Locked")`
+  const callRecords = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: callFormula,
+    fields: [TASKS.TASK_NAME],
+  })
+
+  await Promise.all(
+    callRecords.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'To Do' })),
+  )
+}
+
 export async function getPendingApprovalsCount(): Promise<number> {
   const formula = `{${TASKS.MANAGER_REVIEW_STATUS}} = "Pending"`
   const records = await fetchAll(TASKS.TABLE_ID, {

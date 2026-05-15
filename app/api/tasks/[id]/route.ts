@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, updateTaskRaw } from '@/lib/airtable'
+import { getTaskById, updateTask, checkAndUnlockCallClientTask } from '@/lib/airtable'
 import { canEditField, filterAllowedFields } from '@/lib/permissions'
-import { TASKS } from '@/lib/fieldMap'
 import {
   handleTaskCompletion,
   handleManagerApproval,
@@ -94,22 +93,19 @@ export const PATCH = requireRole()(
 
     const refreshed = await getTaskById(params.id)
 
-    const allApprovalsSet =
-      refreshed.conceptDesignApproval === 'Approved' &&
-      refreshed.sampleApproval === 'Approved' &&
-      refreshed.quotationOutcome === 'Accepted'
-
-    if (
-      allApprovalsSet &&
-      refreshed.status !== 'Pending Approval' &&
-      refreshed.status !== 'Completed'
-    ) {
-      await updateTaskRaw(params.id, {
-        [TASKS.STATUS]: 'Pending Approval',
-        [TASKS.MANAGER_REVIEW_STATUS]: 'Pending',
-        [TASKS.REQUIRES_MANAGER_REVIEW_MANUALLY]: true,
-      })
-      return NextResponse.json({ task: await getTaskById(params.id) })
+    // If any approval gate field was touched, check if all 3 are now cleared across
+    // the project's gate tasks — if so, unlock the "Call the Client" task asynchronously
+    const touchedApprovalField =
+      'conceptDesignApproval' in otherFields ||
+      'sampleApproval' in otherFields ||
+      'quotationOutcome' in otherFields
+    if (touchedApprovalField) {
+      const projectId = refreshed.project?.[0]
+      if (projectId) {
+        checkAndUnlockCallClientTask(projectId).catch((err) =>
+          console.error('[ALL-APPROVALS] unlock check failed:', err),
+        )
+      }
     }
 
     return NextResponse.json({ task: refreshed })

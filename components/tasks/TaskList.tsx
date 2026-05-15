@@ -1,13 +1,78 @@
 'use client'
 
+import React from 'react'
 import { Task, TaskUpdateInput, Role } from '@/lib/types'
 import TaskCard from './TaskCard'
+import GatewaySection from './GatewaySection'
+import GateGroupCard from './GateGroupCard'
 
 interface TaskListProps {
   tasks: Task[]
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
   groupByProject?: boolean
+}
+
+function isGatewayTask(name: string) {
+  return name.toLowerCase().includes('[gateway]')
+}
+function isGateTask(name: string) {
+  // [GATE] but NOT [GATEWAY]
+  return /\[gate\]/i.test(name) && !/\[gateway\]/i.test(name)
+}
+
+function renderTasksInOrder(
+  tasks: Task[],
+  role: Role,
+  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>,
+): React.ReactNode[] {
+  const pathTaskIds = new Set(
+    tasks.filter((t) => t.pathCondition != null && t.pathCondition !== '').map((t) => t.id),
+  )
+  const allPathTasks = tasks.filter((t) => pathTaskIds.has(t.id))
+
+  const gateTasks = tasks.filter((t) => isGateTask(t.taskName))
+  const gateTaskIds = new Set(gateTasks.map((t) => t.id))
+
+  // Non-path, non-gate tasks in sorted order
+  const mainTasks = tasks.filter((t) => !pathTaskIds.has(t.id) && !gateTaskIds.has(t.id))
+
+  let gatewayRendered = false
+  const mainNodes: React.ReactNode[] = mainTasks.map((task) => {
+    if (isGatewayTask(task.taskName)) {
+      gatewayRendered = true
+      return (
+        <GatewaySection
+          key={task.id}
+          gateway={task}
+          pathTasks={allPathTasks}
+          role={role}
+          onUpdate={onUpdate}
+        />
+      )
+    }
+    return <TaskCard key={task.id} task={task} role={role} onUpdate={onUpdate} />
+  })
+
+  // If path tasks exist but the gateway task was Locked (filtered out), still show the section
+  if (allPathTasks.length > 0 && !gatewayRendered) {
+    mainNodes.push(
+      <GatewaySection
+        key="gateway-stub"
+        pathTasks={allPathTasks}
+        role={role}
+        onUpdate={onUpdate}
+      />,
+    )
+  }
+
+  if (gateTasks.length > 0) {
+    mainNodes.push(
+      <GateGroupCard key="gate-group" tasks={gateTasks} role={role} onUpdate={onUpdate} />,
+    )
+  }
+
+  return mainNodes
 }
 
 export default function TaskList({ tasks, role, onUpdate, groupByProject = true }: TaskListProps) {
@@ -26,9 +91,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true 
   if (!groupByProject) {
     return (
       <div className="space-y-2">
-        {tasks.map((t) => (
-          <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
-        ))}
+        {renderTasksInOrder(tasks, role, onUpdate)}
       </div>
     )
   }
@@ -54,9 +117,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true 
             </span>
           </div>
           <div className="space-y-2">
-            {groupTasks.map((t) => (
-              <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
-            ))}
+            {renderTasksInOrder(groupTasks, role, onUpdate)}
           </div>
         </section>
       ))}
