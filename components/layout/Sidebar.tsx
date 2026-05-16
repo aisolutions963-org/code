@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { Role } from '@/lib/types'
 
 interface NavItem {
@@ -170,7 +171,20 @@ const ROLE_COLORS: Record<Role, string> = {
 
 export default function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [confirmLogout, setConfirmLogout] = useState(false)
   const items = NAV_ITEMS[role] ?? []
+
+  const currentHref = pathname + (searchParams.toString() ? '?' + searchParams.toString() : '')
+
+  function isActive(item: NavItem): boolean {
+    return item.href === currentHref
+  }
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    window.location.href = '/login'
+  }
 
   return (
     <aside className="w-60 shrink-0 bg-gray-900 flex flex-col h-full">
@@ -190,36 +204,51 @@ export default function Sidebar({ role }: { role: Role }) {
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
         {items.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href.includes('?') && pathname + '?' + new URLSearchParams(item.href.split('?')[1] ?? '').toString() === item.href)
+          const active = isActive(item)
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
-                ${isActive
-                  ? 'bg-gray-700 text-white'
+              className={`relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all
+                ${active
+                  ? 'bg-gray-700/80 text-white font-medium'
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
                 }`}
             >
-              <span className="shrink-0">{item.icon}</span>
+              {active && (
+                <span className="absolute left-0 inset-y-1.5 w-0.5 bg-brand-400 rounded-r" />
+              )}
+              <span className={`shrink-0 transition-colors ${active ? 'text-brand-400' : ''}`}>
+                {item.icon}
+              </span>
               <span className="truncate">{item.label}</span>
             </Link>
           )
         })}
       </nav>
 
-      <div className="px-3 py-4 border-t border-gray-700/50">
-        <form action="/api/auth/logout" method="POST"
-          onSubmit={async (e) => {
-            e.preventDefault()
-            await fetch('/api/auth/logout', { method: 'POST' })
-            window.location.href = '/login'
-          }}
-        >
+      <div className="px-3 py-4 border-t border-gray-700/50 space-y-1">
+        {confirmLogout ? (
+          <div className="px-1 space-y-2">
+            <p className="text-xs text-gray-400 px-2">Sign out of WoodWings?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-1.5 text-xs rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
+              >
+                Sign Out
+              </button>
+              <button
+                onClick={() => setConfirmLogout(false)}
+                className="flex-1 py-1.5 text-xs rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
           <button
-            type="submit"
+            onClick={() => setConfirmLogout(true)}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,7 +257,7 @@ export default function Sidebar({ role }: { role: Role }) {
             </svg>
             Sign Out
           </button>
-        </form>
+        )}
       </div>
     </aside>
   )

@@ -15,6 +15,22 @@ interface TaskCardProps {
 
 const INSPECTION_KEYWORDS = ['inspect', 'qc check', 'site check', 'handover', 'snagging']
 
+const DEPT_BORDER: Record<string, string> = {
+  SED:           'border-l-blue-400',
+  Superadmin:    'border-l-red-400',
+  Fabrication:   'border-l-green-400',
+  Installation:  'border-l-violet-400',
+  Management:    'border-l-yellow-400',
+  Purchase:      'border-l-yellow-400',
+}
+
+function deptBorder(departments: string[]): string {
+  for (const d of departments) {
+    if (DEPT_BORDER[d]) return DEPT_BORDER[d]
+  }
+  return 'border-l-gray-300'
+}
+
 function isInspectionTask(taskName: string): boolean {
   const lower = taskName.toLowerCase()
   return INSPECTION_KEYWORDS.some((kw) => lower.includes(kw))
@@ -115,8 +131,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
 
   return (
     <div
-      className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md
-        ${urgent ? 'border-l-4 border-l-red-500 border-r border-t border-b border-gray-200' : 'border-gray-200'}`}
+      className={`bg-white rounded-xl border-gray-200 border shadow-sm overflow-hidden transition-shadow hover:shadow-md border-l-4 ${urgent ? 'border-l-orange-500' : deptBorder(task.department)}`}
     >
       {/* Header */}
       <button

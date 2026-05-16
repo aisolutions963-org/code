@@ -712,16 +712,6 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
     callRecords.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'To Do' })),
   )
 
-  // Send email notification — fire and forget
-  if (process.env.MANAGER_EMAIL && process.env.RESEND_API_KEY) {
-    const project = await getProjectById(projectId)
-    const { notifyCallClient } = await import('./email')
-    notifyCallClient({
-      projectName: project.projectName,
-      projectId: project.projectId,
-      clientName: project.clientName,
-    }).catch((err) => console.error('[ALL-APPROVALS] email failed:', err))
-  }
 }
 
 export async function getCallClientPendingTasks(): Promise<
@@ -1040,21 +1030,22 @@ const ROLE_TO_AUDIENCE: Record<string, string> = {
   installation: 'Installation',
   sed: 'SED',
   fabrication: 'Fabrication',
-  manager: 'Management',
+  manager: 'Manager',
+  superadmin: 'Superadmin',
 }
 
 export async function getAnnouncements(role?: string): Promise<Announcement[]> {
   const today = new Date().toISOString().slice(0, 10)
-  const expiryFilter = `OR({${ANNOUNCEMENTS.EXPIRES_AT}}="", IS_AFTER({${ANNOUNCEMENTS.EXPIRES_AT}}, "${today}"), {${ANNOUNCEMENTS.EXPIRES_AT}}=BLANK())`
+  const expiryFilter = `OR(IS_AFTER({${ANNOUNCEMENTS.EXPIRES_AT}}, "${today}"), {${ANNOUNCEMENTS.EXPIRES_AT}}=BLANK())`
 
   let visibilityFilter: string
   if (!role || role === 'superadmin') {
-    visibilityFilter = `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="All", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK(), {${ANNOUNCEMENTS.VISIBLE_TO}}="")`
+    visibilityFilter = `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="Everyone", {${ANNOUNCEMENTS.VISIBLE_TO}}="Superadmin", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK())`
   } else {
     const audience = ROLE_TO_AUDIENCE[role]
     visibilityFilter = audience
-      ? `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="All", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK(), {${ANNOUNCEMENTS.VISIBLE_TO}}="", {${ANNOUNCEMENTS.VISIBLE_TO}}="${audience}")`
-      : `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="All", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK(), {${ANNOUNCEMENTS.VISIBLE_TO}}="")`
+      ? `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="Everyone", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK(), {${ANNOUNCEMENTS.VISIBLE_TO}}="${audience}")`
+      : `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="Everyone", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK())`
   }
 
   const formula = `AND(${expiryFilter}, ${visibilityFilter})`

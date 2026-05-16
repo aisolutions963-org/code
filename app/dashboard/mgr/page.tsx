@@ -427,10 +427,10 @@ export default function MgrDashboard() {
       {/* Task views */}
       {(view === 'tasks' || view === 'deliveries') && (
         <>
-          {taskLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
           {taskError && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">Failed to load tasks. <button onClick={() => mutateTasks()} className="underline">Retry</button></div>}
-          {!taskLoading && !taskError && (
+          {!taskError && (
             <TaskList
+              loading={taskLoading}
               tasks={view === 'deliveries' ? tasks.filter(t => t.handoverDocument?.length) : tasks}
               role="manager"
               onUpdate={handleUpdate}

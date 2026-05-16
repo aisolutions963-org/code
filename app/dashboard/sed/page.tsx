@@ -424,18 +424,13 @@ export default function SedDashboard() {
       {/* Task views */}
       {view !== 'projects' && (
         <>
-          {isLoading && (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" />
-            </div>
-          )}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
               Failed to load tasks. <button onClick={() => mutate()} className="underline">Retry</button>
             </div>
           )}
-          {!isLoading && !error && (
-            <TaskList tasks={visibleTasks} role="sed" onUpdate={handleUpdate} />
+          {!error && (
+            <TaskList loading={isLoading} tasks={visibleTasks} role="sed" onUpdate={handleUpdate} />
           )}
         </>
       )}

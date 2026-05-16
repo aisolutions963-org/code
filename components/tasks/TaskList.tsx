@@ -11,14 +11,49 @@ interface TaskListProps {
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
   groupByProject?: boolean
+  loading?: boolean
 }
 
 function isGatewayTask(name: string) {
   return name.toLowerCase().includes('[gateway]')
 }
 function isGateTask(name: string) {
-  // [GATE] but NOT [GATEWAY]
   return /\[gate\]/i.test(name) && !/\[gateway\]/i.test(name)
+}
+
+function SkeletonCard() {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden border-l-4 border-l-gray-100">
+      <div className="px-4 py-3 flex items-start justify-between gap-3">
+        <div className="flex-1 space-y-2">
+          <div className="h-4 bg-gray-100 rounded animate-pulse w-3/5" />
+          <div className="flex items-center gap-2">
+            <div className="h-3 bg-gray-100 rounded animate-pulse w-20" />
+            <div className="h-5 bg-gray-100 rounded-full animate-pulse w-16" />
+          </div>
+        </div>
+        <div className="w-4 h-4 bg-gray-100 rounded animate-pulse shrink-0 mt-0.5" />
+      </div>
+    </div>
+  )
+}
+
+export function TaskListSkeleton() {
+  return (
+    <div className="space-y-6">
+      {[3, 2].map((count, gi) => (
+        <section key={gi}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-3 bg-gray-100 rounded animate-pulse w-24" />
+            <div className="h-3 bg-gray-100 rounded animate-pulse w-12" />
+          </div>
+          <div className="space-y-2">
+            {Array.from({ length: count }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
 }
 
 function renderTasksInOrder(
@@ -34,7 +69,6 @@ function renderTasksInOrder(
   const gateTasks = tasks.filter((t) => isGateTask(t.taskName))
   const gateTaskIds = new Set(gateTasks.map((t) => t.id))
 
-  // Non-path, non-gate tasks in sorted order
   const mainTasks = tasks.filter((t) => !pathTaskIds.has(t.id) && !gateTaskIds.has(t.id))
 
   let gatewayRendered = false
@@ -54,7 +88,6 @@ function renderTasksInOrder(
     return <TaskCard key={task.id} task={task} role={role} onUpdate={onUpdate} />
   })
 
-  // If path tasks exist but the gateway task was Locked (filtered out), still show the section
   if (allPathTasks.length > 0 && !gatewayRendered) {
     mainNodes.push(
       <GatewaySection
@@ -75,15 +108,22 @@ function renderTasksInOrder(
   return mainNodes
 }
 
-export default function TaskList({ tasks, role, onUpdate, groupByProject = true }: TaskListProps) {
+export default function TaskList({ tasks, role, onUpdate, groupByProject = true, loading }: TaskListProps) {
+  if (loading) {
+    return <TaskListSkeleton />
+  }
+
   if (tasks.length === 0) {
     return (
       <div className="text-center py-16">
-        <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-        </svg>
-        <p className="text-gray-500 text-sm">No tasks at the moment</p>
+        <div className="w-14 h-14 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-3">
+          <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        </div>
+        <p className="text-gray-700 text-sm font-medium">All caught up</p>
+        <p className="text-gray-400 text-xs mt-1">No tasks match this view</p>
       </div>
     )
   }
@@ -96,7 +136,6 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true 
     )
   }
 
-  // Group by project ID
   const groups = new Map<string, Task[]>()
   for (const task of tasks) {
     const key = task.projectRef ?? task.project?.[0] ?? '—'
@@ -112,8 +151,8 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true 
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider font-mono">
               {projectKey}
             </span>
-            <span className="text-xs text-gray-400">
-              {groupTasks.length} task{groupTasks.length !== 1 ? 's' : ''}
+            <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+              {groupTasks.length}
             </span>
           </div>
           <div className="space-y-2">

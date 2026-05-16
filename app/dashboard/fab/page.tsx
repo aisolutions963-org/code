@@ -129,20 +129,14 @@ export default function FabDashboard() {
         </div>
       )}
 
-      {isLoading && (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" />
-        </div>
-      )}
-
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           فشل تحميل المهام. <button onClick={() => mutate()} className="underline">إعادة المحاولة</button>
         </div>
       )}
 
-      {!isLoading && !error && view !== 'timeline' && (
-        <TaskGroupedList tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} />
+      {!error && view !== 'timeline' && (
+        <TaskGroupedList loading={isLoading} tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} />
       )}
 
       {materialProject && (
