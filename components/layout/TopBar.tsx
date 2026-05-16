@@ -17,7 +17,7 @@ interface SuperadminMetrics {
   staleProjects: number
   overduePayments: number
   pendingApprovals: number
-  callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string }[]
+  callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -155,6 +155,14 @@ export default function TopBar({ role, name }: { role: Role; name: string }) {
                             <p className="text-xs font-bold text-gray-800">Call client — all gates cleared</p>
                             <p className="text-xs text-gray-600 truncate">{t.projectName}</p>
                             <p className="text-[10px] text-gray-400 font-mono">{t.projectRef} · {t.clientName}</p>
+                            {t.clientPhone && (
+                              <a
+                                href={`tel:${t.clientPhone}`}
+                                className="text-[11px] font-semibold text-teal-600 hover:text-teal-800"
+                              >
+                                {t.clientPhone}
+                              </a>
+                            )}
                           </div>
                         </div>
                       ))}

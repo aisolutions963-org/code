@@ -715,7 +715,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
 }
 
 export async function getCallClientPendingTasks(): Promise<
-  { taskId: string; projectRef: string; projectName: string; clientName: string }[]
+  { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 > {
   const formula = `AND(FIND("Call the Client", {${TASKS.TASK_NAME}}) > 0, {${TASKS.STATUS}} = "To Do")`
   const taskRecords = await fetchAll(TASKS.TABLE_ID, {
@@ -730,19 +730,20 @@ export async function getCallClientPendingTasks(): Promise<
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) chunks.push(projectIds.slice(i, i + 10))
 
-  const projectMap: Record<string, { projectId: string; projectName: string; clientName: string }> = {}
+  const projectMap: Record<string, { projectId: string; projectName: string; clientName: string; clientPhone: string }> = {}
   await Promise.all(
     chunks.map(async (chunk) => {
       const f = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const projects = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: f,
-        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.CLIENT_NAME],
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.CLIENT_NAME, PROJECTS.CLIENT_PHONE],
       })
       for (const p of projects) {
         projectMap[p.id] = {
           projectId: str(p.fields[PROJECTS.PROJECT_ID]) ?? '',
           projectName: str(p.fields[PROJECTS.PROJECT_NAME]) ?? '',
           clientName: str(p.fields[PROJECTS.CLIENT_NAME]) ?? '',
+          clientPhone: str(p.fields[PROJECTS.CLIENT_PHONE]) ?? '',
         }
       }
     }),
@@ -750,12 +751,13 @@ export async function getCallClientPendingTasks(): Promise<
 
   return taskRecords.map((r) => {
     const pid = strArr(r.fields[TASKS.PROJECT])[0] ?? ''
-    const proj = projectMap[pid] ?? { projectId: '', projectName: '', clientName: '' }
+    const proj = projectMap[pid] ?? { projectId: '', projectName: '', clientName: '', clientPhone: '' }
     return {
       taskId: r.id,
       projectRef: proj.projectId,
       projectName: proj.projectName,
       clientName: proj.clientName,
+      clientPhone: proj.clientPhone,
     }
   })
 }

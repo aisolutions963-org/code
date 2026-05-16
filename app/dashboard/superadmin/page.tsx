@@ -35,7 +35,7 @@ interface SuperadminMetrics {
   totalRevenue: number
   totalPaid: number
   totalRemaining: number
-  callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string }[]
+  callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 }
 
 interface TimelineProject {
@@ -160,13 +160,25 @@ function OverviewPage() {
               {m!.callClientTasks.length} project{m!.callClientTasks.length > 1 ? 's' : ''} ready — call client for final confirmation
             </p>
           </div>
-          <ul className="space-y-1.5 ml-7">
+          <ul className="space-y-2 ml-7">
             {m!.callClientTasks.map((t) => (
-              <li key={t.taskId} className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0" />
-                <span className="text-xs font-mono text-teal-700 font-semibold">{t.projectRef}</span>
-                <span className="text-xs text-teal-800">{t.projectName}</span>
-                <span className="text-xs text-teal-500">— {t.clientName}</span>
+              <li key={t.taskId} className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0 mt-1" />
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="text-xs font-mono text-teal-700 font-semibold">{t.projectRef}</span>
+                    <span className="text-xs text-teal-800">{t.projectName}</span>
+                    <span className="text-xs text-teal-500">— {t.clientName}</span>
+                  </div>
+                  {t.clientPhone && (
+                    <a
+                      href={`tel:${t.clientPhone}`}
+                      className="text-xs font-semibold text-teal-700 hover:text-teal-900 underline underline-offset-2"
+                    >
+                      {t.clientPhone}
+                    </a>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
