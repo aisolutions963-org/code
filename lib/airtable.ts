@@ -690,6 +690,15 @@ export async function getAllTasksForProjectAll(projectId: string): Promise<Task[
 }
 
 export async function checkAndUnlockCallClientTask(projectId: string): Promise<void> {
+  // Gate check only passes after at least one path task is completed — prevents bypassing
+  // all approval gates without doing any actual work on a path.
+  const pathDoneFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), NOT({${TASKS.PATH_CONDITION}} = BLANK()), {${TASKS.STATUS}} = "Completed")`
+  const pathDoneRecords = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: pathDoneFormula,
+    fields: [TASKS.STATUS],
+  })
+  if (pathDoneRecords.length === 0) return
+
   // Fetch all [GATE] tasks for this project and check their approval fields
   const gateFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), FIND("[GATE]", {${TASKS.TASK_NAME}}) > 0)`
   const gateRecords = await fetchAll(TASKS.TABLE_ID, {
@@ -1516,6 +1525,24 @@ export async function generateTasksForProject(
     pathMinMap.set(path, Math.min(...group.map((t) => t.templateOrder!)))
   })
 
+  // For Preparing stage, only activate the path the SED selected during intake.
+  // All other path tasks start Locked so the SED isn't overwhelmed with unrelated work.
+  let selectedPath: string | null = null
+  if (stage === 'Preparing') {
+    try {
+      const res = await fetchWithRetry(
+        `${recUrl(PROJECTS.TABLE_ID, projectId)}&fields[]=${PROJECTS.REQUIRED_INTAKE_PATHS}`,
+        { headers: airtableHeaders() },
+      )
+      if (res.ok) {
+        const data = (await res.json()) as RawRecord
+        selectedPath = str(data.fields[PROJECTS.REQUIRED_INTAKE_PATHS]) ?? null
+      }
+    } catch {
+      // network failure — fall back to activating all paths
+    }
+  }
+
   const now = new Date().toISOString()
 
   const records = allTemplates.map((t) => {
@@ -1527,7 +1554,13 @@ export async function generateTasksForProject(
       else if (t.templateOrder === f1Order) status = 'To Do'
       else status = 'Locked'
     } else {
-      status = t.templateOrder === pathMinMap.get(t.pathCondition)! ? 'To Do' : 'Locked'
+      const pathMin = pathMinMap.get(t.pathCondition)!
+      // Lock paths that weren't selected during intake; activate only the chosen one
+      if (selectedPath !== null && t.pathCondition !== selectedPath) {
+        status = 'Locked'
+      } else {
+        status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
+      }
     }
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,

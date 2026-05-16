@@ -17,7 +17,7 @@ export default function FixDashboard() {
   const [logProject, setLogProject] = useState<Project | null>(null)
 
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
-    '/api/tasks?role=fix',
+    '/api/tasks?role=installation',
     fetcher,
     { refreshInterval: 30000, revalidateOnFocus: true },
   )

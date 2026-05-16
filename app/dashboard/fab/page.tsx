@@ -15,7 +15,7 @@ export default function FabDashboard() {
   const [materialProject, setMaterialProject] = useState<Project | null>(null)
 
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
-    '/api/tasks?role=fab',
+    '/api/tasks?role=fabrication',
     fetcher,
     { refreshInterval: 30000, revalidateOnFocus: true },
   )
