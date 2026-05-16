@@ -680,6 +680,15 @@ export async function getIncompleteTasksForProject(projectId: string): Promise<T
   return records.map(transformTask)
 }
 
+export async function getAllTasksForProjectAll(projectId: string): Promise<Task[]> {
+  const formula = `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ","))`
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    sort: [{ field: TASKS.TEMPLATE_ORDER, direction: 'asc' }],
+  })
+  return records.map(transformTask)
+}
+
 export async function checkAndUnlockCallClientTask(projectId: string): Promise<void> {
   // Fetch all [GATE] tasks for this project and check their approval fields
   const gateFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), FIND("[GATE]", {${TASKS.TASK_NAME}}) > 0)`

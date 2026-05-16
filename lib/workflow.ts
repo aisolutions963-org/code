@@ -5,6 +5,8 @@ import {
   updateProject,
   getProjectById,
   getLockedTasksForScope,
+  getAllTasksForProjectAll,
+  generateTasksForProject,
 } from './airtable'
 import { Task, TaskStatus } from './types'
 import { notifyManager, notifyManagerEscalation } from './email'
@@ -112,6 +114,92 @@ export async function handleManagerRejection(taskId: string): Promise<void> {
     updateTaskRaw(taskId, {
       [TASKS.STATUS]: 'To Do' as TaskStatus,
     }),
+  )
+}
+
+export async function handleCallClientOutcome(
+  taskId: string,
+  outcome: 'approved' | 'review' | 'refused',
+): Promise<void> {
+  return withTimeout(
+    (async () => {
+      const task = await getTaskById(taskId)
+      const projectId = task.project?.[0]
+      if (!projectId) throw new Error('Task has no linked project')
+
+      const outcomeLabel =
+        outcome === 'approved' ? 'Approved' : outcome === 'review' ? 'Review Required' : 'Refused'
+
+      // Complete the Call the Client task and record the outcome
+      await updateTaskRaw(taskId, {
+        [TASKS.STATUS]: 'Completed' as TaskStatus,
+        [TASKS.COMPLETED_AT]: new Date().toISOString(),
+        [TASKS.POST_VISIT_OUTCOME]: outcomeLabel,
+      })
+
+      if (outcome === 'approved') {
+        // Advance project to Phase 2
+        await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Open' })
+        generateTasksForProject(projectId, 'Open').catch((err) =>
+          console.error('[CALL-OUTCOME] Phase 2 task generation failed:', err),
+        )
+
+      } else if (outcome === 'review') {
+        // Reset Phase 1 action tasks so the SED repeats the action flow
+        const allTasks = await getAllTasksForProjectAll(projectId)
+        const actionTasks = allTasks.filter((t) => t.id !== taskId)
+
+        // Universal tasks with templateOrder >= 2 and < 18 (gateway through notification)
+        const universalAction = actionTasks.filter(
+          (t) =>
+            !t.pathCondition &&
+            typeof t.templateOrder?.[0] === 'number' &&
+            t.templateOrder[0] >= 2 &&
+            t.templateOrder[0] < 18,
+        )
+        const universalOrders = universalAction.map((t) => t.templateOrder![0])
+        const minUniversal = universalOrders.length > 0 ? Math.min(...universalOrders) : Infinity
+
+        // Path tasks — grouped by pathCondition
+        const pathTasks = actionTasks.filter((t) => !!t.pathCondition)
+        const pathGroups = new Map<string, Task[]>()
+        for (const t of pathTasks) {
+          const g = pathGroups.get(t.pathCondition!) ?? []
+          g.push(t)
+          pathGroups.set(t.pathCondition!, g)
+        }
+
+        // GATE / LOOP tasks — no templateOrder, reset to To Do
+        const gateTasks = actionTasks.filter(
+          (t) => !t.pathCondition && (t.templateOrder ?? []).length === 0,
+        )
+
+        const resets: Promise<unknown>[] = []
+
+        for (const t of universalAction) {
+          const s: TaskStatus = t.templateOrder![0] === minUniversal ? 'To Do' : 'Locked'
+          resets.push(updateTaskRaw(t.id, { [TASKS.STATUS]: s }))
+        }
+
+        Array.from(pathGroups.entries()).forEach(([, group]) => {
+          const minOrder = Math.min(...group.map((t: Task) => t.templateOrder?.[0] ?? Infinity))
+          group.forEach((t: Task) => {
+            const s: TaskStatus = (t.templateOrder?.[0] ?? Infinity) === minOrder ? 'To Do' : 'Locked'
+            resets.push(updateTaskRaw(t.id, { [TASKS.STATUS]: s }))
+          })
+        })
+
+        for (const t of gateTasks) {
+          resets.push(updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus }))
+        }
+
+        await Promise.all(resets)
+
+      } else {
+        // Refused — mark project as not approved
+        await updateProject(projectId, { [PROJECTS.APPROVAL_STATUS]: 'Not-Approved' })
+      }
+    })(),
   )
 }
 
