@@ -53,25 +53,6 @@ interface MaintenanceWithExtra extends MaintenanceRecord {
   projectNames: string[]
 }
 
-const PAGES: { id: Page; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'timeline', label: '3-Month Timeline' },
-  { id: 'phases', label: 'Phase Gates' },
-  { id: 'activity', label: 'All Team Activity' },
-  { id: 'payments', label: 'Payment Tracker' },
-  { id: 'calendar', label: 'Payment Calendar' },
-  { id: 'warranty', label: 'Warranty Tracker' },
-  { id: 'users', label: 'User Management' },
-  { id: 'announcements', label: 'Announcements' },
-  { id: 'projects', label: 'All Projects' },
-]
-
-const VIEW_AS = [
-  { label: 'Manager view', path: '/dashboard/mgr' },
-  { label: 'SED view', path: '/dashboard/sed' },
-  { label: 'Fabrication view', path: '/dashboard/fab' },
-  { label: 'Installation view', path: '/dashboard/fix' },
-]
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -1321,57 +1302,20 @@ const VALID_PAGES = new Set<Page>(['overview','timeline','phases','activity','pa
 export default function SuperadminDashboard() {
   const searchParams = useSearchParams()
   const viewParam = searchParams.get('view') as Page | null
-  const [page, setPage] = useState<Page>(
-    viewParam && VALID_PAGES.has(viewParam) ? viewParam : 'overview'
-  )
+  const page: Page = viewParam && VALID_PAGES.has(viewParam) ? viewParam : 'overview'
 
   return (
-    <div className="flex min-h-full">
-      {/* Internal sidebar */}
-      <aside className="w-48 shrink-0 border-r border-gray-200 bg-white sticky top-0 self-start h-screen overflow-y-auto">
-        <nav className="py-3">
-          {PAGES.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPage(p.id)}
-              className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                page === p.id
-                  ? 'bg-brand-50 text-brand-700 font-semibold border-r-2 border-brand-500'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="px-4 py-3 border-t border-gray-100 mt-2">
-          <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-2">View as</p>
-          {VIEW_AS.map((l) => (
-            <Link
-              key={l.path}
-              href={l.path}
-              className="block text-xs text-brand-600 hover:underline py-1"
-            >
-              {l.label}
-            </Link>
-          ))}
-        </div>
-      </aside>
-
-      {/* Page content */}
-      <div className="flex-1 p-6 min-w-0">
-        {page === 'overview' && <OverviewPage />}
-        {page === 'timeline' && <TimelinePage />}
-        {page === 'phases' && <PhasesPage />}
-        {page === 'activity' && <ActivityPage />}
-        {page === 'payments' && <PaymentsPage />}
-        {page === 'calendar' && <CalendarPage />}
-        {page === 'warranty' && <WarrantyPage />}
-        {page === 'users' && <UsersPage />}
-        {page === 'announcements' && <AnnouncementsPage />}
-        {page === 'projects' && <OverviewPage />}
-      </div>
+    <div className="p-6 min-w-0">
+      {page === 'overview' && <OverviewPage />}
+      {page === 'timeline' && <TimelinePage />}
+      {page === 'phases' && <PhasesPage />}
+      {page === 'activity' && <ActivityPage />}
+      {page === 'payments' && <PaymentsPage />}
+      {page === 'calendar' && <CalendarPage />}
+      {page === 'warranty' && <WarrantyPage />}
+      {page === 'users' && <UsersPage />}
+      {page === 'announcements' && <AnnouncementsPage />}
+      {page === 'projects' && <OverviewPage />}
     </div>
   )
 }
