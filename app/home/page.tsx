@@ -390,6 +390,224 @@ function AddActivityModal({
   )
 }
 
+// ─── Add Installation / Delivery Modal ───────────────────────────────────────
+
+type InstallMode = 'task' | 'delivery'
+
+function AddInstallationModal({
+  date,
+  onClose,
+  onSuccess,
+}: {
+  date: string
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const { data: projectData } = useSWR<{ projects: Project[] }>('/api/projects?all=true', fetcher)
+  const [mode, setMode] = useState<InstallMode>('task')
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [projectTasks, setProjectTasks] = useState<Task[]>([])
+  const [loadingTasks, setLoadingTasks] = useState(false)
+  const [selectedTaskId, setSelectedTaskId] = useState('')
+  const [itemsDescription, setItemsDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const projects = projectData?.projects ?? []
+
+  async function handleProjectChange(projectRecordId: string) {
+    setSelectedProjectId(projectRecordId)
+    setSelectedTaskId('')
+    setProjectTasks([])
+    if (!projectRecordId || mode !== 'task') return
+    setLoadingTasks(true)
+    try {
+      const res = await fetch(`/api/tasks?projectId=${projectRecordId}&all=true`)
+      const data = await res.json()
+      const installTasks = (data.tasks as Task[] ?? []).filter(
+        (t) =>
+          t.department.includes('Installation') &&
+          t.status !== 'Locked' &&
+          t.status !== 'Completed',
+      )
+      setProjectTasks(installTasks)
+    } finally {
+      setLoadingTasks(false)
+    }
+  }
+
+  function handleModeChange(m: InstallMode) {
+    setMode(m)
+    setSelectedProjectId('')
+    setSelectedTaskId('')
+    setProjectTasks([])
+    setItemsDescription('')
+    setError(null)
+  }
+
+  async function handleSubmit() {
+    setSaving(true)
+    setError(null)
+    try {
+      if (mode === 'task') {
+        if (!selectedTaskId) { setError('Select a task'); setSaving(false); return }
+        const res = await fetch(`/api/tasks/${selectedTaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: { taskStartDate: date } }),
+        })
+        if (!res.ok) {
+          const d = await res.json()
+          setError(d.error ?? 'Failed to save')
+          return
+        }
+      } else {
+        if (!selectedProjectId) { setError('Select a project'); setSaving(false); return }
+        if (!itemsDescription.trim()) { setError('Enter items description'); setSaving(false); return }
+        const proj = projects.find((p) => p.id === selectedProjectId)
+        if (!proj) { setError('Project not found'); setSaving(false); return }
+        const res = await fetch('/api/gate-passes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: [selectedProjectId],
+            itemsDescription: itemsDescription.trim(),
+            estimatedSupplyDate: date,
+          }),
+        })
+        if (!res.ok) {
+          const d = await res.json()
+          setError(d.error ?? 'Failed to save')
+          return
+        }
+      }
+      onSuccess()
+      onClose()
+    } catch {
+      setError('Network error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div
+        className="relative bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Add to Calendar</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{date}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Mode toggle */}
+        <div className="flex rounded-lg border border-gray-200 p-0.5 mb-4">
+          <button
+            onClick={() => handleModeChange('task')}
+            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              mode === 'task' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Installation Task
+          </button>
+          <button
+            onClick={() => handleModeChange('delivery')}
+            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              mode === 'delivery' ? 'bg-green-500 text-white' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Delivery
+          </button>
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+            {error}
+          </p>
+        )}
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Project</label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => handleProjectChange(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">Select a project...</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.projectId} — {p.projectName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {mode === 'task' && selectedProjectId && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Installation Task</label>
+              {loadingTasks ? (
+                <p className="text-xs text-gray-400 py-1">Loading tasks...</p>
+              ) : projectTasks.length === 0 ? (
+                <p className="text-xs text-gray-400 py-1">No active installation tasks for this project.</p>
+              ) : (
+                <select
+                  value={selectedTaskId}
+                  onChange={(e) => setSelectedTaskId(e.target.value)}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="">Select a task...</option>
+                  {projectTasks.map((t) => (
+                    <option key={t.id} value={t.id}>{t.taskName}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {mode === 'delivery' && selectedProjectId && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Items Description</label>
+              <input
+                type="text"
+                value={itemsDescription}
+                onChange={(e) => setItemsDescription(e.target.value)}
+                placeholder="e.g. Kitchen cabinets batch 1"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Project Pipeline ─────────────────────────────────────────────────────────
 
 const PIPELINE_STAGES = [
@@ -637,6 +855,7 @@ export default function HomePage() {
   const { role, name } = useSession()
   const router = useRouter()
   const [activityDate, setActivityDate] = useState<string | null>(null)
+  const [installationDate, setInstallationDate] = useState<string | null>(null)
 
   const { data, isLoading, mutate } = useSWR<HomeData>(
     '/api/home',
@@ -647,7 +866,8 @@ export default function HomePage() {
   const announcements = data?.announcements ?? []
   const events = data?.events ?? []
 
-  const canAddActivity = ['sed', 'manager', 'superadmin'].includes(role)
+  const canAddActivity = ['sed', 'superadmin'].includes(role)
+  const canAddInstallation = ['manager', 'superadmin'].includes(role)
 
   const dashboardHref = `/dashboard/${
     role === 'superadmin' ? 'superadmin' :
@@ -703,7 +923,11 @@ export default function HomePage() {
 
         {/* Calendars */}
         <div className="grid gap-4 md:grid-cols-2">
-          <MiniCalendar type="installation" events={events} />
+          <MiniCalendar
+            type="installation"
+            events={events}
+            onDayClick={canAddInstallation ? setInstallationDate : undefined}
+          />
           <MiniCalendar
             type="activity"
             events={events}
@@ -716,6 +940,14 @@ export default function HomePage() {
         <AddActivityModal
           date={activityDate}
           onClose={() => setActivityDate(null)}
+          onSuccess={() => { mutate() }}
+        />
+      )}
+
+      {installationDate && (
+        <AddInstallationModal
+          date={installationDate}
+          onClose={() => setInstallationDate(null)}
           onSuccess={() => { mutate() }}
         />
       )}

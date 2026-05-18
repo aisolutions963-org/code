@@ -36,6 +36,7 @@ export const EDITABLE_FIELDS: Record<Role, (keyof TaskUpdateInput)[]> = {
     'managerReviewStatus',
     'managerComment',
     'completionDate',
+    'taskStartDate',
     'taskDocuments',
     'priorityFlag',
   ],
