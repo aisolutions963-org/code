@@ -236,7 +236,6 @@ function OverviewPage() {
         const stalePrep = active.filter(
           (p) =>
             p.projectStage === 'Preparing' &&
-            p.approvalStatus !== 'Not-Approved' &&
             isStale(p.lastModifiedTasks),
         )
         return stalePrep.length > 0 ? (
@@ -1625,11 +1624,18 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
 function MyTasksPage() {
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
-    '/api/tasks?role=manager',
+    '/api/tasks',
     fetcher,
     { refreshInterval: 30000, revalidateOnFocus: true },
   )
-  const tasks = data?.tasks ?? []
+  const allTasks = data?.tasks ?? []
+
+  // Show manager/purchase tasks + any "Call the Client" decision tasks
+  const tasks = allTasks.filter(
+    (t) =>
+      t.department.some((d) => ['Manager', 'Purchase'].includes(d)) ||
+      t.taskName.toLowerCase().includes('call the client'),
+  )
 
   async function handleUpdate(id: string, fields: Partial<TaskUpdateInput>) {
     const res = await fetch(`/api/tasks/${id}`, {
@@ -1647,15 +1653,15 @@ function MyTasksPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">My Tasks</h2>
-        <p className="text-sm text-gray-500">Management and approval tasks</p>
+        <h2 className="text-lg font-semibold text-gray-900">All Active Tasks</h2>
+        <p className="text-sm text-gray-500">All non-locked tasks across every department</p>
       </div>
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
           Failed to load tasks. <button onClick={() => mutate()} className="underline">Retry</button>
         </div>
       )}
-      <TaskGroupedList loading={isLoading} tasks={tasks} role="manager" onUpdate={handleUpdate} />
+      <TaskGroupedList loading={isLoading} tasks={tasks} role="superadmin" onUpdate={handleUpdate} />
     </div>
   )
 }

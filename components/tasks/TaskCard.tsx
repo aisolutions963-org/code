@@ -31,7 +31,7 @@ const OUTCOME_CONFIG: Record<CallOutcome, {
     confirmColor: 'bg-amber-500 hover:bg-amber-600 text-white',
   },
   refused: {
-    label: 'Refused',
+    label: 'Rejected',
     description: 'Client declined — project rejected',
     consequence: 'Project is marked Not-Approved. No further tasks will be generated.',
     color: 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100',
@@ -131,7 +131,7 @@ const CALL_CLIENT_KEYWORD = 'call the client'
 
 function isCallClientDecisionTask(task: Task, role: Role): boolean {
   return (
-    (role === 'sed' || role === 'superadmin') &&
+    role === 'superadmin' &&
     task.taskName.toLowerCase().includes(CALL_CLIENT_KEYWORD) &&
     (task.status === 'To Do' || task.status === 'In Progress')
   )
@@ -252,10 +252,32 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const instructions = task.instructions?.join(' ') ?? ''
   const arabicInstructions = task.arabicInstructions?.join(' ') ?? ''
 
+  // Decision task: render only the outcome panel, nothing else
+  if (isDecisionTask) {
+    return (
+      <div className="bg-white rounded-xl border border-teal-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-teal-100 flex items-center gap-2">
+          <span className="text-[10px] font-bold text-teal-700 bg-teal-100 border border-teal-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
+            Decision Required
+          </span>
+          {projectLabel && (
+            <span className="text-xs text-gray-500 font-mono">{projectLabel}</span>
+          )}
+        </div>
+        <div className="px-4 py-4">
+          <CallClientDecisionPanel
+            taskId={task.id}
+            onDecided={() => onUpdate(task.id, {})}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className={`bg-white rounded-xl border-gray-200 border shadow-sm overflow-hidden transition-shadow hover:shadow-md border-l-4 ${
-        isDecisionTask ? 'border-l-teal-500' : urgent ? 'border-l-orange-500' : deptBorder(task.department)
+        urgent ? 'border-l-orange-500' : deptBorder(task.department)
       }`}
     >
       {/* Header */}
@@ -268,11 +290,6 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <span className="text-sm font-semibold text-gray-900 truncate">
               {task.taskName}
             </span>
-            {isDecisionTask && (
-              <span className="text-[10px] font-bold text-teal-700 bg-teal-100 border border-teal-300 px-1.5 py-0.5 rounded uppercase tracking-wide">
-                Decision Required
-              </span>
-            )}
             {task.priorityFlag && (
               <span className="text-xs font-medium" title="Priority task">🚩</span>
             )}
@@ -372,14 +389,6 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
               fillersAndMissingList: task.fillersAndMissingList,
             }}
           />
-
-          {/* Call the Client — Phase 1 decision panel */}
-          {isCallClientDecisionTask(task, role) && (
-            <CallClientDecisionPanel
-              taskId={task.id}
-              onDecided={() => onUpdate(task.id, {})}
-            />
-          )}
 
           {/* Save state */}
           <div className="flex items-center gap-2 min-h-[20px]">

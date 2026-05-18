@@ -6,6 +6,7 @@ import {
   getIncompleteTasksForProject,
   generateTasksForProject,
 } from '@/lib/airtable'
+import { notifyTasksReady } from '@/lib/notifications'
 import { PROJECTS } from '@/lib/fieldMap'
 
 const STAGE_ORDER = ['Preparing', 'Open', 'Installation Completed', 'Closed']
@@ -32,11 +33,20 @@ export async function POST(
     }
 
     const incompleteTasks = await getIncompleteTasksForProject(params.id)
-    if (incompleteTasks.length > 0) {
+
+    // GATE/LOOP tasks (no templateOrder) and headline tasks are never required
+    // to be completed before advancing — they run in parallel with the main chain.
+    const blocking = incompleteTasks.filter(
+      (t) =>
+        (t.templateOrder ?? []).length > 0 &&
+        !t.taskName.toLowerCase().startsWith('to follow tasks progress'),
+    )
+
+    if (blocking.length > 0) {
       return NextResponse.json(
         {
           error: 'Cannot advance: incomplete tasks remain',
-          blockingTasks: incompleteTasks.map((t) => ({
+          blockingTasks: blocking.map((t) => ({
             id: t.id,
             taskName: t.taskName,
             status: t.status,
@@ -52,10 +62,20 @@ export async function POST(
       [PROJECTS.PROJECT_STAGE]: nextStage,
     })
 
-    // A19 — generate tasks for the new stage
-    generateTasksForProject(params.id, nextStage).catch((err) =>
-      console.error('[A19] Task generation failed after advance to', nextStage, ':', err),
-    )
+    // A19 — generate tasks for the new stage and notify relevant departments
+    ;(async () => {
+      try {
+        const { todoTemplates } = await generateTasksForProject(params.id, nextStage)
+        if (todoTemplates.length > 0) {
+          notifyTasksReady(
+            todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
+            `${nextStage} phase started for project ${updated.projectId ?? params.id}`,
+          )
+        }
+      } catch (err) {
+        console.error('[A19] Task generation failed after advance to', nextStage, ':', err)
+      }
+    })()
 
     return NextResponse.json({ project: updated, newStage: nextStage })
   } catch (error) {

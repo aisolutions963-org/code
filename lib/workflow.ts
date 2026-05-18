@@ -244,11 +244,10 @@ export async function handleCallClientOutcome(
       const outcomeLabel =
         outcome === 'approved' ? 'Approved' : outcome === 'review' ? 'Review Required' : 'Refused'
 
-      // Complete the Call the Client task and record the outcome
+      // Complete the Call the Client task
       await updateTaskRaw(taskId, {
         [TASKS.STATUS]: 'Completed' as TaskStatus,
         [TASKS.COMPLETED_AT]: new Date().toISOString(),
-        [TASKS.POST_VISIT_OUTCOME]: outcomeLabel,
       })
 
       if (outcome === 'approved') {
@@ -319,18 +318,25 @@ export async function handleCallClientOutcome(
 
         await Promise.all(resets)
 
-        // Notify SED that the client requested a review — their action tasks are reset
+        // Notify SED and manager that the client requested a review
         const projectRef = task.projectId ?? projectId
+        const reviewBody = `Client requested review on project ${projectRef}. Phase 1 action tasks have been reset.`
         createNotification({
           recipientRole: 'sed',
           title: 'Client requested review — action tasks reset',
-          body: `Phase 1 tasks for project ${projectRef} have been reset. Please redo the action flow.`,
+          body: reviewBody,
           link: ROLE_DASHBOARD['sed'],
+        })
+        createNotification({
+          recipientRole: 'manager',
+          title: 'Client requested review',
+          body: reviewBody,
+          link: ROLE_DASHBOARD['manager'],
         })
 
       } else {
-        // Refused — mark project as not approved
-        await updateProject(projectId, { [PROJECTS.APPROVAL_STATUS]: 'Not-Approved' })
+        // Refused — mark project stage as not approved
+        await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Not-Approved' })
       }
     })(),
   )
@@ -341,11 +347,11 @@ export async function handleCallCountEscalation(task: Task): Promise<void> {
   if (!projectId) return
 
   const project = await withTimeout(getProjectById(projectId))
-  if (project.approvalStatus === 'Not-Approved') return
+  if (project.projectStage === 'Not-Approved') return
 
   await withTimeout(
     updateProject(projectId, {
-      [PROJECTS.APPROVAL_STATUS]: 'Not-Approved',
+      [PROJECTS.PROJECT_STAGE]: 'Not-Approved',
     }),
   )
 

@@ -5,7 +5,7 @@ import { handleCallClientOutcome } from '@/lib/workflow'
 
 const VALID_OUTCOMES = new Set(['approved', 'review', 'refused'])
 
-export const POST = requireRole('sed', 'superadmin')(
+export const POST = requireRole('superadmin')(
   async (req: NextRequest, _session, { params }) => {
     let body: unknown
     try {

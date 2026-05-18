@@ -384,6 +384,7 @@ function buildDepartmentFormula(role: Role): string {
     .map((d) => `FIND("${d}", ARRAYJOIN({${TASKS.DEPARTMENT}}, ","))`)
     .join(', ')
   const deptOr = departments.length > 1 ? `OR(${deptChecks})` : deptChecks
+
   return `AND(${deptOr}, {${TASKS.STATUS}} != "Locked")`
 }
 
@@ -784,7 +785,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
   for (const r of gateRecords) {
     if (str(r.fields[TASKS.CONCEPT_DESIGN_APPROVAL]) === 'Approved') conceptApproved = true
     if (str(r.fields[TASKS.SAMPLE_APPROVAL]) === 'Approved') sampleApproved = true
-    if (str(r.fields[TASKS.QUOTATION_OUTCOME]) === 'Accepted') quotationApproved = true
+    if (str(r.fields[TASKS.QUOTATION_OUTCOME]) === 'Approved') quotationApproved = true
   }
 
   if (!conceptApproved || !sampleApproved || !quotationApproved) return
@@ -1697,6 +1698,13 @@ export async function generateTasksForProject(
   projectId: string,
   stage: string,
 ): Promise<{ created: number; skipped: number; todoTemplates: TaskTemplate[] }> {
+  // Lock all active tasks from the previous phase so they disappear from dashboards
+  const lockFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), OR({${TASKS.STATUS}}="To Do", {${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="Pending Approval"))`
+  const toArchive = await fetchAll(TASKS.TABLE_ID, { filterByFormula: lockFormula, fields: [TASKS.STATUS] })
+  if (toArchive.length > 0) {
+    await Promise.all(toArchive.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'Locked' as TaskStatus })))
+  }
+
   const allTemplates = await getTaskTemplates(stage)
   if (allTemplates.length === 0) return { created: 0, skipped: 0, todoTemplates: [] }
 
@@ -1712,9 +1720,13 @@ export async function generateTasksForProject(
   }
 
   const universalOrders = universalOrdered.map((t) => t.templateOrder!).sort((a, b) => a - b)
-  // First Call (order 1) is already done by the time the project is created in the system
-  const firstCallOrder = universalOrders[0] ?? Infinity
-  const f1Order = universalOrders[1] ?? Infinity   // F1 — Fill Form is the new active task
+  // In the Preparing stage the very first ordered task ("First Call — Project Shell Created")
+  // is auto-completed because the call already happened when the project was created.
+  // For every other stage the first ordered task is the active one that opens as To Do.
+  const firstOrder = universalOrders[0] ?? Infinity
+  const secondOrder = universalOrders[1] ?? Infinity
+  const firstIsAutoCompleted = stage === 'Preparing'
+  const activeOrder = firstIsAutoCompleted ? secondOrder : firstOrder
 
   const pathMinMap = new Map<string, number>()
   Array.from(pathGroups.entries()).forEach(([path, group]) => {
@@ -1729,8 +1741,8 @@ export async function generateTasksForProject(
     if (t.templateOrder === null) {
       status = 'To Do'
     } else if (t.pathCondition === null) {
-      if (t.templateOrder === firstCallOrder) status = 'Completed'
-      else if (t.templateOrder === f1Order) status = 'To Do'
+      if (firstIsAutoCompleted && t.templateOrder === firstOrder) status = 'Completed'
+      else if (t.templateOrder === activeOrder) status = 'To Do'
       else status = 'Locked'
     } else {
       // All paths run in parallel — the first task in every path starts as To Do
