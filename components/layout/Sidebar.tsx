@@ -159,6 +159,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
   ],
   superadmin: [
     HOME_ITEM,
+    { label: 'My Tasks', href: '/dashboard/superadmin?view=tasks', icon: <CheckIcon /> },
     { label: 'Overview', href: '/dashboard/superadmin', icon: <ViewGridIcon /> },
     { label: 'Timeline', href: '/dashboard/superadmin?view=timeline', icon: <ChartIcon /> },
     { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases', icon: <ShieldIcon /> },

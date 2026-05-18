@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import useSWR from 'swr'
 import { Role } from '@/lib/types'
 
@@ -18,6 +19,21 @@ interface SuperadminMetrics {
   overduePayments: number
   pendingApprovals: number
   callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
+}
+
+interface AppNotification {
+  id: number
+  recipient_role: string
+  title: string
+  body: string
+  link: string
+  read: number
+  created_at: string
+}
+
+interface NotificationsResponse {
+  notifications: AppNotification[]
+  unreadCount: number
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -71,12 +87,37 @@ export default function TopBar({ role, name }: { role: Role; name: string }) {
     },
   )
 
+  const { data: notifData, mutate: mutateNotifs } = useSWR<NotificationsResponse>(
+    '/api/notifications',
+    fetcher,
+    {
+      refreshInterval: 30000,
+      revalidateOnFocus: true,
+      onSuccess: () => setLastUpdated(new Date()),
+    },
+  )
+
   const pendingCount = pendingData?.count ?? 0
   const staleCount = metricsData?.staleProjects ?? 0
   const overdueCount = metricsData?.overduePayments ?? 0
   const callClientTasks = metricsData?.callClientTasks ?? []
+  const appNotifications = notifData?.notifications ?? []
+  const appUnread = notifData?.unreadCount ?? 0
+
   const totalAlerts =
-    pendingCount + (role === 'superadmin' ? staleCount + overdueCount + callClientTasks.length : 0)
+    appUnread +
+    pendingCount +
+    (role === 'superadmin' ? staleCount + overdueCount + callClientTasks.length : 0)
+
+  async function handleMarkRead(id: number) {
+    await fetch(`/api/notifications/${id}`, { method: 'PATCH' })
+    mutateNotifs()
+  }
+
+  async function handleMarkAllRead() {
+    await fetch('/api/notifications', { method: 'PATCH' })
+    mutateNotifs()
+  }
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true)
@@ -106,8 +147,7 @@ export default function TopBar({ role, name }: { role: Role; name: string }) {
       </div>
 
       <div className="flex items-center gap-3">
-        {showPendingBell && (
-          <div ref={bellRef} className="relative">
+        <div ref={bellRef} className="relative">
             <button
               onClick={() => setBellOpen((o) => !o)}
               title="Notifications"
@@ -212,6 +252,49 @@ export default function TopBar({ role, name }: { role: Role; name: string }) {
                     </div>
                   )}
 
+                  {/* In-app notifications */}
+                  {appNotifications.length > 0 && (
+                    <div>
+                      <div className="px-4 py-1.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+                        <p className="text-[10px] font-bold text-blue-700 uppercase tracking-widest flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                          Updates
+                        </p>
+                        {appUnread > 0 && (
+                          <button
+                            onClick={handleMarkAllRead}
+                            className="text-[10px] text-blue-500 hover:text-blue-700 font-medium"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      {appNotifications.slice(0, 10).map((n) => (
+                        <Link
+                          key={n.id}
+                          href={n.link || '#'}
+                          onClick={() => { handleMarkRead(n.id); setBellOpen(false) }}
+                          className={`block px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 ${n.read === 0 ? 'bg-blue-50/40' : ''}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {n.read === 0 && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                            )}
+                            <div className={`min-w-0 ${n.read === 0 ? '' : 'ml-3.5'}`}>
+                              <p className="text-xs font-semibold text-gray-800 leading-snug">{n.title}</p>
+                              {n.body && (
+                                <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2 whitespace-pre-wrap">{n.body}</p>
+                              )}
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {new Date(n.created_at).toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
                   {totalAlerts === 0 && (
                     <div className="px-4 py-6 text-center">
                       <svg className="w-8 h-8 text-gray-200 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -225,7 +308,6 @@ export default function TopBar({ role, name }: { role: Role; name: string }) {
               </div>
             )}
           </div>
-        )}
 
         <div className="flex items-center gap-1.5">
           <button

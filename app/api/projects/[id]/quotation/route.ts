@@ -32,18 +32,18 @@ export async function POST(
     for (const item of parsed.data.items) {
       const projectItem = await createProjectItem({
         projectId: params.id,
-        itemTypeId: item.itemTypeId,
-        itemTypeName: item.itemTypeName,
+        itemName: item.itemName,
         quantity: item.quantity,
       })
       const quotation = await createQuotation({
         projectId: params.id,
         projectItemId: projectItem.id,
-        itemTypeName: item.itemTypeName,
+        itemName: item.itemName,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         description: item.description,
         notes: item.notes,
+        quotationDate: parsed.data.quotationDate,
       })
       results.push({ projectItemId: projectItem.id, quotationId: quotation.id })
     }

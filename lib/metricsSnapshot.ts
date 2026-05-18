@@ -1,40 +1,25 @@
-import { METRICS_SNAPSHOTS } from './fieldMap'
+import db from './db'
 import { getMetrics, getSystemStatus } from './metrics'
 
-const SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
+const SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const RETENTION_DAYS = 7
 
-const getBaseUrl = () =>
-  `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${METRICS_SNAPSHOTS.TABLE_ID}`
+const insert = db.prepare(`
+  INSERT INTO metrics_snapshots
+    (timestamp, request_count, error_count, error_rate, avg_latency_ms, airtable_failures, status)
+  VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)
+`)
 
-const getHeaders = () => ({
-  Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
-  'Content-Type': 'application/json',
-})
+const prune = db.prepare(
+  `DELETE FROM metrics_snapshots WHERE timestamp < datetime('now', '-${RETENTION_DAYS} days')`,
+)
 
-async function writeSnapshot(): Promise<void> {
-  if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) return
-  const m = getMetrics()
-  const status = getSystemStatus()
+function writeSnapshot(): void {
   try {
-    await fetch(getBaseUrl(), {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({
-        records: [
-          {
-            fields: {
-              [METRICS_SNAPSHOTS.TIMESTAMP]: new Date().toISOString(),
-              [METRICS_SNAPSHOTS.REQUEST_COUNT]: m.requestCount,
-              [METRICS_SNAPSHOTS.ERROR_COUNT]: m.errorCount,
-              [METRICS_SNAPSHOTS.ERROR_RATE]: m.errorRate,
-              [METRICS_SNAPSHOTS.AVG_LATENCY_MS]: m.avgLatencyMs,
-              [METRICS_SNAPSHOTS.AIRTABLE_FAILURES]: m.airtableFailures,
-              [METRICS_SNAPSHOTS.STATUS]: status,
-            },
-          },
-        ],
-      }),
-    })
+    const m = getMetrics()
+    const status = getSystemStatus()
+    insert.run(m.requestCount, m.errorCount, m.errorRate, m.avgLatencyMs, m.airtableFailures, status)
+    prune.run()
   } catch (err) {
     console.error('[MetricsSnapshot] Write failed:', err)
   }

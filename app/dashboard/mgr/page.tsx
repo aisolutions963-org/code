@@ -227,7 +227,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 function MaterialsReviewView({ projects }: { projects: Project[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selectedProject = projects.find((p) => p.id === selectedId) ?? null
 
   const { data, isLoading, mutate } = useSWR<{ materials: Material[] }>(
     selectedId ? `/api/projects/${selectedId}/materials` : null,
@@ -357,7 +356,7 @@ export default function MgrDashboard() {
   const [paymentModal, setPaymentModal] = useState(false)
   const [assignProject, setAssignProject] = useState<Project | null>(null)
   const [quotationProject, setQuotationProject] = useState<Project | null>(null)
-  const [materialProject, setMaterialProject] = useState<Project | null>(null)
+  const [showMaterialModal, setShowMaterialModal] = useState(false)
   const [handoverProject, setHandoverProject] = useState<Project | null>(null)
   const [gatePassProject, setGatePassProject] = useState<Project | null>(null)
   const [purchaseOrderProject, setPurchaseOrderProject] = useState<Project | null>(null)
@@ -492,7 +491,7 @@ export default function MgrDashboard() {
                     <button onClick={() => setQuotationProject(p)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
                       F5 — Add Quotation Items
                     </button>
-                    <button onClick={() => setMaterialProject(p)} className="text-xs text-green-600 hover:text-green-700 font-medium">
+                    <button onClick={() => setShowMaterialModal(true)} className="text-xs text-green-600 hover:text-green-700 font-medium">
                       F3 — Order Materials
                     </button>
                     <button onClick={() => setHandoverProject(p)} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
@@ -596,11 +595,11 @@ export default function MgrDashboard() {
         />
       )}
 
-      {materialProject && (
+      {showMaterialModal && (
         <MaterialOrderModal
-          project={materialProject}
-          onClose={() => setMaterialProject(null)}
-          onCreated={() => mutateProjects()}
+          projects={projects}
+          onClose={() => setShowMaterialModal(false)}
+          onCreated={() => setShowMaterialModal(false)}
         />
       )}
 

@@ -10,6 +10,7 @@ import {
 } from './airtable'
 import { Task, TaskStatus } from './types'
 import { notifyManager, notifyManagerEscalation } from './email'
+import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
 
@@ -49,6 +50,46 @@ async function unlockNextTasks(task: Task): Promise<void> {
   await Promise.all(
     toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
   )
+
+  // Send in-app notifications to the department(s) responsible for each unlocked task
+  const projectRef = task.projectId ?? projectId
+  const projectLabel = task.projectRef ? `${task.projectRef}` : projectRef
+
+  // Build body from completed task's notes and file attachments
+  const bodyParts: string[] = []
+  const instructions = task.instructions?.filter(Boolean)
+  if (instructions && instructions.length > 0) {
+    bodyParts.push(instructions.join(' '))
+  }
+  if (task.managerComment) {
+    bodyParts.push(`Note: ${task.managerComment}`)
+  }
+  const docs = task.taskDocuments?.filter((d) => d.url)
+  if (docs && docs.length > 0) {
+    bodyParts.push(`Files: ${docs.map((d) => d.filename).join(', ')}`)
+  }
+  const body = bodyParts.join('\n')
+
+  for (const t of toUnlock) {
+    const depts = t.department ?? []
+    const roles = depts
+      .map((d) => DEPT_ROLE_MAP[d])
+      .filter((r): r is string => Boolean(r))
+
+    const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
+
+    for (const role of uniqueRoles) {
+      const dashboard = ROLE_DASHBOARD[role] ?? '/dashboard/sed'
+      createNotification({
+        recipientRole: role,
+        title: `New task ready: ${t.taskName}`,
+        body: body
+          ? `Completed: ${task.taskName} (${projectLabel})\n${body}`
+          : `Completed: ${task.taskName} (${projectLabel})`,
+        link: dashboard,
+      })
+    }
+  }
 }
 
 export async function handleTaskCompletion(
@@ -110,10 +151,18 @@ export async function handleManagerApproval(taskId: string): Promise<void> {
 }
 
 export async function handleManagerRejection(taskId: string): Promise<void> {
+  const task = await withTimeout(getTaskById(taskId))
   await withTimeout(
     updateTaskRaw(taskId, {
       [TASKS.STATUS]: 'To Do' as TaskStatus,
     }),
+  )
+  // Notify the task's department that their work was rejected and needs rework
+  const projectRef = task.projectId ?? task.project?.[0] ?? ''
+  notifyTasksReady(
+    [{ taskName: task.taskName, departments: task.department ?? [] }],
+    `Rejected by manager — task returned for rework (${projectRef})` +
+      (task.managerComment ? `\nNote: ${task.managerComment}` : ''),
   )
 }
 
@@ -140,9 +189,19 @@ export async function handleCallClientOutcome(
       if (outcome === 'approved') {
         // Advance project to Phase 2
         await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Open' })
-        generateTasksForProject(projectId, 'Open').catch((err) =>
-          console.error('[CALL-OUTCOME] Phase 2 task generation failed:', err),
-        )
+        // Generate Phase 2 tasks and notify departments — fire-and-forget to avoid blocking
+        ;(async () => {
+          try {
+            const { todoTemplates } = await generateTasksForProject(projectId, 'Open')
+            const projectRef = task.projectId ?? projectId
+            notifyTasksReady(
+              todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
+              `Phase 2 started — client approved (${projectRef})`,
+            )
+          } catch (err) {
+            console.error('[CALL-OUTCOME] Phase 2 task generation failed:', err)
+          }
+        })()
 
       } else if (outcome === 'review') {
         // Reset Phase 1 action tasks so the SED repeats the action flow
@@ -194,6 +253,15 @@ export async function handleCallClientOutcome(
         }
 
         await Promise.all(resets)
+
+        // Notify SED that the client requested a review — their action tasks are reset
+        const projectRef = task.projectId ?? projectId
+        createNotification({
+          recipientRole: 'sed',
+          title: 'Client requested review — action tasks reset',
+          body: `Phase 1 tasks for project ${projectRef} have been reset. Please redo the action flow.`,
+          link: ROLE_DASHBOARD['sed'],
+        })
 
       } else {
         // Refused — mark project as not approved

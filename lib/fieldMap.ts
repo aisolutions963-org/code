@@ -1,3 +1,12 @@
+export const CLIENTS = {
+  TABLE_ID: 'tblRDICf8jQOOvQPf',
+  CLIENT_ID: 'fldukexc33DyUohtd',
+  CLIENT_NAME: 'fldPOYo9wPYMz8y5J',
+  PHONE: 'fld2wGFrsIkZ2WJKX',
+  EMAIL: 'fldAhLNSsczIN9W20',
+  PROJECTS: 'fldg6O6PUTESQDTNn',
+} as const
+
 export const TASK_TEMPLATES = {
   TABLE_ID: 'tblfJFDNd2dcY1rUk',
   TASK_NAME: 'fldhUOs66e7p0IRhR',
@@ -82,6 +91,7 @@ export const PROJECTS = {
   SED_NOTES: 'fldxFwBQKWytFdrBp',
   COMMUN_SEDS: 'fldEs8LgBmhAC4XyQ',
   CLIENT_PHONE: 'flduN1gfUdUaTN3Af',
+  CLIENT: 'fldwLVEUsKeVLvXSb',
   ASSIGNED_INSTALLATION_TEAM: 'fldXdHwEqZLdgBgy4',
   NICKNAME: 'fldChERvQwVlxO1nR',
   EMIRATE: 'fldIrxYRfumFm6JjU',
@@ -118,12 +128,6 @@ export const QUOTATIONS = {
   QUOTATION_STATUS: 'fldJjktB8XgZkoYzr',
   SENT_DATE: 'fldxIMge4UKFxJeHV',
   APPROVED_DATE: 'fldURdaSenYkzkWpn',
-} as const
-
-export const ITEM_TYPES = {
-  TABLE_ID: 'tblVNn5uImxSqsDjt',
-  ITEM_TYPE_NAME: 'fld8XfDeP14XUcHr1',
-  ACTIVE: 'fldLkNWxfywYlMzN4',
 } as const
 
 export const PAYMENTS = {
@@ -210,16 +214,6 @@ export const FAILED_REQUESTS = {
   TIMESTAMP: 'fldoLKN6KfeGfbhXN',
 } as const
 
-export const METRICS_SNAPSHOTS = {
-  TABLE_ID: 'tblulD9vcKPtOYZzc',
-  TIMESTAMP: 'fld7DBINuPtzqsCkJ',
-  REQUEST_COUNT: 'fldwzH7bugirxh8eP',
-  ERROR_COUNT: 'fldwEYXijJQgerIGp',
-  ERROR_RATE: 'fldHhW2UKIMxG5icQ',
-  AVG_LATENCY_MS: 'fldWpFYslejhQfadM',
-  AIRTABLE_FAILURES: 'flddH6tNLDoqasrr6',
-  STATUS: 'fldTN13aaQwGAmniL',
-} as const
 
 export const PURCHASE_ORDERS = {
   TABLE_ID: 'tblXyum6bJJltk2vE',
@@ -256,6 +250,10 @@ export const HANDOVER_SHEETS = {
   PDF: 'fldKBmNaNpvRcWBmt',
   INSTALLATION_LOGS: 'fldYGozo80I5Wyof0',
   MAINTENANCE: 'fldQRDYG8E2YqWWSu',
+  FINAL_INSTALLATION_DATE: 'fld26o3FkYIJrEuqW',
+  CUSTOMER_SATISFACTION: 'fldghZv3yUbsAdjDI',
+  INSTALLATION_DIFFICULTY: 'fldEmFFjXia931YOe',
+  NEWSLETTER_OPT_IN: 'fld38IGwc92IrrYAt',
 } as const
 
 export const MATERIALS_NEEDED = {
@@ -271,4 +269,7 @@ export const MATERIALS_NEEDED = {
   ACTUAL_ARRIVAL_DATE: 'fldrMTJ0AcUSXrflW',
   PROJECT_ITEMS: 'fld6PhoGUXiwKEoFQ',
   NOTES: 'fldWnu7dJIcKk8GUd',
+  PURPOSE: 'fld27k5HcXCdfE39G',
+  REQUESTED_BY: 'fld2ghZwrYAe8xk9k',
+  REQUEST_DATE: 'fldjzLbseV1m8EDeo',
 } as const

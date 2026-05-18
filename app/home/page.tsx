@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Announcement } from '@/lib/types'
+import { Announcement, Project, Task } from '@/lib/types'
 import { useSession } from '@/app/dashboard/layout-client'
 
 interface CalendarEvent {
@@ -220,6 +220,203 @@ function MiniCalendar({
   )
 }
 
+// ─── Project Pipeline ─────────────────────────────────────────────────────────
+
+const PIPELINE_STAGES = [
+  { key: 'Preparing', label: 'Preparing' },
+  { key: 'Open', label: 'Open' },
+  { key: 'Production', label: 'Production' },
+  { key: 'Fixing', label: 'Fixing' },
+] as const
+
+type PipelineStage = typeof PIPELINE_STAGES[number]['key']
+
+const STAGE_STYLES: Record<PipelineStage, {
+  header: string; bar: string; badge: string; card: string; dot: string
+}> = {
+  Preparing: {
+    header: 'text-orange-400',
+    bar: 'bg-orange-500',
+    badge: 'bg-orange-500/20 text-orange-300',
+    card: 'border-orange-500/20 hover:border-orange-400/40',
+    dot: 'bg-orange-400',
+  },
+  Open: {
+    header: 'text-blue-400',
+    bar: 'bg-blue-500',
+    badge: 'bg-blue-500/20 text-blue-300',
+    card: 'border-blue-500/20 hover:border-blue-400/40',
+    dot: 'bg-blue-400',
+  },
+  Production: {
+    header: 'text-purple-400',
+    bar: 'bg-purple-500',
+    badge: 'bg-purple-500/20 text-purple-300',
+    card: 'border-purple-500/20 hover:border-purple-400/40',
+    dot: 'bg-purple-400',
+  },
+  Fixing: {
+    header: 'text-green-400',
+    bar: 'bg-green-500',
+    badge: 'bg-green-500/20 text-green-300',
+    card: 'border-green-500/20 hover:border-green-400/40',
+    dot: 'bg-green-400',
+  },
+}
+
+function ProjectPipeline({ role }: { role: string }) {
+  const isWideRole = role === 'superadmin' || role === 'manager'
+  const { data: projectData, isLoading } = useSWR<{ projects: Project[] }>(
+    isWideRole ? '/api/projects?all=true' : '/api/projects',
+    fetcher,
+    { refreshInterval: 60000 },
+  )
+  const { data: taskData } = useSWR<{ tasks: Task[] }>(
+    '/api/tasks',
+    fetcher,
+    { refreshInterval: 60000 },
+  )
+
+  const allProjects = projectData?.projects ?? []
+  const active = allProjects.filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
+  const tasks = taskData?.tasks ?? []
+
+  // Index tasks by project record ID
+  const tasksByProject = new Map<string, Task[]>()
+  for (const t of tasks) {
+    const pid = t.project?.[0]
+    if (!pid) continue
+    if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
+    tasksByProject.get(pid)!.push(t)
+  }
+
+  function getCurrentTask(projectId: string): Task | undefined {
+    const pts = tasksByProject.get(projectId) ?? []
+    return pts.find((t) => t.status === 'In Progress') ?? pts.find((t) => t.status === 'To Do')
+  }
+
+  if (isLoading || active.length === 0) return null
+
+  const grouped: Record<string, Project[]> = {}
+  for (const s of PIPELINE_STAGES) grouped[s.key] = []
+  for (const p of active) {
+    if (p.projectStage in grouped) grouped[p.projectStage].push(p)
+  }
+
+  return (
+    <div className="bg-gray-800/60 rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Active Project Pipeline</h2>
+        <span className="text-xs text-gray-500">{active.length} active</span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="flex items-start gap-0 min-w-max pb-1">
+          {PIPELINE_STAGES.map((stage, i) => {
+            const stageProjects = grouped[stage.key] ?? []
+            const s = STAGE_STYLES[stage.key]
+            return (
+              <div key={stage.key} className="flex items-start">
+                {/* Stage column */}
+                <div className="w-44 flex-shrink-0">
+                  {/* Stage header */}
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <div className={`h-0.5 w-4 ${s.bar} opacity-50 rounded-full`} />
+                    <span className={`text-[11px] font-bold uppercase tracking-widest ${s.header}`}>
+                      {stage.label}
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.badge}`}>
+                      {stageProjects.length}
+                    </span>
+                  </div>
+
+                  {/* Cards */}
+                  <div className="space-y-2">
+                    {stageProjects.length === 0 ? (
+                      <div className="h-14 border border-dashed border-gray-700 rounded-xl flex items-center justify-center">
+                        <span className="text-[10px] text-gray-600 uppercase tracking-wide">empty</span>
+                      </div>
+                    ) : (
+                      stageProjects.map((p) => {
+                        const task = getCurrentTask(p.id)
+                        const inProgress = task?.status === 'In Progress'
+                        return (
+                          <div
+                            key={p.id}
+                            className={`bg-gray-700/40 border rounded-xl p-2.5 transition-colors ${s.card}`}
+                          >
+                            <div className="flex items-start justify-between gap-1">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[10px] font-mono text-gray-500 leading-none mb-0.5">
+                                  {p.projectId}
+                                </p>
+                                <p className="text-xs font-semibold text-white truncate leading-tight">
+                                  {p.projectName}
+                                </p>
+                                <p className="text-[10px] text-gray-400 truncate mt-0.5">
+                                  {p.clientName}
+                                </p>
+                              </div>
+                              <div className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${s.dot}`} />
+                            </div>
+                            {task && (
+                              <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center gap-1.5">
+                                <div
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    inProgress ? 'bg-blue-400 animate-pulse' : 'bg-gray-600'
+                                  }`}
+                                />
+                                <p className="text-[10px] text-gray-400 truncate leading-tight">
+                                  {task.taskName}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Arrow connector */}
+                {i < PIPELINE_STAGES.length - 1 && (
+                  <div className="w-10 flex-shrink-0 flex items-center justify-center pt-5">
+                    <svg className="w-10 h-5 text-gray-600" viewBox="0 0 40 20" fill="none">
+                      <path
+                        d="M2 10 H30 M24 4 L34 10 L24 16"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="mt-4 pt-3 border-t border-gray-700/50 flex items-center gap-4">
+        <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+          In Progress
+        </span>
+        <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
+          <span className="w-1.5 h-1.5 rounded-full bg-gray-600" />
+          To Do
+        </span>
+        <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
+          <span className="w-2 h-0.5 bg-gray-600 rounded" />
+          No task visible for your role
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export default function HomePage() {
   const { role, name } = useSession()
   const router = useRouter()
@@ -281,6 +478,9 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+
+        {/* Project pipeline schematic */}
+        <ProjectPipeline role={role} />
 
         {/* Calendars */}
         <div className="grid gap-4 md:grid-cols-2">

@@ -86,14 +86,14 @@ export const MaterialDecisionSchema = z.object({
 })
 
 export const CreateQuotationItemsSchema = z.object({
+  quotationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid quotation date'),
   items: z
     .array(
       z.object({
-        itemTypeId: z.string().min(1),
-        itemTypeName: z.string().min(1).max(200),
+        itemName: z.string().min(1, 'Item name is required').max(300).transform((v) => v.trim()),
+        description: z.string().min(1, 'Item description is required').max(2000),
         quantity: z.number().int().min(1).max(9999),
         unitPrice: z.number().min(0).max(10_000_000),
-        description: z.string().max(2000).optional(),
         notes: z.string().max(2000).optional(),
       }),
     )
@@ -118,7 +118,34 @@ export const CreateMaterialsSchema = z.object({
     .max(50),
 })
 
+export const CreateMaterialOrderSchema = z
+  .object({
+    purpose: z.enum(['Project', 'Office', 'Factory', 'Cars', 'Other']),
+    projectId: z.string().optional(),
+    items: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(300).transform((v) => v.trim()),
+          supplier: z.string().max(200).optional(),
+          quantity: z.number().positive().max(100_000),
+          unit: z.enum(['pcs', 'm', 'm²', 'kg', 'L', 'set', 'other']),
+          neededByDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          notes: z.string().max(2000).optional(),
+        }),
+      )
+      .min(1, 'At least one material row is required')
+      .max(50),
+  })
+  .refine((d) => d.purpose !== 'Project' || !!d.projectId, {
+    message: 'Project is required when purpose is Project',
+    path: ['projectId'],
+  })
+
 export const CreateHandoverSchema = z.object({
+  finalInstallationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  customerSatisfaction: z.enum(['Very Satisfied', 'Satisfied', 'Neutral', 'Unsatisfied']),
+  installationDifficulty: z.enum(['Easy', 'Medium', 'Hard', 'Very Hard']),
+  newsletterOptIn: z.boolean().optional(),
   notes: z.string().max(2000).optional(),
 })
 

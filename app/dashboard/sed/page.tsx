@@ -356,7 +356,7 @@ export default function SedDashboard() {
   const view = searchParams.get('view') ?? 'tasks'
   const [showNewProject, setShowNewProject] = useState(false)
   const [quotationProject, setQuotationProject] = useState<Project | null>(null)
-  const [materialProject, setMaterialProject] = useState<Project | null>(null)
+  const [showMaterialModal, setShowMaterialModal] = useState(false)
 
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks?role=sed',
@@ -470,7 +470,7 @@ export default function SedDashboard() {
                       F5 — Add Quotation Items
                     </button>
                     <button
-                      onClick={() => setMaterialProject(p)}
+                      onClick={() => setShowMaterialModal(true)}
                       className="text-xs text-green-600 hover:text-green-700 font-medium"
                     >
                       F3 — Order Materials
@@ -501,11 +501,11 @@ export default function SedDashboard() {
         />
       )}
 
-      {materialProject && (
+      {showMaterialModal && (
         <MaterialOrderModal
-          project={materialProject}
-          onClose={() => setMaterialProject(null)}
-          onCreated={() => mutateProjects()}
+          projects={projects}
+          onClose={() => setShowMaterialModal(false)}
+          onCreated={() => setShowMaterialModal(false)}
         />
       )}
     </div>

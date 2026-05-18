@@ -7,9 +7,11 @@ import useSWR, { mutate as globalMutate } from 'swr'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { Project, MaintenanceRecord, Announcement, Payment, Task } from '@/lib/types'
+import { Project, MaintenanceRecord, Announcement, Payment, Task, TaskUpdateInput } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import Modal from '@/components/ui/Modal'
+import TaskGroupedList from '@/components/tasks/TaskGroupedList'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -25,6 +27,32 @@ type Page =
   | 'users'
   | 'announcements'
   | 'projects'
+  | 'tasks'
+
+interface SedMember { id: string; name: string }
+
+const UAE_EMIRATES = ['Dubai', 'Abu Dabei', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
+const DUBAI_LOCATIONS = [
+  'Abu Hail', 'Al Baraha', 'Al Barsha', 'Al Bastakiya', 'Al Buteen', 'Al Dhagaya',
+  'Al Garhoud', 'Al Hamriya', 'Al Hudaiba', 'Al Jaddaf', 'Al Jafilia', 'Al Karama',
+  'Al Mamzar', 'Al Manara', 'Al Mankhool', 'Al Mizhar', 'Al Muntazah', 'Al Quoz',
+  'Al Qusais', 'Arjan', 'Arabian Ranches', 'Bluewaters Island', 'Bur Dubai',
+  'Business Bay', 'City Walk', 'DAMAC Lagoons', 'Deira', 'Discovery Gardens',
+  'District City', 'Downtown Dubai', 'Dubai Creek Harbour', 'Dubai Hills Estate',
+  'Dubai Marina', 'Dubai Silicon Oasis', 'Emaar South', 'Al Furjan', 'Green Community',
+  'Jumeirah', 'Jumeirah Lake Towers (JLT)', 'Jumeirah Village Circle (JVC)',
+  'MBR City (Meydan)', 'Marina', 'Marsa Dubai', 'Motor City', 'Palm Jumeirah',
+  'Port de La Mer', 'Rashidiya', 'Satwa', 'Sobha Hartland', 'Sport City',
+  'The Springs', 'Tilal Al Ghaf', 'Town Square', 'Umm Suqeim',
+]
+const INTAKE_PATHS = [
+  'Make Quotation',
+  'Visit Site to Gather Details',
+  'Assign Installation for Measurement',
+  'Select Material / Order Samples',
+  'Draft Proposal or Photo Ideas',
+  'Client Clarifications & Sketches',
+]
 
 interface SuperadminMetrics {
   totalProjects: number
@@ -96,6 +124,7 @@ function OverviewPage() {
   const { data: projectsData, isLoading: pLoading, mutate: mutp } = useSWR<{ projects: Project[] }>(
     '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
   )
+  const [showNewProject, setShowNewProject] = useState(false)
 
   const projects = projectsData?.projects ?? []
   const active = projects.filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
@@ -117,15 +146,29 @@ function OverviewPage() {
     mutp()
   }
 
+  async function handleDelete(id: string, name: string) {
+    if (!window.confirm(`Delete project "${name}" and all its tasks? This cannot be undone.`)) return
+    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      window.alert(d.error ?? 'Failed to delete project')
+      return
+    }
+    mutp()
+  }
+
   if (mLoading || pLoading) return <Spinner />
 
   const m = metricsData
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">Overview</h2>
-        <p className="text-sm text-gray-500">Portfolio summary and alerts</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Overview</h2>
+          <p className="text-sm text-gray-500">Portfolio summary and alerts</p>
+        </div>
+        <Button size="sm" onClick={() => setShowNewProject(true)}>+ New Project</Button>
       </div>
 
       {/* Metrics bar */}
@@ -212,6 +255,13 @@ function OverviewPage() {
         ) : null
       })()}
 
+      {showNewProject && (
+        <NewProjectModal
+          onClose={() => setShowNewProject(false)}
+          onCreated={() => { setShowNewProject(false); mutp() }}
+        />
+      )}
+
       {/* Active projects table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
@@ -231,7 +281,7 @@ function OverviewPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {active.map((p) => (
-                <ProjectRow key={p.id} project={p} onAdvance={handleAdvance} />
+                <ProjectRow key={p.id} project={p} onAdvance={handleAdvance} onDelete={handleDelete} />
               ))}
               {active.length === 0 && (
                 <tr>
@@ -246,7 +296,7 @@ function OverviewPage() {
   )
 }
 
-function ProjectRow({ project: p, onAdvance }: { project: Project; onAdvance: (id: string) => Promise<void> }) {
+function ProjectRow({ project: p, onAdvance, onDelete }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void> }) {
   const [loading, setLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
   const [err, setErr] = useState('')
@@ -315,6 +365,14 @@ function ProjectRow({ project: p, onAdvance }: { project: Project; onAdvance: (i
             {p.projectStage !== 'Closed' && (
               <Button size="sm" variant="secondary" loading={loading} onClick={advance}>Advance →</Button>
             )}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => onDelete(p.id, p.projectName)}
+              className="text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"
+            >
+              Delete
+            </Button>
           </div>
         </td>
       </tr>
@@ -1015,7 +1073,6 @@ function WarrantyPage() {
 
   const expired = records.filter((r) => r.daysRemaining < 0).length
   const expiringSoon = records.filter((r) => r.daysRemaining >= 0 && r.daysRemaining < 30).length
-  const healthy = records.filter((r) => r.daysRemaining >= 30).length
 
   if (isLoading) return <Spinner />
 
@@ -1307,9 +1364,302 @@ function CalendarPage() {
   )
 }
 
+// ─── New Project Modal ────────────────────────────────────────────────────────
+
+function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [selectedSedId, setSelectedSedId] = useState('')
+  const [form, setForm] = useState({
+    projectName: '',
+    nickname: '',
+    clientName: '',
+    projectDescription: '',
+    detailedLocation: '',
+    paymentMode: '' as '' | 'Standard' | 'Progressive',
+    requiredIntakePaths: '',
+    clientPhone: '',
+    emirate: '',
+    location: '',
+    sedNotes: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const [result, setResult] = useState<{ projectId: string; tasksCreated: number; warning?: string } | null>(null)
+
+  const { data: sedData } = useSWR<{ members: SedMember[] }>('/api/team/sed', fetcher)
+  const sedMembers = sedData?.members ?? []
+
+  function set<K extends keyof typeof form>(key: K, value: typeof form[K]) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+
+  async function handleSave() {
+    const missing: string[] = []
+    if (!selectedSedId) missing.push('SED Owner')
+    if (!form.projectName.trim()) missing.push('Project Name')
+    if (!form.nickname.trim()) missing.push('Nickname')
+    if (!form.clientName.trim()) missing.push('Client Name')
+    if (!form.projectDescription.trim()) missing.push('Project Scope')
+    if (!form.detailedLocation.trim()) missing.push('Exact Location')
+    if (!form.paymentMode) missing.push('Payment Mode')
+    if (!form.requiredIntakePaths) missing.push('Requested Action')
+    if (missing.length > 0) { setErr(`Required: ${missing.join(', ')}`); return }
+
+    setSaving(true); setErr('')
+    try {
+      const body: Record<string, unknown> = {
+        projectName: form.projectName.trim(),
+        nickname: form.nickname.trim(),
+        clientName: form.clientName.trim(),
+        projectDescription: form.projectDescription,
+        detailedLocation: form.detailedLocation,
+        paymentMode: form.paymentMode,
+        requiredIntakePaths: form.requiredIntakePaths,
+        salesOwnerCollaboratorId: selectedSedId,
+      }
+      if (form.clientPhone) body.clientPhone = form.clientPhone
+      if (form.emirate) body.emirate = form.emirate
+      if (form.location) body.location = form.location
+      if (form.sedNotes) body.sedNotes = form.sedNotes
+
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to create project')
+      setResult({ projectId: data.project.projectId, tasksCreated: data.tasksCreated, warning: data.warning })
+      onCreated()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to create project')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (result) {
+    return (
+      <Modal open onClose={onClose} title="Project Created">
+        <div className="space-y-3 text-sm">
+          <p className="text-green-700 font-medium">
+            Project <span className="font-mono">{result.projectId}</span> created successfully.
+          </p>
+          {result.tasksCreated > 0 && (
+            <p className="text-gray-600">{result.tasksCreated} Phase 1 tasks generated automatically.</p>
+          )}
+          {result.warning && (
+            <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">{result.warning}</p>
+          )}
+          <div className="pt-2"><Button onClick={onClose}>Close</Button></div>
+        </div>
+      </Modal>
+    )
+  }
+
+  const showLocation = form.emirate === 'Dubai' || form.emirate === ''
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="New Project"
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} loading={saving}>Create Project</Button>
+        </>
+      }
+    >
+      <div className="space-y-4 text-sm">
+        {err && (
+          <p className="text-red-600 text-xs bg-red-50 border border-red-200 rounded px-3 py-2">{err}</p>
+        )}
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <label className="block text-xs font-medium text-amber-800 mb-1">
+            SED Owner <span className="text-red-500">*</span>
+          </label>
+          <select
+            className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            value={selectedSedId}
+            onChange={(e) => setSelectedSedId(e.target.value)}
+          >
+            <option value="">— select SED —</option>
+            {sedMembers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <p className="text-xs text-amber-700 mt-1">Project will be assigned to this SED. Superadmin cannot be the owner.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Project Name *</label>
+            <input
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={form.projectName}
+              onChange={(e) => set('projectName', e.target.value)}
+              placeholder="Full official project name"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Nickname *</label>
+            <input
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={form.nickname}
+              onChange={(e) => set('nickname', e.target.value)}
+              placeholder="Short internal reference"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Client Name *</label>
+            <input
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={form.clientName}
+              onChange={(e) => set('clientName', e.target.value)}
+              placeholder="Full name"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Client Phone</label>
+            <input
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={form.clientPhone}
+              onChange={(e) => set('clientPhone', e.target.value)}
+              placeholder="+971 50 XXX XXXX"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Project Scope *</label>
+            <textarea
+              rows={2}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              value={form.projectDescription}
+              onChange={(e) => set('projectDescription', e.target.value)}
+              placeholder="What is being fabricated / installed?"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Exact Location *</label>
+            <input
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={form.detailedLocation}
+              onChange={(e) => set('detailedLocation', e.target.value)}
+              placeholder="Building, floor, unit, city"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Emirate</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              value={form.emirate}
+              onChange={(e) => { set('emirate', e.target.value); set('location', '') }}
+            >
+              <option value="">— select —</option>
+              {UAE_EMIRATES.map((e) => <option key={e}>{e}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Area {!showLocation && <span className="text-gray-400 font-normal">(Dubai only)</span>}
+            </label>
+            {showLocation ? (
+              <select
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                value={form.location}
+                onChange={(e) => set('location', e.target.value)}
+              >
+                <option value="">— select area —</option>
+                {DUBAI_LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+              </select>
+            ) : (
+              <input
+                disabled
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400"
+                placeholder="Select Dubai to pick an area"
+              />
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Requested Action *</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              value={form.requiredIntakePaths}
+              onChange={(e) => set('requiredIntakePaths', e.target.value)}
+            >
+              <option value="">— select —</option>
+              {INTAKE_PATHS.map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Payment Mode *</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              value={form.paymentMode}
+              onChange={(e) => set('paymentMode', e.target.value as '' | 'Standard' | 'Progressive')}
+            >
+              <option value="">— select —</option>
+              <option>Standard</option>
+              <option>Progressive</option>
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
+            <textarea
+              rows={2}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              value={form.sedNotes}
+              onChange={(e) => set('sedNotes', e.target.value)}
+              placeholder="General notes..."
+            />
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Page 10: My Tasks ────────────────────────────────────────────────────────
+
+function MyTasksPage() {
+  const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
+    '/api/tasks?role=manager',
+    fetcher,
+    { refreshInterval: 30000, revalidateOnFocus: true },
+  )
+  const tasks = data?.tasks ?? []
+
+  async function handleUpdate(id: string, fields: Partial<TaskUpdateInput>) {
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    })
+    if (!res.ok) {
+      const body = await res.json()
+      throw new Error(body.error ?? 'Failed')
+    }
+    mutate()
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">My Tasks</h2>
+        <p className="text-sm text-gray-500">Management and approval tasks</p>
+      </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+          Failed to load tasks. <button onClick={() => mutate()} className="underline">Retry</button>
+        </div>
+      )}
+      <TaskGroupedList loading={isLoading} tasks={tasks} role="manager" onUpdate={handleUpdate} />
+    </div>
+  )
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-const VALID_PAGES = new Set<Page>(['overview','timeline','phases','activity','payments','calendar','warranty','users','announcements','projects'])
+const VALID_PAGES = new Set<Page>(['overview','timeline','phases','activity','payments','calendar','warranty','users','announcements','projects','tasks'])
 
 export default function SuperadminDashboard() {
   const searchParams = useSearchParams()
@@ -1328,6 +1678,7 @@ export default function SuperadminDashboard() {
       {page === 'users' && <UsersPage />}
       {page === 'announcements' && <AnnouncementsPage />}
       {page === 'projects' && <OverviewPage />}
+      {page === 'tasks' && <MyTasksPage />}
     </div>
   )
 }

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { getMetrics, getSystemStatus } from '@/lib/metrics'
-import { getLogs } from '@/lib/logger'
 import { SYSTEM_LOGS } from '@/lib/fieldMap'
 
 const AIRTABLE_BASE = process.env.AIRTABLE_BASE_ID
@@ -20,9 +19,8 @@ async function checkAirtable(): Promise<'ok' | 'failing'> {
 }
 
 export async function GET() {
-  const [airtableStatus, recentErrors, metrics] = await Promise.all([
+  const [airtableStatus, metrics] = await Promise.all([
     checkAirtable(),
-    getLogs({ level: 'error', limit: 5 }),
     Promise.resolve(getMetrics()),
   ])
 

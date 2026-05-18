@@ -1,4 +1,5 @@
 import {
+  CLIENTS,
   TASKS,
   TASK_TEMPLATES,
   PROJECTS,
@@ -11,7 +12,6 @@ import {
   MATERIALS_NEEDED,
   HANDOVER_SHEETS,
   QUOTATIONS,
-  ITEM_TYPES,
   PURCHASE_ORDERS,
   INSTALLATION_LOGS,
 } from './fieldMap'
@@ -22,6 +22,7 @@ import {
   TaskUpdateInput,
   AttachmentInput,
   Attachment,
+  Client,
   Project,
   ProjectCreateInput,
   Payment,
@@ -33,8 +34,8 @@ import {
   AnnouncementCreateInput,
   Material,
   MaterialCreateInput,
+  MaterialOrderInput,
   HandoverSheet,
-  ItemType,
   ProjectItem,
   Quotation,
   PurchaseOrder,
@@ -45,6 +46,7 @@ import {
 import { ROLE_TO_DEPARTMENT } from './permissions'
 import { validateEnv } from './env'
 import { recordAirtableFailure } from './metrics'
+import { notifyTasksReady } from './notifications'
 
 validateEnv()
 
@@ -241,6 +243,12 @@ function transformTask(record: RawRecord): Task {
 function transformProject(record: RawRecord): Project {
   const f = record.fields
   const owner = f[PROJECTS.SALES_OWNER] as { id: string; email: string; name: string } | undefined
+  const rawCommun = f[PROJECTS.COMMUN_SEDS]
+  const communSeds: string[] = Array.isArray(rawCommun)
+    ? (rawCommun as Array<{ name?: string; email?: string; id?: string }>)
+        .map((c) => c.name ?? c.email ?? c.id ?? '')
+        .filter(Boolean)
+    : []
   return {
     id: record.id,
     projectName: str(f[PROJECTS.PROJECT_NAME]) ?? '',
@@ -269,6 +277,7 @@ function transformProject(record: RawRecord): Project {
     location: str(f[PROJECTS.LOCATION]),
     detailedLocation: str(f[PROJECTS.DETAILED_LOCATION]),
     projectDescription: str(f[PROJECTS.PROJECT_DESCRIPTION]),
+    communSeds: communSeds.length > 0 ? communSeds : undefined,
   }
 }
 
@@ -513,11 +522,65 @@ export async function updateProject(
   return transformProject(record)
 }
 
+// ─── Clients ─────────────────────────────────────────────────────────────────
+
+function transformClient(record: RawRecord): Client {
+  const f = record.fields
+  return {
+    id: record.id,
+    clientId: str(f[CLIENTS.CLIENT_ID]),
+    clientName: str(f[CLIENTS.CLIENT_NAME]) ?? '',
+    phone: str(f[CLIENTS.PHONE]),
+    email: str(f[CLIENTS.EMAIL]),
+  }
+}
+
+async function findClientByName(name: string): Promise<Client | null> {
+  const safe = name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  const formula = `LOWER({${CLIENTS.CLIENT_NAME}}) = LOWER("${safe}")`
+  const records = await fetchAll(CLIENTS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [CLIENTS.CLIENT_NAME, CLIENTS.PHONE, CLIENTS.EMAIL, CLIENTS.CLIENT_ID],
+    maxRecords: 1,
+  })
+  if (records.length === 0) return null
+  return transformClient(records[0])
+}
+
+async function createClientRecord(name: string, phone?: string): Promise<Client> {
+  const fields: Record<string, unknown> = { [CLIENTS.CLIENT_NAME]: name }
+  if (phone) fields[CLIENTS.PHONE] = phone
+  const res = await fetchWithRetry(tblUrl(CLIENTS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ records: [{ fields }] }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error creating client ${res.status}: ${body}`)
+  }
+  const data = (await res.json()) as { records: RawRecord[] }
+  return transformClient(data.records[0])
+}
+
+async function getOrCreateClient(name: string, phone?: string): Promise<Client> {
+  const existing = await findClientByName(name)
+  if (existing) return existing
+  return createClientRecord(name, phone)
+}
+
 export async function createProject(input: ProjectCreateInput): Promise<Project> {
+  // Find or create the client record, then link it to the project
+  const client = await getOrCreateClient(
+    input.clientName,
+    input.clientPhone || undefined,
+  )
+
   const fields: Record<string, unknown> = {
     [PROJECTS.PROJECT_NAME]: input.projectName,
     [PROJECTS.NICKNAME]: input.nickname,
     [PROJECTS.CLIENT_NAME]: input.clientName,
+    [PROJECTS.CLIENT]: [client.id],
     [PROJECTS.PROJECT_DESCRIPTION]: input.projectDescription,
     [PROJECTS.DETAILED_LOCATION]: input.detailedLocation,
     [PROJECTS.PAYMENT_MODE]: input.paymentMode,
@@ -721,7 +784,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
   const callFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), FIND("Call the Client", {${TASKS.TASK_NAME}}) > 0, {${TASKS.STATUS}} = "Locked")`
   const callRecords = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: callFormula,
-    fields: [TASKS.TASK_NAME],
+    fields: [TASKS.TASK_NAME, TASKS.DEPARTMENT, TASKS.PROJECT_ID],
   })
 
   if (callRecords.length === 0) return
@@ -729,6 +792,22 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
   await Promise.all(
     callRecords.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'To Do' })),
   )
+
+  // Notify responsible departments that the Call the Client task is now actionable
+  for (const r of callRecords) {
+    const rawDepts = r.fields[TASKS.DEPARTMENT]
+    const depts: string[] = Array.isArray(rawDepts)
+      ? (rawDepts as Array<{ name?: string } | string>).map((d) =>
+          typeof d === 'string' ? d : (d.name ?? ''),
+        ).filter(Boolean)
+      : []
+    const taskName = str(r.fields[TASKS.TASK_NAME]) ?? 'Call the Client'
+    const projRef = str(r.fields[TASKS.PROJECT_ID]) ?? projectId
+    notifyTasksReady(
+      [{ taskName, departments: depts.length > 0 ? depts : ['Manager'] }],
+      `All approval gates cleared for project ${projRef} — ready to call the client`,
+    )
+  }
 
 }
 
@@ -1209,6 +1288,76 @@ export async function createMaterials(
   return created
 }
 
+export async function createMaterialOrder(order: MaterialOrderInput): Promise<Material[]> {
+  const created: Material[] = []
+  const today = order.requestDate
+  for (let i = 0; i < order.items.length; i += 10) {
+    const chunk = order.items.slice(i, i + 10)
+    const res = await fetchWithRetry(tblUrl(MATERIALS_NEEDED.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({
+        records: chunk.map((item) => {
+          const fields: Record<string, unknown> = {
+            [MATERIALS_NEEDED.NAME]: item.name,
+            [MATERIALS_NEEDED.QUANTITY]: item.quantity,
+            [MATERIALS_NEEDED.UNIT]: item.unit,
+            [MATERIALS_NEEDED.PURPOSE]: order.purpose,
+            [MATERIALS_NEEDED.REQUESTED_BY]: order.requestedBy,
+            [MATERIALS_NEEDED.REQUEST_DATE]: today,
+            [MATERIALS_NEEDED.ORDER_STATUS]: 'Pending',
+          }
+          if (order.projectId) fields[MATERIALS_NEEDED.PROJECTS] = [order.projectId]
+          if (item.supplier) fields[MATERIALS_NEEDED.SUPPLIER] = item.supplier
+          if (item.neededByDate) fields[MATERIALS_NEEDED.EXPECTED_ARRIVAL_DATE] = item.neededByDate
+          if (item.notes) fields[MATERIALS_NEEDED.NOTES] = item.notes
+          return { fields }
+        }),
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error ${res.status}: ${body}`)
+    }
+    const data = (await res.json()) as { records: RawRecord[] }
+    created.push(...data.records.map(transformMaterial))
+  }
+  return created
+}
+
+export async function deleteTasksByProjectId(projectId: string): Promise<number> {
+  const formula = `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ","))`
+  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula, fields: [TASKS.STATUS] })
+  if (records.length === 0) return 0
+
+  let deleted = 0
+  for (let i = 0; i < records.length; i += 10) {
+    const chunk = records.slice(i, i + 10)
+    const qs = chunk.map((r) => `records[]=${r.id}`).join('&')
+    const res = await fetchWithRetry(`${BASE_URL}/${BASE_ID}/${TASKS.TABLE_ID}?${qs}`, {
+      method: 'DELETE',
+      headers: airtableHeaders(),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error deleting tasks ${res.status}: ${body}`)
+    }
+    deleted += chunk.length
+  }
+  return deleted
+}
+
+export async function deleteProjectById(projectId: string): Promise<void> {
+  const res = await fetchWithRetry(recUrl(PROJECTS.TABLE_ID, projectId), {
+    method: 'DELETE',
+    headers: airtableHeaders(),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error deleting project ${res.status}: ${body}`)
+  }
+}
+
 // ─── Handover Sheets ──────────────────────────────────────────────────────────
 
 function transformHandoverSheet(record: RawRecord): HandoverSheet {
@@ -1219,18 +1368,32 @@ function transformHandoverSheet(record: RawRecord): HandoverSheet {
     project: strArr(f[HANDOVER_SHEETS.PROJECT]) ?? [],
     status: str(f[HANDOVER_SHEETS.STATUS]) ?? 'Pending',
     notes: str(f[HANDOVER_SHEETS.NOTES]),
+    finalInstallationDate: str(f[HANDOVER_SHEETS.FINAL_INSTALLATION_DATE]),
+    customerSatisfaction: str(f[HANDOVER_SHEETS.CUSTOMER_SATISFACTION]),
+    installationDifficulty: str(f[HANDOVER_SHEETS.INSTALLATION_DIFFICULTY]),
+    newsletterOptIn: f[HANDOVER_SHEETS.NEWSLETTER_OPT_IN] === true,
   }
 }
 
 export async function createHandoverSheet(
   projectId: string,
-  notes?: string,
+  data: {
+    finalInstallationDate: string
+    customerSatisfaction: string
+    installationDifficulty: string
+    newsletterOptIn?: boolean
+    notes?: string
+  },
 ): Promise<HandoverSheet> {
   const fields: Record<string, unknown> = {
     [HANDOVER_SHEETS.PROJECT]: [projectId],
     [HANDOVER_SHEETS.STATUS]: 'Generated',
+    [HANDOVER_SHEETS.FINAL_INSTALLATION_DATE]: data.finalInstallationDate,
+    [HANDOVER_SHEETS.CUSTOMER_SATISFACTION]: data.customerSatisfaction,
+    [HANDOVER_SHEETS.INSTALLATION_DIFFICULTY]: data.installationDifficulty,
   }
-  if (notes) fields[HANDOVER_SHEETS.NOTES] = notes
+  if (data.notes) fields[HANDOVER_SHEETS.NOTES] = data.notes
+  if (data.newsletterOptIn !== undefined) fields[HANDOVER_SHEETS.NEWSLETTER_OPT_IN] = data.newsletterOptIn
   const res = await fetchWithRetry(tblUrl(HANDOVER_SHEETS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
@@ -1240,8 +1403,32 @@ export async function createHandoverSheet(
     const body = await res.text()
     throw new Error(`Airtable error ${res.status}: ${body}`)
   }
-  const data = (await res.json()) as { records: RawRecord[] }
-  return transformHandoverSheet(data.records[0])
+  const data2 = (await res.json()) as { records: RawRecord[] }
+  return transformHandoverSheet(data2.records[0])
+}
+
+export async function uploadAttachmentToRecord(
+  recordId: string,
+  fieldId: string,
+  file: { name: string; type: string; buffer: Buffer },
+): Promise<void> {
+  const form = new FormData()
+  form.append(
+    'file',
+    new Blob([new Uint8Array(file.buffer)], { type: file.type || 'application/octet-stream' }),
+    file.name,
+  )
+  const res = await fetch(
+    `https://content.airtable.com/v0/${BASE_ID}/${recordId}/uploadAttachment/${fieldId}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
+      body: form,
+    },
+  )
+  if (!res.ok) {
+    throw new Error(`Airtable attachment upload failed: ${res.status} ${await res.text()}`)
+  }
 }
 
 // ─── Purchase Orders ─────────────────────────────────────────────────────────
@@ -1500,9 +1687,9 @@ export async function getTaskCountForProject(projectId: string): Promise<number>
 export async function generateTasksForProject(
   projectId: string,
   stage: string,
-): Promise<{ created: number; skipped: number }> {
+): Promise<{ created: number; skipped: number; todoTemplates: TaskTemplate[] }> {
   const allTemplates = await getTaskTemplates(stage)
-  if (allTemplates.length === 0) return { created: 0, skipped: 0 }
+  if (allTemplates.length === 0) return { created: 0, skipped: 0, todoTemplates: [] }
 
   const ordered = allTemplates.filter((t) => t.templateOrder !== null)
   const universalOrdered = ordered.filter((t) => t.pathCondition === null)
@@ -1544,6 +1731,7 @@ export async function generateTasksForProject(
   }
 
   const now = new Date().toISOString()
+  const todoTemplates: TaskTemplate[] = []
 
   const records = allTemplates.map((t) => {
     let status: TaskStatus
@@ -1562,6 +1750,7 @@ export async function generateTasksForProject(
         status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
       }
     }
+    if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
       [TASKS.PROJECT]: [projectId],
@@ -1578,22 +1767,10 @@ export async function generateTasksForProject(
   })
 
   const ids = await createTasksBatch(records)
-  return { created: ids.length, skipped: allTemplates.length - ids.length }
+  return { created: ids.length, skipped: allTemplates.length - ids.length, todoTemplates }
 }
 
 // ─── Item Types ───────────────────────────────────────────────────────────────
-
-export async function getItemTypes(): Promise<ItemType[]> {
-  const records = await fetchAll(ITEM_TYPES.TABLE_ID, {
-    filterByFormula: `{${ITEM_TYPES.ACTIVE}}=1`,
-    sort: [{ field: ITEM_TYPES.ITEM_TYPE_NAME, direction: 'asc' }],
-    fields: [ITEM_TYPES.ITEM_TYPE_NAME, ITEM_TYPES.ACTIVE],
-  })
-  return records.map((r) => ({
-    id: r.id,
-    name: str(r.fields[ITEM_TYPES.ITEM_TYPE_NAME]) ?? '',
-  }))
-}
 
 // ─── Project Items ────────────────────────────────────────────────────────────
 
@@ -1612,14 +1789,12 @@ function transformProjectItem(record: RawRecord): ProjectItem {
 
 export async function createProjectItem(input: {
   projectId: string
-  itemTypeId: string
-  itemTypeName: string
+  itemName: string
   quantity: number
 }): Promise<ProjectItem> {
   const fields: Record<string, unknown> = {
-    [PROJECT_ITEMS.ITEM_NAME]: input.itemTypeName,
+    [PROJECT_ITEMS.ITEM_NAME]: input.itemName,
     [PROJECT_ITEMS.PROJECT]: [input.projectId],
-    [PROJECT_ITEMS.ITEM_TYPE]: [input.itemTypeId],
     [PROJECT_ITEMS.QUANTITY]: input.quantity,
   }
   const res = await fetchWithRetry(tblUrl(PROJECT_ITEMS.TABLE_ID), {
@@ -1657,14 +1832,15 @@ function transformQuotation(record: RawRecord): Quotation {
 export async function createQuotation(input: {
   projectId: string
   projectItemId: string
-  itemTypeName: string
+  itemName: string
   quantity: number
   unitPrice: number
   description?: string
   notes?: string
+  quotationDate?: string
 }): Promise<Quotation> {
   const fields: Record<string, unknown> = {
-    [QUOTATIONS.NAME]: input.itemTypeName,
+    [QUOTATIONS.NAME]: input.itemName,
     [QUOTATIONS.PROJECT]: [input.projectId],
     [QUOTATIONS.PROJECT_ITEM]: [input.projectItemId],
     [QUOTATIONS.QUANTITY]: input.quantity,
@@ -1672,6 +1848,7 @@ export async function createQuotation(input: {
   }
   if (input.description) fields[QUOTATIONS.DESCRIPTION] = input.description
   if (input.notes) fields[QUOTATIONS.NOTES] = input.notes
+  if (input.quotationDate) fields[QUOTATIONS.SENT_DATE] = input.quotationDate
 
   const res = await fetchWithRetry(tblUrl(QUOTATIONS.TABLE_ID), {
     method: 'POST',

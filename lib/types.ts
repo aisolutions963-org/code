@@ -104,6 +104,14 @@ export interface TaskUpdateInput {
   callCount?: number
 }
 
+export interface Client {
+  id: string
+  clientId?: string
+  clientName: string
+  phone?: string
+  email?: string
+}
+
 export interface Project {
   id: string
   projectName: string
@@ -132,6 +140,7 @@ export interface Project {
   location?: string
   detailedLocation?: string
   projectDescription?: string
+  communSeds?: string[]
 }
 
 export interface ProjectCreateInput {
@@ -261,6 +270,23 @@ export interface MaterialCreateInput {
   notes?: string
 }
 
+export interface MaterialRowInput {
+  name: string
+  supplier?: string
+  quantity: number
+  unit: string
+  neededByDate?: string
+  notes?: string
+}
+
+export interface MaterialOrderInput {
+  purpose: string
+  projectId?: string
+  requestedBy: string
+  requestDate: string
+  items: MaterialRowInput[]
+}
+
 export interface PurchaseOrder {
   id: string
   name: string
@@ -310,11 +336,10 @@ export interface HandoverSheet {
   project: string[]
   status: string
   notes?: string
-}
-
-export interface ItemType {
-  id: string
-  name: string
+  finalInstallationDate?: string
+  customerSatisfaction?: string
+  installationDifficulty?: string
+  newsletterOptIn?: boolean
 }
 
 export interface ProjectItem {

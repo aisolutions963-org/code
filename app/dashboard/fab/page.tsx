@@ -12,7 +12,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 export default function FabDashboard() {
   const searchParams = useSearchParams()
   const view = searchParams.get('view') ?? 'tasks'
-  const [materialProject, setMaterialProject] = useState<Project | null>(null)
+  const [showMaterialModal, setShowMaterialModal] = useState(false)
 
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks?role=fabrication',
@@ -20,7 +20,7 @@ export default function FabDashboard() {
     { refreshInterval: 30000, revalidateOnFocus: true },
   )
 
-  const { data: projectData, mutate: mutateProjects } = useSWR<{ projects: Project[] }>(
+  const { data: projectData } = useSWR<{ projects: Project[] }>(
     view === 'materials' ? '/api/projects' : null,
     fetcher,
     { refreshInterval: 60000 },
@@ -107,25 +107,16 @@ export default function FabDashboard() {
         </div>
       )}
 
-      {/* Materials view: project picker + order button */}
+      {/* Materials view: order button */}
       {view === 'materials' && (
-        <div className="mb-4 bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
-          <p className="text-sm font-semibold text-gray-700">F3 — Order Materials</p>
-          {projects.length === 0 ? (
-            <p className="text-xs text-gray-400">Loading projects…</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {projects.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setMaterialProject(p)}
-                  className="text-xs bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 rounded-lg px-3 py-1.5 font-medium"
-                >
-                  {p.projectId} — {p.projectName}
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="mb-4 bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">F3 — Material Order</p>
+          <button
+            onClick={() => setShowMaterialModal(true)}
+            className="text-xs bg-green-600 text-white hover:bg-green-700 rounded-lg px-3 py-1.5 font-medium"
+          >
+            + New Order
+          </button>
         </div>
       )}
 
@@ -139,11 +130,11 @@ export default function FabDashboard() {
         <TaskGroupedList loading={isLoading} tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} />
       )}
 
-      {materialProject && (
+      {showMaterialModal && (
         <MaterialOrderModal
-          project={materialProject}
-          onClose={() => setMaterialProject(null)}
-          onCreated={() => mutateProjects()}
+          projects={projects}
+          onClose={() => setShowMaterialModal(false)}
+          onCreated={() => setShowMaterialModal(false)}
         />
       )}
     </div>
