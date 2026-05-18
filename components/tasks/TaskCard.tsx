@@ -131,7 +131,7 @@ const CALL_CLIENT_KEYWORD = 'call the client'
 
 function isCallClientDecisionTask(task: Task, role: Role): boolean {
   return (
-    role === 'superadmin' &&
+    (role === 'sed' || role === 'superadmin') &&
     task.taskName.toLowerCase().includes(CALL_CLIENT_KEYWORD) &&
     (task.status === 'To Do' || task.status === 'In Progress')
   )

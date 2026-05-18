@@ -14,6 +14,8 @@ import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } f
 
 const WORKFLOW_TIMEOUT_MS = 15_000
 const HEADLINE_PREFIX = 'to follow tasks progress'
+const CALL_CLIENT_PREFIX = 'call the client'
+const GATE_PREFIX = '[gate]'
 
 function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([
@@ -27,9 +29,42 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
   ])
 }
 
+async function maybeUnlockCallClient(projectId: string): Promise<void> {
+  const allTasks = await getAllTasksForProjectAll(projectId)
+
+  const gateTasks = allTasks.filter((t) =>
+    t.taskName.toLowerCase().startsWith(GATE_PREFIX),
+  )
+  if (gateTasks.length === 0) return
+  if (!gateTasks.every((t) => t.status === 'Completed')) return
+
+  const callClientTask = allTasks.find(
+    (t) =>
+      t.taskName.toLowerCase().startsWith(CALL_CLIENT_PREFIX) &&
+      t.status === 'Locked',
+  )
+  if (!callClientTask) return
+
+  await updateTaskRaw(callClientTask.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })
+
+  createNotification({
+    recipientRole: 'sed',
+    title: `New task ready: ${callClientTask.taskName}`,
+    body: 'All three approvals confirmed — time to call the client.',
+    link: ROLE_DASHBOARD['sed'],
+  })
+}
+
 async function unlockNextTasks(task: Task): Promise<void> {
   const projectId = task.project?.[0]
   if (!projectId) return
+
+  // GATE/LOOP tasks (no templateOrder) only trigger the call-client gate check,
+  // not the standard order chain.
+  if ((task.templateOrder ?? []).length === 0) {
+    await maybeUnlockCallClient(projectId)
+    return
+  }
 
   const lockedTasks = await getLockedTasksForScope(projectId, task.projectItem?.[0])
   if (lockedTasks.length === 0) return
@@ -37,7 +72,13 @@ async function unlockNextTasks(task: Task): Promise<void> {
   const taskPath = task.pathCondition ?? null
 
   // Only unlock tasks in the same path (universal tasks form their own "null" path)
-  const samePath = lockedTasks.filter((t) => (t.pathCondition ?? null) === taskPath)
+  // "Call the Client" is excluded from the order chain — it is unlocked exclusively
+  // by the GATE tasks completing (see maybeUnlockCallClient above).
+  const samePath = lockedTasks.filter(
+    (t) =>
+      (t.pathCondition ?? null) === taskPath &&
+      !t.taskName.toLowerCase().startsWith(CALL_CLIENT_PREFIX),
+  )
   if (samePath.length === 0) return
 
   const orders = samePath
