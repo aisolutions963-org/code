@@ -492,6 +492,15 @@ export async function getAllProjects(): Promise<Project[]> {
   return records.map(transformProject)
 }
 
+export async function projectNameExists(name: string): Promise<boolean> {
+  const escaped = name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  const records = await fetchAll(PROJECTS.TABLE_ID, {
+    filterByFormula: `{${PROJECTS.PROJECT_NAME}} = "${escaped}"`,
+    fields: [PROJECTS.PROJECT_NAME],
+  })
+  return records.length > 0
+}
+
 export async function getProjectById(id: string): Promise<Project> {
   const res = await fetchWithRetry(recUrl(PROJECTS.TABLE_ID, id), {
     headers: airtableHeaders(),
@@ -1712,24 +1721,6 @@ export async function generateTasksForProject(
     pathMinMap.set(path, Math.min(...group.map((t) => t.templateOrder!)))
   })
 
-  // For Preparing stage, only activate the path the SED selected during intake.
-  // All other path tasks start Locked so the SED isn't overwhelmed with unrelated work.
-  let selectedPath: string | null = null
-  if (stage === 'Preparing') {
-    try {
-      const res = await fetchWithRetry(
-        `${recUrl(PROJECTS.TABLE_ID, projectId)}&fields[]=${PROJECTS.REQUIRED_INTAKE_PATHS}`,
-        { headers: airtableHeaders() },
-      )
-      if (res.ok) {
-        const data = (await res.json()) as RawRecord
-        selectedPath = str(data.fields[PROJECTS.REQUIRED_INTAKE_PATHS]) ?? null
-      }
-    } catch {
-      // network failure — fall back to activating all paths
-    }
-  }
-
   const now = new Date().toISOString()
   const todoTemplates: TaskTemplate[] = []
 
@@ -1742,13 +1733,9 @@ export async function generateTasksForProject(
       else if (t.templateOrder === f1Order) status = 'To Do'
       else status = 'Locked'
     } else {
+      // All paths run in parallel — the first task in every path starts as To Do
       const pathMin = pathMinMap.get(t.pathCondition)!
-      // Lock paths that weren't selected during intake; activate only the chosen one
-      if (selectedPath !== null && t.pathCondition !== selectedPath) {
-        status = 'Locked'
-      } else {
-        status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
-      }
+      status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
     }
     if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {

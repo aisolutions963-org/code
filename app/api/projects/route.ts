@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getProjects, getAllProjects, createProject, generateTasksForProject } from '@/lib/airtable'
+import { getProjects, getAllProjects, createProject, generateTasksForProject, projectNameExists } from '@/lib/airtable'
 import { getUserById } from '@/lib/db'
 import { CreateProjectSchema } from '@/lib/validation'
 
@@ -53,6 +53,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const duplicate = await projectNameExists(data.projectName)
+    if (duplicate) {
+      return NextResponse.json(
+        { error: `A project named "${data.projectName}" already exists.` },
+        { status: 409 },
+      )
+    }
+
     const project = await createProject(data)
 
     // A19 — generate Phase 1 tasks; await so the response includes the count

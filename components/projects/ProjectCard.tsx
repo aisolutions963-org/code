@@ -27,6 +27,9 @@ export default function ProjectCard({ project, showPayments = false, children }:
           </div>
           <h3 className="text-sm font-semibold text-gray-900 mt-0.5 truncate">
             {project.projectName}
+            {project.nickname && (
+              <span className="ml-1.5 text-xs font-normal text-gray-400">({project.nickname})</span>
+            )}
           </h3>
           {project.clientName && (
             <p className="text-xs text-gray-500">{project.clientName}</p>

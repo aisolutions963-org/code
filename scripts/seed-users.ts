@@ -11,21 +11,6 @@ const USERS = [
     role: 'superadmin',
     airtable_member_id: 'rectlE7SY6xUFtVl6',
   },
-  {
-    name: 'Engr. Ahmed',
-    email: 'Woodwingscompany@gmail.com',
-    password: 'change-this-password',
-    role: 'sed',
-    airtable_member_id: 'recMmS5NNSMPR61n1',
-  },
-  {
-
-    name: 'Engr. Al Kousi',
-    email: 'Alkousi89@hotmail.com',
-    password: 'change-this-password',
-    role: 'sed',
-    airtable_member_id: 'rechnsH9s9qf69jHr',
-  },
 ]
 
 async function seed() {

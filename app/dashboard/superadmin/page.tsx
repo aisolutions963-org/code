@@ -339,7 +339,10 @@ function ProjectRow({ project: p, onAdvance, onDelete }: { project: Project; onA
     <>
       <tr className={`hover:bg-gray-50 ${stale ? 'bg-yellow-50/30' : ''}`}>
         <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.projectId}</td>
-        <td className="px-4 py-3 font-medium text-gray-900 max-w-xs truncate">{p.projectName}</td>
+        <td className="px-4 py-3 max-w-xs">
+          <p className="font-medium text-gray-900 truncate">{p.projectName}</p>
+          {p.nickname && <p className="text-xs text-gray-400 truncate">{p.nickname}</p>}
+        </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">
           <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : 'gray'}>

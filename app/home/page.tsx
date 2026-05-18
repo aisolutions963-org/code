@@ -82,9 +82,11 @@ type CalendarType = 'installation' | 'activity'
 function MiniCalendar({
   type,
   events,
+  onDayClick,
 }: {
   type: CalendarType
   events: CalendarEvent[]
+  onDayClick?: (date: string) => void
 }) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date()
@@ -128,6 +130,17 @@ function MiniCalendar({
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
         <div className="flex items-center gap-1">
+          {onDayClick && (
+            <button
+              onClick={() => onDayClick(todayStr)}
+              className="p-1 rounded text-brand-500 hover:bg-brand-50 mr-1"
+              title="Log activity for today"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={prevMonth}
             className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100"
@@ -163,8 +176,10 @@ function MiniCalendar({
             return (
               <div
                 key={dateStr}
-                className={`relative flex flex-col items-center py-1 rounded-lg cursor-default group
-                  ${isToday ? 'bg-brand-500' : evs.length > 0 ? 'hover:bg-gray-50' : ''}`}
+                onClick={() => onDayClick?.(dateStr)}
+                className={`relative flex flex-col items-center py-1 rounded-lg group
+                  ${onDayClick ? 'cursor-pointer' : 'cursor-default'}
+                  ${isToday ? 'bg-brand-500' : onDayClick ? 'hover:bg-blue-50' : evs.length > 0 ? 'hover:bg-gray-50' : ''}`}
               >
                 <span className={`text-xs font-medium ${isToday ? 'text-white' : 'text-gray-700'}`}>
                   {day}
@@ -220,6 +235,161 @@ function MiniCalendar({
   )
 }
 
+// ─── Add Activity Modal ───────────────────────────────────────────────────────
+
+function AddActivityModal({
+  date,
+  onClose,
+  onSuccess,
+}: {
+  date: string
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const { data: taskData } = useSWR<{ tasks: Task[] }>('/api/tasks', fetcher)
+  const { data: projectData } = useSWR<{ projects: Project[] }>('/api/projects', fetcher)
+  const [selectedProjectRecordId, setSelectedProjectRecordId] = useState('')
+  const [selectedTaskId, setSelectedTaskId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const tasks = taskData?.tasks ?? []
+  const projects = projectData?.projects ?? []
+
+  const projectMap = new Map(projects.map((p) => [p.id, p]))
+
+  const activeTasks = tasks.filter(
+    (t) => t.status !== 'Locked' && t.status !== 'Completed' && t.project?.[0] != null,
+  )
+
+  const tasksByProject = new Map<string, Task[]>()
+  for (const t of activeTasks) {
+    const pid = t.project![0]
+    if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
+    tasksByProject.get(pid)!.push(t)
+  }
+
+  const projectOptions = Array.from(tasksByProject.keys()).map((pid) => {
+    const proj = projectMap.get(pid)
+    return {
+      recordId: pid,
+      displayId: proj?.projectId ?? '',
+      name: proj?.projectName ?? pid,
+    }
+  })
+
+  const projectTasks = selectedProjectRecordId
+    ? (tasksByProject.get(selectedProjectRecordId) ?? [])
+    : []
+
+  async function handleSubmit() {
+    if (!selectedTaskId) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/tasks/${selectedTaskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { taskStartDate: date } }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setError(d.error ?? 'Failed to save activity')
+        return
+      }
+      onSuccess()
+      onClose()
+    } catch {
+      setError('Network error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div
+        className="relative bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Log Activity</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{date}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+            {error}
+          </p>
+        )}
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Project</label>
+            <select
+              value={selectedProjectRecordId}
+              onChange={(e) => {
+                setSelectedProjectRecordId(e.target.value)
+                setSelectedTaskId('')
+              }}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">Select a project...</option>
+              {projectOptions.map((p) => (
+                <option key={p.recordId} value={p.recordId}>
+                  {p.displayId ? `${p.displayId} — ${p.name}` : p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedProjectRecordId && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Task</label>
+              <select
+                value={selectedTaskId}
+                onChange={(e) => setSelectedTaskId(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Select a task...</option>
+                {projectTasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.taskName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedTaskId || saving}
+            className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Project Pipeline ─────────────────────────────────────────────────────────
 
 const PIPELINE_STAGES = [
@@ -265,6 +435,7 @@ const STAGE_STYLES: Record<PipelineStage, {
 }
 
 function ProjectPipeline({ role }: { role: string }) {
+  const [scopeProject, setScopeProject] = useState<Project | null>(null)
   const isWideRole = role === 'superadmin' || role === 'manager'
   const { data: projectData, isLoading } = useSWR<{ projects: Project[] }>(
     isWideRole ? '/api/projects?all=true' : '/api/projects',
@@ -343,7 +514,8 @@ function ProjectPipeline({ role }: { role: string }) {
                         return (
                           <div
                             key={p.id}
-                            className={`bg-gray-700/40 border rounded-xl p-2.5 transition-colors ${s.card}`}
+                            onClick={() => setScopeProject(p)}
+                            className={`bg-gray-700/40 border rounded-xl p-2.5 transition-colors cursor-pointer ${s.card}`}
                           >
                             <div className="flex items-start justify-between gap-1">
                               <div className="min-w-0 flex-1">
@@ -352,6 +524,9 @@ function ProjectPipeline({ role }: { role: string }) {
                                 </p>
                                 <p className="text-xs font-semibold text-white truncate leading-tight">
                                   {p.projectName}
+                                  {p.nickname && (
+                                    <span className="ml-1 font-normal text-gray-400">({p.nickname})</span>
+                                  )}
                                 </p>
                                 <p className="text-[10px] text-gray-400 truncate mt-0.5">
                                   {p.clientName}
@@ -413,6 +588,47 @@ function ProjectPipeline({ role }: { role: string }) {
           No task visible for your role
         </span>
       </div>
+
+      {/* Scope popup */}
+      {scopeProject && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setScopeProject(null)}
+        >
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            className="relative bg-gray-800 border border-gray-600 rounded-2xl p-5 max-w-sm w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-mono text-gray-500">{scopeProject.projectId}</p>
+                <p className="text-sm font-semibold text-white leading-snug">
+                  {scopeProject.projectName}
+                  {scopeProject.nickname && (
+                    <span className="ml-1.5 font-normal text-gray-400">({scopeProject.nickname})</span>
+                  )}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">{scopeProject.clientName}</p>
+              </div>
+              <button
+                onClick={() => setScopeProject(null)}
+                className="shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="border-t border-gray-700 pt-3">
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Scope</p>
+              <p className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
+                {scopeProject.projectDescription ?? <span className="text-gray-600 italic">No scope defined.</span>}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -420,8 +636,9 @@ function ProjectPipeline({ role }: { role: string }) {
 export default function HomePage() {
   const { role, name } = useSession()
   const router = useRouter()
+  const [activityDate, setActivityDate] = useState<string | null>(null)
 
-  const { data, isLoading } = useSWR<HomeData>(
+  const { data, isLoading, mutate } = useSWR<HomeData>(
     '/api/home',
     fetcher,
     { refreshInterval: 30000, revalidateOnFocus: true },
@@ -429,6 +646,8 @@ export default function HomePage() {
 
   const announcements = data?.announcements ?? []
   const events = data?.events ?? []
+
+  const canAddActivity = ['sed', 'manager', 'superadmin'].includes(role)
 
   const dashboardHref = `/dashboard/${
     role === 'superadmin' ? 'superadmin' :
@@ -485,9 +704,21 @@ export default function HomePage() {
         {/* Calendars */}
         <div className="grid gap-4 md:grid-cols-2">
           <MiniCalendar type="installation" events={events} />
-          <MiniCalendar type="activity" events={events} />
+          <MiniCalendar
+            type="activity"
+            events={events}
+            onDayClick={canAddActivity ? setActivityDate : undefined}
+          />
         </div>
       </div>
+
+      {activityDate && (
+        <AddActivityModal
+          date={activityDate}
+          onClose={() => setActivityDate(null)}
+          onSuccess={() => { mutate() }}
+        />
+      )}
     </div>
   )
 }

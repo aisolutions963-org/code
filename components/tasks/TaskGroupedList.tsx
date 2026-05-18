@@ -12,11 +12,92 @@ interface TaskGroupedListProps {
 }
 
 const PHASE4_STAGES = ['Phase 4', 'Phase 5', 'Closed', 'Warranty', 'Warranty Done']
+const HEADLINE_PREFIX = 'to follow tasks progress'
 
 function shouldGroup(tasks: Task[]): boolean {
   if (tasks.length === 0) return false
   const stages = tasks.flatMap((t) => t.projectStage ?? [])
   return !stages.some((s) => PHASE4_STAGES.includes(s))
+}
+
+function isActiveHeadlineTask(task: Task): boolean {
+  // Show banner whenever the headline is unlocked (To Do, In Progress, or auto-Completed)
+  return (
+    task.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) &&
+    task.status !== 'Locked'
+  )
+}
+
+function renderUngrouped(
+  ungrouped: Task[],
+  role: Role,
+  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>,
+): React.ReactNode {
+  if (!ungrouped.some(isActiveHeadlineTask)) {
+    return ungrouped.map((t) => (
+      <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
+    ))
+  }
+
+  // Group by project so each project's headline is handled independently
+  const projectMap = new Map<string, Task[]>()
+  for (const t of ungrouped) {
+    const pid = t.project?.[0] ?? ''
+    if (!projectMap.has(pid)) projectMap.set(pid, [])
+    projectMap.get(pid)!.push(t)
+  }
+
+  return Array.from(projectMap.entries()).map(([pid, projectTasks]) => {
+    const headline = projectTasks.find(isActiveHeadlineTask)
+
+    if (!headline) {
+      return projectTasks.map((t) => (
+        <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
+      ))
+    }
+
+    const order4 = projectTasks.filter((t) => (t.templateOrder?.[0] ?? null) === 4)
+    const order4Ids = new Set(order4.map((t) => t.id))
+
+    const rest = projectTasks.filter(
+      (t) => t.id !== headline.id && !order4Ids.has(t.id),
+    )
+
+    // Tasks with an order < 3 (e.g. F1) go before the headline banner;
+    // null-order tasks (GATE / LOOP) go after.
+    const restBefore = rest.filter(
+      (t) => typeof t.templateOrder?.[0] === 'number' && t.templateOrder[0] < 3,
+    )
+    const restAfter = rest.filter(
+      (t) => typeof t.templateOrder?.[0] !== 'number' || t.templateOrder[0] >= 3,
+    )
+
+    return (
+      <div key={pid} className="space-y-3">
+        {restBefore.map((t) => (
+          <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
+        ))}
+
+        {/* Headline banner */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+          <p className="text-sm font-semibold text-blue-900">{headline.taskName}</p>
+        </div>
+
+        {/* Order-4 children indented under headline */}
+        {order4.length > 0 && (
+          <div className="ml-3 pl-3 border-l-2 border-blue-200 space-y-3">
+            {order4.map((t) => (
+              <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
+            ))}
+          </div>
+        )}
+
+        {restAfter.map((t) => (
+          <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
+        ))}
+      </div>
+    )
+  })
 }
 
 export default function TaskGroupedList({ tasks, role, onUpdate, loading }: TaskGroupedListProps) {
@@ -96,9 +177,7 @@ export default function TaskGroupedList({ tasks, role, onUpdate, loading }: Task
             </div>
           )}
           <div className="space-y-3">
-            {ungrouped.map((t) => (
-              <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
-            ))}
+            {renderUngrouped(ungrouped, role, onUpdate)}
           </div>
         </div>
       )}

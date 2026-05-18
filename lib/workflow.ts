@@ -13,6 +13,7 @@ import { notifyManager, notifyManagerEscalation } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
+const HEADLINE_PREFIX = 'to follow tasks progress'
 
 function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([
@@ -51,7 +52,30 @@ async function unlockNextTasks(task: Task): Promise<void> {
     toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
   )
 
-  // Send in-app notifications to the department(s) responsible for each unlocked task
+  // Headline tasks are visual-only banners: auto-complete them immediately so they
+  // don't block downstream tasks from unlocking. No notification is sent for them.
+  const headlines = toUnlock.filter((t) =>
+    t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX),
+  )
+  if (headlines.length > 0) {
+    const now = new Date().toISOString()
+    await Promise.all(
+      headlines.map((t) =>
+        updateTaskRaw(t.id, {
+          [TASKS.STATUS]: 'Completed' as TaskStatus,
+          [TASKS.COMPLETED_AT]: now,
+        }),
+      ),
+    )
+    await Promise.all(headlines.map((t) => unlockNextTasks(t)))
+  }
+
+  // Send notifications only for real (non-headline) tasks that just unlocked
+  const realUnlocked = toUnlock.filter(
+    (t) => !t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX),
+  )
+  if (realUnlocked.length === 0) return
+
   const projectRef = task.projectId ?? projectId
   const projectLabel = task.projectRef ? `${task.projectRef}` : projectRef
 
@@ -70,7 +94,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
   }
   const body = bodyParts.join('\n')
 
-  for (const t of toUnlock) {
+  for (const t of realUnlocked) {
     const depts = t.department ?? []
     const roles = depts
       .map((d) => DEPT_ROLE_MAP[d])
