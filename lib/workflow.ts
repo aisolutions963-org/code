@@ -277,7 +277,7 @@ export async function handleCallClientOutcome(
           (t) =>
             !t.pathCondition &&
             typeof t.templateOrder?.[0] === 'number' &&
-            t.templateOrder[0] >= 2 &&
+            t.templateOrder[0] >= 3 &&
             t.templateOrder[0] < 18,
         )
         const universalOrders = universalAction.map((t) => t.templateOrder![0])
