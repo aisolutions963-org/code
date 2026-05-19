@@ -4,7 +4,6 @@ import {
   updateTaskRaw,
   updateProject,
   getProjectById,
-  getLockedTasksForScope,
   getAllTasksForProjectAll,
   generateTasksForProject,
 } from './airtable'
@@ -14,6 +13,7 @@ import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } f
 
 const WORKFLOW_TIMEOUT_MS = 15_000
 const HEADLINE_PREFIX = 'to follow tasks progress'
+const AUTO_TASK_MARKER = '(auto)'
 const CALL_CLIENT_PREFIX = 'call the client'
 const GATE_PREFIX = '[gate]'
 
@@ -66,12 +66,34 @@ async function unlockNextTasks(task: Task): Promise<void> {
     return
   }
 
-  const lockedTasks = await getLockedTasksForScope(projectId, task.projectItem?.[0])
-  if (lockedTasks.length === 0) return
+  // Fetch all tasks once — used for AND-join check and locked task discovery.
+  const allProjectTasks = await getAllTasksForProjectAll(projectId)
 
+  const completedOrder = task.templateOrder![0]
   const taskPath = task.pathCondition ?? null
 
-  // Only unlock tasks in the same path (universal tasks form their own "null" path)
+  // AND-join guard: if any sibling tasks at the same order level are still active
+  // (To Do, In Progress, Pending Approval), the chain must not advance yet.
+  const siblingsActive = allProjectTasks.filter(
+    (t) =>
+      t.id !== task.id &&
+      (t.pathCondition ?? null) === taskPath &&
+      t.templateOrder?.[0] === completedOrder &&
+      (t.status === 'To Do' || t.status === 'In Progress' || t.status === 'Pending Approval'),
+  )
+  if (siblingsActive.length > 0) return
+
+  // Build locked task list from fetched data (avoids a second Airtable call).
+  const lockedTasks = allProjectTasks.filter(
+    (t) =>
+      t.status === 'Locked' &&
+      (task.projectItem?.[0]
+        ? t.projectItem?.[0] === task.projectItem[0]
+        : !t.projectItem?.length),
+  )
+  if (lockedTasks.length === 0) return
+
+  // Only unlock tasks in the same path (universal tasks form their own "null" path).
   // "Call the Client" is excluded from the order chain — it is unlocked exclusively
   // by the GATE tasks completing (see maybeUnlockCallClient above).
   const samePath = lockedTasks.filter(
@@ -93,32 +115,59 @@ async function unlockNextTasks(task: Task): Promise<void> {
     toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
   )
 
-  // Headline tasks are visual-only banners: auto-complete them immediately so they
-  // don't block downstream tasks from unlocking. No notification is sent for them.
-  const headlines = toUnlock.filter((t) =>
-    t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX),
+  // Auto-complete tasks: headline banners ("to follow tasks progress...") and system
+  // tasks marked "(auto)". All tasks at this level are completed together, and the
+  // chain continuation is triggered only once to prevent double-advancing.
+  const autoComplete = toUnlock.filter(
+    (t) =>
+      t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) ||
+      t.taskName.toLowerCase().includes(AUTO_TASK_MARKER),
   )
-  if (headlines.length > 0) {
+  const projectRef = task.projectId ?? projectId
+  const projectLabel = task.projectRef ? `${task.projectRef}` : projectRef
+
+  if (autoComplete.length > 0) {
     const now = new Date().toISOString()
     await Promise.all(
-      headlines.map((t) =>
+      autoComplete.map((t) =>
         updateTaskRaw(t.id, {
           [TASKS.STATUS]: 'Completed' as TaskStatus,
           [TASKS.COMPLETED_AT]: now,
         }),
       ),
     )
-    await Promise.all(headlines.map((t) => unlockNextTasks(t)))
+    // Notify each auto task's departments — they fire automatically but the
+    // team still needs to know the event happened (e.g. "project is now Open").
+    // Headline banners are purely visual and generate no notification.
+    for (const t of autoComplete) {
+      if (t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX)) continue
+      const depts = t.department ?? []
+      const roles = depts
+        .map((d) => DEPT_ROLE_MAP[d])
+        .filter((r): r is string => Boolean(r))
+      const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
+      const title = t.taskName.replace(/\s*\(auto\)\s*/gi, '').trim()
+      for (const role of uniqueRoles) {
+        createNotification({
+          recipientRole: role,
+          title,
+          body: `Project ${projectLabel}`,
+          link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
+        })
+      }
+    }
+    // Trigger chain continuation once — all auto tasks are Completed so the
+    // AND-join in the recursive call will pass cleanly.
+    await unlockNextTasks(autoComplete[0])
   }
 
-  // Send notifications only for real (non-headline) tasks that just unlocked
+  // Send notifications only for real (non-auto) tasks that just unlocked.
   const realUnlocked = toUnlock.filter(
-    (t) => !t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX),
+    (t) =>
+      !t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) &&
+      !t.taskName.toLowerCase().includes(AUTO_TASK_MARKER),
   )
   if (realUnlocked.length === 0) return
-
-  const projectRef = task.projectId ?? projectId
-  const projectLabel = task.projectRef ? `${task.projectRef}` : projectRef
 
   // Build body from completed task's notes and file attachments
   const bodyParts: string[] = []
