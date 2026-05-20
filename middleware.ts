@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { jwtVerify } from 'jose'
+import { SignJWT, jwtVerify } from 'jose'
 
 const COOKIE_NAME = 'ww_session'
+const SESSION_DURATION_SECONDS = 60 * 60 * 24 // 24 hours
 
 function getSecret(): Uint8Array {
-  return new TextEncoder().encode(process.env.SESSION_SECRET ?? 'fallback-secret-must-replace')
+  const secret = process.env.SESSION_SECRET
+  if (!secret) throw new Error('SESSION_SECRET is not set')
+  return new TextEncoder().encode(secret)
+}
+
+async function reissueToken(payload: Record<string, unknown>): Promise<string> {
+  return new SignJWT({
+    id: payload.id,
+    name: payload.name,
+    email: payload.email,
+    role: payload.role,
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('24h')
+    .sign(getSecret())
 }
 
 const ROLE_TO_DASHBOARD: Record<string, string> = {
@@ -57,64 +73,48 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
-  // Auth for /admin — superadmin only
-  if (pathname.startsWith('/admin')) {
-    const token = request.cookies.get(COOKIE_NAME)?.value
-    if (!token) return withId(NextResponse.redirect(new URL('/login', request.url)))
-    try {
-      const { payload } = await jwtVerify(token, getSecret())
-      if (payload.role !== 'superadmin') {
-        return withId(NextResponse.redirect(new URL('/dashboard/superadmin', request.url)))
-      }
-      return NextResponse.next({ request: { headers: requestHeaders } })
-    } catch {
-      const res = NextResponse.redirect(new URL('/login', request.url))
-      res.cookies.delete(COOKIE_NAME)
-      return withId(res)
-    }
-  }
-
-  // Auth for /home
-  if (pathname.startsWith('/home')) {
-    const token = request.cookies.get(COOKIE_NAME)?.value
-    if (!token) return withId(NextResponse.redirect(new URL('/login', request.url)))
-    try {
-      await jwtVerify(token, getSecret())
-      return NextResponse.next({ request: { headers: requestHeaders } })
-    } catch {
-      const res = NextResponse.redirect(new URL('/login', request.url))
-      res.cookies.delete(COOKIE_NAME)
-      return withId(res)
-    }
-  }
-
-  // Auth for /dashboard
   const token = request.cookies.get(COOKIE_NAME)?.value
   if (!token) return withId(NextResponse.redirect(new URL('/login', request.url)))
 
+  let payload: Awaited<ReturnType<typeof jwtVerify>>['payload']
   try {
-    const { payload } = await jwtVerify(token, getSecret())
-    const role = payload.role as string
-    const dashboardSegment = getRoleDashboard(role)
-
-    if (role === 'superadmin') {
-      return NextResponse.next({ request: { headers: requestHeaders } })
-    }
-
-    const segments = pathname.split('/')
-    const requestedSegment = segments[2]
-    if (requestedSegment && requestedSegment !== dashboardSegment) {
-      return withId(
-        NextResponse.redirect(new URL(`/dashboard/${dashboardSegment}`, request.url)),
-      )
-    }
-
-    return NextResponse.next({ request: { headers: requestHeaders } })
+    ;({ payload } = await jwtVerify(token, getSecret()))
   } catch {
     const res = NextResponse.redirect(new URL('/login', request.url))
     res.cookies.delete(COOKIE_NAME)
     return withId(res)
   }
+
+  const role = payload.role as string
+
+  // Role check for /admin — superadmin only
+  if (pathname.startsWith('/admin') && role !== 'superadmin') {
+    return withId(NextResponse.redirect(new URL('/dashboard/superadmin', request.url)))
+  }
+
+  // Role-to-segment enforcement for /dashboard
+  if (pathname.startsWith('/dashboard') && role !== 'superadmin') {
+    const dashboardSegment = getRoleDashboard(role)
+    const requestedSegment = pathname.split('/')[2]
+    if (requestedSegment && requestedSegment !== dashboardSegment) {
+      return withId(
+        NextResponse.redirect(new URL(`/dashboard/${dashboardSegment}`, request.url)),
+      )
+    }
+  }
+
+  // Rolling session — re-issue the cookie on every valid request so active users
+  // never get logged out mid-session.
+  const newToken = await reissueToken(payload as Record<string, unknown>)
+  const res = NextResponse.next({ request: { headers: requestHeaders } })
+  res.cookies.set(COOKIE_NAME, newToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: SESSION_DURATION_SECONDS,
+    path: '/',
+  })
+  return withId(res)
 }
 
 export const config = {

@@ -21,7 +21,7 @@ export async function createSession(user: SessionPayload): Promise<string> {
   return new SignJWT({ id: user.id, name: user.name, email: user.email, role: user.role })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('8h')
+    .setExpirationTime('24h')
     .sign(getSecret())
 }
 
@@ -54,7 +54,7 @@ export function setSessionCookie(token: string): void {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 8,
+    maxAge: 60 * 60 * 24,
     path: '/',
   })
 }
