@@ -248,7 +248,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     onUpdate(task.id, { [fieldKey]: next } as Partial<TaskUpdateInput>)
   }
 
-  const projectLabel = task.projectRef ?? task.project?.[0] ?? ''
+  const projectLabel = task.projectNickname
+    ? task.projectName
+      ? `${task.projectNickname} — ${task.projectName}`
+      : task.projectNickname
+    : (task.projectName ?? task.projectRef ?? task.project?.[0] ?? '')
   const instructions = task.instructions?.join(' ') ?? ''
   const arabicInstructions = task.arabicInstructions?.join(' ') ?? ''
 
@@ -298,6 +302,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                 {ar ? 'عاجل' : 'Urgent'}
               </span>
             )}
+            {task.projectItemName && (
+              <span className="text-xs text-teal-700 font-medium bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
+                {task.projectItemName}
+              </span>
+            )}
             {isInspectionTask(task.taskName) && (task.completionDate ?? task.taskStartDate) && (
               <span className="text-xs text-purple-700 font-medium bg-purple-50 px-1.5 py-0.5 rounded">
                 {formatCountdown(task.completionDate ?? task.taskStartDate ?? '', ar)}
@@ -306,7 +315,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {projectLabel && (
-              <span className="text-xs text-gray-500 font-mono">{projectLabel}</span>
+              <span className="text-xs text-gray-500">{projectLabel}</span>
             )}
             <TaskStatusBadge status={task.status} />
             {task.department.length > 0 && (

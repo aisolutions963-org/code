@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createProjectItem, createQuotation } from '@/lib/airtable'
+import { createProjectItem, createQuotation, generateItemTasksForProject } from '@/lib/airtable'
+import { notifyTasksReady } from '@/lib/notifications'
 import { CreateQuotationItemsSchema } from '@/lib/validation'
 
 export async function POST(
@@ -46,6 +47,21 @@ export async function POST(
         quotationDate: parsed.data.quotationDate,
       })
       results.push({ projectItemId: projectItem.id, quotationId: quotation.id })
+
+      // Fire-and-forget: generate per-item tasks and notify departments
+      ;(async () => {
+        try {
+          const { todoTemplates } = await generateItemTasksForProject(params.id, projectItem.id)
+          if (todoTemplates.length > 0) {
+            notifyTasksReady(
+              todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
+              `New item ready: ${item.itemName}`,
+            )
+          }
+        } catch (err) {
+          console.error('[QUOTATION] Item task generation failed for item', projectItem.id, ':', err)
+        }
+      })()
     }
     return NextResponse.json({ created: results.length, items: results }, { status: 201 })
   } catch (error) {

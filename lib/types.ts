@@ -72,6 +72,8 @@ export interface Task {
   callCount?: number
   pathCondition?: string
   projectRef?: string
+  projectName?: string
+  projectNickname?: string
 }
 
 export interface TaskUpdateInput {

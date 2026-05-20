@@ -1030,7 +1030,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
   const projectIds = Array.from(new Set(tasks.flatMap((t) => t.project ?? [])))
   if (projectIds.length === 0) return tasks
 
-  const refMap: Record<string, string> = {}
+  const infoMap: Record<string, { ref: string; name: string; nickname: string | null }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) {
     chunks.push(projectIds.slice(i, i + 10))
@@ -1041,19 +1041,22 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
       const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const records = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [PROJECTS.PROJECT_ID],
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME],
       })
       for (const r of records) {
         const ref = str(r.fields[PROJECTS.PROJECT_ID])
-        if (ref) refMap[r.id] = ref
+        const name = str(r.fields[PROJECTS.PROJECT_NAME]) ?? ''
+        const nickname = str(r.fields[PROJECTS.NICKNAME]) ?? null
+        if (ref) infoMap[r.id] = { ref, name, nickname }
       }
     }),
   )
 
   return tasks.map((t) => {
     const pid = t.project?.[0]
-    const ref = pid ? refMap[pid] : undefined
-    return ref ? { ...t, projectRef: ref } : t
+    const info = pid ? infoMap[pid] : undefined
+    if (!info) return t
+    return { ...t, projectRef: info.ref, projectName: info.name, projectNickname: info.nickname ?? undefined }
   })
 }
 
@@ -1626,6 +1629,7 @@ export interface TaskTemplate {
   requiresManagerReview: boolean
   projectStage: string | null
   pathCondition: string | null
+  phaseLabel: string | null
   instructions: string | null
   arabicInstructions: string | null
 }
@@ -1647,6 +1651,7 @@ export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> 
         : []
       const rawStage = f[TASK_TEMPLATES.PROJECT_STAGE] as { name: string } | null | undefined
       const rawPath = f[TASK_TEMPLATES.PATH_CONDITION] as { name: string } | null | undefined
+      const rawPhase = f[TASK_TEMPLATES.PHASE] as { name: string } | string | null | undefined
       return {
         id: r.id,
         taskName: (f[TASK_TEMPLATES.TASK_NAME] as string) ?? '',
@@ -1657,6 +1662,9 @@ export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> 
         requiresManagerReview: (f[TASK_TEMPLATES.REQUIRES_MANAGER_REVIEW] as boolean) ?? false,
         projectStage: rawStage?.name ?? null,
         pathCondition: rawPath?.name ?? null,
+        phaseLabel: typeof rawPhase === 'object' && rawPhase !== null
+          ? (rawPhase as { name: string }).name
+          : (rawPhase as string | null) ?? null,
         instructions: (f[TASK_TEMPLATES.INSTRUCTIONS] as string) ?? null,
         arabicInstructions: (f[TASK_TEMPLATES.ARABIC_INSTRUCTIONS] as string) ?? null,
       }
@@ -1705,7 +1713,21 @@ export async function generateTasksForProject(
     await Promise.all(toArchive.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'Locked' as TaskStatus })))
   }
 
-  const allTemplates = await getTaskTemplates(stage)
+  const fetchedTemplates = await getTaskTemplates(stage)
+  if (fetchedTemplates.length === 0) return { created: 0, skipped: 0, todoTemplates: [] }
+
+  // For the "Open" stage, only generate project-level Phase 2 templates (orders ≤ 22).
+  // Per-item templates (orders 23+) and per-item GATE tasks (null order) are generated
+  // per-item via generateItemTasksForProject when the F5 quotation is submitted.
+  const allTemplates = stage === 'Open'
+    ? fetchedTemplates.filter(
+        (t) =>
+          t.templateOrder !== null &&
+          t.templateOrder <= 22 &&
+          (t.phaseLabel === null || t.phaseLabel === 'Phase 2 — Opening'),
+      )
+    : fetchedTemplates
+
   if (allTemplates.length === 0) return { created: 0, skipped: 0, todoTemplates: [] }
 
   const ordered = allTemplates.filter((t) => t.templateOrder !== null)
@@ -1767,6 +1789,45 @@ export async function generateTasksForProject(
 
   const ids = await createTasksBatch(records)
   return { created: ids.length, skipped: allTemplates.length - ids.length, todoTemplates }
+}
+
+export async function generateItemTasksForProject(
+  projectId: string,
+  itemId: string,
+): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
+  const allOpenTemplates = await getTaskTemplates('Open')
+
+  // Per-item templates: null order (GATE tasks) or order >= 23, Phase 2 only
+  const itemTemplates = allOpenTemplates.filter(
+    (t) =>
+      (t.phaseLabel === null || t.phaseLabel === 'Phase 2 — Opening') &&
+      (t.templateOrder === null || t.templateOrder >= 23),
+  )
+  if (itemTemplates.length === 0) return { created: 0, todoTemplates: [] }
+
+  const orderedTemplates = itemTemplates.filter((t) => t.templateOrder !== null)
+  const minOrder =
+    orderedTemplates.length > 0
+      ? Math.min(...orderedTemplates.map((t) => t.templateOrder!))
+      : Infinity
+
+  const todoTemplates: TaskTemplate[] = []
+
+  const records = itemTemplates.map((t) => {
+    const status: TaskStatus =
+      t.templateOrder === null || t.templateOrder === minOrder ? 'To Do' : 'Locked'
+    if (status === 'To Do') todoTemplates.push(t)
+    return {
+      [TASKS.TASK_NAME]: t.taskName,
+      [TASKS.PROJECT]: [projectId],
+      [TASKS.PROJECT_ITEM]: [itemId],
+      [TASKS.STATUS]: status,
+      [TASKS.TASK_TEMPLATES_LINK]: [t.id],
+    }
+  })
+
+  const ids = await createTasksBatch(records)
+  return { created: ids.length, todoTemplates }
 }
 
 // ─── Item Types ───────────────────────────────────────────────────────────────
