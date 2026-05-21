@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { Task, TaskUpdateInput, Role, Attachment } from '@/lib/types'
+import { Task, TaskUpdateInput, Role, Attachment, DocLink } from '@/lib/types'
 import { EDITABLE_FIELDS } from '@/lib/permissions'
 import TaskStatusBadge from './TaskStatusBadge'
 import FieldEditor from './FieldEditor'
@@ -64,11 +64,30 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
     }
   }
 
-  function handleFileUploaded(fieldKey: string, att: { url: string; filename: string }) {
-    const existing = (localFields[fieldKey as keyof TaskUpdateInput] as Attachment[]) ?? []
-    const next = [...existing, att]
+  async function handleDocLinkAdded(fieldKey: string, link: DocLink) {
+    const existing = (localFields[fieldKey as keyof TaskUpdateInput] as DocLink[]) ?? []
+    const next = [...existing, link]
     setLocalFields((prev) => ({ ...prev, [fieldKey]: next }))
-    onUpdate(task.id, { [fieldKey]: next } as Partial<TaskUpdateInput>)
+    try {
+      await onUpdate(task.id, { [fieldKey]: next } as Partial<TaskUpdateInput>)
+      toast.success('Link saved')
+    } catch {
+      toast.error('Failed to save link')
+      setLocalFields((prev) => ({ ...prev, [fieldKey]: existing }))
+    }
+  }
+
+  async function handleDocLinkRemoved(fieldKey: string, index: number) {
+    const existing = (localFields[fieldKey as keyof TaskUpdateInput] as DocLink[]) ?? []
+    const next = existing.filter((_, i) => i !== index)
+    setLocalFields((prev) => ({ ...prev, [fieldKey]: next }))
+    try {
+      await onUpdate(task.id, { [fieldKey]: next } as Partial<TaskUpdateInput>)
+      toast.success('Link removed')
+    } catch {
+      toast.error('Failed to remove link')
+      setLocalFields((prev) => ({ ...prev, [fieldKey]: existing }))
+    }
   }
 
   const instructions = task.instructions?.join(' ') ?? ''
@@ -83,7 +102,8 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
         role={role}
         fields={localFields}
         onChange={handleChange}
-        onFileUploaded={handleFileUploaded}
+        onDocLinkAdded={handleDocLinkAdded}
+        onDocLinkRemoved={handleDocLinkRemoved}
         existingAttachments={{
           taskDocuments: task.taskDocuments,
           handoverDocument: task.handoverDocument,

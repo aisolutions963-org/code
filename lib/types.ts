@@ -23,6 +23,12 @@ export interface AttachmentInput {
   id?: string
 }
 
+export interface DocLink {
+  url: string
+  label: string
+  notes?: string
+}
+
 export interface Task {
   id: string
   taskName: string
@@ -78,6 +84,9 @@ export interface Task {
   projectNickname?: string
   projectQuotationNumber?: string
   projectQuotationReference?: string
+  taskDocLinks?: DocLink[]
+  handoverDocLinks?: DocLink[]
+  fillersDocLinks?: DocLink[]
 }
 
 export interface TaskUpdateInput {
@@ -110,6 +119,9 @@ export interface TaskUpdateInput {
   callCount?: number
   sedNote?: string
   followUpOutcome?: string
+  taskDocLinks?: DocLink[]
+  handoverDocLinks?: DocLink[]
+  fillersDocLinks?: DocLink[]
 }
 
 export interface Client {

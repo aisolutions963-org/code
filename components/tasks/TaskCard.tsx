@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { Task, TaskUpdateInput, Role, Attachment } from '@/lib/types'
+import { Task, TaskUpdateInput, Role, Attachment, DocLink } from '@/lib/types'
 import { EDITABLE_FIELDS } from '@/lib/permissions'
 import TaskStatusBadge from './TaskStatusBadge'
 import FieldEditor from './FieldEditor'
@@ -325,11 +325,30 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     scheduleUpdate(key, value)
   }
 
-  function handleFileUploaded(fieldKey: string, att: { url: string; filename: string }) {
-    const existingArr = (localFields[fieldKey as keyof TaskUpdateInput] as Attachment[]) ?? []
-    const next = [...existingArr, att]
+  async function handleDocLinkAdded(fieldKey: string, link: DocLink) {
+    const existingArr = (localFields[fieldKey as keyof TaskUpdateInput] as DocLink[]) ?? []
+    const next = [...existingArr, link]
     setLocalFields((prev) => ({ ...prev, [fieldKey]: next }))
-    onUpdate(task.id, { [fieldKey]: next } as Partial<TaskUpdateInput>)
+    try {
+      await onUpdate(task.id, { [fieldKey]: next } as Partial<TaskUpdateInput>)
+      toast.success(ar ? 'تم حفظ الرابط' : 'Link saved')
+    } catch {
+      toast.error(ar ? 'فشل الحفظ' : 'Failed to save link')
+      setLocalFields((prev) => ({ ...prev, [fieldKey]: existingArr }))
+    }
+  }
+
+  async function handleDocLinkRemoved(fieldKey: string, index: number) {
+    const existingArr = (localFields[fieldKey as keyof TaskUpdateInput] as DocLink[]) ?? []
+    const next = existingArr.filter((_, i) => i !== index)
+    setLocalFields((prev) => ({ ...prev, [fieldKey]: next }))
+    try {
+      await onUpdate(task.id, { [fieldKey]: next } as Partial<TaskUpdateInput>)
+      toast.success(ar ? 'تم حذف الرابط' : 'Link removed')
+    } catch {
+      toast.error(ar ? 'فشل الحذف' : 'Failed to remove link')
+      setLocalFields((prev) => ({ ...prev, [fieldKey]: existingArr }))
+    }
   }
 
   const projectLabel = task.projectNickname
@@ -583,7 +602,8 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             role={role}
             fields={localFields}
             onChange={handleChange}
-            onFileUploaded={handleFileUploaded}
+            onDocLinkAdded={handleDocLinkAdded}
+            onDocLinkRemoved={handleDocLinkRemoved}
             existingAttachments={{
               taskDocuments: task.taskDocuments,
               handoverDocument: task.handoverDocument,

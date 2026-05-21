@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { TaskUpdateInput, Attachment, Role } from '@/lib/types'
+import { TaskUpdateInput, Attachment, Role, DocLink } from '@/lib/types'
 
 interface FieldEditorProps {
   taskId: string
   role: Role
   fields: Partial<TaskUpdateInput>
   onChange: (key: keyof TaskUpdateInput, value: unknown) => void
-  onFileUploaded: (fieldKey: string, attachment: { url: string; filename: string }) => void
+  onDocLinkAdded: (fieldKey: string, link: DocLink) => void
+  onDocLinkRemoved: (fieldKey: string, index: number) => void
   existingAttachments: {
     taskDocuments?: Attachment[]
     handoverDocument?: Attachment[]
@@ -50,6 +51,9 @@ const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   fillersDone: 'Fillers Done',
   requiresManagerReviewManually: 'Requires Manager Review',
   priorityFlag: 'Priority Flag',
+  taskDocLinks: 'Task Documents',
+  handoverDocLinks: 'Handover Document',
+  fillersDocLinks: 'Fillers & Missing Items List',
 }
 
 const FIELD_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
@@ -64,9 +68,9 @@ const FIELD_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
   postCarpentryPath: 'مسار ما بعد النجارة',
   qcCheckAtSiteDone: 'فحص الجودة في الموقع',
   fillersDone: 'تم الفيلر',
-  taskDocuments: 'مستندات المهمة',
-  handoverDocument: 'وثيقة التسليم',
-  fillersAndMissingList: 'قائمة الفيلر والمواد الناقصة',
+  taskDocLinks: 'مستندات المهمة',
+  handoverDocLinks: 'وثيقة التسليم',
+  fillersDocLinks: 'قائمة الفيلر والمواد الناقصة',
 }
 
 const OPTION_LABELS_AR: Partial<Record<string, string>> = {
@@ -80,100 +84,153 @@ const OPTION_LABELS_AR: Partial<Record<string, string>> = {
   'Purchase Missing Items': 'شراء مواد ناقصة',
 }
 
-const ATTACHMENT_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
-  taskDocuments: 'مستندات المهمة',
-  handoverDocument: 'وثيقة التسليم',
-  fillersAndMissingList: 'قائمة الفيلر والمواد الناقصة',
-}
-
-const ATTACHMENT_FIELDS: (keyof TaskUpdateInput)[] = [
-  'taskDocuments',
-  'handoverDocument',
-  'fillersAndMissingList',
+const DOC_LINK_FIELDS: (keyof TaskUpdateInput)[] = [
+  'taskDocLinks',
+  'handoverDocLinks',
+  'fillersDocLinks',
 ]
 
-const ATTACHMENT_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
-  taskDocuments: 'Task Documents',
-  handoverDocument: 'Handover Document',
-  fillersAndMissingList: 'Fillers & Missing Items List',
-}
-
-function UrlAttachmentField({
+function DocLinksField({
   label,
-  attachments,
+  links,
   fieldKey,
   onAdd,
+  onRemove,
   ar = false,
 }: {
   label: string
-  attachments: Attachment[]
+  links: DocLink[]
   fieldKey: string
-  onAdd: (fieldKey: string, att: { url: string; filename: string }) => void
+  onAdd: (fieldKey: string, link: DocLink) => void
+  onRemove: (fieldKey: string, index: number) => void
   ar?: boolean
 }) {
+  const [expanded, setExpanded] = useState(false)
   const [urlInput, setUrlInput] = useState('')
+  const [labelInput, setLabelInput] = useState('')
+  const [notesInput, setNotesInput] = useState('')
   const [urlError, setUrlError] = useState('')
 
   function handleAdd() {
-    const trimmed = urlInput.trim()
-    if (!trimmed) return
+    const trimUrl = urlInput.trim()
+    const trimLabel = labelInput.trim()
+    if (!trimUrl || !trimLabel) return
     try {
-      new URL(trimmed)
+      new URL(trimUrl)
     } catch {
       setUrlError(ar ? 'يرجى إدخال رابط صحيح' : 'Please enter a valid URL')
       return
     }
     setUrlError('')
-    const parts = trimmed.split('/').filter(Boolean)
-    const filename = decodeURIComponent(parts[parts.length - 1] || 'Link') || 'Link'
-    onAdd(fieldKey, { url: trimmed, filename })
+    onAdd(fieldKey, { url: trimUrl, label: trimLabel, notes: notesInput.trim() || undefined })
     setUrlInput('')
+    setLabelInput('')
+    setNotesInput('')
+    setExpanded(false)
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" dir={ar ? 'rtl' : 'ltr'}>
       <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
 
-      {attachments.length > 0 && (
-        <ul className="space-y-1">
-          {attachments.map((att) => (
-            <li key={att.id} className="flex items-center gap-2 text-sm">
-              <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-              </svg>
-              <a
-                href={att.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-brand-600 hover:underline truncate max-w-xs"
-              >
-                {att.filename}
-              </a>
+      {links.length > 0 && (
+        <ul className="space-y-1.5">
+          {links.map((link, i) => (
+            <li key={i} className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              <div className="flex items-start gap-2">
+                <svg className="w-3.5 h-3.5 text-brand-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                <div className="flex-1 min-w-0">
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-brand-600 hover:underline font-medium truncate block"
+                  >
+                    {link.label}
+                  </a>
+                  {link.notes && (
+                    <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{link.notes}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => onRemove(fieldKey, i)}
+                  className="text-gray-300 hover:text-red-400 transition-colors shrink-0 p-0.5"
+                  title="Remove"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      <div className="flex gap-2">
-        <input
-          type="url"
-          placeholder={ar ? 'الصق رابط الملف (Google Drive، Dropbox...)' : 'Paste file link (Google Drive, Dropbox, etc.)'}
-          value={urlInput}
-          onChange={(e) => { setUrlInput(e.target.value); setUrlError('') }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
-          className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-        />
+      {!expanded ? (
         <button
           type="button"
-          onClick={handleAdd}
-          disabled={!urlInput.trim()}
-          className="text-xs text-brand-600 hover:text-brand-700 disabled:opacity-40 border border-dashed border-brand-300 rounded-md px-3 py-1.5 hover:bg-brand-50 transition-colors whitespace-nowrap"
+          onClick={() => setExpanded(true)}
+          className="w-full text-left text-xs text-brand-600 hover:text-brand-700 border border-dashed border-brand-300 rounded-lg px-3 py-2 hover:bg-brand-50 transition-colors"
         >
-          {ar ? 'إضافة رابط' : 'Add link'}
+          {ar ? '+ إضافة رابط' : '+ Add link'}
         </button>
-      </div>
-      {urlError && <p className="text-xs text-red-500">{urlError}</p>}
+      ) : (
+        <div className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">{ar ? 'الاسم *' : 'Label *'}</label>
+            <input
+              type="text"
+              value={labelInput}
+              onChange={(e) => setLabelInput(e.target.value)}
+              placeholder={ar ? 'مثال: صور الموقع' : 'e.g. Site photos, Measurement sheet'}
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">{ar ? 'الرابط *' : 'URL *'}</label>
+            <input
+              type="url"
+              value={urlInput}
+              onChange={(e) => { setUrlInput(e.target.value); setUrlError('') }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
+              placeholder="https://drive.google.com/..."
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            {urlError && <p className="text-xs text-red-500 mt-1">{urlError}</p>}
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">{ar ? 'ملاحظات' : 'Notes'}</label>
+            <textarea
+              value={notesInput}
+              onChange={(e) => setNotesInput(e.target.value)}
+              placeholder={ar ? 'ملاحظة اختيارية…' : 'Optional notes…'}
+              rows={2}
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={!urlInput.trim() || !labelInput.trim()}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-40 transition-colors"
+            >
+              {ar ? 'إضافة' : 'Add'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setExpanded(false); setUrlError('') }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              {ar ? 'إلغاء' : 'Cancel'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -183,22 +240,29 @@ export default function FieldEditor({
   role,
   fields,
   onChange,
-  onFileUploaded,
+  onDocLinkAdded,
+  onDocLinkRemoved,
   existingAttachments,
 }: FieldEditorProps) {
   const ar = role === 'installation' || role === 'fabrication'
   const labels = ar ? { ...FIELD_LABELS, ...FIELD_LABELS_AR } : FIELD_LABELS
-  const attachmentLabelMap = ar ? { ...ATTACHMENT_LABELS, ...ATTACHMENT_LABELS_AR } : ATTACHMENT_LABELS
 
-  const nonAttachmentFields = Object.keys(fields).filter(
-    (k) => !ATTACHMENT_FIELDS.includes(k as keyof TaskUpdateInput),
+  const nonDocLinkFields = Object.keys(fields).filter(
+    (k) => !DOC_LINK_FIELDS.includes(k as keyof TaskUpdateInput),
   ) as (keyof TaskUpdateInput)[]
 
-  const attachmentFieldsPresent = ATTACHMENT_FIELDS.filter((k) => k in fields)
+  const docLinkFieldsPresent = DOC_LINK_FIELDS.filter((k) => k in fields)
+
+  // Old attachment fields (read-only, backward compat)
+  const oldAttachmentMap: Record<string, Attachment[] | undefined> = {
+    taskDocLinks: existingAttachments.taskDocuments,
+    handoverDocLinks: existingAttachments.handoverDocument,
+    fillersDocLinks: existingAttachments.fillersAndMissingList,
+  }
 
   return (
     <div className="space-y-4">
-      {nonAttachmentFields.map((key) => {
+      {nonDocLinkFields.map((key) => {
         const label = labels[key] ?? key
         const value = fields[key]
         const options = SELECT_OPTIONS[key]
@@ -306,16 +370,46 @@ export default function FieldEditor({
         return null
       })}
 
-      {attachmentFieldsPresent.map((key) => (
-        <UrlAttachmentField
-          key={key}
-          label={attachmentLabelMap[key] ?? String(key)}
-          attachments={existingAttachments[key as keyof typeof existingAttachments] ?? []}
-          fieldKey={key}
-          onAdd={onFileUploaded}
-          ar={ar}
-        />
-      ))}
+      {docLinkFieldsPresent.map((key) => {
+        const sectionLabel = (ar ? FIELD_LABELS_AR[key] : FIELD_LABELS[key]) ?? String(key)
+        const links = (fields[key] as DocLink[]) ?? []
+        const oldAttachments = oldAttachmentMap[key] ?? []
+
+        return (
+          <div key={key} className="space-y-2">
+            {/* Show old Airtable attachments read-only if any exist */}
+            {oldAttachments.length > 0 && (
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  {sectionLabel} (uploaded files)
+                </span>
+                <ul className="space-y-1">
+                  {oldAttachments.map((att) => (
+                    <li key={att.id} className="flex items-center gap-2 text-sm">
+                      <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      <a href={att.url} target="_blank" rel="noopener noreferrer"
+                        className="text-brand-600 hover:underline truncate max-w-xs">
+                        {att.filename}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <DocLinksField
+              label={sectionLabel}
+              links={links}
+              fieldKey={key}
+              onAdd={onDocLinkAdded}
+              onRemove={onDocLinkRemoved}
+              ar={ar}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }

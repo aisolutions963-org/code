@@ -69,6 +69,9 @@ export const TASKS = {
   PATH_CONDITION: 'fldG5Mvt5DzharM3i',
   SED_NOTE: 'fldu64rcx9vPIZXKD',
   FOLLOW_UP_OUTCOME: 'fldqb9Fun4cWf4RYv',
+  TASK_DOC_LINKS: 'fldz8YzTtdsVwiJ3I',
+  HANDOVER_DOC_LINKS: 'fldZeGpG5VlY1Oiip',
+  FILLERS_DOC_LINKS: 'fldxgHjnRVSlYlHbM',
 } as const
 
 export const PROJECTS = {

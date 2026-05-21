@@ -243,6 +243,20 @@ function lookupSelectNames(val: unknown): string[] {
     )
     .filter((v): v is string => typeof v === 'string')
 }
+function parseDocLinks(val: unknown): import('./types').DocLink[] {
+  if (!val || typeof val !== 'string') return []
+  try {
+    const parsed = JSON.parse(val)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (d): d is import('./types').DocLink =>
+        d && typeof d.url === 'string' && typeof d.label === 'string',
+    )
+  } catch {
+    return []
+  }
+}
+
 function attachments(val: unknown): Attachment[] {
   if (!Array.isArray(val)) return []
   return (val as Record<string, unknown>[]).map((a) => ({
@@ -303,6 +317,9 @@ function transformTask(record: RawRecord): Task {
     sedNote: str(f[TASKS.SED_NOTE]),
     followUpOutcome: str(f[TASKS.FOLLOW_UP_OUTCOME]),
     pathCondition: selectName(f[TASKS.PATH_CONDITION]),
+    taskDocLinks: parseDocLinks(f[TASKS.TASK_DOC_LINKS]),
+    handoverDocLinks: parseDocLinks(f[TASKS.HANDOVER_DOC_LINKS]),
+    fillersDocLinks: parseDocLinks(f[TASKS.FILLERS_DOC_LINKS]),
   }
 }
 
@@ -432,14 +449,19 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   callCount: TASKS.CALL_COUNT,
   sedNote: TASKS.SED_NOTE,
   followUpOutcome: TASKS.FOLLOW_UP_OUTCOME,
+  taskDocLinks: TASKS.TASK_DOC_LINKS,
+  handoverDocLinks: TASKS.HANDOVER_DOC_LINKS,
+  fillersDocLinks: TASKS.FILLERS_DOC_LINKS,
 }
+
+const DOC_LINK_KEYS = new Set(['taskDocLinks', 'handoverDocLinks', 'fillersDocLinks'])
 
 function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(input)) {
     const fieldId = TASK_FIELD_TO_ID[key as keyof TaskUpdateInput]
     if (!fieldId) continue
-    result[fieldId] = value
+    result[fieldId] = DOC_LINK_KEYS.has(key) ? JSON.stringify(value ?? []) : value
   }
   return result
 }
