@@ -1730,10 +1730,11 @@ function MyTasksPage() {
   )
   const allTasks = data?.tasks ?? []
 
-  // Superadmin sees: Manager/Purchase tasks, Call the Client tasks, Follow Up tasks
+  // Superadmin sees: tasks pending their approval, Call the Client decisions, Follow Up decisions.
+  // Manager/Purchase department tasks belong to the manager role — excluded here.
   const tasks = allTasks.filter(
     (t) =>
-      t.department.some((d) => ['Manager', 'Purchase'].includes(d)) ||
+      t.status === 'Pending Approval' ||
       t.taskName.toLowerCase().includes('call the client') ||
       t.taskName === 'Follow Up',
   )

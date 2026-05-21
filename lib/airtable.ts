@@ -14,6 +14,7 @@ import {
   QUOTATIONS,
   PURCHASE_ORDERS,
   INSTALLATION_LOGS,
+  CALENDAR_EVENTS,
 } from './fieldMap'
 import { PHASE_CONFIG } from './phases'
 import {
@@ -1688,10 +1689,11 @@ export interface CalendarEvent {
   projectId?: string
   projectName?: string
   amount?: number
+  notes?: string
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
-  const [gatePasses, tasks, payments] = await Promise.all([
+  const [gatePasses, tasks, payments, customEvents] = await Promise.all([
     fetchAll(GATE_PASSES.TABLE_ID, {
       filterByFormula: `NOT({${GATE_PASSES.ESTIMATED_SUPPLY_DATE}}=BLANK())`,
       fields: [GATE_PASSES.NAME, GATE_PASSES.ESTIMATED_SUPPLY_DATE, GATE_PASSES.CONFIRMED_DELIVERY_DATE, GATE_PASSES.PROJECT],
@@ -1705,6 +1707,10 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     fetchAll(PAYMENTS.TABLE_ID, {
       filterByFormula: `OR(NOT({${PAYMENTS.DUE_DATE}}=BLANK()), NOT({${PAYMENTS.RECEIVED_DATE}}=BLANK()))`,
       fields: [PAYMENTS.NAME, PAYMENTS.AMOUNT, PAYMENTS.PAYMENT_TYPE, PAYMENTS.DUE_DATE, PAYMENTS.RECEIVED_DATE, PAYMENTS.PROJECT],
+    }),
+    fetchAll(CALENDAR_EVENTS.TABLE_ID, {
+      fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY],
+      sort: [{ field: CALENDAR_EVENTS.DATE, direction: 'asc' }],
     }),
   ])
 
@@ -1752,7 +1758,46 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     }
   }
 
+  for (const r of customEvents) {
+    const f = r.fields
+    const date = str(f[CALENDAR_EVENTS.DATE])
+    const title = str(f[CALENDAR_EVENTS.TITLE])
+    if (!date || !title) continue
+    events.push({
+      id: r.id,
+      title,
+      date,
+      type: 'activity',
+      notes: str(f[CALENDAR_EVENTS.NOTES]),
+    })
+  }
+
   return events
+}
+
+export async function createCalendarEvent(input: {
+  title: string
+  date: string
+  notes?: string
+  projectId?: string
+  createdBy?: string
+}): Promise<void> {
+  const fields: Record<string, unknown> = {
+    [CALENDAR_EVENTS.TITLE]: input.title,
+    [CALENDAR_EVENTS.DATE]: input.date,
+  }
+  if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
+  if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
+  if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
+  const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
 }
 
 // ─── Task Generation (A2) ─────────────────────────────────────────────────────

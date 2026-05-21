@@ -170,6 +170,13 @@ export const CreateInstallationLogSchema = z.object({
   expectedFinishDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
+export const CreateCalendarEventSchema = z.object({
+  title: z.string().min(1).max(200).transform((v) => v.trim()),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date'),
+  notes: z.string().max(2000).optional(),
+  projectId: z.string().optional(),
+})
+
 export const CreateProjectSchema = z.object({
   projectName: z.string().min(1).max(200).transform((v) => v.trim()),
   nickname: z.string().min(1).max(100).transform((v) => v.trim()),

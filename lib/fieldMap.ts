@@ -261,6 +261,15 @@ export const HANDOVER_SHEETS = {
   NEWSLETTER_OPT_IN: 'fld38IGwc92IrrYAt',
 } as const
 
+export const CALENDAR_EVENTS = {
+  TABLE_ID: 'tblnG8M3db73zeiNS',
+  TITLE: 'fldp3dfc2382m6c1C',
+  DATE: 'fld8saVnwII9nstoP',
+  NOTES: 'fldRWcbihUAdmyBIg',
+  PROJECT: 'fldvK1majrFSNWVxy',
+  CREATED_BY: 'flduWnzsPZeIAmprs',
+} as const
+
 export const MATERIALS_NEEDED = {
   TABLE_ID: 'tblDTNeiICTwzdi6N',
   NAME: 'fld90lAndpbxEdRM7',
