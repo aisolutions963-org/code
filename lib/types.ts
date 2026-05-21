@@ -119,6 +119,8 @@ export interface Project {
   projectName: string
   nickname?: string
   projectId: string
+  quotationNumber?: string
+  quotationReference?: string
   projectStage: string
   clientName: string
   salesOwner?: { id: string; email: string; name: string }

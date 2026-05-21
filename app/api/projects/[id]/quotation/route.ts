@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createProjectItem, createQuotation, generateItemTasksForProject } from '@/lib/airtable'
+import { createProjectItem, createQuotation, generateItemTasksForProject, getProjectById, updateProject } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
 import { CreateQuotationItemsSchema } from '@/lib/validation'
+import { PROJECTS } from '@/lib/fieldMap'
 
 export async function POST(
   request: NextRequest,
@@ -29,6 +30,24 @@ export async function POST(
   }
 
   try {
+    // Set quotation number on the project and compute the reference revision
+    const project = await getProjectById(params.id)
+    const currentQN = project.quotationNumber
+    const currentRef = project.quotationReference // e.g. "R1", "R2", or undefined
+
+    let nextRef: string
+    if (!currentRef || currentQN !== parsed.data.quotationNumber) {
+      nextRef = 'R0'
+    } else {
+      const n = parseInt(currentRef.slice(1), 10)
+      nextRef = `R${isNaN(n) ? 1 : n + 1}`
+    }
+
+    await updateProject(params.id, {
+      [PROJECTS.QUOTATION_NUMBER]: parsed.data.quotationNumber,
+      [PROJECTS.QUOTATION_REFERENCE]: nextRef,
+    })
+
     const results = []
     for (const item of parsed.data.items) {
       const projectItem = await createProjectItem({

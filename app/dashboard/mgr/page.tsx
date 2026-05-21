@@ -90,7 +90,8 @@ const sel = `${inp} bg-white`
 const lbl = 'block text-xs font-medium text-gray-500 mb-1'
 
 function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
-  const [projectId, setProjectId] = useState('')
+  const [projectRecordId, setProjectRecordId] = useState('')
+  const [quotationNumber, setQuotationNumber] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState('Advance')
   const [status, setStatus] = useState('Received')
@@ -105,7 +106,7 @@ function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: (
   const [err, setErr] = useState('')
 
   async function handleSave() {
-    if (!projectId.trim()) { setErr('Project Record ID is required'); return }
+    if (!projectRecordId.trim()) { setErr('Project Record ID is required'); return }
     if (!amount || parseFloat(amount) <= 0) { setErr('Amount is required'); return }
     if (!receivedDate) { setErr('Date is required'); return }
     if (!ref.trim()) { setErr('Reference No. is required'); return }
@@ -113,7 +114,7 @@ function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: (
     setSaving(true); setErr('')
     try {
       const body: Record<string, unknown> = {
-        project: [projectId.trim()],
+        project: [projectRecordId.trim()],
         amount: parseFloat(amount),
         paymentType: type,
         paymentStatus: status,
@@ -126,12 +127,22 @@ function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: (
       if (payerType === 'Broker' && commission) body.commissionAmount = parseFloat(commission)
       if (notes.trim()) body.notes = notes.trim()
 
-      const res = await fetch('/api/payments', {
+      const paymentRes = await fetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      if (!paymentRes.ok) { const d = await paymentRes.json(); throw new Error(d.error) }
+
+      // If a quotation number was provided, set it on the project (required for F5)
+      if (quotationNumber.trim()) {
+        await fetch(`/api/projects/${projectRecordId.trim()}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quotationNumber: quotationNumber.trim() }),
+        })
+      }
+
       onSaved(); onClose()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to save')
@@ -147,7 +158,21 @@ function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: (
 
         <div className="col-span-2">
           <label className={lbl}>Project Record ID *</label>
-          <input className={inp} value={projectId} onChange={e => setProjectId(e.target.value)} placeholder="recXXXXXX" />
+          <input className={inp} value={projectRecordId} onChange={e => setProjectRecordId(e.target.value)} placeholder="recXXXXXX" />
+        </div>
+
+        <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <label className={lbl}>
+            Quotation Number
+            <span className="ml-1 text-amber-600 font-normal normal-case">(required if not set from Make Quotation path)</span>
+          </label>
+          <input
+            className={inp}
+            value={quotationNumber}
+            onChange={e => setQuotationNumber(e.target.value)}
+            placeholder="e.g. WW-2024-001"
+          />
+          <p className="text-xs text-amber-700 mt-1">This becomes the project ID used across all documents. Leave blank if already assigned from Phase 1.</p>
         </div>
 
         <div>

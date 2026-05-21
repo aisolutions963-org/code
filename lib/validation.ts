@@ -86,6 +86,7 @@ export const MaterialDecisionSchema = z.object({
 })
 
 export const CreateQuotationItemsSchema = z.object({
+  quotationNumber: z.string().min(1, 'Quotation number is required').max(100).transform((v) => v.trim()),
   quotationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid quotation date'),
   items: z
     .array(

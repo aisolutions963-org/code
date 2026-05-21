@@ -26,11 +26,13 @@ interface Props {
 
 export default function QuotationModal({ project, onClose, onCreated }: Props) {
   const today = new Date().toISOString().slice(0, 10)
+  const existingQN = project.quotationNumber || project.projectId || ''
+  const [quotationNumber, setQuotationNumber] = useState(existingQN)
   const [quotationDate, setQuotationDate] = useState(today)
   const [rows, setRows] = useState<QuotationRow[]>([emptyRow()])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
-  const [result, setResult] = useState<{ created: number } | null>(null)
+  const [result, setResult] = useState<{ created: number; reference: string } | null>(null)
 
   function updateRow(i: number, patch: Partial<QuotationRow>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
@@ -50,8 +52,14 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
 
   const grandTotal = rows.reduce((sum, r) => sum + rowTotal(r), 0)
 
+  // Compute the reference that will be assigned on submit
+  const isRevision = !!project.quotationNumber && project.quotationNumber === quotationNumber.trim()
+  const currentRefN = project.quotationReference ? parseInt(project.quotationReference.slice(1), 10) : NaN
+  const pendingReference = isRevision ? `R${isNaN(currentRefN) ? 1 : currentRefN + 1}` : 'R0'
+
   async function handleSave() {
     setErr('')
+    if (!quotationNumber.trim()) { setErr('Quotation number is required'); return }
     if (!quotationDate) { setErr('Quotation date is required'); return }
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]
@@ -67,6 +75,7 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          quotationNumber: quotationNumber.trim(),
           quotationDate,
           items: rows.map((r) => ({
             itemName: r.itemName.trim(),
@@ -78,7 +87,7 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to save')
-      setResult({ created: data.created })
+      setResult({ created: data.created, reference: pendingReference })
       onCreated()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to save')
@@ -99,8 +108,10 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
             </svg>
           </div>
           <p className="text-center font-semibold text-gray-900">
-            {result.created} item{result.created !== 1 ? 's' : ''} added to{' '}
-            <span className="font-mono">{project.projectId}</span>
+            {result.created} item{result.created !== 1 ? 's' : ''} added
+          </p>
+          <p className="text-center text-xs text-gray-700 font-mono font-semibold">
+            {quotationNumber} · {result.reference}
           </p>
           <p className="text-center text-xs text-gray-500">
             Quotation date: {quotationDate} · Total: AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -140,13 +151,38 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
               <p className="text-gray-400 mb-0.5">Project</p>
-              <p className="font-mono font-semibold text-gray-800">{project.projectId}</p>
-              <p className="text-gray-600 truncate">{project.projectName}</p>
+              <p className="font-semibold text-gray-800 truncate">{project.projectName}</p>
+              <p className="text-gray-500 truncate">{project.clientName}</p>
             </div>
             <div>
-              <p className="text-gray-400 mb-0.5">Client</p>
-              <p className="font-semibold text-gray-800">{project.clientName}</p>
-              {project.clientPhone && <p className="text-gray-500">{project.clientPhone}</p>}
+              <p className="text-gray-400 mb-0.5">Client Phone</p>
+              {project.clientPhone
+                ? <p className="text-gray-600">{project.clientPhone}</p>
+                : <p className="text-gray-400">—</p>}
+            </div>
+          </div>
+
+          {/* Quotation Number + Reference */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Quotation Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                className={inp}
+                value={quotationNumber}
+                onChange={(e) => setQuotationNumber(e.target.value)}
+                placeholder="e.g. WW-2024-001"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Reference (auto)</label>
+              <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm font-mono font-semibold text-gray-700">
+                {pendingReference}
+                {isRevision && (
+                  <span className="ml-2 text-xs font-normal text-amber-600">revision</span>
+                )}
+              </div>
             </div>
           </div>
 

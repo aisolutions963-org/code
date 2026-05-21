@@ -8,8 +8,7 @@ import {
 } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
 import { PROJECTS } from '@/lib/fieldMap'
-
-const STAGE_ORDER = ['Preparing', 'Open', 'Installation Completed', 'Closed']
+import { STAGE_ORDER } from '@/lib/phases'
 
 export async function POST(
   _request: NextRequest,
@@ -22,7 +21,7 @@ export async function POST(
 
   try {
     const project = await getProjectById(params.id)
-    const currentIndex = STAGE_ORDER.indexOf(project.projectStage)
+    const currentIndex = (STAGE_ORDER as readonly string[]).indexOf(project.projectStage)
 
     if (currentIndex === -1) {
       return NextResponse.json({ error: 'Unknown project stage' }, { status: 400 })

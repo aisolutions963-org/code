@@ -15,6 +15,7 @@ import {
   PURCHASE_ORDERS,
   INSTALLATION_LOGS,
 } from './fieldMap'
+import { PHASE_CONFIG } from './phases'
 import {
   Role,
   Task,
@@ -249,11 +250,14 @@ function transformProject(record: RawRecord): Project {
         .map((c) => c.name ?? c.email ?? c.id ?? '')
         .filter(Boolean)
     : []
+  const quotationNumber = str(f[PROJECTS.QUOTATION_NUMBER])
   return {
     id: record.id,
     projectName: str(f[PROJECTS.PROJECT_NAME]) ?? '',
     nickname: str(f[PROJECTS.NICKNAME]),
-    projectId: str(f[PROJECTS.PROJECT_ID]) ?? '',
+    projectId: quotationNumber || str(f[PROJECTS.PROJECT_ID]) || '',
+    quotationNumber: quotationNumber ?? undefined,
+    quotationReference: str(f[PROJECTS.QUOTATION_REFERENCE]) ?? undefined,
     projectStage: str(f[PROJECTS.PROJECT_STAGE]) ?? '',
     clientName: str(f[PROJECTS.CLIENT_NAME]) ?? '',
     salesOwner: owner,
@@ -1716,15 +1720,16 @@ export async function generateTasksForProject(
   const fetchedTemplates = await getTaskTemplates(stage)
   if (fetchedTemplates.length === 0) return { created: 0, skipped: 0, todoTemplates: [] }
 
-  // For the "Open" stage, only generate project-level Phase 2 templates (orders ≤ 22).
-  // Per-item templates (orders 23+) and per-item GATE tasks (null order) are generated
+  // For the "Open" stage, only generate project-level Phase 2 templates.
+  // Per-item templates (perItemOrderMin+) and per-item GATE tasks (null order) are generated
   // per-item via generateItemTasksForProject when the F5 quotation is submitted.
+  const openCfg = PHASE_CONFIG.Open
   const allTemplates = stage === 'Open'
     ? fetchedTemplates.filter(
         (t) =>
           t.templateOrder !== null &&
-          t.templateOrder <= 22 &&
-          (t.phaseLabel === null || t.phaseLabel === 'Phase 2 — Opening'),
+          t.templateOrder <= openCfg.projectLevelOrderMax &&
+          (t.phaseLabel === null || t.phaseLabel === openCfg.phaseLabel),
       )
     : fetchedTemplates
 
@@ -1747,7 +1752,8 @@ export async function generateTasksForProject(
   // For every other stage the first ordered task is the active one that opens as To Do.
   const firstOrder = universalOrders[0] ?? Infinity
   const secondOrder = universalOrders[1] ?? Infinity
-  const firstIsAutoCompleted = stage === 'Preparing'
+  const preparingCfg = PHASE_CONFIG.Preparing
+  const firstIsAutoCompleted = stage === 'Preparing' && preparingCfg.autoCompleteFirstTask
   const activeOrder = firstIsAutoCompleted ? secondOrder : firstOrder
 
   const pathMinMap = new Map<string, number>()
@@ -1797,11 +1803,12 @@ export async function generateItemTasksForProject(
 ): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
   const allOpenTemplates = await getTaskTemplates('Open')
 
-  // Per-item templates: null order (GATE tasks) or order >= 23, Phase 2 only
+  // Per-item templates: null order (GATE tasks) or order >= perItemOrderMin, Phase 2 only
+  const { perItemOrderMin, phaseLabel } = PHASE_CONFIG.Open
   const itemTemplates = allOpenTemplates.filter(
     (t) =>
-      (t.phaseLabel === null || t.phaseLabel === 'Phase 2 — Opening') &&
-      (t.templateOrder === null || t.templateOrder >= 23),
+      (t.phaseLabel === null || t.phaseLabel === phaseLabel) &&
+      (t.templateOrder === null || t.templateOrder >= perItemOrderMin),
   )
   if (itemTemplates.length === 0) return { created: 0, todoTemplates: [] }
 

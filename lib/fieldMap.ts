@@ -73,6 +73,8 @@ export const PROJECTS = {
   TABLE_ID: 'tblNYJQt2YWSWxzHP',
   PROJECT_NAME: 'fldB2vFh3LHlF30uq',
   PROJECT_ID: 'fldBjQceUJ8bZm4Qc',
+  QUOTATION_NUMBER: 'fldRrZXIY4G8B9tkW',
+  QUOTATION_REFERENCE: 'fld9kdlnvEExao7wv',
   PROJECT_STAGE: 'fldnINS8WLH5nkNGK',
   CLIENT_NAME: 'fldq8KO7c05etvfo2',
   SALES_OWNER: 'fld2JiufpGFcKCC6U',

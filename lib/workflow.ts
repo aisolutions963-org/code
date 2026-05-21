@@ -10,12 +10,10 @@ import {
 import { Task, TaskStatus } from './types'
 import { notifyManager, notifyManagerEscalation } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
+import { PHASE_CONFIG, TASK_MARKERS } from './phases'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
-const HEADLINE_PREFIX = 'to follow tasks progress'
-const AUTO_TASK_MARKER = '(auto)'
-const CALL_CLIENT_PREFIX = 'call the client'
-const GATE_PREFIX = '[gate]'
+const { HEADLINE_PREFIX, AUTO_MARKER: AUTO_TASK_MARKER, CALL_CLIENT_PREFIX, GATE_PREFIX } = TASK_MARKERS
 
 function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([
@@ -321,13 +319,14 @@ export async function handleCallClientOutcome(
         const allTasks = await getAllTasksForProjectAll(projectId)
         const actionTasks = allTasks.filter((t) => t.id !== taskId)
 
-        // Universal tasks with templateOrder >= 2 and < 18 (gateway through notification)
+        // Universal tasks within the Phase 1 action range (gateway through notification)
+        const { universalActionOrderMin, universalActionOrderMax } = PHASE_CONFIG.Preparing
         const universalAction = actionTasks.filter(
           (t) =>
             !t.pathCondition &&
             typeof t.templateOrder?.[0] === 'number' &&
-            t.templateOrder[0] >= 3 &&
-            t.templateOrder[0] < 18,
+            t.templateOrder[0] >= universalActionOrderMin &&
+            t.templateOrder[0] < universalActionOrderMax,
         )
         const universalOrders = universalAction.map((t) => t.templateOrder![0])
         const minUniversal = universalOrders.length > 0 ? Math.min(...universalOrders) : Infinity
@@ -366,6 +365,14 @@ export async function handleCallClientOutcome(
         }
 
         await Promise.all(resets)
+
+        // Increment the quotation reference so the next submission is R[n+1]
+        const projectForRef = await getProjectById(projectId)
+        if (projectForRef.quotationReference) {
+          const n = parseInt(projectForRef.quotationReference.slice(1), 10)
+          const nextRef = `R${isNaN(n) ? 1 : n + 1}`
+          await updateProject(projectId, { [PROJECTS.QUOTATION_REFERENCE]: nextRef })
+        }
 
         // Notify SED and manager that the client requested a review
         const projectRef = task.projectId ?? projectId

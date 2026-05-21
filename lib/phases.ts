@@ -1,0 +1,23 @@
+export const STAGE_ORDER = ['Preparing', 'Open', 'Installation Completed', 'Closed'] as const
+export type Stage = (typeof STAGE_ORDER)[number]
+
+export const PHASE_CONFIG = {
+  Preparing: {
+    autoCompleteFirstTask: true,
+    universalActionOrderMin: 3,
+    universalActionOrderMax: 18,
+  },
+  Open: {
+    autoCompleteFirstTask: false,
+    projectLevelOrderMax: 22,
+    perItemOrderMin: 23,
+    phaseLabel: 'Phase 2 — Opening',
+  },
+} as const
+
+export const TASK_MARKERS = {
+  GATE_PREFIX: '[gate]',
+  AUTO_MARKER: '(auto)',
+  HEADLINE_PREFIX: 'to follow tasks progress',
+  CALL_CLIENT_PREFIX: 'call the client',
+} as const
