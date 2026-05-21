@@ -13,7 +13,7 @@ import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } f
 import { PHASE_CONFIG, TASK_MARKERS } from './phases'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
-const { HEADLINE_PREFIX, AUTO_MARKER: AUTO_TASK_MARKER, CALL_CLIENT_PREFIX, GATE_PREFIX } = TASK_MARKERS
+const { HEADLINE_PREFIX, AUTO_MARKER: AUTO_TASK_MARKER, CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX } = TASK_MARKERS
 
 function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([
@@ -27,30 +27,52 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
   ])
 }
 
-async function maybeUnlockCallClient(projectId: string): Promise<void> {
+async function maybeUnlockCallClient(projectId: string, projectItemId?: string): Promise<void> {
   const allTasks = await getAllTasksForProjectAll(projectId)
 
-  const gateTasks = allTasks.filter((t) =>
-    t.taskName.toLowerCase().startsWith(GATE_PREFIX),
-  )
-  if (gateTasks.length === 0) return
-  if (!gateTasks.every((t) => t.status === 'Completed')) return
+  if (projectItemId) {
+    // Phase 2: per-item gate check — unlock "Take Approval" when both per-item gates clear
+    const itemTasks = allTasks.filter((t) => t.projectItem?.[0] === projectItemId)
+    const gateTasks = itemTasks.filter((t) => t.taskName.toLowerCase().startsWith(GATE_PREFIX))
+    if (gateTasks.length === 0) return
+    if (!gateTasks.every((t) => t.status === 'Completed')) return
 
-  const callClientTask = allTasks.find(
-    (t) =>
-      t.taskName.toLowerCase().startsWith(CALL_CLIENT_PREFIX) &&
-      t.status === 'Locked',
-  )
-  if (!callClientTask) return
+    const takeApprovalTask = itemTasks.find(
+      (t) =>
+        t.taskName.toLowerCase().startsWith(TAKE_APPROVAL_PREFIX) &&
+        t.status === 'Locked',
+    )
+    if (!takeApprovalTask) return
 
-  await updateTaskRaw(callClientTask.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })
+    await updateTaskRaw(takeApprovalTask.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })
+    createNotification({
+      recipientRole: 'sed',
+      title: `New task ready: ${takeApprovalTask.taskName}`,
+      body: 'Both approvals confirmed — ready to take client approval to start fabrication.',
+      link: ROLE_DASHBOARD['sed'],
+    })
+  } else {
+    // Phase 1: project-level gate check — unlock "Call the Client" when all 3 gates clear
+    const projectTasks = allTasks.filter((t) => !t.projectItem?.length)
+    const gateTasks = projectTasks.filter((t) => t.taskName.toLowerCase().startsWith(GATE_PREFIX))
+    if (gateTasks.length === 0) return
+    if (!gateTasks.every((t) => t.status === 'Completed')) return
 
-  createNotification({
-    recipientRole: 'sed',
-    title: `New task ready: ${callClientTask.taskName}`,
-    body: 'All three approvals confirmed — time to call the client.',
-    link: ROLE_DASHBOARD['sed'],
-  })
+    const callClientTask = allTasks.find(
+      (t) =>
+        t.taskName.toLowerCase().startsWith(CALL_CLIENT_PREFIX) &&
+        t.status === 'Locked',
+    )
+    if (!callClientTask) return
+
+    await updateTaskRaw(callClientTask.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })
+    createNotification({
+      recipientRole: 'sed',
+      title: `New task ready: ${callClientTask.taskName}`,
+      body: 'All three approvals confirmed — time to call the client.',
+      link: ROLE_DASHBOARD['sed'],
+    })
+  }
 }
 
 async function unlockNextTasks(task: Task): Promise<void> {
@@ -60,7 +82,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
   // GATE/LOOP tasks (no templateOrder) only trigger the call-client gate check,
   // not the standard order chain.
   if ((task.templateOrder ?? []).length === 0) {
-    await maybeUnlockCallClient(projectId)
+    await maybeUnlockCallClient(projectId, task.projectItem?.[0])
     return
   }
 
@@ -371,14 +393,6 @@ export async function handleCallClientOutcome(
         resets.push(updateTaskRaw(taskId, { [TASKS.STATUS]: 'Locked' as TaskStatus }))
 
         await Promise.all(resets)
-
-        // Increment the quotation reference so the next submission is R[n+1]
-        const projectForRef = await getProjectById(projectId)
-        if (projectForRef.quotationReference) {
-          const n = parseInt(projectForRef.quotationReference.slice(1), 10)
-          const nextRef = `R${isNaN(n) ? 1 : n + 1}`
-          await updateProject(projectId, { [PROJECTS.QUOTATION_REFERENCE]: nextRef })
-        }
 
         // Notify SED and manager that the client requested a review
         const projectRef = task.projectId ?? projectId

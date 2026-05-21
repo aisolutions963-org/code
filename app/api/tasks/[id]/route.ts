@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject } from '@/lib/airtable'
+import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 import { canEditField, filterAllowedFields } from '@/lib/permissions'
 import {
@@ -76,6 +76,21 @@ export const PATCH = requireRole()(
     }
 
     if (status === 'Completed') {
+      // F4 (advance payment) requires a quotation number before it can be completed —
+      // this is the official project number used in reports and accounting.
+      const taskForValidation = await getTaskById(params.id)
+      if (taskForValidation.taskName.toLowerCase().startsWith('f4 —')) {
+        const projectId = taskForValidation.project?.[0]
+        if (projectId) {
+          const project = await getProjectById(projectId)
+          if (!project.quotationNumber?.trim()) {
+            return NextResponse.json(
+              { error: 'Quotation number must be entered on the project before completing F4' },
+              { status: 400 },
+            )
+          }
+        }
+      }
       await handleTaskCompletion(params.id, session.name)
     } else if (status === 'In Progress') {
       await updateTask(params.id, { status: 'In Progress', startedAt: new Date().toISOString() })
