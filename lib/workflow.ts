@@ -264,6 +264,17 @@ export async function handleTaskCompletion(
 
       await unlockNextTasks(task)
 
+      // After F4 (advance payment), notify SED to submit quotation line items (F5)
+      if (task.taskName.toLowerCase().startsWith('f4 —')) {
+        const projectRef = task.projectId ?? task.project?.[0] ?? ''
+        createNotification({
+          recipientRole: 'sed',
+          title: `Submit quotation details (F5) — ${projectRef}`,
+          body: `Advance payment has been recorded. Please open F5 in the project to submit the quotation line items.`,
+          link: ROLE_DASHBOARD['sed'],
+        })
+      }
+
       return { finalStatus: 'Completed' as TaskStatus }
     })(),
   )
@@ -418,6 +429,61 @@ export async function handleCallClientOutcome(
         })
         await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Not-Approved' })
       }
+    })(),
+  )
+}
+
+export async function handleOrderSampleBranch(
+  taskId: string,
+  hasMaterial: boolean,
+): Promise<{ finalStatus: TaskStatus }> {
+  return withTimeout(
+    (async () => {
+      const task = await getTaskById(taskId)
+      const projectId = task.project?.[0]
+      if (!projectId) throw new Error('Task has no linked project')
+
+      // "Don't have material" stays In Progress — waiting for material to arrive.
+      // "We have material" is immediately complete — fabrication can start.
+      const newStatus: TaskStatus = hasMaterial ? 'Completed' : 'In Progress'
+      const updateFields: Record<string, unknown> = { [TASKS.STATUS]: newStatus }
+      if (hasMaterial) updateFields[TASKS.COMPLETED_AT] = new Date().toISOString()
+      await updateTaskRaw(taskId, updateFields)
+
+      const allTasks = await getAllTasksForProjectAll(projectId)
+      // Match by task name — resilient to missing pathCondition on legacy tasks
+      const branchTasks = allTasks.filter(
+        (t) =>
+          t.taskName.startsWith('Sample Branch:') &&
+          t.templateOrder?.[0] === 5 &&
+          t.status === 'Locked',
+      )
+
+      const chosenKeyword = hasMaterial ? 'We Have Material' : "Don't Have Material"
+      const toUnlock = branchTasks.filter((t) => t.taskName.includes(chosenKeyword))
+
+      await Promise.all(
+        toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
+      )
+
+      const projectRef = task.projectId ?? projectId
+      for (const t of toUnlock) {
+        const depts = t.department ?? []
+        const roles = depts
+          .map((d) => DEPT_ROLE_MAP[d])
+          .filter((r): r is string => Boolean(r))
+        const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
+        for (const role of uniqueRoles) {
+          createNotification({
+            recipientRole: role,
+            title: `New task ready: ${t.taskName}`,
+            body: `Completed: ${task.taskName} (${projectRef})`,
+            link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
+          })
+        }
+      }
+
+      return { finalStatus: 'Completed' as TaskStatus }
     })(),
   )
 }

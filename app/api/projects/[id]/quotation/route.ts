@@ -23,8 +23,10 @@ export async function POST(
 
   const parsed = CreateQuotationItemsSchema.safeParse(rawBody)
   if (!parsed.success) {
+    const messages = parsed.error.issues.map((i) => i.message).filter(Boolean)
+    console.error('[QUOTATION] Validation failed:', JSON.stringify(parsed.error.issues))
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? 'Invalid input' },
+      { error: messages[0] ?? parsed.error.issues[0]?.code ?? 'Validation failed' },
       { status: 400 },
     )
   }

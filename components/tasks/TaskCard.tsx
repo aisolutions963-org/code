@@ -210,9 +210,22 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const isMakeQuotation = task.pathCondition === 'Make Quotation'
-  const [quotationInput, setQuotationInput] = useState('')
-  const [referenceInput, setReferenceInput] = useState('')
+  const isMakeQuotation =
+    task.pathCondition === 'Make Quotation' ||
+    task.taskName.toLowerCase().includes('make quotation')
+  const isF4Task = task.taskName.toLowerCase().startsWith('f4 —')
+  const isOrderSample = task.taskName === 'Order Sample'
+  const [quotationInput, setQuotationInput] = useState(task.projectQuotationNumber ?? '')
+
+  // Pre-calculate the next revision reference for Make Quotation
+  function calcNextRef(qn: string): string {
+    if (!task.projectQuotationReference || qn.trim() !== (task.projectQuotationNumber ?? '').trim()) return 'R0'
+    const n = parseInt(task.projectQuotationReference.slice(1), 10)
+    return `R${isNaN(n) ? 1 : n + 1}`
+  }
+  const [referenceInput, setReferenceInput] = useState(() =>
+    isMakeQuotation ? calcNextRef(task.projectQuotationNumber ?? '') : '',
+  )
   const [quotationError, setQuotationError] = useState('')
 
   const ar = isArabicRole(role)
@@ -242,26 +255,24 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     [onUpdate, task],
   )
 
-  async function completeMakeQuotation() {
-    if (!quotationInput.trim()) {
-      setQuotationError('Quotation number is required to complete this task')
-      return
-    }
+  async function saveQuotationAndComplete() {
     const projectId = task.project?.[0]
     if (!projectId) return
     setSaving(true)
     setQuotationError('')
     try {
-      const patchBody: Record<string, string> = { quotationNumber: quotationInput.trim() }
-      if (referenceInput.trim()) patchBody.quotationReference = referenceInput.trim()
-      const patchRes = await fetch(`/api/projects/${projectId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patchBody),
-      })
-      if (!patchRes.ok) {
-        const d = await patchRes.json().catch(() => ({}))
-        throw new Error((d as { error?: string }).error ?? 'Failed to save quotation number')
+      if (quotationInput.trim()) {
+        const patchBody: Record<string, string> = { quotationNumber: quotationInput.trim() }
+        if (referenceInput.trim()) patchBody.quotationReference = referenceInput.trim()
+        const patchRes = await fetch(`/api/projects/${projectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patchBody),
+        })
+        if (!patchRes.ok) {
+          const d = await patchRes.json().catch(() => ({}))
+          throw new Error((d as { error?: string }).error ?? 'Failed to save quotation number')
+        }
       }
       setLocalFields((prev) => ({ ...prev, status: 'Completed' }))
       await onUpdate(task.id, { status: 'Completed' } as Partial<TaskUpdateInput>)
@@ -276,13 +287,38 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     }
   }
 
+  async function completeOrderSampleBranch(hasMaterial: boolean) {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/complete-branch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hasMaterial }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error((d as { error?: string }).error ?? 'Failed')
+      }
+      setLocalFields((prev) => ({ ...prev, status: 'Completed' }))
+      toast.success(hasMaterial ? 'Branch: We have material' : 'Branch: Ordering material')
+      await onUpdate(task.id, {})
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   function handleChange(key: keyof TaskUpdateInput, value: unknown) {
-    if (isMakeQuotation && key === 'status' && value === 'Completed') {
-      if (!quotationInput.trim()) {
+    if (isOrderSample && key === 'status' && value === 'Completed') {
+      return
+    }
+    if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') {
+      if (isMakeQuotation && !quotationInput.trim()) {
         setQuotationError('Enter a quotation number before marking as complete')
         return
       }
-      completeMakeQuotation()
+      saveQuotationAndComplete()
       return
     }
     setLocalFields((prev) => ({ ...prev, [key]: value }))
@@ -472,6 +508,64 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
               {quotationError && (
                 <p className="text-xs text-red-600">{quotationError}</p>
               )}
+            </div>
+          )}
+
+          {/* F4 — quotation number entry (if not already set, required before completing) */}
+          {isF4Task && task.status !== 'Completed' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-2">
+              <p className="text-xs font-semibold text-blue-800">
+                Quotation Number
+                {!task.projectQuotationNumber && <span className="text-red-500 ml-1">*</span>}
+                <span className="ml-1 font-normal text-blue-600">
+                  {task.projectQuotationNumber ? '— already set (update if needed)' : '— required before submitting F5'}
+                </span>
+              </p>
+              <input
+                className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                placeholder="e.g. WW-2024-001"
+                value={quotationInput}
+                onChange={(e) => { setQuotationInput(e.target.value); setQuotationError('') }}
+              />
+              <p className="text-xs font-semibold text-blue-800 mt-1">
+                Reference Number <span className="font-normal text-blue-600">— leave blank to auto-assign</span>
+              </p>
+              <input
+                className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white font-mono"
+                placeholder="e.g. R0"
+                value={referenceInput}
+                onChange={(e) => setReferenceInput(e.target.value)}
+              />
+              {quotationError && (
+                <p className="text-xs text-red-600">{quotationError}</p>
+              )}
+            </div>
+          )}
+
+          {/* Order Sample — branch selector */}
+          {isOrderSample && task.status !== 'Completed' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 space-y-2">
+              <p className="text-xs font-semibold text-green-800">
+                Sample Branch <span className="font-normal text-green-700">— does the team have the material?</span>
+              </p>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => completeOrderSampleBranch(true)}
+                  disabled={saving}
+                  className="border border-green-400 bg-green-100 text-green-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-60 text-left"
+                >
+                  <div className="font-bold">✓ We Have It</div>
+                  <div className="font-normal text-green-700 mt-0.5">Send to Fabrication</div>
+                </button>
+                <button
+                  onClick={() => completeOrderSampleBranch(false)}
+                  disabled={saving}
+                  className="border border-orange-300 bg-orange-50 text-orange-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-60 text-left"
+                >
+                  <div className="font-bold">✗ Need to Order</div>
+                  <div className="font-normal text-orange-700 mt-0.5">Request F3 material order</div>
+                </button>
+              </div>
             </div>
           )}
 

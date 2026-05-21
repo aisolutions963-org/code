@@ -189,8 +189,58 @@ function lookupStrArr(val: unknown): string[] {
 function numArr(val: unknown): number[] {
   return Array.isArray(val) ? (val as number[]) : []
 }
+// Handles multipleLookupValues returning {valuesByLinkedRecordId: {recId: [n]}}
+function lookupNumArr(val: unknown): number[] {
+  if (Array.isArray(val)) return val.filter((v): v is number => typeof v === 'number')
+  if (val && typeof val === 'object') {
+    const byId = (val as { valuesByLinkedRecordId?: Record<string, unknown[]> }).valuesByLinkedRecordId
+    if (byId) {
+      return Object.values(byId)
+        .flat()
+        .filter((v): v is number => typeof v === 'number')
+    }
+  }
+  return []
+}
 function boolArr(val: unknown): boolean[] {
   return Array.isArray(val) ? (val as boolean[]) : []
+}
+// Handles multipleLookupValues of a checkbox field
+function lookupBoolArr(val: unknown): boolean[] {
+  if (Array.isArray(val)) return val.filter((v): v is boolean => typeof v === 'boolean')
+  if (val && typeof val === 'object') {
+    const byId = (val as { valuesByLinkedRecordId?: Record<string, unknown[]> }).valuesByLinkedRecordId
+    if (byId) {
+      return Object.values(byId)
+        .flat()
+        .filter((v): v is boolean => typeof v === 'boolean')
+    }
+  }
+  return []
+}
+// Extracts .name from a singleSelect field (returned as {id, name, color} object)
+function selectName(val: unknown): string | undefined {
+  if (typeof val === 'string') return val
+  if (val && typeof val === 'object') {
+    const name = (val as { name?: string }).name
+    if (typeof name === 'string') return name
+  }
+  return undefined
+}
+// Handles multipleLookupValues of a multipleSelects field — each value is {id, name, color}
+function lookupSelectNames(val: unknown): string[] {
+  const items: unknown[] = []
+  if (Array.isArray(val)) {
+    items.push(...val)
+  } else if (val && typeof val === 'object') {
+    const byId = (val as { valuesByLinkedRecordId?: Record<string, unknown[]> }).valuesByLinkedRecordId
+    if (byId) items.push(...Object.values(byId).flat())
+  }
+  return items
+    .map((v) =>
+      typeof v === 'string' ? v : (v as Record<string, unknown>)?.name as string | undefined,
+    )
+    .filter((v): v is string => typeof v === 'string')
 }
 function attachments(val: unknown): Attachment[] {
   if (!Array.isArray(val)) return []
@@ -209,9 +259,9 @@ function transformTask(record: RawRecord): Task {
     id: record.id,
     taskName: (str(f[TASKS.TASK_NAME]) ?? ''),
     status: (str(f[TASKS.STATUS]) ?? 'To Do') as Task['status'],
-    department: strArr(f[TASKS.DEPARTMENT]),
+    department: lookupSelectNames(f[TASKS.DEPARTMENT]),
     taskOrder: numArr(f[TASKS.TASK_ORDER]),
-    templateOrder: numArr(f[TASKS.TEMPLATE_ORDER]),
+    templateOrder: lookupNumArr(f[TASKS.TEMPLATE_ORDER]),
     projectId: str(f[TASKS.PROJECT_ID]),
     project: strArr(f[TASKS.PROJECT]),
     projectItem: strArr(f[TASKS.PROJECT_ITEM]),
@@ -222,7 +272,7 @@ function transformTask(record: RawRecord): Task {
     arabicInstructions: lookupStrArr(f[TASKS.ARABIC_INSTRUCTIONS]),
     managerReviewStatus: str(f[TASKS.MANAGER_REVIEW_STATUS]) as Task['managerReviewStatus'],
     managerComment: str(f[TASKS.MANAGER_COMMENT]),
-    requiresManagerReview: boolArr(f[TASKS.REQUIRES_MANAGER_REVIEW]),
+    requiresManagerReview: lookupBoolArr(f[TASKS.REQUIRES_MANAGER_REVIEW]),
     requiresManagerReviewManually: bool(f[TASKS.REQUIRES_MANAGER_REVIEW_MANUALLY]),
     postVisitOutcome: str(f[TASKS.POST_VISIT_OUTCOME]),
     taskStartDate: str(f[TASKS.TASK_START_DATE]),
@@ -251,7 +301,7 @@ function transformTask(record: RawRecord): Task {
     callCount: num(f[TASKS.CALL_COUNT]),
     sedNote: str(f[TASKS.SED_NOTE]),
     followUpOutcome: str(f[TASKS.FOLLOW_UP_OUTCOME]),
-    pathCondition: str(f[TASKS.PATH_CONDITION]),
+    pathCondition: selectName(f[TASKS.PATH_CONDITION]),
   }
 }
 
@@ -1064,7 +1114,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
   const projectIds = Array.from(new Set(tasks.flatMap((t) => t.project ?? [])))
   if (projectIds.length === 0) return tasks
 
-  const infoMap: Record<string, { ref: string; name: string; nickname: string | null }> = {}
+  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) {
     chunks.push(projectIds.slice(i, i + 10))
@@ -1075,13 +1125,15 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
       const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const records = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME],
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE],
       })
       for (const r of records) {
         const ref = str(r.fields[PROJECTS.PROJECT_ID])
         const name = str(r.fields[PROJECTS.PROJECT_NAME]) ?? ''
         const nickname = str(r.fields[PROJECTS.NICKNAME]) ?? null
-        if (ref) infoMap[r.id] = { ref, name, nickname }
+        const quotationNumber = str(r.fields[PROJECTS.QUOTATION_NUMBER]) ?? null
+        const quotationReference = str(r.fields[PROJECTS.QUOTATION_REFERENCE]) ?? null
+        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference }
       }
     }),
   )
@@ -1090,7 +1142,14 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
     const pid = t.project?.[0]
     const info = pid ? infoMap[pid] : undefined
     if (!info) return t
-    return { ...t, projectRef: info.ref, projectName: info.name, projectNickname: info.nickname ?? undefined }
+    return {
+      ...t,
+      projectRef: info.ref,
+      projectName: info.name,
+      projectNickname: info.nickname ?? undefined,
+      projectQuotationNumber: info.quotationNumber ?? undefined,
+      projectQuotationReference: info.quotationReference ?? undefined,
+    }
   })
 }
 
@@ -1723,8 +1782,6 @@ export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> 
       const dept = Array.isArray(rawDept)
         ? (rawDept as { name: string }[]).map((d) => d.name)
         : []
-      const rawStage = f[TASK_TEMPLATES.PROJECT_STAGE] as { name: string } | null | undefined
-      const rawPath = f[TASK_TEMPLATES.PATH_CONDITION] as { name: string } | null | undefined
       const rawPhase = f[TASK_TEMPLATES.PHASE] as { name: string } | string | null | undefined
       return {
         id: r.id,
@@ -1734,8 +1791,8 @@ export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> 
           : null,
         department: dept,
         requiresManagerReview: (f[TASK_TEMPLATES.REQUIRES_MANAGER_REVIEW] as boolean) ?? false,
-        projectStage: rawStage?.name ?? null,
-        pathCondition: rawPath?.name ?? null,
+        projectStage: selectName(f[TASK_TEMPLATES.PROJECT_STAGE]) ?? null,
+        pathCondition: selectName(f[TASK_TEMPLATES.PATH_CONDITION]) ?? null,
         phaseLabel: typeof rawPhase === 'object' && rawPhase !== null
           ? (rawPhase as { name: string }).name
           : (rawPhase as string | null) ?? null,

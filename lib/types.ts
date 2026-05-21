@@ -76,6 +76,8 @@ export interface Task {
   projectRef?: string
   projectName?: string
   projectNickname?: string
+  projectQuotationNumber?: string
+  projectQuotationReference?: string
 }
 
 export interface TaskUpdateInput {
