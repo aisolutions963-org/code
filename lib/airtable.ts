@@ -174,6 +174,18 @@ function bool(val: unknown): boolean | undefined {
 function strArr(val: unknown): string[] {
   return Array.isArray(val) ? (val as string[]) : []
 }
+function lookupStrArr(val: unknown): string[] {
+  if (Array.isArray(val)) return val.filter((v): v is string => typeof v === 'string')
+  if (val && typeof val === 'object') {
+    const byId = (val as { valuesByLinkedRecordId?: Record<string, unknown[]> }).valuesByLinkedRecordId
+    if (byId) {
+      return Object.values(byId)
+        .flat()
+        .filter((v): v is string => typeof v === 'string')
+    }
+  }
+  return []
+}
 function numArr(val: unknown): number[] {
   return Array.isArray(val) ? (val as number[]) : []
 }
@@ -206,8 +218,8 @@ function transformTask(record: RawRecord): Task {
     taskDocuments: attachments(f[TASKS.TASK_DOCUMENTS]),
     handoverDocument: attachments(f[TASKS.HANDOVER_DOCUMENT]),
     fillersAndMissingList: attachments(f[TASKS.FILLERS_MISSING_ITEMS_LIST]),
-    instructions: strArr(f[TASKS.INSTRUCTIONS]),
-    arabicInstructions: strArr(f[TASKS.ARABIC_INSTRUCTIONS]),
+    instructions: lookupStrArr(f[TASKS.INSTRUCTIONS]),
+    arabicInstructions: lookupStrArr(f[TASKS.ARABIC_INSTRUCTIONS]),
     managerReviewStatus: str(f[TASKS.MANAGER_REVIEW_STATUS]) as Task['managerReviewStatus'],
     managerComment: str(f[TASKS.MANAGER_COMMENT]),
     requiresManagerReview: boolArr(f[TASKS.REQUIRES_MANAGER_REVIEW]),
@@ -237,6 +249,7 @@ function transformTask(record: RawRecord): Task {
     taskCreated: str(f[TASKS.TASK_CREATED]),
     assignedTo: strArr(f[TASKS.ASSIGNED_TO]),
     callCount: num(f[TASKS.CALL_COUNT]),
+    sedNote: str(f[TASKS.SED_NOTE]),
     pathCondition: str(f[TASKS.PATH_CONDITION]),
   }
 }
@@ -365,6 +378,7 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   requiresManagerReviewManually: TASKS.REQUIRES_MANAGER_REVIEW_MANUALLY,
   priorityFlag: TASKS.PRIORITY_FLAG,
   callCount: TASKS.CALL_COUNT,
+  sedNote: TASKS.SED_NOTE,
 }
 
 function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unknown> {

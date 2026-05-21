@@ -22,6 +22,7 @@ export const EDITABLE_FIELDS: Record<Role, (keyof TaskUpdateInput)[]> = {
     'quotationOutcome',
     'taskDocuments',
     'callCount',
+    'sedNote',
   ],
   fabrication: [
     'status',
@@ -70,6 +71,7 @@ const ALL_TASK_UPDATE_KEYS: (keyof TaskUpdateInput)[] = [
   'fillersAndMissingList',
   'requiresManagerReviewManually',
   'priorityFlag',
+  'sedNote',
 ]
 
 EDITABLE_FIELDS.superadmin = ALL_TASK_UPDATE_KEYS

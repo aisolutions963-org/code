@@ -70,6 +70,7 @@ export interface Task {
   assignedTo?: string[]
   assigneeName?: string
   callCount?: number
+  sedNote?: string
   pathCondition?: string
   projectRef?: string
   projectName?: string
@@ -104,6 +105,7 @@ export interface TaskUpdateInput {
   requiresManagerReviewManually?: boolean
   priorityFlag?: boolean
   callCount?: number
+  sedNote?: string
 }
 
 export interface Client {

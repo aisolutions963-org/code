@@ -54,22 +54,25 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { quotationNumber } = body as { quotationNumber?: string }
+  const { quotationNumber, quotationReference } = body as { quotationNumber?: string; quotationReference?: string }
   if (!quotationNumber || typeof quotationNumber !== 'string' || !quotationNumber.trim()) {
     return NextResponse.json({ error: 'quotationNumber is required' }, { status: 400 })
   }
 
   try {
-    const project = await getProjectById(params.id)
-    const currentQN = project.quotationNumber
-    const currentRef = project.quotationReference
-
     let nextRef: string
-    if (!currentRef || currentQN !== quotationNumber.trim()) {
-      nextRef = 'R0'
+    if (quotationReference && typeof quotationReference === 'string' && /^R\d+$/.test(quotationReference.trim())) {
+      nextRef = quotationReference.trim()
     } else {
-      const n = parseInt(currentRef.slice(1), 10)
-      nextRef = `R${isNaN(n) ? 1 : n + 1}`
+      const project = await getProjectById(params.id)
+      const currentQN = project.quotationNumber
+      const currentRef = project.quotationReference
+      if (!currentRef || currentQN !== quotationNumber.trim()) {
+        nextRef = 'R0'
+      } else {
+        const n = parseInt(currentRef.slice(1), 10)
+        nextRef = `R${isNaN(n) ? 1 : n + 1}`
+      }
     }
 
     const updated = await updateProject(params.id, {

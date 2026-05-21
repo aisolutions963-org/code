@@ -210,6 +210,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const isMakeQuotation = task.pathCondition === 'Make Quotation'
+  const [quotationInput, setQuotationInput] = useState('')
+  const [referenceInput, setReferenceInput] = useState('')
+  const [quotationError, setQuotationError] = useState('')
+
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
   const isDecisionTask = isCallClientDecisionTask(task, role)
@@ -237,7 +242,49 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     [onUpdate, task],
   )
 
+  async function completeMakeQuotation() {
+    if (!quotationInput.trim()) {
+      setQuotationError('Quotation number is required to complete this task')
+      return
+    }
+    const projectId = task.project?.[0]
+    if (!projectId) return
+    setSaving(true)
+    setQuotationError('')
+    try {
+      const patchBody: Record<string, string> = { quotationNumber: quotationInput.trim() }
+      if (referenceInput.trim()) patchBody.quotationReference = referenceInput.trim()
+      const patchRes = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchBody),
+      })
+      if (!patchRes.ok) {
+        const d = await patchRes.json().catch(() => ({}))
+        throw new Error((d as { error?: string }).error ?? 'Failed to save quotation number')
+      }
+      setLocalFields((prev) => ({ ...prev, status: 'Completed' }))
+      await onUpdate(task.id, { status: 'Completed' } as Partial<TaskUpdateInput>)
+      setSaveSuccess(true)
+      toast.success('Saved')
+      setTimeout(() => setSaveSuccess(false), 2000)
+    } catch (e) {
+      setQuotationError(e instanceof Error ? e.message : 'Failed')
+      toast.error('Failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   function handleChange(key: keyof TaskUpdateInput, value: unknown) {
+    if (isMakeQuotation && key === 'status' && value === 'Completed') {
+      if (!quotationInput.trim()) {
+        setQuotationError('Enter a quotation number before marking as complete')
+        return
+      }
+      completeMakeQuotation()
+      return
+    }
     setLocalFields((prev) => ({ ...prev, [key]: value }))
     scheduleUpdate(key, value)
   }
@@ -398,6 +445,42 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                 </div>
               )}
             </>
+          )}
+
+          {/* Quotation number — required before completing Make Quotation */}
+          {isMakeQuotation && task.status !== 'Completed' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-800">
+                Quotation Number <span className="text-red-500">*</span>
+                <span className="ml-1 font-normal text-amber-600">— required to complete this task</span>
+              </p>
+              <input
+                className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                placeholder="e.g. WW-2024-001"
+                value={quotationInput}
+                onChange={(e) => { setQuotationInput(e.target.value); setQuotationError('') }}
+              />
+              <p className="text-xs font-semibold text-amber-800 mt-1">
+                Reference Number <span className="font-normal text-amber-600">— leave blank to auto-assign R0</span>
+              </p>
+              <input
+                className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white font-mono"
+                placeholder="e.g. R0"
+                value={referenceInput}
+                onChange={(e) => setReferenceInput(e.target.value)}
+              />
+              {quotationError && (
+                <p className="text-xs text-red-600">{quotationError}</p>
+              )}
+            </div>
+          )}
+
+          {/* SED note — shown read-only to manager/superadmin */}
+          {(role === 'manager' || role === 'superadmin') && task.sedNote && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 space-y-1">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Note from SED</p>
+              <p className="text-sm text-blue-900 whitespace-pre-wrap">{task.sedNote}</p>
+            </div>
           )}
 
           {/* Editable fields */}

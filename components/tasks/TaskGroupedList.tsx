@@ -12,7 +12,6 @@ interface TaskGroupedListProps {
 }
 
 const PHASE4_STAGES = ['Phase 4', 'Phase 5', 'Closed', 'Warranty', 'Warranty Done']
-const HEADLINE_PREFIX = 'to follow tasks progress'
 
 function shouldGroup(tasks: Task[]): boolean {
   if (tasks.length === 0) return false
@@ -20,26 +19,20 @@ function shouldGroup(tasks: Task[]): boolean {
   return !stages.some((s) => PHASE4_STAGES.includes(s))
 }
 
-function isActiveHeadlineTask(task: Task): boolean {
-  // Show banner whenever the headline is unlocked (To Do, In Progress, or auto-Completed)
-  return (
-    task.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) &&
-    task.status !== 'Locked'
-  )
-}
-
 function renderUngrouped(
   ungrouped: Task[],
   role: Role,
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>,
 ): React.ReactNode {
-  if (!ungrouped.some(isActiveHeadlineTask)) {
+  const hasPathTasks = ungrouped.some((t) => (t.templateOrder?.[0] ?? null) === 4)
+
+  if (!hasPathTasks) {
     return ungrouped.map((t) => (
       <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
     ))
   }
 
-  // Group by project so each project's headline is handled independently
+  // Group by project so each project's path tasks sit under their own banner
   const projectMap = new Map<string, Task[]>()
   for (const t of ungrouped) {
     const pid = t.project?.[0] ?? ''
@@ -48,23 +41,20 @@ function renderUngrouped(
   }
 
   return Array.from(projectMap.entries()).map(([pid, projectTasks]) => {
-    const headline = projectTasks.find(isActiveHeadlineTask)
+    const order4 = projectTasks
+      .filter((t) => (t.templateOrder?.[0] ?? null) === 4)
+      .sort((a, b) => (parseInt(a.taskName, 10) || 0) - (parseInt(b.taskName, 10) || 0))
 
-    if (!headline) {
+    if (order4.length === 0) {
       return projectTasks.map((t) => (
         <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
       ))
     }
 
-    const order4 = projectTasks.filter((t) => (t.templateOrder?.[0] ?? null) === 4)
     const order4Ids = new Set(order4.map((t) => t.id))
+    const rest = projectTasks.filter((t) => !order4Ids.has(t.id))
 
-    const rest = projectTasks.filter(
-      (t) => t.id !== headline.id && !order4Ids.has(t.id),
-    )
-
-    // Tasks with an order < 3 (e.g. F1) go before the headline banner;
-    // null-order tasks (GATE / LOOP) go after.
+    // Tasks with order < 3 (e.g. F1) go before the banner; null-order (GATE/LOOP) go after
     const restBefore = rest.filter(
       (t) => typeof t.templateOrder?.[0] === 'number' && t.templateOrder[0] < 3,
     )
@@ -78,19 +68,17 @@ function renderUngrouped(
           <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
         ))}
 
-        {/* Headline banner */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-          <p className="text-sm font-semibold text-blue-900">{headline.taskName}</p>
+          <p className="text-sm font-semibold text-blue-900">
+            To follow tasks progress, choose &ldquo;In Progress&rdquo; for the tasks you are working on.
+          </p>
         </div>
 
-        {/* Order-4 children indented under headline */}
-        {order4.length > 0 && (
-          <div className="ml-3 pl-3 border-l-2 border-blue-200 space-y-3">
-            {order4.map((t) => (
-              <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
-            ))}
-          </div>
-        )}
+        <div className="ml-3 pl-3 border-l-2 border-blue-200 space-y-3">
+          {order4.map((t) => (
+            <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />
+          ))}
+        </div>
 
         {restAfter.map((t) => (
           <TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />

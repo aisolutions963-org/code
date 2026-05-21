@@ -67,6 +67,7 @@ export const TASKS = {
   TASK_TEMPLATES_LINK: 'fld5FPm767CTRLC1R',
   CALL_COUNT: 'fldEw1v5H3SyekCoZ',
   PATH_CONDITION: 'fldG5Mvt5DzharM3i',
+  SED_NOTE: 'fldu64rcx9vPIZXKD',
 } as const
 
 export const PROJECTS = {

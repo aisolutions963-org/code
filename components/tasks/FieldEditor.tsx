@@ -31,6 +31,7 @@ const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   status: 'Status',
   managerReviewStatus: 'Manager Review Status',
   managerComment: 'Manager Comment',
+  sedNote: 'Note for Manager',
   postVisitOutcome: 'Post-Visit Outcome',
   taskStartDate: 'Start Date',
   completionDate: 'Completion Date',
@@ -222,7 +223,7 @@ export default function FieldEditor({
           )
         }
 
-        if (key === 'managerComment') {
+        if (key === 'managerComment' || key === 'sedNote') {
           return (
             <div key={key} className="flex flex-col gap-1">
               <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{labels[key] ?? key}</label>
@@ -230,6 +231,7 @@ export default function FieldEditor({
                 value={(value as string) ?? ''}
                 onChange={(e) => onChange(key, e.target.value)}
                 rows={3}
+                placeholder={key === 'sedNote' ? 'Leave a note visible to the manager…' : undefined}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
               />
             </div>

@@ -10,6 +10,7 @@ import {
 } from '@/lib/workflow'
 import { TaskUpdateInput } from '@/lib/types'
 import { UpdateTaskSchema } from '@/lib/validation'
+import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
 export const GET = requireRole()(
   async (_req: NextRequest, _session, { params }) => {
@@ -92,6 +93,17 @@ export const PATCH = requireRole()(
     }
 
     const refreshed = await getTaskById(params.id)
+
+    // Notify manager when SED schedules a site visit date
+    if ('taskStartDate' in otherFields && otherFields.taskStartDate && refreshed.pathCondition === 'Visit Site to Gather Details') {
+      const projectRef = refreshed.projectRef ?? refreshed.project?.[0] ?? ''
+      createNotification({
+        recipientRole: 'manager',
+        title: `Site visit scheduled — ${projectRef}`,
+        body: `Visit date set to ${otherFields.taskStartDate as string}${refreshed.projectName ? ` — ${refreshed.projectName}` : ''}`,
+        link: ROLE_DASHBOARD['manager'],
+      })
+    }
 
     // If any approval gate field was touched, check if all 3 are now cleared across
     // the project's gate tasks — if so, unlock the "Call the Client" task asynchronously
