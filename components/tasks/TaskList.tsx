@@ -5,6 +5,8 @@ import { Task, TaskUpdateInput, Role } from '@/lib/types'
 import TaskCard from './TaskCard'
 import GatewaySection from './GatewaySection'
 import GateGroupCard from './GateGroupCard'
+import ItemGroupSection from './ItemGroupSection'
+import Phase2ProjectCard from './Phase2ProjectCard'
 
 interface TaskListProps {
   tasks: Task[]
@@ -60,16 +62,21 @@ function renderTasksInOrder(
   tasks: Task[],
   role: Role,
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>,
+  projectId?: string,
 ): React.ReactNode[] {
-  const pathTaskIds = new Set(
-    tasks.filter((t) => t.pathCondition != null && t.pathCondition !== '').map((t) => t.id),
-  )
-  const allPathTasks = tasks.filter((t) => pathTaskIds.has(t.id))
+  // Split per-item (Phase 2) tasks from project-level tasks
+  const itemTasks = tasks.filter((t) => t.projectItem && t.projectItem.length > 0)
+  const projectLevelTasks = tasks.filter((t) => !t.projectItem || t.projectItem.length === 0)
 
-  const gateTasks = tasks.filter((t) => isGateTask(t.taskName))
+  const pathTaskIds = new Set(
+    projectLevelTasks.filter((t) => t.pathCondition != null && t.pathCondition !== '').map((t) => t.id),
+  )
+  const allPathTasks = projectLevelTasks.filter((t) => pathTaskIds.has(t.id))
+
+  const gateTasks = projectLevelTasks.filter((t) => isGateTask(t.taskName))
   const gateTaskIds = new Set(gateTasks.map((t) => t.id))
 
-  const mainTasks = tasks.filter((t) => !pathTaskIds.has(t.id) && !gateTaskIds.has(t.id))
+  const mainTasks = projectLevelTasks.filter((t) => !pathTaskIds.has(t.id) && !gateTaskIds.has(t.id))
 
   let gatewayRendered = false
   const mainNodes: React.ReactNode[] = mainTasks.map((task) => {
@@ -105,6 +112,35 @@ function renderTasksInOrder(
     )
   }
 
+  // Group per-item tasks by item ID and render each as an ItemGroupSection
+  if (itemTasks.length > 0 && projectId) {
+    const itemGroups = new Map<string, { name: string; tasks: Task[] }>()
+    for (const t of itemTasks) {
+      const itemId = t.projectItem![0]
+      const itemName = t.projectItemName ?? itemId
+      if (!itemGroups.has(itemId)) itemGroups.set(itemId, { name: itemName, tasks: [] })
+      itemGroups.get(itemId)!.tasks.push(t)
+    }
+    for (const [itemId, { name, tasks: iTasks }] of Array.from(itemGroups.entries())) {
+      mainNodes.push(
+        <ItemGroupSection
+          key={`item-${itemId}`}
+          itemId={itemId}
+          itemName={name}
+          projectId={projectId}
+          tasks={iTasks}
+          role={role}
+          onUpdate={onUpdate}
+        />,
+      )
+    }
+  } else if (itemTasks.length > 0) {
+    // fallback: no projectId, render flat
+    for (const t of itemTasks) {
+      mainNodes.push(<TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />)
+    }
+  }
+
   return mainNodes
 }
 
@@ -136,30 +172,51 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
     )
   }
 
-  const groups = new Map<string, Task[]>()
+  // Groups: map projectRef → { projectRecordId, tasks }
+  const groups = new Map<string, { projectRecordId: string; tasks: Task[] }>()
   for (const task of tasks) {
     const key = task.projectRef ?? task.project?.[0] ?? '—'
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(task)
+    if (!groups.has(key)) groups.set(key, { projectRecordId: task.project?.[0] ?? '', tasks: [] })
+    groups.get(key)!.tasks.push(task)
   }
 
   return (
     <div className="space-y-6">
-      {Array.from(groups.entries()).map(([projectKey, groupTasks]) => (
-        <section key={projectKey}>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider font-mono">
-              {projectKey}
-            </span>
-            <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
-              {groupTasks.length}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {renderTasksInOrder(groupTasks, role, onUpdate)}
-          </div>
-        </section>
-      ))}
+      {Array.from(groups.entries()).map(([projectKey, { projectRecordId, tasks: groupTasks }]) => {
+        const isPhase2 = groupTasks.some((t) => t.projectItem && t.projectItem.length > 0)
+        const itemCount = new Set(groupTasks.flatMap((t) => t.projectItem ?? [])).size
+        const firstTask = groupTasks[0]
+        const renderedTasks = renderTasksInOrder(groupTasks, role, onUpdate, projectRecordId)
+
+        if (isPhase2) {
+          return (
+            <Phase2ProjectCard
+              key={projectKey}
+              projectRef={projectKey}
+              projectName={firstTask?.projectName}
+              projectNickname={firstTask?.projectNickname}
+              taskCount={groupTasks.length}
+              itemCount={itemCount}
+            >
+              <div className="space-y-2">{renderedTasks}</div>
+            </Phase2ProjectCard>
+          )
+        }
+
+        return (
+          <section key={projectKey}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider font-mono">
+                {projectKey}
+              </span>
+              <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                {groupTasks.length}
+              </span>
+            </div>
+            <div className="space-y-2">{renderedTasks}</div>
+          </section>
+        )
+      })}
     </div>
   )
 }

@@ -1,0 +1,125 @@
+'use client'
+
+import { useState, useRef } from 'react'
+import { Task, TaskUpdateInput, Role } from '@/lib/types'
+import TaskCard from './TaskCard'
+
+interface QuotationDetails {
+  description?: string | null
+  quantity?: number | null
+  unitPrice?: number | null
+}
+
+interface ItemGroupSectionProps {
+  itemId: string
+  itemName: string
+  projectId: string
+  tasks: Task[]
+  role: Role
+  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+}
+
+export default function ItemGroupSection({
+  itemId,
+  itemName,
+  projectId,
+  tasks,
+  role,
+  onUpdate,
+}: ItemGroupSectionProps) {
+  const [details, setDetails] = useState<QuotationDetails | null>(null)
+  const [fetching, setFetching] = useState(false)
+  const [showTooltip, setShowTooltip] = useState(false)
+  const fetchedRef = useRef(false)
+
+  async function fetchDetails() {
+    if (fetchedRef.current) return
+    fetchedRef.current = true
+    setFetching(true)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/items`)
+      if (!res.ok) return
+      const data: { items: Array<{ id: string; quotation?: QuotationDetails | null }> } = await res.json()
+      const match = data.items.find((i) => i.id === itemId)
+      if (match?.quotation) setDetails(match.quotation)
+    } catch {
+      // non-critical
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  function handleMouseEnter() {
+    setShowTooltip(true)
+    fetchDetails()
+  }
+
+  const total =
+    details?.quantity != null && details?.unitPrice != null
+      ? (details.quantity * details.unitPrice).toLocaleString('en-AE', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : null
+
+  return (
+    <div className="border border-teal-100 rounded-xl overflow-hidden">
+      {/* Item group header */}
+      <div
+        className="relative flex items-center gap-2 px-3 py-2 bg-teal-50 border-b border-teal-100 cursor-default"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        <div className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />
+        <span className="text-xs font-semibold text-teal-800 truncate">{itemName}</span>
+        <span className="ml-auto text-xs text-teal-500 bg-teal-100 px-1.5 py-0.5 rounded-full shrink-0">
+          {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+        </span>
+
+        {/* Hover tooltip */}
+        {showTooltip && (
+          <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white border border-gray-200 rounded-xl shadow-lg p-3 space-y-2 pointer-events-none">
+            <p className="text-xs font-semibold text-gray-800">{itemName}</p>
+            {fetching && <p className="text-xs text-gray-400">Loading…</p>}
+            {!fetching && details && (
+              <>
+                {details.description && (
+                  <p className="text-xs text-gray-600 whitespace-pre-line">{details.description}</p>
+                )}
+                <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
+                  {details.quantity != null && (
+                    <span className="text-xs text-gray-500">
+                      Qty: <span className="font-medium text-gray-700">{details.quantity}</span>
+                    </span>
+                  )}
+                  {details.unitPrice != null && (
+                    <span className="text-xs text-gray-500">
+                      Unit: <span className="font-medium text-gray-700">
+                        AED {details.unitPrice.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </span>
+                  )}
+                  {total && (
+                    <span className="ml-auto text-xs font-semibold text-gray-800">
+                      AED {total}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+            {!fetching && !details && (
+              <p className="text-xs text-gray-400">No quotation details found</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Tasks inside the item group */}
+      <div className="divide-y divide-gray-50">
+        {tasks.map((task) => (
+          <TaskCard key={task.id} task={task} role={role} onUpdate={onUpdate} />
+        ))}
+      </div>
+    </div>
+  )
+}

@@ -26,8 +26,7 @@ interface Props {
 
 export default function QuotationModal({ project, onClose, onCreated }: Props) {
   const today = new Date().toISOString().slice(0, 10)
-  const existingQN = project.quotationNumber || project.projectId || ''
-  const [quotationNumber, setQuotationNumber] = useState(existingQN)
+  const quotationNumber = project.quotationNumber ?? ''
   const [quotationDate, setQuotationDate] = useState(today)
   const [rows, setRows] = useState<QuotationRow[]>([emptyRow()])
   const [saving, setSaving] = useState(false)
@@ -53,13 +52,13 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
   const grandTotal = rows.reduce((sum, r) => sum + rowTotal(r), 0)
 
   // Compute the reference that will be assigned on submit
-  const isRevision = !!project.quotationNumber && project.quotationNumber === quotationNumber.trim()
+  const isRevision = !!project.quotationNumber
   const currentRefN = project.quotationReference ? parseInt(project.quotationReference.slice(1), 10) : NaN
   const pendingReference = isRevision ? `R${isNaN(currentRefN) ? 1 : currentRefN + 1}` : 'R0'
 
   async function handleSave() {
     setErr('')
-    if (!quotationNumber.trim()) { setErr('Quotation number is required'); return }
+    if (!quotationNumber) { setErr('Quotation number not set. Please complete the Make Quotation task first.'); return }
     if (!quotationDate) { setErr('Quotation date is required'); return }
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]
@@ -162,18 +161,13 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
             </div>
           </div>
 
-          {/* Quotation Number + Reference */}
+          {/* Quotation Number + Reference — read-only; set via Make Quotation (Phase 1) or F4 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                Quotation Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={inp}
-                value={quotationNumber}
-                onChange={(e) => setQuotationNumber(e.target.value)}
-                placeholder="e.g. WW-2024-001"
-              />
+              <label className="block text-xs font-medium text-gray-500 mb-1">Quotation Number</label>
+              <div className={`border rounded-lg px-3 py-2 text-sm font-mono font-semibold tabular-nums ${quotationNumber ? 'bg-gray-50 border-gray-200 text-gray-800' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                {quotationNumber || 'Not set yet'}
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Reference (auto)</label>

@@ -428,6 +428,7 @@ export async function getTasksByRole(
   tasks = await enrichTasksWithProjectItemNames(tasks)
   tasks = await enrichTasksWithAssigneeNames(tasks)
   tasks = await enrichTasksWithProjectRef(tasks)
+  tasks = await filterStalePhase1Tasks(tasks)
   return tasks
 }
 
@@ -1090,6 +1091,46 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
     const info = pid ? infoMap[pid] : undefined
     if (!info) return t
     return { ...t, projectRef: info.ref, projectName: info.name, projectNickname: info.nickname ?? undefined }
+  })
+}
+
+async function filterStalePhase1Tasks(tasks: Task[]): Promise<Task[]> {
+  const preparingMax = PHASE_CONFIG.Preparing.universalActionOrderMax
+  const phase1Pending = tasks.filter((t) => {
+    const order = t.templateOrder?.[0]
+    return typeof order === 'number' && order <= preparingMax && t.status !== 'Completed'
+  })
+  if (phase1Pending.length === 0) return tasks
+
+  const projectIds = Array.from(new Set(phase1Pending.flatMap((t) => t.project ?? [])))
+  if (projectIds.length === 0) return tasks
+
+  const stageMap: Record<string, string> = {}
+  const chunks: string[][] = []
+  for (let i = 0; i < projectIds.length; i += 10) chunks.push(projectIds.slice(i, i + 10))
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
+      const records = await fetchAll(PROJECTS.TABLE_ID, {
+        filterByFormula: formula,
+        fields: [PROJECTS.PROJECT_STAGE],
+      })
+      for (const r of records) {
+        const stage = str(r.fields[PROJECTS.PROJECT_STAGE])
+        if (stage) stageMap[r.id] = stage
+      }
+    }),
+  )
+
+  return tasks.filter((t) => {
+    const order = t.templateOrder?.[0]
+    if (typeof order !== 'number' || order > preparingMax) return true
+    if (t.status === 'Completed') return true
+    const projectId = t.project?.[0]
+    if (!projectId) return true
+    const stage = stageMap[projectId]
+    return !stage || stage === 'Preparing'
   })
 }
 
@@ -1905,6 +1946,15 @@ export async function createProjectItem(input: {
   }
   const record: RawRecord = await res.json()
   return transformProjectItem(record)
+}
+
+export async function getProjectItemsForProject(projectId: string): Promise<ProjectItem[]> {
+  const formula = `FIND("${projectId}", ARRAYJOIN({${PROJECT_ITEMS.PROJECT}}, ","))`
+  const records = await fetchAll(PROJECT_ITEMS.TABLE_ID, {
+    filterByFormula: formula,
+    sort: [{ field: PROJECT_ITEMS.ITEM_SEQUENCE, direction: 'asc' }],
+  })
+  return records.map(transformProjectItem)
 }
 
 // ─── Quotations ───────────────────────────────────────────────────────────────
