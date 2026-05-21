@@ -13,6 +13,7 @@ import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import TaskGroupedList from '@/components/tasks/TaskGroupedList'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
+import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -287,7 +288,7 @@ function OverviewPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {active.map((p) => (
-                <ProjectRow key={p.id} project={p} onAdvance={handleAdvance} onDelete={handleDelete} />
+                <ProjectRow key={p.id} project={p} onAdvance={handleAdvance} onDelete={handleDelete} onNotesSaved={mutp} />
               ))}
               {active.length === 0 && (
                 <tr>
@@ -302,7 +303,7 @@ function OverviewPage() {
   )
 }
 
-function ProjectRow({ project: p, onAdvance, onDelete }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void> }) {
+function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onNotesSaved?: () => void }) {
   const [loading, setLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
   const [err, setErr] = useState('')
@@ -348,6 +349,14 @@ function ProjectRow({ project: p, onAdvance, onDelete }: { project: Project; onA
         <td className="px-4 py-3 max-w-xs">
           <p className="font-medium text-gray-900 truncate">{p.projectName}</p>
           {p.nickname && <p className="text-xs text-gray-400 truncate">{p.nickname}</p>}
+          <div className="mt-1">
+            <ProjectNotesEditor
+              projectId={p.id}
+              initialNotes={p.managerNotes}
+              editable
+              onSaved={onNotesSaved}
+            />
+          </div>
         </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">

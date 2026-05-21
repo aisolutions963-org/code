@@ -9,6 +9,7 @@ import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import QuotationModal from '@/components/projects/QuotationModal'
 import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
+import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -461,6 +462,15 @@ export default function SedDashboard() {
                     </div>
                     <p className="font-semibold text-sm text-gray-900">{p.projectName}</p>
                     <p className="text-xs text-gray-500">{p.clientName}</p>
+                  </div>
+                  <div className="pt-1 border-t border-gray-100">
+                    <p className="text-xs font-medium text-gray-400 mb-1">Notes</p>
+                    <ProjectNotesEditor
+                      projectId={p.id}
+                      initialNotes={p.managerNotes}
+                      editable
+                      onSaved={() => mutateProjects()}
+                    />
                   </div>
                   <div className="pt-1 border-t border-gray-100 flex flex-wrap gap-3">
                     <button

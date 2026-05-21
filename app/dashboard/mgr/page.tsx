@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project, Material } from '@/lib/types'
 import TaskGroupedList from '@/components/tasks/TaskGroupedList'
 import ProjectCard from '@/components/projects/ProjectCard'
+import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import PaymentBar from '@/components/projects/PaymentBar'
 import QuotationModal from '@/components/projects/QuotationModal'
 import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
@@ -500,7 +501,17 @@ export default function MgrDashboard() {
             <div className="grid gap-4 sm:grid-cols-2">
               {projects.map((p) => (
                 <div key={p.id} className="space-y-2">
-                  <ProjectCard project={p} showPayments />
+                  <ProjectCard project={p} showPayments>
+                    <div className="pt-2 border-t border-gray-100">
+                      <p className="text-xs font-medium text-gray-400 mb-1">Notes</p>
+                      <ProjectNotesEditor
+                        projectId={p.id}
+                        initialNotes={p.managerNotes}
+                        editable
+                        onSaved={() => mutateProjects()}
+                      />
+                    </div>
+                  </ProjectCard>
                   <div className="flex flex-wrap gap-3 px-1">
                     <button onClick={() => setQuotationProject(p)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
                       F5 — Add Quotation Items

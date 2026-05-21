@@ -54,7 +54,25 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const { quotationNumber, quotationReference } = body as { quotationNumber?: string; quotationReference?: string }
+  const parsed = body as { quotationNumber?: string; quotationReference?: string; notes?: string }
+
+  // Notes-only update
+  if ('notes' in parsed && !parsed.quotationNumber) {
+    if (typeof parsed.notes !== 'string') {
+      return NextResponse.json({ error: 'notes must be a string' }, { status: 400 })
+    }
+    try {
+      const updated = await updateProject(params.id, {
+        [PROJECTS.MANAGER_NOTES]: parsed.notes.trim(),
+      })
+      return NextResponse.json({ project: updated })
+    } catch (error) {
+      console.error('PATCH /api/projects/[id] notes error:', error)
+      return NextResponse.json({ error: 'Failed to update notes' }, { status: 500 })
+    }
+  }
+
+  const { quotationNumber, quotationReference } = parsed
   if (!quotationNumber || typeof quotationNumber !== 'string' || !quotationNumber.trim()) {
     return NextResponse.json({ error: 'quotationNumber is required' }, { status: 400 })
   }
