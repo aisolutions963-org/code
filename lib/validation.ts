@@ -84,7 +84,7 @@ export const AssignInstallationSchema = z.object({
 })
 
 export const MaterialDecisionSchema = z.object({
-  orderStatus: z.enum(['Approved', 'Rejected', 'Needs Revision', 'Pending']),
+  orderStatus: z.enum(['Not ordered', 'Pending approval', 'Ordered', 'Partially received', 'Received', 'Delayed']),
 })
 
 export const CreateQuotationItemsSchema = z.object({
@@ -131,7 +131,7 @@ export const CreateMaterialOrderSchema = z
           name: z.string().min(1).max(300).transform((v) => v.trim()),
           supplier: z.string().max(200).optional(),
           quantity: z.number().positive().max(100_000),
-          unit: z.enum(['pcs', 'm', 'm²', 'kg', 'L', 'set', 'other']),
+          unit: z.enum(['pcs', 'm', 'm²', 'kg', 'set', 'box', 'roll']),
           neededByDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
           notes: z.string().max(2000).optional(),
         }),

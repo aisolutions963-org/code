@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
 
 const PURPOSE_OPTIONS = ['Project', 'Office', 'Factory', 'Cars', 'Other'] as const
-const UNIT_OPTIONS = ['pcs', 'm', 'm²', 'kg', 'L', 'set', 'other'] as const
+const UNIT_OPTIONS = ['pcs', 'm', 'm²', 'kg', 'set', 'box', 'roll'] as const
 
 interface Row {
   name: string

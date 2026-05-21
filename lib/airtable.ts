@@ -1372,6 +1372,9 @@ function transformMaterial(record: RawRecord): Material {
     expectedArrivalDate: str(f[MATERIALS_NEEDED.EXPECTED_ARRIVAL_DATE]),
     actualArrivalDate: str(f[MATERIALS_NEEDED.ACTUAL_ARRIVAL_DATE]),
     notes: str(f[MATERIALS_NEEDED.NOTES]),
+    purpose: str(f[MATERIALS_NEEDED.PURPOSE]),
+    requestedBy: str(f[MATERIALS_NEEDED.REQUESTED_BY]),
+    requestDate: str(f[MATERIALS_NEEDED.REQUEST_DATE]),
   }
 }
 
@@ -1451,7 +1454,7 @@ export async function createMaterialOrder(order: MaterialOrderInput): Promise<Ma
             [MATERIALS_NEEDED.PURPOSE]: order.purpose,
             [MATERIALS_NEEDED.REQUESTED_BY]: order.requestedBy,
             [MATERIALS_NEEDED.REQUEST_DATE]: today,
-            [MATERIALS_NEEDED.ORDER_STATUS]: 'Pending',
+            [MATERIALS_NEEDED.ORDER_STATUS]: 'Not ordered',
           }
           if (order.projectId) fields[MATERIALS_NEEDED.PROJECTS] = [order.projectId]
           if (item.supplier) fields[MATERIALS_NEEDED.SUPPLIER] = item.supplier

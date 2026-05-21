@@ -268,6 +268,9 @@ export interface Material {
   expectedArrivalDate?: string
   actualArrivalDate?: string
   notes?: string
+  purpose?: string
+  requestedBy?: string
+  requestDate?: string
 }
 
 export interface MaterialCreateInput {

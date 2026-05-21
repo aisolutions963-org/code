@@ -242,17 +242,19 @@ function AddPaymentModal({ open, onClose, onSaved }: { open: boolean; onClose: (
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  Pending: 'bg-gray-100 text-gray-600',
-  Approved: 'bg-green-100 text-green-700',
-  Rejected: 'bg-red-100 text-red-700',
-  'Needs Revision': 'bg-orange-100 text-orange-700',
-  Ordered: 'bg-blue-100 text-blue-700',
-  Received: 'bg-emerald-100 text-emerald-700',
+  'Not ordered':        'bg-gray-100 text-gray-600',
+  'Pending approval':   'bg-yellow-100 text-yellow-700',
+  'Ordered':            'bg-blue-100 text-blue-700',
+  'Partially received': 'bg-orange-100 text-orange-700',
+  'Received':           'bg-emerald-100 text-emerald-700',
+  'Delayed':            'bg-red-100 text-red-700',
 }
+
+const MATERIAL_STATUSES = ['Not ordered', 'Pending approval', 'Ordered', 'Partially received', 'Received', 'Delayed'] as const
 
 function MaterialsReviewView({ projects }: { projects: Project[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [deciding, setDeciding] = useState<string | null>(null)
+  const [updating, setUpdating] = useState<string | null>(null)
 
   const { data, isLoading, mutate } = useSWR<{ materials: Material[] }>(
     selectedId ? `/api/projects/${selectedId}/materials` : null,
@@ -261,9 +263,8 @@ function MaterialsReviewView({ projects }: { projects: Project[] }) {
   )
   const materials = data?.materials ?? []
 
-  async function decide(materialId: string, status: string) {
-    setDeciding(materialId)
-    // Optimistic update — show new status instantly while the PATCH is in flight
+  async function updateStatus(materialId: string, status: string) {
+    setUpdating(materialId)
     const optimistic = materials.map((m) =>
       m.id === materialId ? { ...m, orderStatus: status } : m,
     )
@@ -276,20 +277,19 @@ function MaterialsReviewView({ projects }: { projects: Project[] }) {
       })
       if (!res.ok) throw new Error('Failed')
     } catch {
-      // Revert optimistic update on failure
       mutate()
     } finally {
-      setDeciding(null)
-      // Confirm with a real refetch
+      setUpdating(null)
       mutate()
     }
   }
 
-  const pending = materials.filter((m) => !m.orderStatus || m.orderStatus === 'Pending')
-  const decided = materials.filter((m) => m.orderStatus && m.orderStatus !== 'Pending')
+  const active = materials.filter((m) => m.orderStatus !== 'Received')
+  const received = materials.filter((m) => m.orderStatus === 'Received')
 
   return (
     <div className="space-y-4">
+      {/* Project selector */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
         <p className="text-sm font-semibold text-gray-700">Material Orders — Select Project</p>
         <div className="flex flex-wrap gap-2">
@@ -310,73 +310,79 @@ function MaterialsReviewView({ projects }: { projects: Project[] }) {
         </div>
       </div>
 
-      {isLoading && <div className="flex justify-center py-8"><div className="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
+      {isLoading && (
+        <div className="flex justify-center py-8">
+          <div className="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full" />
+        </div>
+      )}
 
       {!isLoading && selectedId && materials.length === 0 && (
         <p className="text-center py-8 text-sm text-gray-400">No material orders for this project.</p>
       )}
 
-      {pending.length > 0 && (
+      {active.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-700">Pending Approval ({pending.length})</p>
+          <div className="px-4 py-3 border-b border-gray-100">
+            <p className="text-sm font-semibold text-gray-700">Active Orders ({active.length})</p>
           </div>
           <div className="divide-y divide-gray-50">
-            {pending.map((m) => (
+            {active.map((m) => (
               <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-900">{m.name}</p>
                   <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-0.5">
+                    {m.purpose && <span className="font-medium text-gray-600">{m.purpose}</span>}
                     {m.supplier && <span>Supplier: {m.supplier}</span>}
                     {m.quantity != null && <span>Qty: {m.quantity} {m.unit ?? ''}</span>}
-                    {m.unitCost != null && <span>AED {m.unitCost}/unit</span>}
                     {m.expectedArrivalDate && <span>Expected: {m.expectedArrivalDate}</span>}
+                    {m.requestedBy && <span>By: {m.requestedBy}</span>}
                   </div>
                   {m.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{m.notes}</p>}
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  {(['Approved', 'Needs Revision', 'Rejected'] as const).map((s) => {
-                    const cfg = {
-                      Approved: { label: 'Approve', cls: 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' },
-                      'Needs Revision': { label: 'Revise', cls: 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100' },
-                      Rejected: { label: 'Reject', cls: 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100' },
-                    }[s]
-                    return (
-                      <button
-                        key={s}
-                        onClick={() => decide(m.id, s)}
-                        disabled={deciding === m.id}
-                        className={`text-xs border rounded-lg px-3 py-1.5 font-medium transition-opacity ${cfg.cls} ${deciding === m.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        {deciding === m.id ? '…' : cfg.label}
-                      </button>
-                    )
-                  })}
-                </div>
+                <select
+                  value={m.orderStatus ?? 'Not ordered'}
+                  disabled={updating === m.id}
+                  onChange={(e) => updateStatus(m.id, e.target.value)}
+                  className={`text-xs border rounded-lg px-2 py-1.5 font-medium shrink-0 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:opacity-60 ${
+                    STATUS_COLORS[m.orderStatus ?? ''] ?? 'bg-gray-100 text-gray-600'
+                  } border-transparent`}
+                >
+                  {MATERIAL_STATUSES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {decided.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      {received.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm opacity-75">
           <div className="px-4 py-3 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-700">Reviewed ({decided.length})</p>
+            <p className="text-sm font-semibold text-gray-500">Received ({received.length})</p>
           </div>
           <div className="divide-y divide-gray-50">
-            {decided.map((m) => (
+            {received.map((m) => (
               <div key={m.id} className="px-4 py-3 flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-700">{m.name}</p>
+                  <p className="text-sm text-gray-600">{m.name}</p>
                   <div className="flex flex-wrap gap-3 text-xs text-gray-400 mt-0.5">
                     {m.supplier && <span>{m.supplier}</span>}
                     {m.quantity != null && <span>{m.quantity} {m.unit ?? ''}</span>}
+                    {m.actualArrivalDate && <span>Arrived: {m.actualArrivalDate}</span>}
                   </div>
                 </div>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[m.orderStatus ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {m.orderStatus}
-                </span>
+                <select
+                  value={m.orderStatus ?? 'Received'}
+                  disabled={updating === m.id}
+                  onChange={(e) => updateStatus(m.id, e.target.value)}
+                  className="text-xs border border-transparent rounded-lg px-2 py-1.5 font-medium shrink-0 bg-emerald-100 text-emerald-700 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:opacity-60"
+                >
+                  {MATERIAL_STATUSES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
               </div>
             ))}
           </div>
