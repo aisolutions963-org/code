@@ -201,6 +201,7 @@ function getInitialFieldValues(
 
 export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [showHint, setShowHint] = useState(false)
   const [localFields, setLocalFields] = useState<Partial<TaskUpdateInput>>(
     () => getInitialFieldValues(task, getEditableFieldsForRole(role)),
   )
@@ -255,6 +256,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     : (task.projectName ?? task.projectRef ?? task.project?.[0] ?? '')
   const instructions = task.instructions?.join(' ') ?? ''
   const arabicInstructions = task.arabicInstructions?.join(' ') ?? ''
+  const hintText = ar ? (arabicInstructions || instructions) : instructions
 
   // Decision task: render only the outcome panel, nothing else
   if (isDecisionTask) {
@@ -283,6 +285,8 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       className={`bg-white rounded-xl border-gray-200 border shadow-sm overflow-hidden transition-shadow hover:shadow-md border-l-4 ${
         urgent ? 'border-l-orange-500' : deptBorder(task.department)
       }`}
+      onMouseEnter={() => setShowHint(true)}
+      onMouseLeave={() => setShowHint(false)}
     >
       {/* Header */}
       <button
@@ -332,6 +336,17 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
+
+      {/* Hover hint */}
+      {showHint && !isOpen && hintText && (
+        <div
+          className="px-4 py-2.5 bg-indigo-50 border-t border-indigo-100 text-xs text-indigo-800 leading-relaxed"
+          dir={ar ? 'rtl' : 'ltr'}
+        >
+          <span className="font-semibold text-indigo-600">{ar ? 'ماذا تفعل: ' : 'What to do: '}</span>
+          {hintText}
+        </div>
+      )}
 
       {/* Client contact bar */}
       {task.clientPhone && (

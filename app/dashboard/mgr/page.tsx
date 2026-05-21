@@ -11,7 +11,6 @@ import QuotationModal from '@/components/projects/QuotationModal'
 import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
 import HandoverModal from '@/components/projects/HandoverModal'
 import GatePassModal from '@/components/projects/GatePassModal'
-import PurchaseOrderModal from '@/components/projects/PurchaseOrderModal'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
@@ -227,6 +226,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 function MaterialsReviewView({ projects }: { projects: Project[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [deciding, setDeciding] = useState<string | null>(null)
 
   const { data, isLoading, mutate } = useSWR<{ materials: Material[] }>(
     selectedId ? `/api/projects/${selectedId}/materials` : null,
@@ -236,12 +236,27 @@ function MaterialsReviewView({ projects }: { projects: Project[] }) {
   const materials = data?.materials ?? []
 
   async function decide(materialId: string, status: string) {
-    await fetch(`/api/materials/${materialId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderStatus: status }),
-    })
-    mutate()
+    setDeciding(materialId)
+    // Optimistic update — show new status instantly while the PATCH is in flight
+    const optimistic = materials.map((m) =>
+      m.id === materialId ? { ...m, orderStatus: status } : m,
+    )
+    mutate({ materials: optimistic }, false)
+    try {
+      const res = await fetch(`/api/materials/${materialId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderStatus: status }),
+      })
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      // Revert optimistic update on failure
+      mutate()
+    } finally {
+      setDeciding(null)
+      // Confirm with a real refetch
+      mutate()
+    }
   }
 
   const pending = materials.filter((m) => !m.orderStatus || m.orderStatus === 'Pending')
@@ -294,24 +309,23 @@ function MaterialsReviewView({ projects }: { projects: Project[] }) {
                   {m.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{m.notes}</p>}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => decide(m.id, 'Approved')}
-                    className="text-xs bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 rounded-lg px-3 py-1.5 font-medium"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => decide(m.id, 'Needs Revision')}
-                    className="text-xs bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 rounded-lg px-3 py-1.5 font-medium"
-                  >
-                    Revise
-                  </button>
-                  <button
-                    onClick={() => decide(m.id, 'Rejected')}
-                    className="text-xs bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg px-3 py-1.5 font-medium"
-                  >
-                    Reject
-                  </button>
+                  {(['Approved', 'Needs Revision', 'Rejected'] as const).map((s) => {
+                    const cfg = {
+                      Approved: { label: 'Approve', cls: 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' },
+                      'Needs Revision': { label: 'Revise', cls: 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100' },
+                      Rejected: { label: 'Reject', cls: 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100' },
+                    }[s]
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => decide(m.id, s)}
+                        disabled={deciding === m.id}
+                        className={`text-xs border rounded-lg px-3 py-1.5 font-medium transition-opacity ${cfg.cls} ${deciding === m.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {deciding === m.id ? '…' : cfg.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             ))}
@@ -359,14 +373,13 @@ export default function MgrDashboard() {
   const [showMaterialModal, setShowMaterialModal] = useState(false)
   const [handoverProject, setHandoverProject] = useState<Project | null>(null)
   const [gatePassProject, setGatePassProject] = useState<Project | null>(null)
-  const [purchaseOrderProject, setPurchaseOrderProject] = useState<Project | null>(null)
 
   const { data: taskData, error: taskError, isLoading: taskLoading, mutate: mutateTasks } =
     useSWR<{ tasks: Task[] }>('/api/tasks?role=manager', fetcher, { refreshInterval: 30000, revalidateOnFocus: true })
 
   const { data: projectData, error: projectError, isLoading: projectLoading, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
-      view === 'projects' || view === 'payments' || view === 'installation' || view === 'purchase' || view === 'materials' ? '/api/projects' : null,
+      view === 'projects' || view === 'payments' || view === 'installation' || view === 'materials' ? '/api/projects' : null,
       fetcher,
       { refreshInterval: 30000, revalidateOnFocus: true },
     )
@@ -438,30 +451,6 @@ export default function MgrDashboard() {
         </>
       )}
 
-      {/* Purchase Orders view */}
-      {view === 'purchase' && (
-        <>
-          {projectLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
-          {!projectLoading && !projectError && (
-            <div className="space-y-3">
-              <p className="text-xs text-gray-500">Select a project to create or view purchase orders.</p>
-              <div className="flex flex-wrap gap-2">
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setPurchaseOrderProject(p)}
-                    className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg px-3 py-1.5 font-medium"
-                  >
-                    {p.projectId} — {p.projectName}
-                  </button>
-                ))}
-                {projects.length === 0 && <p className="text-sm text-gray-400">No active projects found.</p>}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
       {/* Materials view */}
       {view === 'materials' && (
         <>
@@ -499,9 +488,6 @@ export default function MgrDashboard() {
                     </button>
                     <button onClick={() => setGatePassProject(p)} className="text-xs text-orange-600 hover:text-orange-700 font-medium">
                       Gate Pass
-                    </button>
-                    <button onClick={() => setPurchaseOrderProject(p)} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
-                      New PO
                     </button>
                   </div>
                 </div>
@@ -620,13 +606,6 @@ export default function MgrDashboard() {
         />
       )}
 
-      {purchaseOrderProject && (
-        <PurchaseOrderModal
-          project={purchaseOrderProject}
-          onClose={() => setPurchaseOrderProject(null)}
-          onCreated={() => mutateProjects()}
-        />
-      )}
     </div>
   )
 }

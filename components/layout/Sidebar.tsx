@@ -153,7 +153,6 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: 'Payments', href: '/dashboard/mgr?view=payments', icon: <CashIcon /> },
     { label: 'Payment Calendar', href: '/dashboard/mgr?view=calendar', icon: <CalendarIcon /> },
     { label: 'Materials', href: '/dashboard/mgr?view=materials', icon: <HammerIcon /> },
-    { label: 'Purchase Orders', href: '/dashboard/mgr?view=purchase', icon: <ClipboardIcon /> },
     { label: 'Installation Teams', href: '/dashboard/mgr?view=installation', icon: <TruckIcon /> },
     { label: 'All Projects', href: '/dashboard/mgr?view=projects', icon: <FolderIcon /> },
   ],
