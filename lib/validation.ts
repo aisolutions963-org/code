@@ -46,6 +46,8 @@ export const UpdateTaskSchema = z.object({
   priorityFlag: z.boolean().optional(),
   requiresManagerReviewManually: z.boolean().optional(),
   callCount: z.number().int().min(0).max(10).optional(),
+  sedNote: z.string().max(2000).optional(),
+  followUpOutcome: z.enum(['Reject Project', 'SED to Follow Up', 'Manager to Follow Up']).optional(),
   taskDocuments: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),
   handoverDocument: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),
   fillersAndMissingList: z.array(z.object({ url: z.string().url(), filename: z.string().max(255) })).optional(),

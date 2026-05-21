@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, checkAndUnlockCallClientTask } from '@/lib/airtable'
+import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject } from '@/lib/airtable'
+import { PROJECTS } from '@/lib/fieldMap'
 import { canEditField, filterAllowedFields } from '@/lib/permissions'
 import {
   handleTaskCompletion,
@@ -55,7 +56,7 @@ export const PATCH = requireRole()(
       }
     }
 
-    const { status, managerReviewStatus, callCount, ...otherFields } = fields as Partial<TaskUpdateInput>
+    const { status, managerReviewStatus, callCount, followUpOutcome, ...otherFields } = fields as Partial<TaskUpdateInput>
 
     if (Object.keys(otherFields).length > 0) {
       const filtered = filterAllowedFields(session.role, otherFields)
@@ -103,6 +104,45 @@ export const PATCH = requireRole()(
         body: `Visit date set to ${otherFields.taskStartDate as string}${refreshed.projectName ? ` — ${refreshed.projectName}` : ''}`,
         link: ROLE_DASHBOARD['manager'],
       })
+    }
+
+    // Handle Follow Up task outcome — superadmin decision after 3-day inactivity
+    if (followUpOutcome) {
+      await updateTask(params.id, { followUpOutcome })
+      const projectId = refreshed.project?.[0]
+      const projectRef = refreshed.projectRef ?? projectId ?? ''
+      const projectName = refreshed.projectName ? ` — ${refreshed.projectName}` : ''
+
+      if (followUpOutcome === 'Reject Project' && projectId) {
+        await updateProject(projectId, { [PROJECTS.APPROVAL_STATUS]: 'Not-Approved' })
+        createNotification({
+          recipientRole: 'sed',
+          title: `Project rejected — ${projectRef}`,
+          body: `Superadmin has rejected project "${refreshed.projectName ?? projectRef}" due to inactivity.`,
+          link: ROLE_DASHBOARD['sed'],
+        })
+        createNotification({
+          recipientRole: 'manager',
+          title: `Project rejected — ${projectRef}`,
+          body: `Project "${refreshed.projectName ?? projectRef}" was rejected due to inactivity.`,
+          link: ROLE_DASHBOARD['manager'],
+        })
+      } else if (followUpOutcome === 'SED to Follow Up') {
+        createNotification({
+          recipientRole: 'sed',
+          title: `Action needed — ${projectRef}`,
+          body: `Superadmin requests SED follow up on project "${refreshed.projectName ?? projectRef}"${projectName}. Please take the next action.`,
+          link: ROLE_DASHBOARD['sed'],
+        })
+      } else if (followUpOutcome === 'Manager to Follow Up') {
+        createNotification({
+          recipientRole: 'manager',
+          title: `Follow up with client — ${projectRef}`,
+          body: `Superadmin requests manager to follow up with the client or SED on project "${refreshed.projectName ?? projectRef}".`,
+          link: ROLE_DASHBOARD['manager'],
+        })
+      }
+      return NextResponse.json({ task: await getTaskById(params.id) })
     }
 
     // If any approval gate field was touched, check if all 3 are now cleared across

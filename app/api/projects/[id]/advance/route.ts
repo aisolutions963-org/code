@@ -33,13 +33,23 @@ export async function POST(
 
     const incompleteTasks = await getIncompleteTasksForProject(params.id)
 
-    // GATE/LOOP tasks (no templateOrder) and headline tasks are never required
-    // to be completed before advancing — they run in parallel with the main chain.
-    const blocking = incompleteTasks.filter(
-      (t) =>
-        (t.templateOrder ?? []).length > 0 &&
-        !t.taskName.toLowerCase().startsWith('to follow tasks progress'),
-    )
+    let blocking: typeof incompleteTasks
+    if (project.projectStage === 'Preparing') {
+      // Phase 1 only requires all [GATE] tasks and the "Call the Client" task to be complete.
+      // All path tasks, action tasks, and LOOP tasks are optional.
+      blocking = incompleteTasks.filter(
+        (t) =>
+          t.taskName.toLowerCase().startsWith('[gate]') ||
+          t.taskName.toLowerCase().startsWith('call the client'),
+      )
+    } else {
+      // All other phases require every ordered task (except headline) to be complete.
+      blocking = incompleteTasks.filter(
+        (t) =>
+          (t.templateOrder ?? []).length > 0 &&
+          !t.taskName.toLowerCase().startsWith('to follow tasks progress'),
+      )
+    }
 
     if (blocking.length > 0) {
       return NextResponse.json(

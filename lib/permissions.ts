@@ -72,6 +72,8 @@ const ALL_TASK_UPDATE_KEYS: (keyof TaskUpdateInput)[] = [
   'requiresManagerReviewManually',
   'priorityFlag',
   'sedNote',
+  'callCount',
+  'followUpOutcome',
 ]
 
 EDITABLE_FIELDS.superadmin = ALL_TASK_UPDATE_KEYS

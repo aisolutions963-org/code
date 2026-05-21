@@ -250,6 +250,7 @@ function transformTask(record: RawRecord): Task {
     assignedTo: strArr(f[TASKS.ASSIGNED_TO]),
     callCount: num(f[TASKS.CALL_COUNT]),
     sedNote: str(f[TASKS.SED_NOTE]),
+    followUpOutcome: str(f[TASKS.FOLLOW_UP_OUTCOME]),
     pathCondition: str(f[TASKS.PATH_CONDITION]),
   }
 }
@@ -379,6 +380,7 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   priorityFlag: TASKS.PRIORITY_FLAG,
   callCount: TASKS.CALL_COUNT,
   sedNote: TASKS.SED_NOTE,
+  followUpOutcome: TASKS.FOLLOW_UP_OUTCOME,
 }
 
 function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unknown> {
@@ -837,6 +839,19 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
     )
   }
 
+}
+
+export async function checkAndUnlockInactivityFollowUp(
+  projectId: string,
+): Promise<boolean> {
+  const formula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), {${TASKS.TASK_NAME}} = "Follow Up", {${TASKS.STATUS}} = "Locked")`
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [TASKS.TASK_NAME],
+  })
+  if (records.length === 0) return false
+  await Promise.all(records.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })))
+  return true
 }
 
 export async function getCallClientPendingTasks(): Promise<
@@ -1781,7 +1796,8 @@ export async function generateTasksForProject(
   const records = allTemplates.map((t) => {
     let status: TaskStatus
     if (t.templateOrder === null) {
-      status = 'To Do'
+      // The inactivity Follow Up task starts Locked — only unlocked after 3 days of no activity
+      status = t.taskName === 'Follow Up' ? 'Locked' : 'To Do'
     } else if (t.pathCondition === null) {
       if (firstIsAutoCompleted && t.templateOrder === firstOrder) status = 'Completed'
       else if (t.templateOrder === activeOrder) status = 'To Do'

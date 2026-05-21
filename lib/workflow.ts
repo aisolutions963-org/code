@@ -291,11 +291,14 @@ export async function handleCallClientOutcome(
       const outcomeLabel =
         outcome === 'approved' ? 'Approved' : outcome === 'review' ? 'Review Required' : 'Refused'
 
-      // Complete the Call the Client task
-      await updateTaskRaw(taskId, {
-        [TASKS.STATUS]: 'Completed' as TaskStatus,
-        [TASKS.COMPLETED_AT]: new Date().toISOString(),
-      })
+      if (outcome === 'approved') {
+        // Only mark Completed when approved — for review/refused the task resets to Locked
+        // so it can be re-triggered when all gates clear again next round.
+        await updateTaskRaw(taskId, {
+          [TASKS.STATUS]: 'Completed' as TaskStatus,
+          [TASKS.COMPLETED_AT]: new Date().toISOString(),
+        })
+      }
 
       if (outcome === 'approved') {
         // Advance project to Phase 2
@@ -364,6 +367,9 @@ export async function handleCallClientOutcome(
           resets.push(updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus }))
         }
 
+        // Reset the Call the Client task back to Locked so it re-triggers when all gates clear again
+        resets.push(updateTaskRaw(taskId, { [TASKS.STATUS]: 'Locked' as TaskStatus }))
+
         await Promise.all(resets)
 
         // Increment the quotation reference so the next submission is R[n+1]
@@ -391,7 +397,11 @@ export async function handleCallClientOutcome(
         })
 
       } else {
-        // Refused — mark project stage as not approved
+        // Refused — complete the task (decision is final) and mark project not-approved
+        await updateTaskRaw(taskId, {
+          [TASKS.STATUS]: 'Completed' as TaskStatus,
+          [TASKS.COMPLETED_AT]: new Date().toISOString(),
+        })
         await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Not-Approved' })
       }
     })(),

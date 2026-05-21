@@ -71,6 +71,7 @@ export interface Task {
   assigneeName?: string
   callCount?: number
   sedNote?: string
+  followUpOutcome?: string
   pathCondition?: string
   projectRef?: string
   projectName?: string
@@ -106,6 +107,7 @@ export interface TaskUpdateInput {
   priorityFlag?: boolean
   callCount?: number
   sedNote?: string
+  followUpOutcome?: string
 }
 
 export interface Client {
