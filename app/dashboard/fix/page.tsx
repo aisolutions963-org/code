@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project, InstallationLog, GatePass } from '@/lib/types'
-import TaskGroupedList from '@/components/tasks/TaskGroupedList'
+import TaskList from '@/components/tasks/TaskList'
 import HandoverModal from '@/components/projects/HandoverModal'
 import InstallationLogModal from '@/components/projects/InstallationLogModal'
 
@@ -96,7 +96,7 @@ export default function FixDashboard() {
           )}
 
           {!error && (
-            <TaskGroupedList loading={isLoading} tasks={visibleTasks} role="installation" onUpdate={handleUpdate} />
+            <TaskList loading={isLoading} tasks={visibleTasks} role="installation" onUpdate={handleUpdate} />
           )}
         </>
       )}

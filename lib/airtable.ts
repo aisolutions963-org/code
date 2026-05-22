@@ -279,6 +279,7 @@ function transformTask(record: RawRecord): Task {
     templateOrder: lookupNumArr(f[TASKS.TEMPLATE_ORDER]),
     projectId: str(f[TASKS.PROJECT_ID]),
     project: strArr(f[TASKS.PROJECT]),
+    projectRecordId: str(f[TASKS.PROJECT_RECORD_ID]) ?? lookupStrArr(f[TASKS.PROJECT_RECORD_ID])[0] ?? strArr(f[TASKS.PROJECT])[0] ?? undefined,
     projectItem: strArr(f[TASKS.PROJECT_ITEM]),
     taskDocuments: attachments(f[TASKS.TASK_DOCUMENTS]),
     handoverDocument: attachments(f[TASKS.HANDOVER_DOCUMENT]),
@@ -1163,15 +1164,20 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
 
   return tasks.map((t) => {
     const pid = t.project?.[0]
-    const info = pid ? infoMap[pid] : undefined
-    if (!info) return t
+    if (!pid) return t
+    const info = infoMap[pid]
     return {
       ...t,
-      projectRef: info.ref,
-      projectName: info.name,
-      projectNickname: info.nickname ?? undefined,
-      projectQuotationNumber: info.quotationNumber ?? undefined,
-      projectQuotationReference: info.quotationReference ?? undefined,
+      projectRecordId: pid,
+      ...(info
+        ? {
+            projectRef: info.ref,
+            projectName: info.name,
+            projectNickname: info.nickname ?? undefined,
+            projectQuotationNumber: info.quotationNumber ?? undefined,
+            projectQuotationReference: info.quotationReference ?? undefined,
+          }
+        : {}),
     }
   })
 }

@@ -80,6 +80,7 @@ export interface Task {
   followUpOutcome?: string
   pathCondition?: string
   projectRef?: string
+  projectRecordId?: string
   projectName?: string
   projectNickname?: string
   projectQuotationNumber?: string

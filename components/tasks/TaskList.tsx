@@ -6,7 +6,7 @@ import TaskCard from './TaskCard'
 import GatewaySection from './GatewaySection'
 import GateGroupCard from './GateGroupCard'
 import ItemGroupSection from './ItemGroupSection'
-import Phase2ProjectCard from './Phase2ProjectCard'
+import ProjectTaskCard from './ProjectTaskCard'
 
 interface TaskListProps {
   tasks: Task[]
@@ -175,8 +175,8 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
   // Groups: map projectRef → { projectRecordId, tasks }
   const groups = new Map<string, { projectRecordId: string; tasks: Task[] }>()
   for (const task of tasks) {
-    const key = task.projectRef ?? task.project?.[0] ?? '—'
-    if (!groups.has(key)) groups.set(key, { projectRecordId: task.project?.[0] ?? '', tasks: [] })
+    const key = task.projectRef ?? task.projectRecordId ?? task.project?.[0] ?? '—'
+    if (!groups.has(key)) groups.set(key, { projectRecordId: task.projectRecordId ?? task.project?.[0] ?? '', tasks: [] })
     groups.get(key)!.tasks.push(task)
   }
 
@@ -185,37 +185,23 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
       {Array.from(groups.entries()).map(([projectKey, { projectRecordId, tasks: groupTasks }]) => {
         const isPhase2 = groupTasks.some((t) => t.projectItem && t.projectItem.length > 0)
         const itemCount = new Set(groupTasks.flatMap((t) => t.projectItem ?? [])).size
+        const pendingApprovalCount = groupTasks.filter((t) => t.status === 'Pending Approval').length
         const firstTask = groupTasks[0]
-        const renderedTasks = renderTasksInOrder(groupTasks, role, onUpdate, projectRecordId)
-
-        if (isPhase2) {
-          return (
-            <Phase2ProjectCard
-              key={projectKey}
-              projectRef={projectKey}
-              projectRecordId={projectRecordId || undefined}
-              projectName={firstTask?.projectName}
-              projectNickname={firstTask?.projectNickname}
-              taskCount={groupTasks.length}
-              itemCount={itemCount}
-            >
-              <div className="space-y-2">{renderedTasks}</div>
-            </Phase2ProjectCard>
-          )
-        }
+        const projectStage = firstTask?.projectStage?.[0]
 
         return (
-          <section key={projectKey}>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider font-mono">
-                {projectKey}
-              </span>
-              <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
-                {groupTasks.length}
-              </span>
-            </div>
-            <div className="space-y-2">{renderedTasks}</div>
-          </section>
+          <ProjectTaskCard
+            key={projectKey}
+            projectRef={projectKey}
+            projectRecordId={projectRecordId || undefined}
+            projectName={firstTask?.projectName}
+            projectNickname={firstTask?.projectNickname}
+            projectStage={projectStage}
+            taskCount={groupTasks.length}
+            itemCount={itemCount}
+            pendingApprovalCount={pendingApprovalCount}
+            isPhase2={isPhase2}
+          />
         )
       })}
     </div>

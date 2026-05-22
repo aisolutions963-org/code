@@ -11,7 +11,7 @@ import { Project, MaintenanceRecord, Announcement, Payment, Task, TaskUpdateInpu
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
-import TaskGroupedList from '@/components/tasks/TaskGroupedList'
+import TaskList from '@/components/tasks/TaskList'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
@@ -1817,7 +1817,7 @@ function MyTasksPage() {
         <FollowUpDecisionPanel key={t.id} task={t} onDone={mutate} />
       ))}
 
-      <TaskGroupedList loading={isLoading} tasks={regularTasks} role="superadmin" onUpdate={handleUpdate} />
+      <TaskList loading={isLoading} tasks={regularTasks} role="superadmin" onUpdate={handleUpdate} />
     </div>
   )
 }

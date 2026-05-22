@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project } from '@/lib/types'
-import TaskGroupedList from '@/components/tasks/TaskGroupedList'
+import TaskList from '@/components/tasks/TaskList'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import QuotationModal from '@/components/projects/QuotationModal'
@@ -431,7 +431,7 @@ export default function SedDashboard() {
             </div>
           )}
           {!error && (
-            <TaskGroupedList loading={isLoading} tasks={visibleTasks} role="sed" onUpdate={handleUpdate} />
+            <TaskList loading={isLoading} tasks={visibleTasks} role="sed" onUpdate={handleUpdate} />
           )}
         </>
       )}

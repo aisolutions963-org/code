@@ -468,7 +468,6 @@ export async function handleOrderSampleBranch(
       const branchTasks = allTasks.filter(
         (t) =>
           t.taskName.startsWith('Sample Branch:') &&
-          t.templateOrder?.[0] === 5 &&
           t.status === 'Locked',
       )
 

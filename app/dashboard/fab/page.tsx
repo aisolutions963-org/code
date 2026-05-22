@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project } from '@/lib/types'
-import TaskGroupedList from '@/components/tasks/TaskGroupedList'
+import TaskList from '@/components/tasks/TaskList'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -118,7 +118,7 @@ export default function FabDashboard() {
       )}
 
       {!error && view !== 'timeline' && (
-        <TaskGroupedList loading={isLoading} tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} />
+        <TaskList loading={isLoading} tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} />
       )}
 
     </div>

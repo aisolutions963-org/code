@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project } from '@/lib/types'
-import TaskGroupedList from '@/components/tasks/TaskGroupedList'
+import TaskList from '@/components/tasks/TaskList'
 import ProjectCard from '@/components/projects/ProjectCard'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import PaymentTrackerView from '@/components/projects/PaymentTrackerView'
@@ -161,7 +161,7 @@ export default function MgrDashboard() {
         <>
           {taskError && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">Failed to load tasks. <button onClick={() => mutateTasks()} className="underline">Retry</button></div>}
           {!taskError && (
-            <TaskGroupedList
+            <TaskList
               loading={taskLoading}
               tasks={view === 'deliveries' ? tasks.filter(t => t.handoverDocument?.length) : tasks}
               role="manager"

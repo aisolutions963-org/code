@@ -310,7 +310,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   )
 
   async function saveQuotationAndComplete() {
-    const projectId = task.project?.[0]
+    const projectId = task.projectRecordId ?? task.project?.[0]
     if (!projectId) return
     setSaving(true)
     setQuotationError('')
@@ -380,8 +380,12 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       return
     }
     if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') {
-      if (!quotationInput.trim()) {
+      if (isMakeQuotation && !quotationInput.trim()) {
         setQuotationError('Enter a quotation number before marking as complete')
+        return
+      }
+      if (isF4Task && !task.projectQuotationNumber && !quotationInput.trim()) {
+        setQuotationError('Enter a quotation number before recording this payment')
         return
       }
       saveQuotationAndComplete()
@@ -596,14 +600,12 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
-          {/* F4 — quotation number/reference (required if not already on project) */}
-          {isF4Task && task.status !== 'Completed' && (
+          {/* F4 — quotation number/reference (only shown if Make Quotation didn't save them) */}
+          {isF4Task && task.status !== 'Completed' && !task.projectQuotationNumber && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-2">
               <p className="text-xs font-semibold text-blue-800">
                 Quotation Number <span className="text-red-500">*</span>
-                <span className="ml-1 font-normal text-blue-600">
-                  {task.projectQuotationNumber ? '— already set, update if needed' : '— required to record advance payment'}
-                </span>
+                <span className="ml-1 font-normal text-blue-600">— required to record advance payment</span>
               </p>
               <input
                 className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
@@ -613,9 +615,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
               />
               <p className="text-xs font-semibold text-blue-800 mt-1">
                 Reference Number
-                <span className="ml-1 font-normal text-blue-600">
-                  {task.projectQuotationReference ? `— currently ${task.projectQuotationReference}` : '— leave blank to auto-assign R0'}
-                </span>
+                <span className="ml-1 font-normal text-blue-600">— leave blank to auto-assign R0</span>
               </p>
               <input
                 className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white font-mono"

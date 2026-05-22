@@ -40,7 +40,8 @@ export async function GET(
     const completedCount = grp.filter((t) => t.status === 'Completed').length
     const totalCount = grp.length
     const isComplete = totalCount > 0 && grp.every((t) => t.status === 'Completed')
-    return { id, name, activeTasks, completedCount, totalCount, isComplete }
+    const allTasks = grp
+    return { id, name, activeTasks, allTasks, completedCount, totalCount, isComplete }
   })
 
   return NextResponse.json({

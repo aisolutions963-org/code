@@ -93,10 +93,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Role-to-segment enforcement for /dashboard
+  // Shared sub-pages (accessible to all authenticated roles) are excluded.
+  const SHARED_SEGMENTS = new Set(['project'])
   if (pathname.startsWith('/dashboard') && role !== 'superadmin') {
     const dashboardSegment = getRoleDashboard(role)
     const requestedSegment = pathname.split('/')[2]
-    if (requestedSegment && requestedSegment !== dashboardSegment) {
+    if (requestedSegment && requestedSegment !== dashboardSegment && !SHARED_SEGMENTS.has(requestedSegment)) {
       return withId(
         NextResponse.redirect(new URL(`/dashboard/${dashboardSegment}`, request.url)),
       )
