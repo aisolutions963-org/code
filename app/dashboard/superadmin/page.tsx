@@ -14,6 +14,7 @@ import Modal from '@/components/ui/Modal'
 import TaskGroupedList from '@/components/tasks/TaskGroupedList'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
+import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ type Page =
   | 'announcements'
   | 'projects'
   | 'tasks'
+  | 'materials'
 
 interface SedMember { id: string; name: string }
 
@@ -1820,9 +1822,20 @@ function MyTasksPage() {
   )
 }
 
+// ─── Materials ────────────────────────────────────────────────────────────────
+
+function MaterialsPage() {
+  const { data, isLoading } = useSWR<{ projects: Project[] }>(
+    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+  )
+  const projects = data?.projects ?? []
+  if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>
+  return <MaterialsReviewView projects={projects} />
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-const VALID_PAGES = new Set<Page>(['overview','timeline','phases','activity','payments','calendar','warranty','users','announcements','projects','tasks'])
+const VALID_PAGES = new Set<Page>(['overview','timeline','phases','activity','payments','calendar','warranty','users','announcements','projects','tasks','materials'])
 
 export default function SuperadminDashboard() {
   const searchParams = useSearchParams()
@@ -1842,6 +1855,7 @@ export default function SuperadminDashboard() {
       {page === 'announcements' && <AnnouncementsPage />}
       {page === 'projects' && <OverviewPage />}
       {page === 'tasks' && <MyTasksPage />}
+      {page === 'materials' && <MaterialsPage />}
     </div>
   )
 }

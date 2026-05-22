@@ -1,27 +1,16 @@
 'use client'
 
-import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, Project, Material } from '@/lib/types'
+import { Task, TaskUpdateInput, Project } from '@/lib/types'
 import TaskGroupedList from '@/components/tasks/TaskGroupedList'
-import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
+import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-const STATUS_COLORS: Record<string, string> = {
-  Pending: 'bg-yellow-100 text-yellow-700',
-  Approved: 'bg-green-100 text-green-700',
-  Rejected: 'bg-red-100 text-red-700',
-  'Needs Revision': 'bg-orange-100 text-orange-700',
-}
 
 export default function FabDashboard() {
   const searchParams = useSearchParams()
   const view = searchParams.get('view') ?? 'tasks'
-  const [showMaterialModal, setShowMaterialModal] = useState(false)
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks?role=fabrication',
     fetcher,
@@ -34,17 +23,8 @@ export default function FabDashboard() {
     { refreshInterval: 60000 },
   )
 
-  const { data: materialData, mutate: mutateMaterials } = useSWR<{ materials: Material[] }>(
-    view === 'materials' && selectedProjectId
-      ? `/api/projects/${selectedProjectId}/materials`
-      : null,
-    fetcher,
-    { refreshInterval: 30000 },
-  )
-
   const tasks = data?.tasks ?? []
   const projects = projectData?.projects ?? []
-  const submittedMaterials = materialData?.materials ?? []
 
   const handleUpdate = async (id: string, fields: Partial<TaskUpdateInput>) => {
     const res = await fetch(`/api/tasks/${id}`, {
@@ -126,68 +106,8 @@ export default function FabDashboard() {
 
       {/* Materials view */}
       {view === 'materials' && (
-        <div className="space-y-4 mb-4">
-          {/* Header + order button */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-700">F3 — Material Order</p>
-            <button
-              onClick={() => setShowMaterialModal(true)}
-              className="text-xs bg-green-600 text-white hover:bg-green-700 rounded-lg px-3 py-1.5 font-medium"
-            >
-              + New Order
-            </button>
-          </div>
-
-          {/* Project selector to view submitted orders */}
-          {projects.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">View Orders by Project</p>
-              <div className="flex flex-wrap gap-2">
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedProjectId(prev => prev === p.id ? null : p.id)}
-                    className={`text-xs border rounded-lg px-3 py-1.5 font-medium transition-colors ${
-                      selectedProjectId === p.id
-                        ? 'bg-brand-600 border-brand-600 text-white'
-                        : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    {p.projectId ?? p.projectName}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Submitted orders list */}
-          {selectedProjectId && submittedMaterials.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-sm font-semibold text-gray-700">Submitted Orders ({submittedMaterials.length})</p>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {submittedMaterials.map((m) => (
-                  <div key={m.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900">{m.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {m.quantity != null && `${m.quantity} ${m.unit ?? ''}`}
-                        {m.supplier && ` · ${m.supplier}`}
-                        {m.expectedArrivalDate && ` · Needed: ${m.expectedArrivalDate}`}
-                      </p>
-                    </div>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[m.orderStatus ?? 'Pending'] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {m.orderStatus ?? 'Pending'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {selectedProjectId && submittedMaterials.length === 0 && (
-            <p className="text-center py-6 text-sm text-gray-400">No material orders for this project.</p>
-          )}
+        <div className="mb-4">
+          <MaterialsReviewView projects={projects} />
         </div>
       )}
 
@@ -201,16 +121,6 @@ export default function FabDashboard() {
         <TaskGroupedList loading={isLoading} tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} />
       )}
 
-      {showMaterialModal && (
-        <MaterialOrderModal
-          projects={projects}
-          onClose={() => setShowMaterialModal(false)}
-          onCreated={() => {
-            setShowMaterialModal(false)
-            mutateMaterials()
-          }}
-        />
-      )}
     </div>
   )
 }
