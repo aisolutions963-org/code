@@ -12,6 +12,7 @@ interface CalendarEvent {
   type: 'payment-due' | 'payment-received' | 'delivery' | 'installation' | 'activity'
   amount?: number
   notes?: string
+  customTask?: string
 }
 
 const TYPE_CONFIG: Record<
@@ -45,6 +46,7 @@ export default function PaymentCalendar() {
   const [formTitle, setFormTitle] = useState('')
   const [formDate, setFormDate] = useState(toIsoDate(now))
   const [formNotes, setFormNotes] = useState('')
+  const [formCustomTask, setFormCustomTask] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -98,7 +100,12 @@ export default function PaymentCalendar() {
       const res = await fetch('/api/calendar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: formTitle.trim(), date: formDate, notes: formNotes.trim() || undefined }),
+        body: JSON.stringify({
+          title: formTitle.trim(),
+          date: formDate,
+          notes: formNotes.trim() || undefined,
+          customTask: formCustomTask.trim() || undefined,
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -108,6 +115,7 @@ export default function PaymentCalendar() {
       setFormTitle('')
       setFormDate(toIsoDate(now))
       setFormNotes('')
+      setFormCustomTask('')
       setShowForm(false)
       mutate()
     } finally {
@@ -225,6 +233,16 @@ export default function PaymentCalendar() {
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
               />
             </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Custom Task</label>
+              <input
+                type="text"
+                value={formCustomTask}
+                onChange={(e) => setFormCustomTask(e.target.value)}
+                placeholder="e.g. Follow up with supplier, prepare document…"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
+            </div>
           </div>
           {formError && <p className="text-xs text-red-600">{formError}</p>}
           <div className="flex gap-2 justify-end">
@@ -290,7 +308,7 @@ export default function PaymentCalendar() {
                       {dayEvents.slice(0, 4).map((ev) => (
                         <span
                           key={ev.id}
-                          title={`${TYPE_CONFIG[ev.type]?.label}: ${ev.title}${ev.amount ? ` — AED ${ev.amount.toLocaleString()}` : ''}${ev.notes ? ` — ${ev.notes}` : ''}`}
+                          title={`${TYPE_CONFIG[ev.type]?.label}: ${ev.title}${ev.customTask ? ` · Task: ${ev.customTask}` : ''}${ev.amount ? ` — AED ${ev.amount.toLocaleString()}` : ''}${ev.notes ? ` — ${ev.notes}` : ''}`}
                           className={`w-2 h-2 rounded-full ${TYPE_CONFIG[ev.type]?.dot ?? 'bg-gray-300'} cursor-default`}
                         />
                       ))}
@@ -315,16 +333,23 @@ export default function PaymentCalendar() {
           {monthEvents.map(({ day, ev }) => {
             const cfg = TYPE_CONFIG[ev.type]
             return (
-              <div key={ev.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-xs ${cfg.row}`}>
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                <span className="font-medium w-12 flex-shrink-0">{MONTHS[month].slice(0, 3)} {day}</span>
-                <span className="font-semibold">{cfg.label}</span>
-                <span className="flex-1 truncate">{ev.title}</span>
-                {ev.notes && (
-                  <span className={`truncate max-w-[120px] ${cfg.text} opacity-70`}>{ev.notes}</span>
-                )}
+              <div key={ev.id} className={`flex items-start gap-3 px-3 py-2 rounded-lg border text-xs ${cfg.row}`}>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${cfg.dot}`} />
+                <span className="font-medium w-12 flex-shrink-0 mt-0.5">{MONTHS[month].slice(0, 3)} {day}</span>
+                <span className="font-semibold mt-0.5">{cfg.label}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="truncate block">{ev.title}</span>
+                  {ev.customTask && (
+                    <span className={`truncate block mt-0.5 ${cfg.text} opacity-80`}>
+                      Task: {ev.customTask}
+                    </span>
+                  )}
+                  {ev.notes && (
+                    <span className={`truncate block mt-0.5 ${cfg.text} opacity-70`}>{ev.notes}</span>
+                  )}
+                </div>
                 {ev.amount != null && (
-                  <span className={`font-mono font-medium ${cfg.text}`}>
+                  <span className={`font-mono font-medium mt-0.5 ${cfg.text}`}>
                     AED {ev.amount.toLocaleString()}
                   </span>
                 )}

@@ -178,6 +178,7 @@ export const CreateCalendarEventSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date'),
   notes: z.string().max(2000).optional(),
   projectId: z.string().optional(),
+  customTask: z.string().max(500).optional(),
 })
 
 export const CreateProjectSchema = z.object({

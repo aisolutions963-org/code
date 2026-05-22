@@ -1712,6 +1712,7 @@ export interface CalendarEvent {
   projectName?: string
   amount?: number
   notes?: string
+  customTask?: string
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
@@ -1731,7 +1732,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       fields: [PAYMENTS.NAME, PAYMENTS.AMOUNT, PAYMENTS.PAYMENT_TYPE, PAYMENTS.DUE_DATE, PAYMENTS.RECEIVED_DATE, PAYMENTS.PROJECT],
     }),
     fetchAll(CALENDAR_EVENTS.TABLE_ID, {
-      fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY],
+      fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY, CALENDAR_EVENTS.CUSTOM_TASK],
       sort: [{ field: CALENDAR_EVENTS.DATE, direction: 'asc' }],
     }),
   ])
@@ -1791,6 +1792,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       date,
       type: 'activity',
       notes: str(f[CALENDAR_EVENTS.NOTES]),
+      customTask: str(f[CALENDAR_EVENTS.CUSTOM_TASK]),
     })
   }
 
@@ -1803,6 +1805,7 @@ export async function createCalendarEvent(input: {
   notes?: string
   projectId?: string
   createdBy?: string
+  customTask?: string
 }): Promise<void> {
   const fields: Record<string, unknown> = {
     [CALENDAR_EVENTS.TITLE]: input.title,
@@ -1811,6 +1814,7 @@ export async function createCalendarEvent(input: {
   if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
   if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
   if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
+  if (input.customTask) fields[CALENDAR_EVENTS.CUSTOM_TASK] = input.customTask
   const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),

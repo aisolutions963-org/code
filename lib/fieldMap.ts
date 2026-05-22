@@ -271,6 +271,7 @@ export const CALENDAR_EVENTS = {
   NOTES: 'fldRWcbihUAdmyBIg',
   PROJECT: 'fldvK1majrFSNWVxy',
   CREATED_BY: 'flduWnzsPZeIAmprs',
+  CUSTOM_TASK: 'flde3FqwogaB4RDf3',
 } as const
 
 export const MATERIALS_NEEDED = {
