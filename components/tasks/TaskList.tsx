@@ -193,6 +193,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
             <Phase2ProjectCard
               key={projectKey}
               projectRef={projectKey}
+              projectRecordId={projectRecordId || undefined}
               projectName={firstTask?.projectName}
               projectNickname={firstTask?.projectNickname}
               taskCount={groupTasks.length}

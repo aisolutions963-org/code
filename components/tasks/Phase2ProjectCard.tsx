@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 interface Phase2ProjectCardProps {
   projectRef: string
+  projectRecordId?: string
   projectName?: string
   projectNickname?: string
   taskCount: number
@@ -13,6 +15,7 @@ interface Phase2ProjectCardProps {
 
 export default function Phase2ProjectCard({
   projectRef,
+  projectRecordId,
   projectName,
   projectNickname,
   taskCount,
@@ -49,10 +52,19 @@ export default function Phase2ProjectCard({
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           <span className="text-xs text-gray-400">
             {itemCount} item{itemCount !== 1 ? 's' : ''} · {taskCount} task{taskCount !== 1 ? 's' : ''}
           </span>
+          {projectRecordId && (
+            <Link
+              href={`/dashboard/project/${projectRecordId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-teal-600 hover:text-teal-800 font-medium whitespace-nowrap"
+            >
+              Item Board →
+            </Link>
+          )}
           <svg
             className={`w-4 h-4 text-teal-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
             fill="none"
