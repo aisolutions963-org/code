@@ -29,9 +29,10 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
   const quotationNumber = project.quotationNumber ?? ''
   const [quotationDate, setQuotationDate] = useState(today)
   const [rows, setRows] = useState<QuotationRow[]>([emptyRow()])
+  const [totalOverride, setTotalOverride] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
-  const [result, setResult] = useState<{ created: number; reference: string } | null>(null)
+  const [result, setResult] = useState<{ created: number; reference: string; totalPaid: number } | null>(null)
 
   function updateRow(i: number, patch: Partial<QuotationRow>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
@@ -70,12 +71,16 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
 
     setSaving(true)
     try {
+      const parsedOverride = totalOverride !== '' ? parseFloat(totalOverride) : undefined
+      const totalAmountToPay = parsedOverride !== undefined && !isNaN(parsedOverride) ? parsedOverride : grandTotal
+
       const res = await fetch(`/api/projects/${project.id}/quotation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           quotationNumber: quotationNumber.trim(),
           quotationDate,
+          totalAmountToPay,
           items: rows.map((r) => ({
             itemName: r.itemName.trim(),
             description: r.description.trim(),
@@ -86,7 +91,9 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to save')
-      setResult({ created: data.created, reference: pendingReference })
+      const parsedOv = totalOverride !== '' ? parseFloat(totalOverride) : undefined
+      const finalTotal = parsedOv !== undefined && !isNaN(parsedOv) ? parsedOv : grandTotal
+      setResult({ created: data.created, reference: pendingReference, totalPaid: finalTotal })
       onCreated()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to save')
@@ -113,7 +120,7 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
             {quotationNumber} · {result.reference}
           </p>
           <p className="text-center text-xs text-gray-500">
-            Quotation date: {quotationDate} · Total: AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Quotation date: {quotationDate} · Total: AED {result.totalPaid.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <div className="pt-2 flex justify-center">
             <Button onClick={onClose}>Done</Button>
@@ -307,15 +314,36 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
           + Add another item
         </button>
 
-        {/* Grand total */}
-        {grandTotal > 0 && (
-          <div className="border-t border-gray-200 pt-3 flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-700">Grand Total</span>
-            <span className="text-base font-bold text-gray-900 tabular-nums">
-              AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
+        {/* Total amount to be paid */}
+        <div className="border-t border-gray-200 pt-4 space-y-2">
+          {grandTotal > 0 && (
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>Items subtotal</span>
+              <span className="tabular-nums font-mono">
+                AED {grandTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+              Total Amount to be Paid (AED)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className={`${inp} text-right font-semibold text-gray-900`}
+              value={totalOverride !== '' ? totalOverride : grandTotal > 0 ? grandTotal.toFixed(2) : ''}
+              onChange={(e) => setTotalOverride(e.target.value)}
+              placeholder="0.00"
+            />
           </div>
-        )}
+          {totalOverride !== '' && parseFloat(totalOverride) !== grandTotal && grandTotal > 0 && (
+            <p className="text-xs text-amber-600 text-right">
+              Differs from subtotal by AED {Math.abs(parseFloat(totalOverride) - grandTotal).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+          )}
+        </div>
       </div>
     </Modal>
   )

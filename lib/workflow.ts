@@ -277,6 +277,20 @@ export async function handleTaskCompletion(
         })
       }
 
+      // After F5 (quotation details by item), notify manager, fabrication, installation, superadmin
+      if (task.taskName.toLowerCase().startsWith('f5 —')) {
+        const projectRef = task.projectId ?? task.project?.[0] ?? ''
+        const f5Body = `SED has submitted the quotation line items and chosen actions per item. Review the project to proceed.`
+        for (const role of ['manager', 'fabrication', 'installation', 'superadmin'] as const) {
+          createNotification({
+            recipientRole: role,
+            title: `Quotation details submitted (F5) — ${projectRef}`,
+            body: f5Body,
+            link: ROLE_DASHBOARD[role],
+          })
+        }
+      }
+
       return { finalStatus: 'Completed' as TaskStatus }
     })(),
   )

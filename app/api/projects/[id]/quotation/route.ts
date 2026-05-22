@@ -45,10 +45,14 @@ export async function POST(
       nextRef = `R${isNaN(n) ? 1 : n + 1}`
     }
 
-    await updateProject(params.id, {
+    const projectUpdate: Record<string, unknown> = {
       [PROJECTS.QUOTATION_NUMBER]: parsed.data.quotationNumber,
       [PROJECTS.QUOTATION_REFERENCE]: nextRef,
-    })
+    }
+    if (parsed.data.totalAmountToPay !== undefined) {
+      projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = parsed.data.totalAmountToPay
+    }
+    await updateProject(params.id, projectUpdate)
 
     const results = []
     for (const item of parsed.data.items) {

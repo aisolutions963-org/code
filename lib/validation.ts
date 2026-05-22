@@ -105,6 +105,7 @@ export const CreateQuotationItemsSchema = z.object({
     )
     .min(1, 'At least one item is required')
     .max(50),
+  totalAmountToPay: z.number().min(0).max(100_000_000).optional(),
 })
 
 export const CreateMaterialsSchema = z.object({
