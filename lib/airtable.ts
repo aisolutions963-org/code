@@ -1402,7 +1402,7 @@ function transformMaterial(record: RawRecord): Material {
 }
 
 export async function getMaterialsByProject(projectId: string): Promise<Material[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${MATERIALS_NEEDED.PROJECTS}}, ","))`
+  const formula = `{${MATERIALS_NEEDED.PROJECT_RECORD_ID}}="${projectId}"`
   const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, { filterByFormula: formula })
   return records.map(transformMaterial)
 }
@@ -1439,6 +1439,7 @@ export async function createMaterials(
           const fields: Record<string, unknown> = {
             [MATERIALS_NEEDED.NAME]: item.name,
             [MATERIALS_NEEDED.PROJECTS]: [projectId],
+            [MATERIALS_NEEDED.PROJECT_RECORD_ID]: projectId,
           }
           if (item.supplier) fields[MATERIALS_NEEDED.SUPPLIER] = item.supplier
           if (item.quantity != null) fields[MATERIALS_NEEDED.QUANTITY] = item.quantity
@@ -1479,7 +1480,10 @@ export async function createMaterialOrder(order: MaterialOrderInput): Promise<Ma
             [MATERIALS_NEEDED.REQUEST_DATE]: today,
             [MATERIALS_NEEDED.ORDER_STATUS]: 'Not ordered',
           }
-          if (order.projectId) fields[MATERIALS_NEEDED.PROJECTS] = [order.projectId]
+          if (order.projectId) {
+            fields[MATERIALS_NEEDED.PROJECTS] = [order.projectId]
+            fields[MATERIALS_NEEDED.PROJECT_RECORD_ID] = order.projectId
+          }
           if (item.supplier) fields[MATERIALS_NEEDED.SUPPLIER] = item.supplier
           if (item.neededByDate) fields[MATERIALS_NEEDED.EXPECTED_ARRIVAL_DATE] = item.neededByDate
           if (item.notes) fields[MATERIALS_NEEDED.NOTES] = item.notes

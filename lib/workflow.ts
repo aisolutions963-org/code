@@ -6,6 +6,7 @@ import {
   getProjectById,
   getAllTasksForProjectAll,
   generateTasksForProject,
+  createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
 import { notifyManager, notifyManagerEscalation } from './email'
@@ -321,9 +322,6 @@ export async function handleCallClientOutcome(
       const projectId = task.project?.[0]
       if (!projectId) throw new Error('Task has no linked project')
 
-      const outcomeLabel =
-        outcome === 'approved' ? 'Approved' : outcome === 'review' ? 'Review Required' : 'Refused'
-
       if (outcome === 'approved') {
         // Only mark Completed when approved — for review/refused the task resets to Locked
         // so it can be re-triggered when all gates clear again next round.
@@ -443,8 +441,8 @@ export async function handleOrderSampleBranch(
       const projectId = task.project?.[0]
       if (!projectId) throw new Error('Task has no linked project')
 
-      // "Don't have material" stays In Progress — waiting for material to arrive.
-      // "We have material" is immediately complete — fabrication can start.
+      // hasMaterial=true → task is done, fabrication starts immediately
+      // hasMaterial=false → waiting for ordered material to arrive; stays In Progress
       const newStatus: TaskStatus = hasMaterial ? 'Completed' : 'In Progress'
       const updateFields: Record<string, unknown> = { [TASKS.STATUS]: newStatus }
       if (hasMaterial) updateFields[TASKS.COMPLETED_AT] = new Date().toISOString()
@@ -484,6 +482,55 @@ export async function handleOrderSampleBranch(
       }
 
       return { finalStatus: 'Completed' as TaskStatus }
+    })(),
+  )
+}
+
+export async function handleF3Order(input: {
+  taskId: string
+  path: 'small' | 'big'
+  items: Array<{ name: string; quantity: number; unit: string; supplier?: string; neededByDate?: string; notes?: string }>
+  generalNotes?: string
+  requestedBy: string
+}): Promise<{ created: number; finalStatus: TaskStatus }> {
+  return withTimeout(
+    (async () => {
+      const task = await getTaskById(input.taskId)
+      const projectId = task.project?.[0]
+      if (!projectId) throw new Error('Task has no linked project')
+
+      const today = new Date().toISOString().slice(0, 10)
+      const projectRef = task.projectId ?? task.projectName ?? projectId
+
+      const materials = await createMaterialOrder({
+        purpose: 'Project',
+        projectId,
+        requestedBy: input.requestedBy,
+        requestDate: today,
+        items: input.items,
+      })
+
+      const notifyBody = `F3 material order submitted for ${projectRef}. ${materials.length} item(s) added — status: ${input.path === 'small' ? '"Not ordered" — ready for procurement' : '"Pending approval" — awaiting fabrication store check'}.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`
+
+      if (input.path === 'small') {
+        await updateTaskRaw(input.taskId, {
+          [TASKS.STATUS]: 'Completed' as TaskStatus,
+          [TASKS.COMPLETED_AT]: new Date().toISOString(),
+        })
+        await unlockNextTasks(task)
+        createNotification({ recipientRole: 'superadmin', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: ROLE_DASHBOARD['superadmin'] })
+        createNotification({ recipientRole: 'manager', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: '/dashboard/mgr?view=materials' })
+        return { created: materials.length, finalStatus: 'Completed' as TaskStatus }
+      } else {
+        await updateTaskRaw(input.taskId, {
+          [TASKS.STATUS]: 'In Progress' as TaskStatus,
+          [TASKS.STARTED_AT]: new Date().toISOString(),
+        })
+        const fabBody = `F3 Big Order for ${projectRef}: please check the store for ${materials.length} item(s) marked "Pending approval" in the materials list and confirm what needs ordering.${input.generalNotes ? `\nManager notes: ${input.generalNotes}` : ''}`
+        createNotification({ recipientRole: 'fabrication', title: `Store Check Required — F3 for ${projectRef}`, body: fabBody, link: ROLE_DASHBOARD['fabrication'] })
+        createNotification({ recipientRole: 'manager', title: `F3 Big Order pending store check — ${projectRef}`, body: `Materials submitted and awaiting fabrication store check.`, link: '/dashboard/mgr?view=materials' })
+        return { created: materials.length, finalStatus: 'In Progress' as TaskStatus }
+      }
     })(),
   )
 }

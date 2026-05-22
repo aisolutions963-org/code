@@ -278,6 +278,7 @@ export const MATERIALS_NEEDED = {
   TABLE_ID: 'tblDTNeiICTwzdi6N',
   NAME: 'fld90lAndpbxEdRM7',
   PROJECTS: 'fld376EMuWX3MFSNJ',
+  PROJECT_RECORD_ID: 'fldNQ9PaOwMUps0qw',
   SUPPLIER: 'fldzXilF4AR3po08n',
   QUANTITY: 'fldPRou9XW1VXpuqC',
   UNIT: 'fldRXpe4lMMAqnGPa',
