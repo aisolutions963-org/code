@@ -120,7 +120,8 @@ async function unlockNextTasks(task: Task): Promise<void> {
   const samePath = lockedTasks.filter(
     (t) =>
       (t.pathCondition ?? null) === taskPath &&
-      !t.taskName.toLowerCase().startsWith(CALL_CLIENT_PREFIX),
+      !t.taskName.toLowerCase().startsWith(CALL_CLIENT_PREFIX) &&
+      (t.templateOrder?.[0] ?? 0) > completedOrder,
   )
   if (samePath.length === 0) return
 
