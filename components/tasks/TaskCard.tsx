@@ -223,9 +223,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     const n = parseInt(task.projectQuotationReference.slice(1), 10)
     return `R${isNaN(n) ? 1 : n + 1}`
   }
-  const [referenceInput, setReferenceInput] = useState(() =>
-    isMakeQuotation ? calcNextRef(task.projectQuotationNumber ?? '') : '',
-  )
+  const [referenceInput, setReferenceInput] = useState(() => {
+    if (isMakeQuotation) return calcNextRef(task.projectQuotationNumber ?? '')
+    if (isF4Task) return task.projectQuotationReference ?? ''
+    return ''
+  })
   const [quotationError, setQuotationError] = useState('')
 
   const ar = isArabicRole(role)
@@ -261,8 +263,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     setSaving(true)
     setQuotationError('')
     try {
-      if (quotationInput.trim()) {
-        const patchBody: Record<string, string> = { quotationNumber: quotationInput.trim() }
+      const existingQN = (task.projectQuotationNumber ?? '').trim()
+      const newQN = quotationInput.trim()
+      // Only patch the project if the quotation number changed or a reference was explicitly entered.
+      // For F4, we avoid auto-incrementing an existing reference when just confirming payment.
+      const needsPatch = newQN && (newQN !== existingQN || referenceInput.trim())
+      if (needsPatch) {
+        const patchBody: Record<string, string> = { quotationNumber: newQN }
         if (referenceInput.trim()) patchBody.quotationReference = referenceInput.trim()
         const patchRes = await fetch(`/api/projects/${projectId}`, {
           method: 'PATCH',
@@ -313,8 +320,12 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     if (isOrderSample && key === 'status' && value === 'Completed') {
       return
     }
+    // F4 is a one-time action — once completed the status cannot be rolled back
+    if (isF4Task && task.status === 'Completed' && key === 'status') {
+      return
+    }
     if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') {
-      if (isMakeQuotation && !quotationInput.trim()) {
+      if (!quotationInput.trim()) {
         setQuotationError('Enter a quotation number before marking as complete')
         return
       }
@@ -530,14 +541,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
-          {/* F4 — quotation number entry (if not already set, required before completing) */}
+          {/* F4 — quotation number/reference (required if not already on project) */}
           {isF4Task && task.status !== 'Completed' && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-2">
               <p className="text-xs font-semibold text-blue-800">
-                Quotation Number
-                {!task.projectQuotationNumber && <span className="text-red-500 ml-1">*</span>}
+                Quotation Number <span className="text-red-500">*</span>
                 <span className="ml-1 font-normal text-blue-600">
-                  {task.projectQuotationNumber ? '— already set (update if needed)' : '— required before submitting F5'}
+                  {task.projectQuotationNumber ? '— already set, update if needed' : '— required to record advance payment'}
                 </span>
               </p>
               <input
@@ -547,11 +557,14 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                 onChange={(e) => { setQuotationInput(e.target.value); setQuotationError('') }}
               />
               <p className="text-xs font-semibold text-blue-800 mt-1">
-                Reference Number <span className="font-normal text-blue-600">— leave blank to auto-assign</span>
+                Reference Number
+                <span className="ml-1 font-normal text-blue-600">
+                  {task.projectQuotationReference ? `— currently ${task.projectQuotationReference}` : '— leave blank to auto-assign R0'}
+                </span>
               </p>
               <input
                 className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white font-mono"
-                placeholder="e.g. R0"
+                placeholder="e.g. R1"
                 value={referenceInput}
                 onChange={(e) => setReferenceInput(e.target.value)}
               />
