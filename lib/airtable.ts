@@ -1723,6 +1723,7 @@ export interface CalendarEvent {
   amount?: number
   notes?: string
   customTask?: string
+  createdBy?: string
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
@@ -1803,6 +1804,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       type: 'activity',
       notes: str(f[CALENDAR_EVENTS.NOTES]),
       customTask: str(f[CALENDAR_EVENTS.CUSTOM_TASK]),
+      createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
     })
   }
 

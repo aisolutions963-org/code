@@ -13,6 +13,7 @@ interface CalendarEvent {
   amount?: number
   notes?: string
   customTask?: string
+  createdBy?: string
 }
 
 const TYPE_CONFIG: Record<
@@ -308,7 +309,7 @@ export default function PaymentCalendar() {
                       {dayEvents.slice(0, 4).map((ev) => (
                         <span
                           key={ev.id}
-                          title={`${TYPE_CONFIG[ev.type]?.label}: ${ev.title}${ev.customTask ? ` · Task: ${ev.customTask}` : ''}${ev.amount ? ` — AED ${ev.amount.toLocaleString()}` : ''}${ev.notes ? ` — ${ev.notes}` : ''}`}
+                          title={`${TYPE_CONFIG[ev.type]?.label}: ${ev.title}${ev.customTask ? ` · Task: ${ev.customTask}` : ''}${ev.amount ? ` — AED ${ev.amount.toLocaleString()}` : ''}${ev.notes ? ` — ${ev.notes}` : ''}${ev.createdBy ? ` · Added by ${ev.createdBy}` : ''}`}
                           className={`w-2 h-2 rounded-full ${TYPE_CONFIG[ev.type]?.dot ?? 'bg-gray-300'} cursor-default`}
                         />
                       ))}
@@ -346,6 +347,11 @@ export default function PaymentCalendar() {
                   )}
                   {ev.notes && (
                     <span className={`truncate block mt-0.5 ${cfg.text} opacity-70`}>{ev.notes}</span>
+                  )}
+                  {ev.createdBy && (
+                    <span className="truncate block mt-0.5 text-gray-400 opacity-80">
+                      Added by {ev.createdBy}
+                    </span>
                   )}
                 </div>
                 {ev.amount != null && (
