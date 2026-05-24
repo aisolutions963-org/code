@@ -5,14 +5,15 @@ import { Task } from '@/lib/types'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const [tasks, project] = await Promise.all([
-    getAllTasksForProjectAll(params.id),
-    getProjectById(params.id),
+    getAllTasksForProjectAll(id),
+    getProjectById(id),
   ])
 
   // Enrich tasks with item names
@@ -45,7 +46,7 @@ export async function GET(
   })
 
   return NextResponse.json({
-    projectId: params.id,
+    projectId: id,
     projectName: project.projectName,
     projectRef: project.projectId,
     projectNickname: project.nickname,

@@ -308,6 +308,7 @@ export interface MaterialRowInput {
 export interface MaterialOrderInput {
   purpose: string
   projectId?: string
+  projectItemId?: string
   requestedBy: string
   requestDate: string
   items: MaterialRowInput[]

@@ -12,15 +12,16 @@ import { STAGE_ORDER } from '@/lib/phases'
 
 export async function POST(
   _request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   const session = await getSession()
   if (!session || session.role !== 'superadmin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   try {
-    const project = await getProjectById(params.id)
+    const project = await getProjectById(id)
     const currentIndex = (STAGE_ORDER as readonly string[]).indexOf(project.projectStage)
 
     if (currentIndex === -1) {
@@ -31,7 +32,7 @@ export async function POST(
       return NextResponse.json({ error: 'Project is already at the final stage' }, { status: 400 })
     }
 
-    const incompleteTasks = await getIncompleteTasksForProject(params.id)
+    const incompleteTasks = await getIncompleteTasksForProject(id)
 
     let blocking: typeof incompleteTasks
     if (project.projectStage === 'Preparing') {
@@ -67,18 +68,18 @@ export async function POST(
     }
 
     const nextStage = STAGE_ORDER[currentIndex + 1]
-    const updated = await updateProject(params.id, {
+    const updated = await updateProject(id, {
       [PROJECTS.PROJECT_STAGE]: nextStage,
     })
 
     // A19 — generate tasks for the new stage and notify relevant departments
     ;(async () => {
       try {
-        const { todoTemplates } = await generateTasksForProject(params.id, nextStage)
+        const { todoTemplates } = await generateTasksForProject(id, nextStage)
         if (todoTemplates.length > 0) {
           notifyTasksReady(
             todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
-            `${nextStage} phase started for project ${updated.projectId ?? params.id}`,
+            `${nextStage} phase started for project ${updated.projectId ?? id}`,
           )
         }
       } catch (err) {

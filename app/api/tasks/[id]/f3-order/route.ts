@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { handleF3Order } from '@/lib/workflow'
 
-export const POST = requireRole('manager', 'superadmin')(
+export const POST = requireRole('manager', 'superadmin', 'sed', 'fabrication', 'installation')(
   async (req: NextRequest, session, { params }) => {
     let body: unknown
     try {

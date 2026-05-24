@@ -37,7 +37,7 @@ export function getRoleDashboard(role: string): string {
 
 const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Propagate or generate request ID on every request

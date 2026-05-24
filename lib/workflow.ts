@@ -5,7 +5,9 @@ import {
   updateProject,
   getProjectById,
   getAllTasksForProjectAll,
+  getLockedBranchTasksForProject,
   generateTasksForProject,
+  generatePhase3TasksForItem,
   createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
@@ -95,14 +97,25 @@ async function unlockNextTasks(task: Task): Promise<void> {
 
   // AND-join guard: if any sibling tasks at the same order level are still active
   // (To Do, In Progress, Pending Approval), the chain must not advance yet.
+  // For per-item tasks, scope siblings to the same item so gate completion on one
+  // item doesn't block advancement on another item.
   const siblingsActive = allProjectTasks.filter(
     (t) =>
       t.id !== task.id &&
       (t.pathCondition ?? null) === taskPath &&
       t.templateOrder?.[0] === completedOrder &&
+      (task.projectItem?.[0]
+        ? t.projectItem?.[0] === task.projectItem[0]
+        : !t.projectItem?.length) &&
       (t.status === 'To Do' || t.status === 'In Progress' || t.status === 'Pending Approval'),
   )
   if (siblingsActive.length > 0) return
+
+  // Per-item gate check: after AND-join clears for any per-item task, run the item-level
+  // gate check. maybeUnlockCallClient returns early if not all [gate] tasks are Completed.
+  if (task.projectItem?.[0]) {
+    await maybeUnlockCallClient(projectId, task.projectItem[0])
+  }
 
   // Build locked task list from fetched data (avoids a second Airtable call).
   const lockedTasks = allProjectTasks.filter(
@@ -115,12 +128,9 @@ async function unlockNextTasks(task: Task): Promise<void> {
   if (lockedTasks.length === 0) return
 
   // Only unlock tasks in the same path (universal tasks form their own "null" path).
-  // "Call the Client" is excluded from the order chain — it is unlocked exclusively
-  // by the GATE tasks completing (see maybeUnlockCallClient above).
   const samePath = lockedTasks.filter(
     (t) =>
       (t.pathCondition ?? null) === taskPath &&
-      !t.taskName.toLowerCase().startsWith(CALL_CLIENT_PREFIX) &&
       (t.templateOrder?.[0] ?? 0) > completedOrder,
   )
   if (samePath.length === 0) return
@@ -132,6 +142,15 @@ async function unlockNextTasks(task: Task): Promise<void> {
 
   const minOrder = Math.min(...orders)
   const toUnlock = samePath.filter((t) => (t.templateOrder?.[0] ?? Infinity) === minOrder)
+
+  // If the next task(s) in the chain are gate-controlled, stop here —
+  // they unlock exclusively via maybeUnlockCallClient when all [gate] tasks complete.
+  const isGateControlled = toUnlock.some(
+    (t) =>
+      t.taskName.toLowerCase().startsWith(CALL_CLIENT_PREFIX) ||
+      t.taskName.toLowerCase().startsWith(TAKE_APPROVAL_PREFIX),
+  )
+  if (isGateControlled) return
 
   await Promise.all(
     toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
@@ -228,6 +247,20 @@ async function unlockNextTasks(task: Task): Promise<void> {
   }
 }
 
+async function maybeGeneratePhase3(task: Task): Promise<void> {
+  if (task.templateOrder?.[0] !== PHASE_CONFIG.Working.triggerOrder) return
+  const itemId = task.projectItem?.[0]
+  const projectId = task.project?.[0]
+  if (!itemId || !projectId) return
+
+  const { todoTemplates } = await generatePhase3TasksForItem(projectId, itemId)
+  const projectRef = task.projectId ?? projectId
+  notifyTasksReady(
+    todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
+    `Phase 3 started for item (${projectRef})`,
+  )
+}
+
 export async function handleTaskCompletion(
   taskId: string,
   submittedBy?: string,
@@ -265,6 +298,7 @@ export async function handleTaskCompletion(
       })
 
       await unlockNextTasks(task)
+      maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
 
       // After F4 (advance payment), notify SED to submit quotation line items (F5)
       if (task.taskName.toLowerCase().startsWith('f4 —')) {
@@ -307,6 +341,7 @@ export async function handleManagerApproval(taskId: string): Promise<void> {
       })
 
       await unlockNextTasks(task)
+      maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
     })(),
   )
 }
@@ -453,7 +488,7 @@ export async function handleOrderSampleBranch(
   return withTimeout(
     (async () => {
       const task = await getTaskById(taskId)
-      const projectId = task.project?.[0]
+      const projectId = task.project?.[0] ?? task.projectRecordId
       if (!projectId) throw new Error('Task has no linked project')
 
       // hasMaterial=true → task is done, fabrication starts immediately
@@ -463,16 +498,32 @@ export async function handleOrderSampleBranch(
       if (hasMaterial) updateFields[TASKS.COMPLETED_AT] = new Date().toISOString()
       await updateTaskRaw(taskId, updateFields)
 
-      const allTasks = await getAllTasksForProjectAll(projectId)
-      // Match by task name — resilient to missing pathCondition on legacy tasks
-      const branchTasks = allTasks.filter(
-        (t) =>
-          t.taskName.startsWith('Sample Branch:') &&
-          t.status === 'Locked',
-      )
+      // Scope branch lookup: per-item tasks use the same item; general tasks use project-level only
+      const allBranchTasks = await getLockedBranchTasksForProject(projectId)
+      const itemId = task.projectItem?.[0]
+      const branchTasks = itemId
+        ? allBranchTasks.filter((t) => t.projectItem?.[0] === itemId)
+        : allBranchTasks.filter((t) => !t.projectItem?.length)
 
-      const chosenKeyword = hasMaterial ? 'We Have Material' : "Don't Have Material"
-      const toUnlock = branchTasks.filter((t) => t.taskName.includes(chosenKeyword))
+      if (branchTasks.length === 0) {
+        // Branches already unlocked or don't exist yet — Order Sample status already updated, proceed
+        return { finalStatus: newStatus }
+      }
+
+      // Match by keyword — case-insensitive, apostrophe-independent
+      const chosenKeyword = hasMaterial ? 'we have material' : 'have material'
+      const excludeKeyword = hasMaterial ? undefined : 'we have material'
+      const toUnlock = branchTasks.filter((t) => {
+        const lower = t.taskName.toLowerCase()
+        if (!lower.includes(chosenKeyword)) return false
+        if (excludeKeyword && lower.includes(excludeKeyword)) return false
+        return true
+      })
+
+      if (toUnlock.length === 0) {
+        // No matching project-level branch found — proceed without unlocking
+        return { finalStatus: newStatus }
+      }
 
       await Promise.all(
         toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
@@ -495,7 +546,7 @@ export async function handleOrderSampleBranch(
         }
       }
 
-      return { finalStatus: 'Completed' as TaskStatus }
+      return { finalStatus: newStatus }
     })(),
   )
 }
@@ -519,6 +570,7 @@ export async function handleF3Order(input: {
       const materials = await createMaterialOrder({
         purpose: 'Project',
         projectId,
+        projectItemId: task.projectItem?.[0],
         requestedBy: input.requestedBy,
         requestDate: today,
         items: input.items,
@@ -532,6 +584,28 @@ export async function handleF3Order(input: {
           [TASKS.COMPLETED_AT]: new Date().toISOString(),
         })
         await unlockNextTasks(task)
+
+        // "Store Revised Material List (Big Orders Only)" is irrelevant for small orders.
+        // Auto-complete it so the AND-join at order 32 clears and order 33 unlocks when
+        // manager completes "All Material Estimation Price".
+        const itemId = task.projectItem?.[0]
+        if (itemId) {
+          const allTasks = await getAllTasksForProjectAll(projectId)
+          const storeTask = allTasks.find(
+            (t) =>
+              t.taskName.toLowerCase().startsWith('store revised material list') &&
+              t.projectItem?.[0] === itemId &&
+              (t.status === 'To Do' || t.status === 'Locked'),
+          )
+          if (storeTask) {
+            await updateTaskRaw(storeTask.id, {
+              [TASKS.STATUS]: 'Completed' as TaskStatus,
+              [TASKS.COMPLETED_AT]: new Date().toISOString(),
+            })
+            await unlockNextTasks(storeTask)
+          }
+        }
+
         createNotification({ recipientRole: 'superadmin', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: ROLE_DASHBOARD['superadmin'] })
         createNotification({ recipientRole: 'manager', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: '/dashboard/mgr?view=materials' })
         return { created: materials.length, finalStatus: 'Completed' as TaskStatus }

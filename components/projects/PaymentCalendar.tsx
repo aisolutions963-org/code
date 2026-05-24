@@ -9,10 +9,9 @@ interface CalendarEvent {
   id: string
   title: string
   date: string
-  type: 'payment-due' | 'payment-received' | 'delivery' | 'installation' | 'activity'
+  type: 'payment-due' | 'payment-received' | 'delivery' | 'installation' | 'fabrication'
   amount?: number
   notes?: string
-  customTask?: string
   createdBy?: string
 }
 
@@ -20,12 +19,14 @@ const TYPE_CONFIG: Record<
   CalendarEvent['type'],
   { label: string; dot: string; row: string; text: string }
 > = {
-  'payment-received': { label: 'Received', dot: 'bg-green-500', row: 'bg-green-50 border-green-200 text-green-800', text: 'text-green-700' },
-  'payment-due':      { label: 'Due',      dot: 'bg-red-500',   row: 'bg-red-50 border-red-200 text-red-800',     text: 'text-red-600'   },
-  'delivery':         { label: 'Delivery', dot: 'bg-blue-500',  row: 'bg-blue-50 border-blue-200 text-blue-800',  text: 'text-blue-700'  },
-  'installation':     { label: 'Install',  dot: 'bg-amber-500', row: 'bg-amber-50 border-amber-200 text-amber-800', text: 'text-amber-700' },
-  'activity':         { label: 'Activity', dot: 'bg-purple-400', row: 'bg-purple-50 border-purple-200 text-purple-800', text: 'text-purple-600' },
+  'payment-received': { label: 'Received',    dot: 'bg-green-500',  row: 'bg-green-50 border-green-200 text-green-800',   text: 'text-green-700'  },
+  'payment-due':      { label: 'Due',         dot: 'bg-red-500',    row: 'bg-red-50 border-red-200 text-red-800',         text: 'text-red-600'    },
+  'delivery':         { label: 'Delivery',    dot: 'bg-blue-500',   row: 'bg-blue-50 border-blue-200 text-blue-800',      text: 'text-blue-700'   },
+  'installation':     { label: 'Install',     dot: 'bg-amber-500',  row: 'bg-amber-50 border-amber-200 text-amber-800',   text: 'text-amber-700'  },
+  'fabrication':      { label: 'Fabrication', dot: 'bg-orange-500', row: 'bg-orange-50 border-orange-200 text-orange-800', text: 'text-orange-700' },
 }
+
+const PAYMENT_TYPES = new Set<string>(['payment-due', 'payment-received', 'delivery', 'installation', 'fabrication'])
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const DAYS   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
@@ -35,29 +36,20 @@ function isoToLocal(dateStr: string): Date {
   return new Date(y, m - 1, d)
 }
 
-function toIsoDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 export default function PaymentCalendar() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth()) // 0-indexed
-  const [showForm, setShowForm] = useState(false)
-  const [formTitle, setFormTitle] = useState('')
-  const [formDate, setFormDate] = useState(toIsoDate(now))
-  const [formNotes, setFormNotes] = useState('')
-  const [formCustomTask, setFormCustomTask] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-
-  const { data, isLoading, error, mutate } = useSWR<{ events: CalendarEvent[] }>(
+  const { data, isLoading, error } = useSWR<{ events: CalendarEvent[] }>(
     '/api/calendar',
     fetcher,
     { refreshInterval: 60000 },
   )
 
-  const events = useMemo(() => data?.events ?? [], [data])
+  const events = useMemo(
+    () => (data?.events ?? []).filter((ev) => PAYMENT_TYPES.has(ev.type)),
+    [data],
+  )
 
   // Build a map: day-of-month → events for current month
   const eventMap = useMemo(() => {
@@ -90,38 +82,6 @@ export default function PaymentCalendar() {
   function nextMonth() {
     if (month === 11) { setMonth(0); setYear((y) => y + 1) }
     else setMonth((m) => m + 1)
-  }
-
-  async function handleAddActivity(e: React.FormEvent) {
-    e.preventDefault()
-    if (!formTitle.trim() || !formDate) return
-    setSaving(true)
-    setFormError(null)
-    try {
-      const res = await fetch('/api/calendar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: formTitle.trim(),
-          date: formDate,
-          notes: formNotes.trim() || undefined,
-          customTask: formCustomTask.trim() || undefined,
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setFormError(data?.error ?? 'Failed to save activity')
-        return
-      }
-      setFormTitle('')
-      setFormDate(toIsoDate(now))
-      setFormNotes('')
-      setFormCustomTask('')
-      setShowForm(false)
-      mutate()
-    } finally {
-      setSaving(false)
-    }
   }
 
   // Build grid: first day of month (Mon=0..Sun=6), total days in month
@@ -162,15 +122,6 @@ export default function PaymentCalendar() {
         </h2>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowForm((v) => !v)}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Activity
-          </button>
-          <button
             onClick={prevMonth}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800"
           >
@@ -195,79 +146,9 @@ export default function PaymentCalendar() {
         </div>
       </div>
 
-      {/* Add Activity Form */}
-      {showForm && (
-        <form
-          onSubmit={handleAddActivity}
-          className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-3"
-        >
-          <p className="text-sm font-semibold text-purple-800">New Activity</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
-              <input
-                type="text"
-                value={formTitle}
-                onChange={(e) => setFormTitle(e.target.value)}
-                placeholder="e.g. Client meeting, Site inspection…"
-                required
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Date *</label>
-              <input
-                type="date"
-                value={formDate}
-                onChange={(e) => setFormDate(e.target.value)}
-                required
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-              <input
-                type="text"
-                value={formNotes}
-                onChange={(e) => setFormNotes(e.target.value)}
-                placeholder="Optional note…"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Custom Task</label>
-              <input
-                type="text"
-                value={formCustomTask}
-                onChange={(e) => setFormCustomTask(e.target.value)}
-                placeholder="e.g. Follow up with supplier, prepare document…"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
-            </div>
-          </div>
-          {formError && <p className="text-xs text-red-600">{formError}</p>}
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => { setShowForm(false); setFormError(null) }}
-              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-1.5 text-xs rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-60"
-            >
-              {saving ? 'Saving…' : 'Save Activity'}
-            </button>
-          </div>
-        </form>
-      )}
-
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-        {(['payment-received', 'payment-due', 'delivery', 'installation', 'activity'] as const).map((t) => (
+        {(['payment-received', 'payment-due', 'delivery', 'installation', 'fabrication'] as const).map((t) => (
           <div key={t} className="flex items-center gap-1.5">
             <span className={`w-2.5 h-2.5 rounded-full ${TYPE_CONFIG[t].dot}`} />
             {TYPE_CONFIG[t].label}
@@ -309,7 +190,7 @@ export default function PaymentCalendar() {
                       {dayEvents.slice(0, 4).map((ev) => (
                         <span
                           key={ev.id}
-                          title={`${TYPE_CONFIG[ev.type]?.label}: ${ev.title}${ev.customTask ? ` · Task: ${ev.customTask}` : ''}${ev.amount ? ` — AED ${ev.amount.toLocaleString()}` : ''}${ev.notes ? ` — ${ev.notes}` : ''}${ev.createdBy ? ` · Added by ${ev.createdBy}` : ''}`}
+                          title={`${TYPE_CONFIG[ev.type]?.label}: ${ev.title}${ev.amount ? ` — AED ${ev.amount.toLocaleString()}` : ''}${ev.notes ? ` — ${ev.notes}` : ''}${ev.createdBy ? ` · Added by ${ev.createdBy}` : ''}`}
                           className={`w-2 h-2 rounded-full ${TYPE_CONFIG[ev.type]?.dot ?? 'bg-gray-300'} cursor-default`}
                         />
                       ))}
@@ -340,11 +221,6 @@ export default function PaymentCalendar() {
                 <span className="font-semibold mt-0.5">{cfg.label}</span>
                 <div className="flex-1 min-w-0">
                   <span className="truncate block">{ev.title}</span>
-                  {ev.customTask && (
-                    <span className={`truncate block mt-0.5 ${cfg.text} opacity-80`}>
-                      Task: {ev.customTask}
-                    </span>
-                  )}
                   {ev.notes && (
                     <span className={`truncate block mt-0.5 ${cfg.text} opacity-70`}>{ev.notes}</span>
                   )}

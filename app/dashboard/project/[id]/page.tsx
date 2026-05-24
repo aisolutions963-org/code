@@ -1,5 +1,6 @@
 'use client'
 
+import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput } from '@/lib/types'
@@ -7,6 +8,7 @@ import { useSession } from '@/app/dashboard/layout-client'
 import ItemBoard from '@/components/projects/ItemBoard'
 import TaskList, { TaskListSkeleton } from '@/components/tasks/TaskList'
 import { ItemSummary } from '@/components/projects/ItemProgressCard'
+import ProjectAttachmentsSection from '@/components/projects/ProjectAttachmentsSection'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -19,18 +21,19 @@ interface ItemsProgressResponse {
   items: ItemSummary[]
 }
 
-export default function ProjectItemBoardPage({ params }: { params: { id: string } }) {
+export default function ProjectItemBoardPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const { role } = useSession()
   const router = useRouter()
 
   const { data, error, isLoading, mutate } = useSWR<ItemsProgressResponse>(
-    `/api/projects/${params.id}/items-progress`,
+    `/api/projects/${id}/items-progress`,
     fetcher,
     { refreshInterval: 30000, revalidateOnFocus: true },
   )
 
   const { data: tasksData, isLoading: tasksLoading, mutate: mutateTasks } = useSWR<{ tasks: Task[] }>(
-    `/api/tasks?projectId=${params.id}`,
+    `/api/tasks?projectId=${id}`,
     fetcher,
     { refreshInterval: 30000, revalidateOnFocus: true },
   )
@@ -160,6 +163,11 @@ export default function ProjectItemBoardPage({ params }: { params: { id: string 
               onMutate={() => mutate()}
             />
           </section>
+        )}
+
+        {/* Attachments & Links */}
+        {!tasksLoading && allTasks.length > 0 && (
+          <ProjectAttachmentsSection tasks={allTasks} />
         )}
 
         {/* Empty state */}

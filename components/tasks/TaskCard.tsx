@@ -6,6 +6,10 @@ import { Task, TaskUpdateInput, Role, Attachment, DocLink } from '@/lib/types'
 import { EDITABLE_FIELDS } from '@/lib/permissions'
 import TaskStatusBadge from './TaskStatusBadge'
 import FieldEditor from './FieldEditor'
+import F3OrderPanel from './panels/F3OrderPanel'
+import QuotationPanel from './panels/QuotationPanel'
+import AttachDocsPanel from './panels/AttachDocsPanel'
+import ChooseInstallTeamPanel from './panels/ChooseInstallTeamPanel'
 
 type CallOutcome = 'approved' | 'review' | 'refused'
 
@@ -162,6 +166,25 @@ function isArabicRole(role: Role): boolean {
   return role === 'installation' || role === 'fabrication'
 }
 
+const AR_TASK_NAMES: Record<string, string> = {
+  'F2 Production List (Time Line & End Date)': 'قائمة الإنتاج F2 — الجدول الزمني ويوم التسليم',
+  'Carpentry (item-level)': 'أعمال النجارة (لكل قطعة)',
+  'Paint (item-level)': 'أعمال الطلاء (لكل قطعة)',
+  '[GATE]Fabrication Done': 'اكتمل التصنيع',
+  'Fabricate if Any Missing Item (Between Days — Optional)': 'تصنيع القطع الناقصة (اختياري)',
+  'Store Revised Material List (Big Orders Only)': 'حفظ قائمة المواد المعدّلة (للطلبات الكبيرة فقط)',
+  'Sample Branch: We Have Material — Send to Fabrication': 'لدينا العينة — إرسال للتصنيع',
+  'Sample Branch: We Have Material — Send to Fabrication (per item)': 'لدينا المادة — إرسال للتصنيع (لكل قطعة)',
+  'Sample Branch: We Have Material — Fabrication': 'لدينا المادة — ابدأ التصنيع',
+  'Supply — Deliver Items to Client Site': 'توريد — تسليم القطع لموقع العميل',
+  'Installation Day N (Flexible — Repeats as Needed)': 'يوم التركيب',
+  'Handing Over Form — F6 Generated': 'نموذج التسليم — F6',
+  'Send to SED & Fixing Team — 2 Days to Check Item & Tools Before Delivery (auto)': 'إرسال لفريق التركيب — يومان للتحقق من القطع والأدوات',
+  'Fixing Team Note: How Many Days & Labor Needed to Hand Over the Work': 'ملاحظة فريق التركيب: عدد الأيام والعمالة المطلوبة',
+  'Manage: Check Site Status, Give Client Exact Delivery Date & Inform for Payment': 'إدارة: التحقق من الموقع وتأكيد موعد التسليم',
+  ' Inform Client of Estimated Date of Supply': 'إبلاغ العميل بالموعد التقديري للتوريد',
+}
+
 function formatCountdown(targetDate: string, ar: boolean): string | null {
   const diff = new Date(targetDate).getTime() - Date.now()
   if (diff <= 0) return ar ? 'متأخر' : 'Overdue'
@@ -214,73 +237,15 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     task.pathCondition === 'Make Quotation' ||
     task.taskName.toLowerCase().includes('make quotation')
   const isF4Task = task.taskName.toLowerCase().startsWith('f4 —')
-  const isF3Task = task.taskName.toLowerCase().startsWith('f3 —') || task.taskName.toLowerCase().includes('order material')
-  const isOrderSample = task.taskName === 'Order Sample'
-
-  const [f3Path, setF3Path] = useState<'small' | 'big' | null>(null)
-  const [f3Items, setF3Items] = useState([{ name: '', quantity: '', unit: '', supplier: '', notes: '' }])
-  const [f3Notes, setF3Notes] = useState('')
-  const [f3Saving, setF3Saving] = useState(false)
-  const [f3Error, setF3Error] = useState('')
-
-  function f3AddRow() { setF3Items((prev) => [...prev, { name: '', quantity: '', unit: '', supplier: '', notes: '' }]) }
-  function f3RemoveRow(i: number) { setF3Items((prev) => prev.filter((_, idx) => idx !== i)) }
-  function f3UpdateRow(i: number, key: string, value: string) {
-    setF3Items((prev) => prev.map((r, idx) => idx === i ? { ...r, [key]: value } : r))
-  }
-
-  async function handleF3Submit() {
-    setF3Error('')
-    if (!f3Path) { setF3Error('Choose an order type'); return }
-    const valid = f3Items.filter((r) => r.name.trim())
-    if (valid.length === 0) { setF3Error('Add at least one material'); return }
-    const bad = valid.find((r) => !r.quantity || !r.unit)
-    if (bad) { setF3Error(`"${bad.name}": quantity and unit are required`); return }
-    setF3Saving(true)
-    try {
-      const res = await fetch(`/api/tasks/${task.id}/f3-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: f3Path,
-          items: valid.map((r) => ({
-            name: r.name.trim(),
-            quantity: parseFloat(r.quantity),
-            unit: r.unit,
-            ...(r.supplier.trim() ? { supplier: r.supplier.trim() } : {}),
-            ...(r.notes.trim() ? { notes: r.notes.trim() } : {}),
-          })),
-          generalNotes: f3Notes.trim() || undefined,
-        }),
-      })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error((d as { error?: string }).error ?? 'Failed')
-      }
-      setLocalFields((prev) => ({ ...prev, status: f3Path === 'small' ? 'Completed' : 'In Progress' }))
-      toast.success(f3Path === 'small' ? 'Order submitted — superadmin notified' : 'Sent to Fabrication for store check')
-      await onUpdate(task.id, {})
-    } catch (e) {
-      setF3Error(e instanceof Error ? e.message : 'Failed')
-      toast.error('Failed')
-    } finally {
-      setF3Saving(false)
-    }
-  }
-  const [quotationInput, setQuotationInput] = useState(task.projectQuotationNumber ?? '')
-
-  // Pre-calculate the next revision reference for Make Quotation
-  function calcNextRef(qn: string): string {
-    if (!task.projectQuotationReference || qn.trim() !== (task.projectQuotationNumber ?? '').trim()) return 'R0'
-    const n = parseInt(task.projectQuotationReference.slice(1), 10)
-    return `R${isNaN(n) ? 1 : n + 1}`
-  }
-  const [referenceInput, setReferenceInput] = useState(() => {
-    if (isMakeQuotation) return calcNextRef(task.projectQuotationNumber ?? '')
-    if (isF4Task) return task.projectQuotationReference ?? ''
-    return ''
-  })
-  const [quotationError, setQuotationError] = useState('')
+  const isF3Task = task.taskName.toLowerCase().startsWith('f3 —')
+  const isOrderSample = task.taskName === 'Order Sample' && !task.projectItem?.length
+  const isPerItemOrderSample =
+    !!task.projectItem?.length && task.pathCondition === 'Select Sample (item)'
+  const isAttachDocsTask = task.taskName.toLowerCase().startsWith('click done: attach 7 items')
+  const isChooseInstallTeamTask = task.taskName
+    .toLowerCase()
+    .startsWith('choose installation team')
+  const isF2ProductionTask = task.taskName.toLowerCase().startsWith('f2 production list')
 
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
@@ -300,7 +265,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         } catch {
           setSaveError(ar ? 'فشل الحفظ — أعد المحاولة' : 'Save failed — please retry')
           toast.error(ar ? 'فشل الحفظ' : 'Save failed')
-          setLocalFields((prev) => ({ ...prev, [key]: (task as unknown as Record<string, unknown>)[key] }))
+          setLocalFields((prev) => ({
+            ...prev,
+            [key]: (task as unknown as Record<string, unknown>)[key],
+          }))
         } finally {
           setSaving(false)
         }
@@ -308,43 +276,6 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     },
     [onUpdate, task],
   )
-
-  async function saveQuotationAndComplete() {
-    const projectId = task.projectRecordId ?? task.project?.[0]
-    if (!projectId) return
-    setSaving(true)
-    setQuotationError('')
-    try {
-      const existingQN = (task.projectQuotationNumber ?? '').trim()
-      const newQN = quotationInput.trim()
-      // Only patch the project if the quotation number changed or a reference was explicitly entered.
-      // For F4, we avoid auto-incrementing an existing reference when just confirming payment.
-      const needsPatch = newQN && (newQN !== existingQN || referenceInput.trim())
-      if (needsPatch) {
-        const patchBody: Record<string, string> = { quotationNumber: newQN }
-        if (referenceInput.trim()) patchBody.quotationReference = referenceInput.trim()
-        const patchRes = await fetch(`/api/projects/${projectId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(patchBody),
-        })
-        if (!patchRes.ok) {
-          const d = await patchRes.json().catch(() => ({}))
-          throw new Error((d as { error?: string }).error ?? 'Failed to save quotation number')
-        }
-      }
-      setLocalFields((prev) => ({ ...prev, status: 'Completed' }))
-      await onUpdate(task.id, { status: 'Completed' } as Partial<TaskUpdateInput>)
-      setSaveSuccess(true)
-      toast.success('Saved')
-      setTimeout(() => setSaveSuccess(false), 2000)
-    } catch (e) {
-      setQuotationError(e instanceof Error ? e.message : 'Failed')
-      toast.error('Failed')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   async function completeOrderSampleBranch(hasMaterial: boolean) {
     setSaving(true)
@@ -358,7 +289,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         const d = await res.json().catch(() => ({}))
         throw new Error((d as { error?: string }).error ?? 'Failed')
       }
-      setLocalFields((prev) => ({ ...prev, status: hasMaterial ? 'Completed' : 'In Progress' }))
+      setLocalFields((prev) => ({
+        ...prev,
+        status: hasMaterial ? 'Completed' : 'In Progress',
+      }))
       toast.success(hasMaterial ? 'Branch: We have material' : 'Branch: Ordering material')
       await onUpdate(task.id, {})
     } catch (e) {
@@ -368,29 +302,33 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     }
   }
 
+  async function completeF2Task() {
+    if (!localFields.plannedProdStartDate || !localFields.expectedFabEndDate) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      await onUpdate(task.id, {
+        plannedProdStartDate: localFields.plannedProdStartDate,
+        expectedFabEndDate: localFields.expectedFabEndDate,
+        status: 'Completed',
+      })
+      toast.success('تم حفظ جدول الإنتاج')
+    } catch {
+      setSaveError('فشل الحفظ — أعد المحاولة')
+      toast.error('فشل الحفظ')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   function handleChange(key: keyof TaskUpdateInput, value: unknown) {
-    if (isOrderSample && key === 'status' && value === 'Completed') {
-      return
-    }
-    if (isF3Task && task.status !== 'Completed' && key === 'status' && (value === 'Completed' || value === 'In Progress')) {
-      return
-    }
-    // F4 is a one-time action — once completed the status cannot be rolled back
-    if (isF4Task && task.status === 'Completed' && key === 'status') {
-      return
-    }
-    if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') {
-      if (isMakeQuotation && !quotationInput.trim()) {
-        setQuotationError('Enter a quotation number before marking as complete')
-        return
-      }
-      if (isF4Task && !task.projectQuotationNumber && !quotationInput.trim()) {
-        setQuotationError('Enter a quotation number before recording this payment')
-        return
-      }
-      saveQuotationAndComplete()
-      return
-    }
+    if ((isOrderSample || isPerItemOrderSample) && key === 'status' && value === 'Completed') return
+    if (isAttachDocsTask && key === 'status' && value === 'Completed') return
+    if (isChooseInstallTeamTask && key === 'status' && value === 'Completed') return
+    if (isF2ProductionTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
+    if (isF3Task && task.status !== 'Completed' && key === 'status' && (value === 'Completed' || value === 'In Progress')) return
+    if (isF4Task && task.status === 'Completed' && key === 'status') return
+    if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') return
     setLocalFields((prev) => ({ ...prev, [key]: value }))
     scheduleUpdate(key, value)
   }
@@ -430,7 +368,6 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const arabicInstructions = task.arabicInstructions?.join(' ') ?? ''
   const hintText = ar ? (arabicInstructions || instructions) : instructions
 
-  // Decision task: render only the outcome panel, nothing else
   if (isDecisionTask) {
     return (
       <div className="bg-white rounded-xl border border-teal-200 shadow-sm overflow-hidden">
@@ -467,8 +404,8 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-gray-900 truncate">
-              {task.taskName}
+            <span className="text-sm font-semibold text-gray-900 truncate" dir={ar ? 'rtl' : 'ltr'}>
+              {ar ? (AR_TASK_NAMES[task.taskName] ?? task.taskName) : task.taskName}
             </span>
             {task.priorityFlag && (
               <span className="text-xs font-medium" title="Priority task">🚩</span>
@@ -537,13 +474,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       {/* Body */}
       {isOpen && (
         <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-4">
-          {/* Read-only info */}
+          {/* Instructions */}
           {ar ? (
             (arabicInstructions || instructions) && (
               <div dir="rtl">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                  التعليمات
-                </p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">التعليمات</p>
                 <p className="text-sm text-gray-700 whitespace-pre-wrap">
                   {arabicInstructions || instructions}
                 </p>
@@ -553,17 +488,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <>
               {instructions && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                    Instructions
-                  </p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Instructions</p>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{instructions}</p>
                 </div>
               )}
               {arabicInstructions && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                    Arabic Instructions
-                  </p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Arabic Instructions</p>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap rtl-text" dir="rtl">
                     {arabicInstructions}
                   </p>
@@ -572,68 +503,21 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </>
           )}
 
-          {/* Quotation number — required before completing Make Quotation */}
-          {isMakeQuotation && task.status !== 'Completed' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
-              <p className="text-xs font-semibold text-amber-800">
-                Quotation Number <span className="text-red-500">*</span>
-                <span className="ml-1 font-normal text-amber-600">— required to complete this task</span>
-              </p>
-              <input
-                className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-                placeholder="e.g. WW-2024-001"
-                value={quotationInput}
-                onChange={(e) => { setQuotationInput(e.target.value); setQuotationError('') }}
-              />
-              <p className="text-xs font-semibold text-amber-800 mt-1">
-                Reference Number <span className="font-normal text-amber-600">— leave blank to auto-assign R0</span>
-              </p>
-              <input
-                className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white font-mono"
-                placeholder="e.g. R0"
-                value={referenceInput}
-                onChange={(e) => setReferenceInput(e.target.value)}
-              />
-              {quotationError && (
-                <p className="text-xs text-red-600">{quotationError}</p>
-              )}
-            </div>
-          )}
-
-          {/* F4 — quotation number/reference (only shown if Make Quotation didn't save them) */}
-          {isF4Task && task.status !== 'Completed' && !task.projectQuotationNumber && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-2">
-              <p className="text-xs font-semibold text-blue-800">
-                Quotation Number <span className="text-red-500">*</span>
-                <span className="ml-1 font-normal text-blue-600">— required to record advance payment</span>
-              </p>
-              <input
-                className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
-                placeholder="e.g. WW-2024-001"
-                value={quotationInput}
-                onChange={(e) => { setQuotationInput(e.target.value); setQuotationError('') }}
-              />
-              <p className="text-xs font-semibold text-blue-800 mt-1">
-                Reference Number
-                <span className="ml-1 font-normal text-blue-600">— leave blank to auto-assign R0</span>
-              </p>
-              <input
-                className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white font-mono"
-                placeholder="e.g. R1"
-                value={referenceInput}
-                onChange={(e) => setReferenceInput(e.target.value)}
-              />
-              {quotationError && (
-                <p className="text-xs text-red-600">{quotationError}</p>
-              )}
-            </div>
+          {/* Quotation panel (Make Quotation + F4) */}
+          {(isMakeQuotation || isF4Task) && (
+            <QuotationPanel
+              task={task}
+              variant={isF4Task ? 'f4' : 'makeQuotation'}
+              onUpdate={onUpdate}
+            />
           )}
 
           {/* Order Sample — branch selector */}
-          {isOrderSample && task.status !== 'Completed' && (
+          {(isOrderSample || isPerItemOrderSample) && task.status !== 'Completed' && (
             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 space-y-2">
               <p className="text-xs font-semibold text-green-800">
-                Sample Branch <span className="font-normal text-green-700">— does the team have the material?</span>
+                Sample Branch{' '}
+                <span className="font-normal text-green-700">— does the team have the material?</span>
               </p>
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
@@ -656,149 +540,63 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
-          {/* F3 — Material Order panel */}
+          {/* F3 material order panel */}
           {isF3Task && task.status !== 'Completed' && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-3 space-y-3">
-              <p className="text-xs font-semibold text-emerald-800">
-                Material Order Type <span className="font-normal text-emerald-700">— choose before submitting</span>
-              </p>
+            <F3OrderPanel task={task} onUpdate={onUpdate} />
+          )}
 
-              {/* Path selector */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setF3Path('small')}
-                  className={`text-left px-3 py-2.5 rounded-lg text-xs font-semibold border-2 transition-all ${
-                    f3Path === 'small'
-                      ? 'border-emerald-500 bg-emerald-100 text-emerald-900'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-emerald-300'
-                  }`}
-                >
-                  <div className="font-bold">Small Order</div>
-                  <div className="font-normal mt-0.5 opacity-80">Order directly — notifies superadmin</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setF3Path('big')}
-                  className={`text-left px-3 py-2.5 rounded-lg text-xs font-semibold border-2 transition-all ${
-                    f3Path === 'big'
-                      ? 'border-amber-500 bg-amber-50 text-amber-900'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-amber-300'
-                  }`}
-                >
-                  <div className="font-bold">Big Order</div>
-                  <div className="font-normal mt-0.5 opacity-80">Fabrication checks store first</div>
-                </button>
-              </div>
+          {/* Attach 7 docs panel — Phase 2 per-item final step */}
+          {isAttachDocsTask && (
+            <AttachDocsPanel task={task} onUpdate={onUpdate} />
+          )}
 
-              {/* Materials table */}
-              {f3Path && (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-emerald-200">
-                          <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[130px]">Material *</th>
-                          <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-16">Qty *</th>
-                          <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-20">Unit *</th>
-                          <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[90px]">Supplier</th>
-                          <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[90px]">Notes</th>
-                          <th className="w-4" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-emerald-100">
-                        {f3Items.map((row, i) => (
-                          <tr key={i}>
-                            <td className="py-1 pr-2">
-                              <input
-                                className="w-full border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                value={row.name}
-                                onChange={(e) => f3UpdateRow(i, 'name', e.target.value)}
-                                placeholder="e.g. MDF 18mm"
-                              />
-                            </td>
-                            <td className="py-1 pr-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                className="w-full border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                value={row.quantity}
-                                onChange={(e) => f3UpdateRow(i, 'quantity', e.target.value)}
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="py-1 pr-2">
-                              <select
-                                className="w-full border border-gray-200 rounded px-1 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                value={row.unit}
-                                onChange={(e) => f3UpdateRow(i, 'unit', e.target.value)}
-                              >
-                                <option value="">—</option>
-                                {['pcs', 'm', 'm²', 'kg', 'set', 'box', 'roll'].map((u) => <option key={u}>{u}</option>)}
-                              </select>
-                            </td>
-                            <td className="py-1 pr-2">
-                              <input
-                                className="w-full border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                value={row.supplier}
-                                onChange={(e) => f3UpdateRow(i, 'supplier', e.target.value)}
-                                placeholder="Supplier"
-                              />
-                            </td>
-                            <td className="py-1 pr-2">
-                              <input
-                                className="w-full border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                value={row.notes}
-                                onChange={(e) => f3UpdateRow(i, 'notes', e.target.value)}
-                                placeholder="Spec, colour…"
-                              />
-                            </td>
-                            <td className="py-1">
-                              {f3Items.length > 1 && (
-                                <button onClick={() => f3RemoveRow(i)} className="text-gray-300 hover:text-red-400 text-base leading-none">×</button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+          {/* Choose installation team panel — Phase 3 order 39 */}
+          {isChooseInstallTeamTask && (
+            <ChooseInstallTeamPanel task={task} onUpdate={onUpdate} />
+          )}
 
-                  <button type="button" onClick={f3AddRow} className="text-xs text-emerald-700 hover:text-emerald-900 font-medium">
-                    + Add row
-                  </button>
-
-                  {f3Path === 'big' && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Notes for Fabrication</label>
-                      <input
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"
-                        value={f3Notes}
-                        onChange={(e) => setF3Notes(e.target.value)}
-                        placeholder="Any instructions for the store check…"
-                      />
-                    </div>
-                  )}
-
-                  {f3Error && <p className="text-xs text-red-600">{f3Error}</p>}
-
-                  <button
-                    type="button"
-                    onClick={handleF3Submit}
-                    disabled={f3Saving}
-                    className={`w-full py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60 transition-colors ${
-                      f3Path === 'small' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-500 hover:bg-amber-600'
-                    }`}
-                  >
-                    {f3Saving
-                      ? 'Submitting…'
-                      : f3Path === 'small'
-                        ? `Submit Small Order (${f3Items.filter((r) => r.name.trim()).length} item${f3Items.filter((r) => r.name.trim()).length !== 1 ? 's' : ''})`
-                        : `Send to Fabrication for Store Check`}
-                  </button>
-                </>
+          {/* F2 Production List panel — fabrication date range entry */}
+          {isF2ProductionTask && task.status === 'Completed' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5" dir="rtl">
+              <p className="text-xs font-semibold text-green-800 mb-1">✓ تم تسجيل جدول الإنتاج</p>
+              {task.plannedProdStartDate && (
+                <p className="text-xs text-green-700">بداية التصنيع: {task.plannedProdStartDate}</p>
               )}
+              {task.expectedFabEndDate && (
+                <p className="text-xs text-green-700">يوم التسليم: {task.expectedFabEndDate}</p>
+              )}
+            </div>
+          )}
+          {isF2ProductionTask && task.status !== 'Completed' && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-3 space-y-3" dir="rtl">
+              <p className="text-xs font-semibold text-orange-800">جدول الإنتاج — حدّد الفترة الزمنية لهذه القطعة</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">بداية التصنيع</label>
+                  <input
+                    type="date"
+                    value={(localFields.plannedProdStartDate as string) ?? ''}
+                    onChange={(e) => handleChange('plannedProdStartDate', e.target.value || undefined)}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">يوم التسليم (آخر يوم)</label>
+                  <input
+                    type="date"
+                    value={(localFields.expectedFabEndDate as string) ?? ''}
+                    onChange={(e) => handleChange('expectedFabEndDate', e.target.value || undefined)}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={completeF2Task}
+                disabled={!localFields.plannedProdStartDate || !localFields.expectedFabEndDate || saving}
+                className="w-full py-2 rounded-lg text-sm font-semibold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? 'جاري الحفظ…' : '✓ حفظ وإكمال'}
+              </button>
             </div>
           )}
 

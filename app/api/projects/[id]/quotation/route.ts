@@ -7,8 +7,9 @@ import { PROJECTS } from '@/lib/fieldMap'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   const session = await getSession()
   if (!session || !['sed', 'manager', 'superadmin'].includes(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -32,17 +33,19 @@ export async function POST(
   }
 
   try {
-    // Set quotation number on the project and compute the reference revision
-    const project = await getProjectById(params.id)
-    const currentQN = project.quotationNumber
-    const currentRef = project.quotationReference // e.g. "R1", "R2", or undefined
+    // Set quotation number on the project and determine the reference.
+    // If the caller provides a reference explicitly, use it as-is.
+    // Otherwise auto-assign R0 only when no reference exists yet.
+    const project = await getProjectById(id)
+    const currentRef = project.quotationReference
 
     let nextRef: string
-    if (!currentRef || currentQN !== parsed.data.quotationNumber) {
+    if (parsed.data.quotationReference) {
+      nextRef = parsed.data.quotationReference
+    } else if (!currentRef) {
       nextRef = 'R0'
     } else {
-      const n = parseInt(currentRef.slice(1), 10)
-      nextRef = `R${isNaN(n) ? 1 : n + 1}`
+      nextRef = currentRef
     }
 
     const projectUpdate: Record<string, unknown> = {
@@ -52,17 +55,17 @@ export async function POST(
     if (parsed.data.totalAmountToPay !== undefined) {
       projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = parsed.data.totalAmountToPay
     }
-    await updateProject(params.id, projectUpdate)
+    await updateProject(id, projectUpdate)
 
     const results = []
     for (const item of parsed.data.items) {
       const projectItem = await createProjectItem({
-        projectId: params.id,
+        projectId: id,
         itemName: item.itemName,
         quantity: item.quantity,
       })
       const quotation = await createQuotation({
-        projectId: params.id,
+        projectId: id,
         projectItemId: projectItem.id,
         itemName: item.itemName,
         quantity: item.quantity,
@@ -76,7 +79,7 @@ export async function POST(
       // Fire-and-forget: generate per-item tasks and notify departments
       ;(async () => {
         try {
-          const { todoTemplates } = await generateItemTasksForProject(params.id, projectItem.id)
+          const { todoTemplates } = await generateItemTasksForProject(id, projectItem.id)
           if (todoTemplates.length > 0) {
             notifyTasksReady(
               todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),

@@ -20,6 +20,7 @@ export class AirtableError extends Error {
 }
 
 type RouteContext = { params: Record<string, string> }
+type RawRouteContext = { params: Promise<Record<string, string>> | Record<string, string> }
 type AuthedHandler<C = RouteContext> = (
   req: NextRequest,
   session: SessionPayload,
@@ -43,7 +44,9 @@ function buildError(req: NextRequest, error: unknown, requestId: string): NextRe
 
 export function requireRole<C = RouteContext>(...roles: string[]) {
   return function (handler: AuthedHandler<C>) {
-    return async function (req: NextRequest, context: C): Promise<NextResponse> {
+    return async function (req: NextRequest, rawContext: RawRouteContext): Promise<NextResponse> {
+      const resolvedParams = rawContext.params instanceof Promise ? await rawContext.params : rawContext.params
+      const context = { params: resolvedParams } as unknown as C
       const requestId = req.headers.get('x-request-id') ?? crypto.randomUUID()
       const start = Date.now()
 
@@ -143,7 +146,9 @@ export function requireRole<C = RouteContext>(...roles: string[]) {
 export function withErrorHandling<C = RouteContext>(
   handler: (req: NextRequest, context: C) => Promise<NextResponse>,
 ) {
-  return async function (req: NextRequest, context: C): Promise<NextResponse> {
+  return async function (req: NextRequest, rawContext: RawRouteContext): Promise<NextResponse> {
+    const resolvedParams = rawContext.params instanceof Promise ? await rawContext.params : rawContext.params
+    const context = { params: resolvedParams } as unknown as C
     const requestId = req.headers.get('x-request-id') ?? crypto.randomUUID()
     const start = Date.now()
     try {

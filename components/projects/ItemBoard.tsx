@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { Task, TaskUpdateInput, Role } from '@/lib/types'
-import ItemProgressCard, { ItemSummary } from './ItemProgressCard'
-import TaskList from '@/components/tasks/TaskList'
+import { ItemSummary } from './ItemProgressCard'
+import ItemGroupSection from '@/components/tasks/ItemGroupSection'
+import { PHASE_CONFIG } from '@/lib/phases'
 
 interface Props {
   items: ItemSummary[]
@@ -64,8 +64,6 @@ function SummaryStrip({ items }: { items: ItemSummary[] }) {
 }
 
 export default function ItemBoard({ items, role, onUpdate, onMutate }: Props) {
-  const [selectedItem, setSelectedItem] = useState<ItemSummary | null>(null)
-
   const handleUpdate = async (id: string, fields: Partial<TaskUpdateInput>) => {
     await onUpdate(id, fields)
     onMutate()
@@ -79,53 +77,37 @@ export default function ItemBoard({ items, role, onUpdate, onMutate }: Props) {
     )
   }
 
-  // Level 3: item task list
-  if (selectedItem) {
-    const visibleTasks = selectedItem.allTasks.filter((t) => t.status !== 'Locked')
-    return (
-      <div>
-        {/* Item header */}
-        <div className="flex items-center gap-3 mb-5">
-          <button
-            onClick={() => setSelectedItem(null)}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            All items
-          </button>
-          <span className="text-gray-300">/</span>
-          <span className="flex items-center gap-1.5 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0" />
-            <span className="text-sm font-semibold text-gray-800 truncate">{selectedItem.name}</span>
-          </span>
-        </div>
-
-        <TaskList
-          tasks={visibleTasks}
-          role={role}
-          onUpdate={handleUpdate}
-          groupByProject={false}
-        />
-      </div>
-    )
-  }
-
-  // Level 2: item grid
   return (
     <>
       <SummaryStrip items={items} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {items.map((item, idx) => (
-          <ItemProgressCard
-            key={item.id}
-            item={item}
-            index={idx}
-            onSelect={() => setSelectedItem(item)}
-          />
-        ))}
+      <div className="space-y-4">
+        {items.map((item) => {
+          const phase2Min = PHASE_CONFIG.Open.perItemOrderMin        // 23
+      const phase3Min = PHASE_CONFIG.Working.perItemOrderMin     // 31
+      const hasPhase3 = item.allTasks.some(
+        (t) => (t.templateOrder?.[0] ?? 0) >= phase3Min,
+      )
+      const visibleTasks = item.allTasks.filter((t) => {
+        if (t.status === 'Locked') return false
+        if (!hasPhase3) return true
+        const order = t.templateOrder?.[0]
+        if (order === undefined) return true
+        return order < phase2Min || order >= phase3Min
+      })
+          const projectId = visibleTasks[0]?.project?.[0] ?? item.allTasks[0]?.project?.[0] ?? ''
+          return (
+            <ItemGroupSection
+              key={item.id}
+              itemId={item.id}
+              itemName={item.name}
+              projectId={projectId}
+              tasks={visibleTasks}
+              role={role}
+              onUpdate={handleUpdate}
+            />
+          )
+        })}
       </div>
     </>
   )

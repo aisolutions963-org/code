@@ -27,7 +27,9 @@ interface Props {
 export default function QuotationModal({ project, onClose, onCreated }: Props) {
   const today = new Date().toISOString().slice(0, 10)
   const quotationNumber = project.quotationNumber ?? ''
+  const hasExistingRef = !!project.quotationReference
   const [quotationDate, setQuotationDate] = useState(today)
+  const [referenceInput, setReferenceInput] = useState(project.quotationReference ?? '')
   const [rows, setRows] = useState<QuotationRow[]>([emptyRow()])
   const [totalOverride, setTotalOverride] = useState<string>('')
   const [saving, setSaving] = useState(false)
@@ -52,11 +54,6 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
 
   const grandTotal = rows.reduce((sum, r) => sum + rowTotal(r), 0)
 
-  // Compute the reference that will be assigned on submit
-  const isRevision = !!project.quotationNumber
-  const currentRefN = project.quotationReference ? parseInt(project.quotationReference.slice(1), 10) : NaN
-  const pendingReference = isRevision ? `R${isNaN(currentRefN) ? 1 : currentRefN + 1}` : 'R0'
-
   async function handleSave() {
     setErr('')
     if (!quotationNumber) { setErr('Quotation number not set. Please complete the Make Quotation task first.'); return }
@@ -74,26 +71,31 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
       const parsedOverride = totalOverride !== '' ? parseFloat(totalOverride) : undefined
       const totalAmountToPay = parsedOverride !== undefined && !isNaN(parsedOverride) ? parsedOverride : grandTotal
 
+      const body: Record<string, unknown> = {
+        quotationNumber: quotationNumber.trim(),
+        quotationDate,
+        totalAmountToPay,
+        items: rows.map((r) => ({
+          itemName: r.itemName.trim(),
+          description: r.description.trim(),
+          quantity: parseInt(r.quantity),
+          unitPrice: parseFloat(r.unitPrice),
+        })),
+      }
+      if (hasExistingRef && referenceInput.trim()) {
+        body.quotationReference = referenceInput.trim()
+      }
       const res = await fetch(`/api/projects/${project.id}/quotation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          quotationNumber: quotationNumber.trim(),
-          quotationDate,
-          totalAmountToPay,
-          items: rows.map((r) => ({
-            itemName: r.itemName.trim(),
-            description: r.description.trim(),
-            quantity: parseInt(r.quantity),
-            unitPrice: parseFloat(r.unitPrice),
-          })),
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to save')
       const parsedOv = totalOverride !== '' ? parseFloat(totalOverride) : undefined
       const finalTotal = parsedOv !== undefined && !isNaN(parsedOv) ? parsedOv : grandTotal
-      setResult({ created: data.created, reference: pendingReference, totalPaid: finalTotal })
+      const finalRef = hasExistingRef ? (referenceInput.trim() || (project.quotationReference ?? '')) : 'R0'
+      setResult({ created: data.created, reference: finalRef, totalPaid: finalTotal })
       onCreated()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to save')
@@ -168,7 +170,7 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
             </div>
           </div>
 
-          {/* Quotation Number + Reference — read-only; set via Make Quotation (Phase 1) or F4 */}
+          {/* Quotation Number + Reference */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Quotation Number</label>
@@ -177,13 +179,21 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Reference (auto)</label>
-              <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm font-mono font-semibold text-gray-700">
-                {pendingReference}
-                {isRevision && (
-                  <span className="ml-2 text-xs font-normal text-amber-600">revision</span>
-                )}
-              </div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Reference{hasExistingRef ? '' : ' (auto)'}
+              </label>
+              {hasExistingRef ? (
+                <input
+                  className={inp + ' font-mono font-semibold'}
+                  value={referenceInput}
+                  onChange={(e) => setReferenceInput(e.target.value)}
+                  placeholder="e.g. R2, R3…"
+                />
+              ) : (
+                <div className="border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-sm font-mono font-semibold text-gray-500">
+                  R0
+                </div>
+              )}
             </div>
           </div>
 

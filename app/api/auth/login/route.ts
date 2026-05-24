@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   rateLimiter.delete(ip)
   const token = await createSession(user)
-  setSessionCookie(token)
+  await setSessionCookie(token)
 
   return NextResponse.json({ user: { name: user.name, role: user.role } })
 }

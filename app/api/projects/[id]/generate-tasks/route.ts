@@ -4,8 +4,9 @@ import { getTaskCountForProject, generateTasksForProject } from '@/lib/airtable'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   const session = await getSession()
   if (!session || session.role !== 'superadmin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -25,7 +26,7 @@ export async function POST(
 
   try {
     if (!force) {
-      const existingCount = await getTaskCountForProject(params.id)
+      const existingCount = await getTaskCountForProject(id)
       if (existingCount > 0) {
         return NextResponse.json(
           {
@@ -38,7 +39,7 @@ export async function POST(
       }
     }
 
-    const result = await generateTasksForProject(params.id, stage)
+    const result = await generateTasksForProject(id, stage)
     return NextResponse.json({ success: true, ...result })
   } catch (error) {
     console.error('POST /api/projects/[id]/generate-tasks error:', error)

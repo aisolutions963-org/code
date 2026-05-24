@@ -14,8 +14,9 @@ import { PROJECTS } from '@/lib/fieldMap'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   const session = await getSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -23,12 +24,12 @@ export async function GET(
 
   try {
     const [project, tasks, payments, gatePasses] = await Promise.all([
-      getProjectById(params.id),
+      getProjectById(id),
       session.role === 'superadmin' || session.role === 'manager'
-        ? getAllTasksForProject(params.id)
-        : getTasksForProject(params.id, session.role),
-      getPaymentsByProject(params.id),
-      getGatePassesByProject(params.id),
+        ? getAllTasksForProject(id)
+        : getTasksForProject(id, session.role),
+      getPaymentsByProject(id),
+      getGatePassesByProject(id),
     ])
 
     return NextResponse.json({ project: { ...project, tasks, payments, gatePasses } })
@@ -40,8 +41,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   const session = await getSession()
   if (!session || !['sed', 'manager', 'superadmin'].includes(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -54,7 +56,23 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const parsed = body as { quotationNumber?: string; quotationReference?: string; notes?: string }
+  const parsed = body as { quotationNumber?: string; quotationReference?: string; notes?: string; assignedInstallationTeam?: string }
+
+  // Installation team assignment
+  if ('assignedInstallationTeam' in parsed) {
+    if (typeof parsed.assignedInstallationTeam !== 'string' || !parsed.assignedInstallationTeam.trim()) {
+      return NextResponse.json({ error: 'assignedInstallationTeam must be a non-empty string' }, { status: 400 })
+    }
+    try {
+      await updateProject(id, {
+        [PROJECTS.ASSIGNED_INSTALLATION_TEAM]: [parsed.assignedInstallationTeam.trim()],
+      })
+      return NextResponse.json({ ok: true })
+    } catch (error) {
+      console.error('PATCH /api/projects/[id] assignedInstallationTeam error:', error)
+      return NextResponse.json({ error: 'Failed to assign installation team' }, { status: 500 })
+    }
+  }
 
   // Notes-only update
   if ('notes' in parsed && !parsed.quotationNumber) {
@@ -62,7 +80,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'notes must be a string' }, { status: 400 })
     }
     try {
-      const updated = await updateProject(params.id, {
+      const updated = await updateProject(id, {
         [PROJECTS.MANAGER_NOTES]: parsed.notes.trim(),
       })
       return NextResponse.json({ project: updated })
@@ -78,25 +96,14 @@ export async function PATCH(
   }
 
   try {
-    let nextRef: string
-    if (quotationReference && typeof quotationReference === 'string' && /^R\d+$/.test(quotationReference.trim())) {
-      nextRef = quotationReference.trim()
-    } else {
-      const project = await getProjectById(params.id)
-      const currentQN = project.quotationNumber
-      const currentRef = project.quotationReference
-      if (!currentRef || currentQN !== quotationNumber.trim()) {
-        nextRef = 'R0'
-      } else {
-        const n = parseInt(currentRef.slice(1), 10)
-        nextRef = `R${isNaN(n) ? 1 : n + 1}`
-      }
+    const fields: Record<string, string> = {
+      [PROJECTS.QUOTATION_NUMBER]: quotationNumber.trim(),
+    }
+    if (quotationReference && typeof quotationReference === 'string' && quotationReference.trim()) {
+      fields[PROJECTS.QUOTATION_REFERENCE] = quotationReference.trim()
     }
 
-    const updated = await updateProject(params.id, {
-      [PROJECTS.QUOTATION_NUMBER]: quotationNumber.trim(),
-      [PROJECTS.QUOTATION_REFERENCE]: nextRef,
-    })
+    const updated = await updateProject(id, fields)
     return NextResponse.json({ project: updated })
   } catch (error) {
     console.error('PATCH /api/projects/[id] error:', error)
@@ -106,16 +113,17 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params
   const session = await getSession()
   if (!session || session.role !== 'superadmin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const deletedTasks = await deleteTasksByProjectId(params.id)
-    await deleteProjectById(params.id)
+    const deletedTasks = await deleteTasksByProjectId(id)
+    await deleteProjectById(id)
     return NextResponse.json({ deleted: true, deletedTasks })
   } catch (error) {
     console.error('DELETE /api/projects/[id] error:', error)

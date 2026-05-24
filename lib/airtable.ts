@@ -479,7 +479,7 @@ function buildDepartmentFormula(role: Role): string {
     .join(', ')
   const deptOr = departments.length > 1 ? `OR(${deptChecks})` : deptChecks
 
-  return `AND(${deptOr}, {${TASKS.STATUS}} != "Locked")`
+  return `AND(${deptOr}, NOT(FIND("Superadmin", ARRAYJOIN({${TASKS.DEPARTMENT}}, ","))), {${TASKS.STATUS}} != "Locked")`
 }
 
 export async function getTasksByRole(
@@ -855,6 +855,17 @@ export async function getAllTasksForProjectAll(projectId: string): Promise<Task[
     sort: [{ field: TASKS.TEMPLATE_ORDER, direction: 'asc' }],
   })
   return records.map(transformTask)
+}
+
+export async function getLockedBranchTasksForProject(projectId: string): Promise<Task[]> {
+  // Query locked tasks with "Sample Branch:" in the name, filter by project in code.
+  // Avoids relying on the lookup-field formula which can silently return 0 results.
+  const formula = `AND({${TASKS.STATUS}} = "Locked", FIND("Sample Branch:", {${TASKS.TASK_NAME}}) > 0)`
+  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })
+  const tasks = records.map(transformTask)
+  return tasks.filter(
+    (t) => t.projectRecordId === projectId || t.project?.[0] === projectId,
+  )
 }
 
 export async function checkAndUnlockCallClientTask(projectId: string): Promise<void> {
@@ -1490,6 +1501,9 @@ export async function createMaterialOrder(order: MaterialOrderInput): Promise<Ma
             fields[MATERIALS_NEEDED.PROJECTS] = [order.projectId]
             fields[MATERIALS_NEEDED.PROJECT_RECORD_ID] = order.projectId
           }
+          if (order.projectItemId) {
+            fields[MATERIALS_NEEDED.PROJECT_ITEMS] = [order.projectItemId]
+          }
           if (item.supplier) fields[MATERIALS_NEEDED.SUPPLIER] = item.supplier
           if (item.neededByDate) fields[MATERIALS_NEEDED.EXPECTED_ARRIVAL_DATE] = item.neededByDate
           if (item.notes) fields[MATERIALS_NEEDED.NOTES] = item.notes
@@ -1717,7 +1731,7 @@ export interface CalendarEvent {
   id: string
   title: string
   date: string
-  type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received'
+  type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication'
   projectId?: string
   projectName?: string
   amount?: number
@@ -1727,7 +1741,7 @@ export interface CalendarEvent {
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
-  const [gatePasses, tasks, payments, customEvents] = await Promise.all([
+  const [gatePasses, tasks, fabTasks, payments, customEvents] = await Promise.all([
     fetchAll(GATE_PASSES.TABLE_ID, {
       filterByFormula: `NOT({${GATE_PASSES.ESTIMATED_SUPPLY_DATE}}=BLANK())`,
       fields: [GATE_PASSES.NAME, GATE_PASSES.ESTIMATED_SUPPLY_DATE, GATE_PASSES.CONFIRMED_DELIVERY_DATE, GATE_PASSES.PROJECT],
@@ -1737,6 +1751,11 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       filterByFormula: `AND(NOT({${TASKS.TASK_START_DATE}}=BLANK()), OR({${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="To Do"))`,
       fields: [TASKS.TASK_NAME, TASKS.TASK_START_DATE, TASKS.COMPLETION_DATE, TASKS.DEPARTMENT, TASKS.PROJECT_ID],
       sort: [{ field: TASKS.TASK_START_DATE, direction: 'asc' }],
+    }),
+    fetchAll(TASKS.TABLE_ID, {
+      filterByFormula: `OR(NOT({${TASKS.PLANNED_PROD_START_DATE}}=BLANK()), NOT({${TASKS.EXPECTED_FAB_END_DATE}}=BLANK()))`,
+      fields: [TASKS.TASK_NAME, TASKS.PLANNED_PROD_START_DATE, TASKS.EXPECTED_FAB_END_DATE, TASKS.PROJECT_ID, TASKS.PROJECT_ITEM],
+      sort: [{ field: TASKS.PLANNED_PROD_START_DATE, direction: 'asc' }],
     }),
     fetchAll(PAYMENTS.TABLE_ID, {
       filterByFormula: `OR(NOT({${PAYMENTS.DUE_DATE}}=BLANK()), NOT({${PAYMENTS.RECEIVED_DATE}}=BLANK()))`,
@@ -1776,6 +1795,20 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       type,
       projectId: str(f[TASKS.PROJECT_ID]),
     })
+  }
+
+  for (const r of fabTasks) {
+    const f = r.fields
+    const projectId = str(f[TASKS.PROJECT_ID])
+    const startDate = str(f[TASKS.PLANNED_PROD_START_DATE])
+    const endDate = str(f[TASKS.EXPECTED_FAB_END_DATE])
+    const label = str(f[TASKS.TASK_NAME]) ?? 'Production'
+    if (startDate) {
+      events.push({ id: `${r.id}-fab-s`, title: `Fab Start — ${label}`, date: startDate, type: 'fabrication', projectId })
+    }
+    if (endDate) {
+      events.push({ id: `${r.id}-fab-e`, title: `Fab Delivery — ${label}`, date: endDate, type: 'fabrication', projectId })
+    }
   }
 
   for (const r of payments) {
@@ -2026,15 +2059,62 @@ export async function generateItemTasksForProject(
   )
   if (itemTemplates.length === 0) return { created: 0, todoTemplates: [] }
 
+  // Build per-path min-order map so each path's first task starts as To Do
   const orderedTemplates = itemTemplates.filter((t) => t.templateOrder !== null)
-  const minOrder =
-    orderedTemplates.length > 0
-      ? Math.min(...orderedTemplates.map((t) => t.templateOrder!))
-      : Infinity
+  const pathMinMap = new Map<string | null, number>()
+  for (const t of orderedTemplates) {
+    const path = t.pathCondition ?? null
+    const existing = pathMinMap.get(path)
+    if (existing === undefined || t.templateOrder! < existing) {
+      pathMinMap.set(path, t.templateOrder!)
+    }
+  }
 
   const todoTemplates: TaskTemplate[] = []
 
   const records = itemTemplates.map((t) => {
+    let status: TaskStatus
+    const isGate = /\[gate\]/i.test(t.taskName) && !/\[gateway\]/i.test(t.taskName)
+    if (t.templateOrder === null || isGate) {
+      // Gate tasks are accessible immediately regardless of order position
+      status = 'To Do'
+    } else {
+      const pathMin = pathMinMap.get(t.pathCondition ?? null)!
+      status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
+    }
+    if (status === 'To Do') todoTemplates.push(t)
+    const record: Record<string, unknown> = {
+      [TASKS.TASK_NAME]: t.taskName,
+      [TASKS.PROJECT]: [projectId],
+      [TASKS.PROJECT_ITEM]: [itemId],
+      [TASKS.STATUS]: status,
+      [TASKS.TASK_TEMPLATES_LINK]: [t.id],
+    }
+    if (t.pathCondition !== null) {
+      record[TASKS.PATH_CONDITION] = t.pathCondition
+    }
+    return record
+  })
+
+  const ids = await createTasksBatch(records)
+  return { created: ids.length, todoTemplates }
+}
+
+export async function generatePhase3TasksForItem(
+  projectId: string,
+  itemId: string,
+): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
+  const allTemplates = await getTaskTemplates('Open')
+  const templates = allTemplates.filter(
+    (t) => t.phaseLabel === PHASE_CONFIG.Working.phaseLabel,
+  )
+  if (templates.length === 0) return { created: 0, todoTemplates: [] }
+
+  const ordered = templates.filter((t) => t.templateOrder !== null)
+  const minOrder = Math.min(...ordered.map((t) => t.templateOrder!))
+  const todoTemplates: TaskTemplate[] = []
+
+  const records = templates.map((t) => {
     const status: TaskStatus =
       t.templateOrder === null || t.templateOrder === minOrder ? 'To Do' : 'Locked'
     if (status === 'To Do') todoTemplates.push(t)

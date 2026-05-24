@@ -133,9 +133,10 @@ interface GateGroupCardProps {
   tasks: Task[]
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+  allClearMessage?: string
 }
 
-export default function GateGroupCard({ tasks, role, onUpdate }: GateGroupCardProps) {
+export default function GateGroupCard({ tasks, role, onUpdate, allClearMessage }: GateGroupCardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const allApproved = tasks.every((t) => {
@@ -172,7 +173,7 @@ export default function GateGroupCard({ tasks, role, onUpdate }: GateGroupCardPr
           <div>
             <p className="text-sm font-semibold text-green-800">All gates cleared</p>
             <p className="text-xs text-green-700 mt-0.5">
-              &ldquo;Call the Client — All Approvals&rdquo; task is now active. Call to get final confirmation or restart any action above.
+              {allClearMessage ?? '"Call the Client — All Approvals" task is now active. Call to get final confirmation or restart any action above.'}
             </p>
           </div>
         </div>

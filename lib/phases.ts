@@ -13,6 +13,11 @@ export const PHASE_CONFIG = {
     perItemOrderMin: 23,
     phaseLabel: 'Phase 2 — Opening',
   },
+  Working: {
+    phaseLabel: 'Phase 3 — Working',
+    triggerOrder: 29,
+    perItemOrderMin: 31,
+  },
 } as const
 
 export const TASK_MARKERS = {

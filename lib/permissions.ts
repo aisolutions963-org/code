@@ -99,7 +99,7 @@ export function filterAllowedFields(
 
 export const ROLE_TO_DEPARTMENT: Record<Exclude<Role, 'superadmin'>, string[]> = {
   installation: ['Installation'],
-  sed: ['SED'],
-  fabrication: ['Fabrication'],
-  manager: ['Manager', 'Purchase'],
+  fabrication: ['Fabrication', 'Installation'],
+  sed: ['SED', 'Fabrication', 'Installation'],
+  manager: ['Manager', 'Purchase', 'Mix', 'SED', 'Fabrication', 'Installation'],
 }

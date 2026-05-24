@@ -133,12 +133,12 @@ function MiniCalendar({
           {onDayClick && (
             <button
               onClick={() => onDayClick(todayStr)}
-              className="p-1 rounded text-brand-500 hover:bg-brand-50 mr-1"
-              title="Log activity for today"
+              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg bg-brand-50 text-brand-600 hover:bg-brand-100 border border-brand-200 mr-1"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
+              Add
             </button>
           )}
           <button
@@ -246,55 +246,32 @@ function AddActivityModal({
   onClose: () => void
   onSuccess: () => void
 }) {
-  const { data: taskData } = useSWR<{ tasks: Task[] }>('/api/tasks', fetcher)
-  const { data: projectData } = useSWR<{ projects: Project[] }>('/api/projects', fetcher)
-  const [selectedProjectRecordId, setSelectedProjectRecordId] = useState('')
-  const [selectedTaskId, setSelectedTaskId] = useState('')
+  const [title, setTitle] = useState('')
+  const [selectedDate, setSelectedDate] = useState(date)
+  const [notes, setNotes] = useState('')
+  const [customTask, setCustomTask] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const tasks = taskData?.tasks ?? []
-  const projects = projectData?.projects ?? []
-
-  const projectMap = new Map(projects.map((p) => [p.id, p]))
-
-  const activeTasks = tasks.filter(
-    (t) => t.status !== 'Locked' && t.status !== 'Completed' && t.project?.[0] != null,
-  )
-
-  const tasksByProject = new Map<string, Task[]>()
-  for (const t of activeTasks) {
-    const pid = t.project![0]
-    if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
-    tasksByProject.get(pid)!.push(t)
-  }
-
-  const projectOptions = Array.from(tasksByProject.keys()).map((pid) => {
-    const proj = projectMap.get(pid)
-    return {
-      recordId: pid,
-      displayId: proj?.projectId ?? '',
-      name: proj?.projectName ?? pid,
-    }
-  })
-
-  const projectTasks = selectedProjectRecordId
-    ? (tasksByProject.get(selectedProjectRecordId) ?? [])
-    : []
-
-  async function handleSubmit() {
-    if (!selectedTaskId) return
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!title.trim()) return
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/tasks/${selectedTaskId}`, {
-        method: 'PATCH',
+      const res = await fetch('/api/calendar', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: { taskStartDate: date } }),
+        body: JSON.stringify({
+          title: title.trim(),
+          date: selectedDate,
+          notes: notes.trim() || undefined,
+          customTask: customTask.trim() || undefined,
+        }),
       })
       if (!res.ok) {
-        const d = await res.json()
-        setError(d.error ?? 'Failed to save activity')
+        const d = await res.json().catch(() => ({}))
+        setError(d?.error ?? 'Failed to save activity')
         return
       }
       onSuccess()
@@ -309,16 +286,14 @@ function AddActivityModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
-      <div
+      <form
         className="relative bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl"
         onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">Log Activity</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{date}</p>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <h3 className="text-sm font-semibold text-gray-900">New Activity</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -333,59 +308,65 @@ function AddActivityModal({
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Project</label>
-            <select
-              value={selectedProjectRecordId}
-              onChange={(e) => {
-                setSelectedProjectRecordId(e.target.value)
-                setSelectedTaskId('')
-              }}
+            <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Client meeting, Site inspection…"
+              required
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              <option value="">Select a project...</option>
-              {projectOptions.map((p) => (
-                <option key={p.recordId} value={p.recordId}>
-                  {p.displayId ? `${p.displayId} — ${p.name}` : p.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
-
-          {selectedProjectRecordId && (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Task</label>
-              <select
-                value={selectedTaskId}
-                onChange={(e) => setSelectedTaskId(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              >
-                <option value="">Select a task...</option>
-                {projectTasks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.taskName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Date *</label>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              required
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional note…"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Custom Task</label>
+            <input
+              type="text"
+              value={customTask}
+              onChange={(e) => setCustomTask(e.target.value)}
+              placeholder="e.g. Follow up with supplier…"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
         </div>
 
         <div className="mt-4 flex gap-2 justify-end">
           <button
+            type="button"
             onClick={onClose}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg"
           >
             Cancel
           </button>
           <button
-            onClick={handleSubmit}
-            disabled={!selectedTaskId || saving}
+            type="submit"
+            disabled={saving}
             className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? 'Saving…' : 'Save Activity'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   )
 }
