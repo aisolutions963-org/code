@@ -208,7 +208,7 @@ export default function ItemGroupSection({
       </div>
 
       {/* Tasks inside the item group */}
-      <div className="divide-y divide-gray-50">
+      <div className="space-y-2 p-2">
         {mainTasks.map((task) => (
           <div key={task.id}>
             <TaskCard task={task} role={role} onUpdate={onUpdate} />

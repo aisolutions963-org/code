@@ -326,6 +326,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     if (isAttachDocsTask && key === 'status' && value === 'Completed') return
     if (isChooseInstallTeamTask && key === 'status' && value === 'Completed') return
     if (isF2ProductionTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
+    if (isF2ProductionTask && task.status !== 'Completed' && (key === 'plannedProdStartDate' || key === 'expectedFabEndDate')) {
+      setLocalFields((prev) => ({ ...prev, [key]: value }))
+      return
+    }
     if (isF3Task && task.status !== 'Completed' && key === 'status' && (value === 'Completed' || value === 'In Progress')) return
     if (isF4Task && task.status === 'Completed' && key === 'status') return
     if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') return
@@ -612,7 +616,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           <FieldEditor
             taskId={task.id}
             role={role}
-            fields={localFields}
+            fields={isF2ProductionTask
+              ? Object.fromEntries(
+                  Object.entries(localFields).filter(
+                    ([k]) => k !== 'plannedProdStartDate' && k !== 'expectedFabEndDate',
+                  ),
+                ) as typeof localFields
+              : localFields}
             onChange={handleChange}
             onDocLinkAdded={handleDocLinkAdded}
             onDocLinkRemoved={handleDocLinkRemoved}

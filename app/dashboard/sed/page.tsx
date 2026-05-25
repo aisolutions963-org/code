@@ -74,7 +74,7 @@ export default function SedDashboard() {
           <p className="text-xs text-gray-500 mt-0.5">Open Tasks</p>
         </div>
         <div className="bg-white rounded-xl border border-orange-200 p-4 text-center shadow-sm">
-          <p className="text-2xl font-bold text-orange-500">{pendingApproval.length}</p>
+          <p className="text-2xl font-bold text-orange-600">{pendingApproval.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">Pending Approval</p>
         </div>
         <div className="bg-white rounded-xl border border-green-200 p-4 text-center shadow-sm">

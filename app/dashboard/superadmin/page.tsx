@@ -110,7 +110,7 @@ function Spinner() {
 
 function MetricCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
       <p className={`text-2xl font-bold ${color ?? 'text-gray-900'}`}>{value}</p>
       <p className="text-xs text-gray-500 mt-0.5">{label}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
@@ -274,12 +274,12 @@ function OverviewPage() {
       {/* Active projects table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
-          <p className="text-sm font-semibold text-gray-800">Active Projects</p>
+          <p className="text-sm font-semibold text-gray-700">Active Projects</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
+              <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
@@ -346,11 +346,11 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
 
   return (
     <>
-      <tr className={`hover:bg-gray-50 ${stale ? 'bg-yellow-50/30' : ''}`}>
+      <tr className={`hover:bg-gray-50 transition-colors ${stale ? 'bg-yellow-50/30' : ''}`}>
         <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.projectId}</td>
         <td className="px-4 py-3 max-w-xs">
           <p className="font-medium text-gray-900 truncate">{p.projectName}</p>
-          {p.nickname && <p className="text-xs text-gray-400 truncate">{p.nickname}</p>}
+          {p.nickname && <p className="text-xs text-gray-500 truncate">{p.nickname}</p>}
           <div className="mt-1">
             <ProjectNotesEditor
               projectId={p.id}
@@ -587,7 +587,7 @@ function PhaseGateCard({ project: p, onAdvance }: { project: Project; onAdvance:
   )
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="p-4 flex items-center gap-3">
         <button onClick={() => setExpanded((e) => !e)} className="text-gray-400 hover:text-gray-600">
           <svg className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1114,7 +1114,7 @@ function WarrantyPage() {
       )}
 
       {records.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
@@ -1266,7 +1266,7 @@ function AnnouncementsPage() {
       {/* Form */}
       {editing && (
         <form onSubmit={handleSave} className="bg-white rounded-xl border border-brand-200 shadow-sm p-5 space-y-4">
-          <p className="text-sm font-semibold text-gray-800">{editing === 'new' ? 'New Announcement' : 'Edit Announcement'}</p>
+          <p className="text-sm font-semibold text-gray-700">{editing === 'new' ? 'New Announcement' : 'Edit Announcement'}</p>
           <div>
             <label className="text-xs text-gray-500 block mb-1">Title *</label>
             <input
@@ -1774,7 +1774,7 @@ function MyTasksPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-sm text-red-400">
           Failed to load tasks. <button onClick={() => mutate()} className="underline">Retry</button>
         </div>
       )}

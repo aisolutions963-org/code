@@ -78,7 +78,7 @@ export default function FabDashboard() {
       </div>
 
       {view === 'timeline' && visibleTasks.length > 0 && (
-        <div className="mb-4 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="mb-4 bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="px-4 py-3 border-b border-gray-100">
             <h2 className="text-sm font-semibold text-gray-700">الجدول الزمني للإنتاج</h2>
           </div>

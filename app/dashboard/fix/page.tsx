@@ -103,14 +103,14 @@ export default function FixDashboard() {
 
       {/* F6 — Handover sheet generator */}
       {projects.length > 0 && (
-        <div className="mt-4 bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+        <div className="mt-4 bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-3">
           <p className="text-sm font-semibold text-gray-700">F6 — إنشاء ورقة التسليم</p>
           <div className="flex flex-wrap gap-2">
             {projects.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setHandoverProject(p)}
-                className="text-xs bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 rounded-lg px-3 py-1.5 font-medium"
+                className="text-xs bg-purple-100 border border-purple-200 text-purple-700 hover:bg-purple-200 rounded-lg px-3 py-1.5 font-medium transition-colors"
               >
                 {p.projectId} — {p.projectName}
               </button>
@@ -153,7 +153,7 @@ function LogsView({ projects, onNewLog }: { projects: Project[]; onNewLog: (p: P
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-3">
         <p className="text-sm font-semibold text-gray-700">سجلات التركيب</p>
         <div className="flex flex-wrap gap-2">
           {projects.map((p) => (
@@ -244,7 +244,7 @@ function GatePassesView({ projects }: { projects: Project[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-3">
         <p className="text-sm font-semibold text-gray-700">تصاريح البوابة</p>
         <div className="flex flex-wrap gap-2">
           {projects.map((p) => (
