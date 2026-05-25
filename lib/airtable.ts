@@ -359,7 +359,7 @@ function transformProject(record: RawRecord): Project {
     sedNotes: str(f[PROJECTS.SED_NOTES]),
     projectCreatedAt: str(f[PROJECTS.PROJECT_CREATED_AT]),
     clientPhone: str(f[PROJECTS.CLIENT_PHONE]),
-    assignedInstallationTeam: strArr(f[PROJECTS.ASSIGNED_INSTALLATION_TEAM]),
+    assignedInstallationTeam: strArr(f[PROJECTS.INSTALLATION_TEAM_MEMBERS]),
     emirate: str(f[PROJECTS.EMIRATE]),
     location: str(f[PROJECTS.LOCATION]),
     detailedLocation: str(f[PROJECTS.DETAILED_LOCATION]),
@@ -1077,7 +1077,7 @@ export async function assignInstallationTeam(
   teamMemberIds: string[],
 ): Promise<Project> {
   return updateProject(projectId, {
-    [PROJECTS.ASSIGNED_INSTALLATION_TEAM]: teamMemberIds,
+    [PROJECTS.INSTALLATION_TEAM_MEMBERS]: teamMemberIds,
   })
 }
 

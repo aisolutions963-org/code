@@ -15,7 +15,7 @@ interface ChooseInstallTeamPanelProps {
 }
 
 export default function ChooseInstallTeamPanel({ task, onUpdate }: ChooseInstallTeamPanelProps) {
-  const [selectedTeam, setSelectedTeam] = useState('')
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -28,26 +28,26 @@ export default function ChooseInstallTeamPanel({ task, onUpdate }: ChooseInstall
   const members = data?.members ?? []
 
   async function handleComplete() {
-    if (!selectedTeam) return
+    if (!selectedMember) return
     setError('')
     setSaving(true)
     try {
       const projectId = task.projectRecordId ?? task.project?.[0]
       if (!projectId) throw new Error('No project linked to this task')
-      const res = await fetch(`/api/projects/${projectId}`, {
+      const res = await fetch(`/api/projects/${projectId}/assign-installation`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignedInstallationTeam: selectedTeam }),
+        body: JSON.stringify({ teamMemberIds: [selectedMember.id] }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
-        throw new Error((d as { error?: string }).error ?? 'Failed to update project')
+        throw new Error((d as { error?: string }).error ?? 'Failed to assign team')
       }
       await onUpdate(task.id, { status: 'Completed' } as Partial<TaskUpdateInput>)
-      toast.success(`Installation team assigned: ${selectedTeam}`)
+      toast.success(`Installation team assigned: ${selectedMember.name}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed')
-      toast.error('Failed')
+      toast.error('Failed to assign team')
     } finally {
       setSaving(false)
     }
@@ -80,9 +80,9 @@ export default function ChooseInstallTeamPanel({ task, onUpdate }: ChooseInstall
             <button
               key={member.id}
               type="button"
-              onClick={() => setSelectedTeam(member.name)}
+              onClick={() => setSelectedMember(member)}
               className={`text-left px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
-                selectedTeam === member.name
+                selectedMember?.id === member.id
                   ? 'border-indigo-500 bg-indigo-100 text-indigo-900'
                   : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300'
               }`}
@@ -98,7 +98,7 @@ export default function ChooseInstallTeamPanel({ task, onUpdate }: ChooseInstall
       <div className="flex justify-end pt-1">
         <button
           onClick={handleComplete}
-          disabled={saving || !selectedTeam || isLoading}
+          disabled={saving || !selectedMember || isLoading}
           className="px-4 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-60"
         >
           {saving ? 'Assigning…' : 'Assign & Complete'}

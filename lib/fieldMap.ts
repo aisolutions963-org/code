@@ -101,6 +101,7 @@ export const PROJECTS = {
   CLIENT_PHONE: 'flduN1gfUdUaTN3Af',
   CLIENT: 'fldwLVEUsKeVLvXSb',
   ASSIGNED_INSTALLATION_TEAM: 'fldXdHwEqZLdgBgy4',
+  INSTALLATION_TEAM_MEMBERS: 'fldi1aJVJ94RBk6lP',
   NICKNAME: 'fldChERvQwVlxO1nR',
   EMIRATE: 'fldIrxYRfumFm6JjU',
   LOCATION: 'fld5iIjUh9z7jaJFW',

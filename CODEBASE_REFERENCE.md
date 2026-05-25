@@ -14,6 +14,42 @@ The Next.js API routes (`app/api/`) are thin wrappers: validate the request, cal
 
 ---
 
+## Auth & Session
+
+- JWT stored in httpOnly cookie `ww_session` (24hr expiry, signed with `SESSION_SECRET` env var)
+- **Users live in SQLite** (`/data/users.db`), NOT Airtable. Fields: `id, name, email, hashed_password (bcryptjs), role, active, airtable_member_id`
+- `lib/auth.ts` — `getSession()` reads cookie → verifies JWT → returns `SessionPayload { id, name, email, role }`
+- `lib/apiHandler.ts` — `requireRole(...roles)` wraps every protected route: validates session, checks role, resolves `params` from Next.js dynamic segments, calls handler
+- Login flow: `POST /api/auth/login` → bcrypt compare → sign JWT → set cookie → redirect to `/dashboard/{role}`
+- `lib/db.ts` — SQLite helpers: users CRUD, notifications table, metrics snapshots table
+
+---
+
+## Roles & Permissions
+
+### Role → Department mapping (`lib/permissions.ts`)
+
+| Role | Sees tasks for departments |
+|------|---------------------------|
+| `installation` | Installation |
+| `fabrication` | Fabrication, Installation |
+| `sed` | SED, Fabrication, Installation |
+| `manager` | Manager, Purchase, Mix, SED, Fabrication, Installation |
+| `superadmin` | All |
+
+### Field-level write permissions (`lib/permissions.ts` — `EDITABLE_FIELDS`)
+
+- **installation**: status, teamDaysRequired, noOfLaborsPerDay, installationDays, completionDate, qcCheckAtSiteDone, fillersDone, doc links
+- **fabrication**: status, fabricationPath, postCarpentryPath, plannedProdStartDate, expectedFabEndDate, doc links
+- **sed**: status, postVisitOutcome, taskStartDate, conceptDesignApproval, sampleApproval, quotationOutcome, callCount, sedNote, followUpOutcome, doc links
+- **manager**: status, managerReviewStatus, managerComment, completionDate, plannedProdStartDate, expectedFabEndDate, priorityFlag, requiresManagerReviewManually, doc links
+- **superadmin**: all fields
+
+`canEditField(role, fieldName)` — called before every PATCH
+`filterAllowedFields(role, fields)` — strips unauthorized fields from request body
+
+---
+
 ## Project Lifecycle (Stages)
 
 ```
@@ -279,3 +315,128 @@ Use these terms:
 - **"project-level task"** → task without `projectItem` (order ≤ 22)
 - **"phase 1"** → Preparing stage tasks
 - **"phase 2"** → Open stage tasks
+
+---
+
+## Airtable Tables (`lib/fieldMap.ts`)
+
+Base ID: from env var `AIRTABLE_BASE_ID`
+
+| Constant | Table ID | Purpose |
+|----------|----------|---------|
+| TASKS | tblOGEvAGcieHMPeX | All task instances (52 fields) |
+| PROJECTS | tblNYJQt2YWSWxzHP | Project master records |
+| PROJECT_ITEMS | tblWg3ijuhV1JsijY | Items within each project |
+| TASK_TEMPLATES | tblfJFDNd2dcY1rUk | Blueprint definitions for task generation |
+| QUOTATIONS | tbllITZymuWCZ9tde | Quotation line items |
+| PAYMENTS | tblTrLUuGRGt5iSwD | Payment records |
+| CLIENTS | tblRDICf8jQOOvQPf | Client master data |
+| TEAM_MEMBERS | tbleyX0MkYf1OucMS | App users directory (name, role, email, active) |
+| GATE_PASSES | see fieldMap | Delivery gate passes |
+| MATERIALS_NEEDED | see fieldMap | Material requisitions |
+| HANDOVER_SHEETS | see fieldMap | Project handover records |
+| PURCHASE_ORDERS | see fieldMap | PO records |
+| INSTALLATION_LOGS | see fieldMap | Site work logs |
+| ANNOUNCEMENTS | see fieldMap | System-wide announcements |
+| CALENDAR_EVENTS | see fieldMap | Installation/delivery calendar events |
+
+**Key PROJECTS fields:**
+- `ASSIGNED_INSTALLATION_TEAM` (`fldXdHwEqZLdgBgy4`) — `multipleCollaborators`, **not used for assignment** (requires Airtable user IDs)
+- `INSTALLATION_TEAM_MEMBERS` (`fldi1aJVJ94RBk6lP`) — `multipleRecordLinks` → TEAM_MEMBERS, **used for team assignment**
+- `PROJECT_STAGE` (`fldnINS8WLH5nkNGK`)
+
+**Key TASKS fields:**
+- `STATUS` (`fldZxo3damMz00LZI`)
+- `TEMPLATE_ORDER` — integer, drives sequencing
+- `PATH_CONDITION` — string, groups parallel paths
+- `PLANNED_PROD_START_DATE`, `EXPECTED_FAB_END_DATE` — fabrication date range
+
+---
+
+## Dashboard Pages
+
+| Route | Role | Key views / features |
+|-------|------|---------------------|
+| `/dashboard/sed` | sed | Tasks, Approvals, Site Visits, QC, Projects (New Project, F5 quotation, F3 material order) |
+| `/dashboard/fab` | fabrication | Tasks, Materials (fab dates), Timeline (production schedule) |
+| `/dashboard/fix` | installation | Tasks only |
+| `/dashboard/mgr` | manager | Tasks, Deliveries, Projects (F5/F3/F6-handover/gate-pass/team-assign), Payments, Calendar, Installation |
+| `/dashboard/superadmin` | superadmin | All of the above + system config |
+| `/dashboard/project/[id]` | all | Project detail: tasks, items, payments, gate passes, installation logs |
+| `/home` | all | Pipeline (project stage grouping), Installation & Delivery calendar, team activity |
+
+**Home page special features:**
+- `ProjectPipeline` — groups active projects by stage; projects with `fabricationActive=true` appear in "Production" stage regardless of their Airtable `projectStage`
+- `MiniCalendar` (`type="installation"`) — fabrication date ranges as soft green cell highlights; delivery events as yellow dots; activity events show a detail popover on click
+
+---
+
+## Task Panels (`components/tasks/panels/`)
+
+| Panel | Shown when | What it does |
+|-------|-----------|--------------|
+| `QuotationPanel` | `pathCondition='Make Quotation'` | Enters quotation number + reference; saves to project, then completes task |
+| `F4QuotationPanel` | task name starts `'F4 —'` | Same inputs but for advance payment recording |
+| `OrderSamplePanel` | name=`'Order Sample'`, no `projectItem` | "We Have It" → completes; "Need to Order" → unlocks order branch |
+| `PerItemOrderSamplePanel` | `pathCondition='Select Sample (item)'` + `projectItem` | Same two-button, scoped per item |
+| `F3OrderPanel` | task name starts `'F3 —'` | Small/Big order selector + material table; POST `/f3-order` |
+| `AttachDocsPanel` | Phase 3 per-item final step | 7 document link inputs (Material List, Final Design, MEP, Site Photo, Site Size, Logistics, Sample) |
+| `ChooseInstallTeamPanel` | team assignment task | Fetches from `/api/team/installation`; PATCH `/api/projects/[id]/assign-installation` with record IDs → `INSTALLATION_TEAM_MEMBERS` field |
+| `F2ProductionPanel` | Fabrication date entry task | Arabic UI; enters `plannedProdStartDate` + `expectedFabEndDate` |
+
+---
+
+## State Management
+
+**Client data fetching:** SWR (`swr` package)
+```typescript
+const { data, mutate } = useSWR('/api/tasks?role=sed', fetcher, {
+  refreshInterval: 30000,
+  revalidateOnFocus: true,
+})
+// After a mutation: call mutate() to refresh
+```
+
+**Local UI state:** React `useState` — modals, selections, loading flags
+
+**Session context:** `lib/session-context.tsx` — `useSession()` returns `{ role, name, id }`
+
+**Drawer context:** `lib/drawer-context.tsx` — `useDrawer()` → `openDrawer(title, content)` / `closeDrawer()`. Rendered once at layout level by `ContextDrawer.tsx` (right-side slide-in panel).
+
+**Server-side cache:** `lib/cache.ts` — LRU cache for Airtable responses
+
+---
+
+## Notifications & Email
+
+**In-app notifications:** SQLite `notifications` table
+`lib/notifications.ts` — `createNotification({ userId?, role?, title, message })` — broadcasts to all users with a given role if `role` is provided
+
+**Email:** Resend (`lib/email.ts`), sender `notifications@woodwings.ae`
+Triggered by:
+- Task → Pending Approval → email manager
+- `callCount` reaches 3 → escalation email to manager
+- F4 completion → accountant email
+- Visit site task date set → manager notification
+- Manager rejection → dept notification
+
+Required env vars: `MANAGER_EMAIL`, `RESEND_API_KEY`
+
+---
+
+## Recent / Notable Changes
+
+**`fabricationActive` on `Project`**
+- Computed server-side in `getProjects()` / `getAllProjects()` via `getFabricationActiveProjectIds()`
+- `true` when any task for that project is in the Fabrication department AND not Locked/Completed
+- Used by home page `ProjectPipeline` to override stage and show project in "Production"
+
+**`INSTALLATION_TEAM_MEMBERS` field**
+- Added `PROJECTS.INSTALLATION_TEAM_MEMBERS = 'fldi1aJVJ94RBk6lP'` (`multipleRecordLinks` → TEAM_MEMBERS)
+- `transformProject` reads `assignedInstallationTeam` from this field
+- `assignInstallationTeam()` writes TEAM_MEMBERS record IDs to this field
+- Old `ASSIGNED_INSTALLATION_TEAM` field (`fldXdHwEqZLdgBgy4`, `multipleCollaborators`) is now **unused**
+
+**Calendar fabrication ranges**
+- `getCalendarEvents()` emits one range event per fabrication task: `{ date: startDate, endDate: expectedFabEndDate, type: 'fabrication' }`
+- `MiniCalendar` renders range days as `bg-emerald-50` (not dots); start/end days get rounded corners

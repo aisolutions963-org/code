@@ -92,6 +92,23 @@ export const PATCH = requireRole()(
         }
       }
       await handleTaskCompletion(params.id, session.name)
+      if (taskForValidation.taskName.toLowerCase().startsWith('fixing team note')) {
+        const projectRef = taskForValidation.projectRef ?? taskForValidation.project?.[0] ?? ''
+        const projectLabel = taskForValidation.projectName
+          ? `${projectRef} — ${taskForValidation.projectName}`
+          : projectRef
+        const daysVal = otherFields.teamDaysRequired ?? taskForValidation.teamDaysRequired
+        const workersVal = otherFields.noOfLaborsPerDay ?? taskForValidation.noOfLaborsPerDay
+        const body = `${daysVal != null ? `${daysVal} days` : ''}${daysVal != null && workersVal != null ? ', ' : ''}${workersVal != null ? `${workersVal} workers/day` : ''} needed for handover${projectLabel ? ` — ${projectLabel}` : ''}`
+        for (const role of ['manager', 'sed', 'superadmin'] as const) {
+          createNotification({
+            recipientRole: role,
+            title: `Fixing team handover note — ${projectRef}`,
+            body,
+            link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
+          })
+        }
+      }
     } else if (status === 'In Progress') {
       await updateTask(params.id, { status: 'In Progress', startedAt: new Date().toISOString() })
     } else if (status) {

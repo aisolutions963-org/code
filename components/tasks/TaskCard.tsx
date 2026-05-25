@@ -10,6 +10,7 @@ import F3OrderPanel from './panels/F3OrderPanel'
 import QuotationPanel from './panels/QuotationPanel'
 import AttachDocsPanel from './panels/AttachDocsPanel'
 import ChooseInstallTeamPanel from './panels/ChooseInstallTeamPanel'
+import FixingTeamNotePanel from './panels/FixingTeamNotePanel'
 
 type CallOutcome = 'approved' | 'review' | 'refused'
 
@@ -246,6 +247,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     .toLowerCase()
     .startsWith('choose installation team')
   const isF2ProductionTask = task.taskName.toLowerCase().startsWith('f2 production list')
+  const isFixingTeamNoteTask = task.taskName.toLowerCase().startsWith('fixing team note')
 
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
@@ -325,6 +327,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     if ((isOrderSample || isPerItemOrderSample) && key === 'status' && value === 'Completed') return
     if (isAttachDocsTask && key === 'status' && value === 'Completed') return
     if (isChooseInstallTeamTask && key === 'status' && value === 'Completed') return
+    if (isFixingTeamNoteTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
     if (isF2ProductionTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
     if (isF2ProductionTask && task.status !== 'Completed' && (key === 'plannedProdStartDate' || key === 'expectedFabEndDate')) {
       setLocalFields((prev) => ({ ...prev, [key]: value }))
@@ -557,6 +560,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           {/* Choose installation team panel — Phase 3 order 39 */}
           {isChooseInstallTeamTask && (
             <ChooseInstallTeamPanel task={task} onUpdate={onUpdate} />
+          )}
+
+          {/* Fixing team note — days & workers needed for handover */}
+          {isFixingTeamNoteTask && (
+            <FixingTeamNotePanel task={task} onUpdate={onUpdate} />
           )}
 
           {/* F2 Production List panel — fabrication date range entry */}
