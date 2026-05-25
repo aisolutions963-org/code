@@ -164,6 +164,7 @@ export interface Project {
   detailedLocation?: string
   projectDescription?: string
   communSeds?: string[]
+  fabricationActive?: boolean
 }
 
 export interface ProjectCreateInput {

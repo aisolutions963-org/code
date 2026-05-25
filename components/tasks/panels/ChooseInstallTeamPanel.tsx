@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import useSWR from 'swr'
 import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput } from '@/lib/types'
 
-const INSTALL_TEAMS = ['Engr. Abdulkarim', 'Mr. Al Mahdi', 'Mr. Yahia'] as const
+interface TeamMember { id: string; name: string }
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 interface ChooseInstallTeamPanelProps {
   task: Task
@@ -15,6 +18,14 @@ export default function ChooseInstallTeamPanel({ task, onUpdate }: ChooseInstall
   const [selectedTeam, setSelectedTeam] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const { data, isLoading } = useSWR<{ members: TeamMember[] }>(
+    '/api/team/installation',
+    fetcher,
+    { revalidateOnFocus: false },
+  )
+
+  const members = data?.members ?? []
 
   async function handleComplete() {
     if (!selectedTeam) return
@@ -54,27 +65,40 @@ export default function ChooseInstallTeamPanel({ task, onUpdate }: ChooseInstall
   return (
     <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-3 space-y-2">
       <p className="text-xs font-semibold text-indigo-800">Assign Installation Team</p>
-      <div className="grid grid-cols-1 gap-1.5">
-        {INSTALL_TEAMS.map((team) => (
-          <button
-            key={team}
-            type="button"
-            onClick={() => setSelectedTeam(team)}
-            className={`text-left px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
-              selectedTeam === team
-                ? 'border-indigo-500 bg-indigo-100 text-indigo-900'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300'
-            }`}
-          >
-            {team}
-          </button>
-        ))}
-      </div>
+
+      {isLoading && (
+        <p className="text-xs text-indigo-500">Loading teams…</p>
+      )}
+
+      {!isLoading && members.length === 0 && (
+        <p className="text-xs text-red-600">No installation team members found in Airtable.</p>
+      )}
+
+      {!isLoading && members.length > 0 && (
+        <div className="grid grid-cols-1 gap-1.5">
+          {members.map((member) => (
+            <button
+              key={member.id}
+              type="button"
+              onClick={() => setSelectedTeam(member.name)}
+              className={`text-left px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                selectedTeam === member.name
+                  ? 'border-indigo-500 bg-indigo-100 text-indigo-900'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300'
+              }`}
+            >
+              {member.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && <p className="text-xs text-red-600">{error}</p>}
+
       <div className="flex justify-end pt-1">
         <button
           onClick={handleComplete}
-          disabled={saving || !selectedTeam}
+          disabled={saving || !selectedTeam || isLoading}
           className="px-4 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-60"
         >
           {saving ? 'Assigning…' : 'Assign & Complete'}

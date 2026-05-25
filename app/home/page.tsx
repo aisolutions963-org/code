@@ -10,7 +10,8 @@ interface CalendarEvent {
   id: string
   title: string
   date: string
-  type: 'installation' | 'delivery' | 'activity'
+  endDate?: string
+  type: 'installation' | 'delivery' | 'activity' | 'fabrication'
   projectId?: string
 }
 
@@ -92,10 +93,13 @@ function MiniCalendar({
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
+  const [popoverEvent, setPopoverEvent] = useState<{ ev: CalendarEvent; x: number; y: number } | null>(null)
 
   const title = type === 'installation' ? 'Installation & Delivery Calendar' : 'Project Activity Calendar'
   const filtered = events.filter((e) =>
-    type === 'installation' ? e.type === 'installation' || e.type === 'delivery' : e.type === 'activity',
+    type === 'installation'
+      ? e.type === 'installation' || e.type === 'delivery' || e.type === 'fabrication'
+      : e.type === 'activity',
   )
 
   const year = currentMonth.getFullYear()
@@ -106,13 +110,34 @@ function MiniCalendar({
 
   const todayStr = new Date().toISOString().slice(0, 10)
 
+  const pointEvents = filtered.filter((e) => e.type !== 'fabrication')
+  const fabRanges = filtered.filter((e) => e.type === 'fabrication')
+
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
+
   const eventsByDate: Record<string, CalendarEvent[]> = {}
-  for (const ev of filtered) {
+  for (const ev of pointEvents) {
     const d = ev.date.slice(0, 10)
-    if (d.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)) {
+    if (d.startsWith(monthPrefix)) {
       if (!eventsByDate[d]) eventsByDate[d] = []
       eventsByDate[d].push(ev)
     }
+  }
+
+  function getFabStatus(dateStr: string): { inRange: boolean; isStart: boolean; isEnd: boolean; titles: string[] } {
+    const titles: string[] = []
+    let inRange = false; let isStart = false; let isEnd = false
+    for (const ev of fabRanges) {
+      const start = ev.date.slice(0, 10)
+      const end = (ev.endDate ?? ev.date).slice(0, 10)
+      if (dateStr >= start && dateStr <= end) {
+        inRange = true
+        if (dateStr === start) isStart = true
+        if (dateStr === end) isEnd = true
+        titles.push(ev.title)
+      }
+    }
+    return { inRange, isStart, isEnd, titles }
   }
 
   const cells: (number | null)[] = [
@@ -120,8 +145,8 @@ function MiniCalendar({
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
 
-  const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1))
-  const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1))
+  const prevMonth = () => { setCurrentMonth(new Date(year, month - 1, 1)); setPopoverEvent(null) }
+  const nextMonth = () => { setCurrentMonth(new Date(year, month + 1, 1)); setPopoverEvent(null) }
 
   const monthLabel = currentMonth.toLocaleDateString('en-AE', { month: 'long', year: 'numeric' })
 
@@ -173,27 +198,36 @@ function MiniCalendar({
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             const evs = eventsByDate[dateStr] ?? []
             const isToday = dateStr === todayStr
+            const fab = getFabStatus(dateStr)
+            const hasTooltip = evs.length > 0 || fab.inRange
             return (
               <div
                 key={dateStr}
                 onClick={() => onDayClick?.(dateStr)}
                 className={`relative flex flex-col items-center py-1 rounded-lg group
                   ${onDayClick ? 'cursor-pointer' : 'cursor-default'}
-                  ${isToday ? 'bg-brand-500' : onDayClick ? 'hover:bg-blue-50' : evs.length > 0 ? 'hover:bg-gray-50' : ''}`}
+                  ${isToday ? 'bg-brand-500' : fab.inRange ? 'bg-emerald-50' : onDayClick ? 'hover:bg-blue-50' : evs.length > 0 ? 'hover:bg-gray-50' : ''}`}
               >
-                <span className={`text-xs font-medium ${isToday ? 'text-white' : 'text-gray-700'}`}>
+                <span className={`text-xs font-medium ${isToday ? 'text-white' : fab.inRange ? 'text-emerald-800' : 'text-gray-700'}`}>
                   {day}
                 </span>
+                {fab.inRange && !isToday && (
+                  <div className="flex gap-0.5 mt-0.5 justify-center">
+                    {fab.isStart && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                    {fab.isEnd && !fab.isStart && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
+                    {!fab.isStart && !fab.isEnd && <span className="w-2 h-0.5 bg-emerald-300 rounded-full" />}
+                  </div>
+                )}
                 {evs.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
                     {evs.slice(0, 3).map((ev) => (
                       <span
                         key={ev.id}
-                        className={`w-1.5 h-1.5 rounded-full ${
+                        onClick={(e) => { e.stopPropagation(); setPopoverEvent({ ev, x: e.clientX, y: e.clientY }) }}
+                        className={`w-2 h-2 rounded-full cursor-pointer hover:scale-125 transition-transform ${
                           ev.type === 'installation' ? 'bg-blue-500' :
-                          ev.type === 'delivery' ? 'bg-green-500' : 'bg-amber-400'
+                          ev.type === 'delivery' ? 'bg-yellow-400' : 'bg-amber-400'
                         }`}
-                        title={ev.title}
                       />
                     ))}
                     {evs.length > 3 && (
@@ -201,8 +235,11 @@ function MiniCalendar({
                     )}
                   </div>
                 )}
-                {evs.length > 0 && (
+                {hasTooltip && (
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-10 hidden group-hover:block w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-lg pointer-events-none">
+                    {fab.titles.map((t, i) => (
+                      <div key={i} className="truncate text-emerald-300">{t}</div>
+                    ))}
                     {evs.map((ev) => (
                       <div key={ev.id} className="truncate">{ev.title}</div>
                     ))}
@@ -222,7 +259,10 @@ function MiniCalendar({
               <span className="w-2 h-2 rounded-full bg-blue-500" />Installation
             </span>
             <span className="flex items-center gap-1 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-green-500" />Delivery
+              <span className="w-2 h-2 rounded-full bg-yellow-400" />Delivery
+            </span>
+            <span className="flex items-center gap-1 text-xs text-gray-500">
+              <span className="w-4 h-3 rounded bg-emerald-50 border border-emerald-300 inline-block" />Fabrication
             </span>
           </>
         ) : (
@@ -231,6 +271,79 @@ function MiniCalendar({
           </span>
         )}
       </div>
+
+      {/* Event detail popover */}
+      {popoverEvent && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setPopoverEvent(null)} />
+          <div
+            className="fixed z-50 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 p-4"
+            style={{
+              top: Math.min(popoverEvent.y + 10, window.innerHeight - 240),
+              left: Math.min(Math.max(popoverEvent.x - 128, 8), window.innerWidth - 272),
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="min-w-0 flex-1">
+                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-md mb-1.5 ${
+                  popoverEvent.ev.type === 'activity' ? 'bg-amber-100 text-amber-700' :
+                  popoverEvent.ev.type === 'installation' ? 'bg-blue-100 text-blue-700' :
+                  'bg-green-100 text-green-700'
+                }`}>
+                  {popoverEvent.ev.type}
+                </span>
+                <p className="text-sm font-semibold text-gray-900 leading-snug">{popoverEvent.ev.title}</p>
+              </div>
+              <button
+                onClick={() => setPopoverEvent(null)}
+                className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors mt-0.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Details */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-400 w-14 shrink-0">Date</span>
+                <span className="text-gray-800 font-medium">
+                  {new Date(popoverEvent.ev.date + 'T00:00:00').toLocaleDateString('en-AE', {
+                    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+                  })}
+                </span>
+              </div>
+              {popoverEvent.ev.createdBy && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-gray-400 w-14 shrink-0">Set by</span>
+                  <span className="text-gray-800 font-medium">{popoverEvent.ev.createdBy}</span>
+                </div>
+              )}
+              {popoverEvent.ev.projectId && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-gray-400 w-14 shrink-0">Project</span>
+                  <span className="font-mono text-gray-700">{popoverEvent.ev.projectId}</span>
+                </div>
+              )}
+              {popoverEvent.ev.customTask && (
+                <div className="text-xs">
+                  <span className="text-gray-400">Task</span>
+                  <p className="text-gray-800 mt-0.5 font-medium">{popoverEvent.ev.customTask}</p>
+                </div>
+              )}
+              {popoverEvent.ev.notes && (
+                <div className="text-xs pt-1 border-t border-gray-100">
+                  <span className="text-gray-400">Notes</span>
+                  <p className="text-gray-700 mt-0.5 whitespace-pre-wrap leading-relaxed">{popoverEvent.ev.notes}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -670,7 +783,8 @@ function ProjectPipeline({ role }: { role: string }) {
   const grouped: Record<string, Project[]> = {}
   for (const s of PIPELINE_STAGES) grouped[s.key] = []
   for (const p of active) {
-    if (p.projectStage in grouped) grouped[p.projectStage].push(p)
+    const stage = p.fabricationActive ? 'Production' : p.projectStage
+    if (stage in grouped) grouped[stage].push(p)
   }
 
   return (
@@ -710,6 +824,7 @@ function ProjectPipeline({ role }: { role: string }) {
                       stageProjects.map((p) => {
                         const task = getCurrentTask(p.id)
                         const inProgress = task?.status === 'In Progress'
+                        const fabOverride = p.fabricationActive && stage.key === 'Production' && p.projectStage !== 'Production'
                         return (
                           <div
                             key={p.id}
@@ -718,9 +833,14 @@ function ProjectPipeline({ role }: { role: string }) {
                           >
                             <div className="flex items-start justify-between gap-1">
                               <div className="min-w-0 flex-1">
-                                <p className="text-[10px] font-mono text-gray-500 leading-none mb-0.5">
-                                  {p.projectId}
-                                </p>
+                                <div className="flex items-center gap-1 mb-0.5">
+                                  <p className="text-[10px] font-mono text-gray-500 leading-none">
+                                    {p.projectId}
+                                  </p>
+                                  {fabOverride && (
+                                    <span className="text-[9px] font-semibold px-1 py-0 rounded bg-amber-500/20 text-amber-400 leading-4">FAB</span>
+                                  )}
+                                </div>
                                 <p className="text-xs font-semibold text-white truncate leading-tight">
                                   {p.projectName}
                                   {p.nickname && (

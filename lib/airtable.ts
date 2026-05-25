@@ -569,23 +569,43 @@ export async function getLockedTasksForScope(
   return itemId ? tasks.filter((t) => t.projectItem?.[0] === itemId) : tasks
 }
 
+async function getFabricationActiveProjectIds(): Promise<Set<string>> {
+  const fabTasks = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: `AND(FIND("Fabrication", ARRAYJOIN({${TASKS.DEPARTMENT}}, ",")), NOT({${TASKS.STATUS}} = "Locked"), NOT({${TASKS.STATUS}} = "Completed"))`,
+    fields: [TASKS.PROJECT],
+  })
+  const ids = new Set<string>()
+  for (const r of fabTasks) {
+    for (const pid of strArr(r.fields[TASKS.PROJECT])) {
+      ids.add(pid)
+    }
+  }
+  return ids
+}
+
 export async function getProjects(options: { stage?: string } = {}): Promise<Project[]> {
   let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Archived"))`
   if (options.stage) {
     formula = `{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`
   }
-  const records = await fetchAll(PROJECTS.TABLE_ID, {
-    filterByFormula: formula,
-    sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
-  })
-  return records.map(transformProject)
+  const [records, fabActiveIds] = await Promise.all([
+    fetchAll(PROJECTS.TABLE_ID, {
+      filterByFormula: formula,
+      sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
+    }),
+    getFabricationActiveProjectIds(),
+  ])
+  return records.map(r => ({ ...transformProject(r), fabricationActive: fabActiveIds.has(r.id) }))
 }
 
 export async function getAllProjects(): Promise<Project[]> {
-  const records = await fetchAll(PROJECTS.TABLE_ID, {
-    sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
-  })
-  return records.map(transformProject)
+  const [records, fabActiveIds] = await Promise.all([
+    fetchAll(PROJECTS.TABLE_ID, {
+      sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
+    }),
+    getFabricationActiveProjectIds(),
+  ])
+  return records.map(r => ({ ...transformProject(r), fabricationActive: fabActiveIds.has(r.id) }))
 }
 
 export async function projectNameExists(name: string): Promise<boolean> {
@@ -1731,6 +1751,7 @@ export interface CalendarEvent {
   id: string
   title: string
   date: string
+  endDate?: string
   type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication'
   projectId?: string
   projectName?: string
@@ -1803,11 +1824,16 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const startDate = str(f[TASKS.PLANNED_PROD_START_DATE])
     const endDate = str(f[TASKS.EXPECTED_FAB_END_DATE])
     const label = str(f[TASKS.TASK_NAME]) ?? 'Production'
-    if (startDate) {
-      events.push({ id: `${r.id}-fab-s`, title: `Fab Start — ${label}`, date: startDate, type: 'fabrication', projectId })
-    }
-    if (endDate) {
-      events.push({ id: `${r.id}-fab-e`, title: `Fab Delivery — ${label}`, date: endDate, type: 'fabrication', projectId })
+    const d = startDate || endDate
+    if (d) {
+      events.push({
+        id: `${r.id}-fab`,
+        title: label,
+        date: d,
+        endDate: endDate || d,
+        type: 'fabrication',
+        projectId,
+      })
     }
   }
 
