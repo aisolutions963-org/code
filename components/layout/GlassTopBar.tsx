@@ -22,6 +22,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/mgr': 'My Tasks',
   '/dashboard/superadmin': 'Overview',
   '/dashboard/pipeline': 'Pipeline',
+  '/dashboard/notifications': 'Notifications',
 }
 
 interface SuperadminMetrics {
@@ -308,7 +309,7 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                     {appNotifications.slice(0, 10).map((n) => (
                       <Link
                         key={n.id}
-                        href={n.link || '#'}
+                        href="/dashboard/notifications"
                         onClick={() => { handleMarkRead(n.id); setBellOpen(false) }}
                         className={`block px-4 py-3 hover:bg-white/[0.04] transition-colors border-b border-white/[0.04] last:border-0 ${n.read === 0 ? 'bg-blue-500/5' : ''}`}
                       >
@@ -318,7 +319,7 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                             <p className="text-xs font-semibold text-white/80 leading-snug">{n.title}</p>
                             {n.body && <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2 whitespace-pre-wrap">{n.body}</p>}
                             <p className="text-[10px] text-white/25 mt-0.5">
-                              {new Date(n.created_at).toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              {new Date(n.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
                         </div>

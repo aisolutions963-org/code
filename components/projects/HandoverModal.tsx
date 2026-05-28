@@ -146,10 +146,9 @@ export default function HandoverModal({
     if (!finalInstallationDate) { setErr('Final installation date is required'); return }
     if (!customerSatisfaction) { setErr('Customer satisfaction is required'); return }
     if (!installationDifficulty) { setErr('Installation difficulty is required'); return }
-    if (!fileRef.current?.files?.[0]) { setErr('Signed H.O. document is required'); return }
-
-    const file = fileRef.current.files[0]
-    if (file.size > 20 * 1024 * 1024) { setErr('File must be under 20 MB'); return }
+    // Signed document is optional — can be added later if client signs on site
+    const file = fileRef.current?.files?.[0]
+    if (file && file.size > 20 * 1024 * 1024) { setErr('File must be under 20 MB'); return }
 
     setSaving(true)
     try {
@@ -159,7 +158,7 @@ export default function HandoverModal({
       fd.append('installationDifficulty', installationDifficulty)
       fd.append('newsletterOptIn', String(newsletterOptIn))
       if (notes.trim()) fd.append('notes', notes.trim())
-      fd.append('signedDocument', file)
+      if (file) fd.append('signedDocument', file)
 
       const res = await fetch(`/api/projects/${projectId}/handover`, { method: 'POST', body: fd })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
@@ -195,7 +194,7 @@ export default function HandoverModal({
             </svg>
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-900">Handover sheet created</p>
+            <p className="text-sm font-semibold text-gray-900">Handover submitted — awaiting final payment</p>
             {handoverId && <p className="text-xs font-mono text-gray-400 mt-0.5">{handoverId}</p>}
             <p className="text-xs text-gray-500 mt-0.5">{projectName}</p>
           </div>
@@ -219,7 +218,7 @@ export default function HandoverModal({
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleGenerate} loading={saving}>Generate & Download PDF</Button>
+          <Button onClick={handleGenerate} loading={saving}>Submit Handover</Button>
         </>
       }
     >
@@ -284,7 +283,7 @@ export default function HandoverModal({
         {/* Signed H.O. Document */}
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">
-            Signed H.O. Document <span className="text-red-500">*</span>
+            Signed H.O. Document <span className="text-gray-400">(optional)</span>
           </label>
           <div
             className="border border-gray-300 rounded-lg px-3 py-2.5 flex items-center gap-3 cursor-pointer hover:border-brand-400 transition-colors"
@@ -330,7 +329,7 @@ export default function HandoverModal({
         </div>
 
         <p className="text-xs text-gray-400">
-          Creates a Handover Sheet record and opens a print-ready PDF. <span className="text-red-400">*</span> Required fields.
+          Submitting this form records the handover and notifies the team to request final payment from the client. The project closes automatically once the final payment is recorded.
         </p>
       </div>
     </Modal>

@@ -8,6 +8,7 @@ import {
   getLockedBranchTasksForProject,
   generateTasksForProject,
   generatePhase3TasksForItem,
+  generatePhase4Tasks,
   createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
@@ -182,6 +183,20 @@ async function unlockNextTasks(task: Task): Promise<void> {
     // Headline banners are purely visual and generate no notification.
     for (const t of autoComplete) {
       if (t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX)) continue
+      // "Send to SED & Fixing Team" is a fabrication-completion signal — send a
+      // targeted, human-readable alert to SED and installation instead of a task
+      // notification, since the task itself is invisible (auto-completed immediately).
+      if (t.taskName.toLowerCase().includes('send to sed') && t.taskName.toLowerCase().includes('fixing team')) {
+        for (const role of ['sed', 'installation'] as const) {
+          createNotification({
+            recipientRole: role,
+            title: `Fabrication complete — 2 days to check items & tools`,
+            body: `Items for project ${projectLabel} are ready. Verify all items and tools before delivery.`,
+            link: ROLE_DASHBOARD[role],
+          })
+        }
+        continue
+      }
       const depts = t.department ?? []
       const roles = depts
         .map((d) => DEPT_ROLE_MAP[d])
@@ -261,6 +276,21 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
   )
 }
 
+async function maybeGeneratePhase4(task: Task): Promise<void> {
+  if (!task.taskName.toLowerCase().startsWith(PHASE_CONFIG.Closing.triggerTaskPrefix)) return
+  const projectId = task.project?.[0]
+  if (!projectId) return
+
+  const { todoTemplates } = await generatePhase4Tasks(projectId)
+  if (todoTemplates.length === 0) return
+
+  const projectRef = task.projectId ?? projectId
+  notifyTasksReady(
+    todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
+    `Phase 4 — Closing started for project ${projectRef}`,
+  )
+}
+
 export async function handleTaskCompletion(
   taskId: string,
   submittedBy?: string,
@@ -299,6 +329,7 @@ export async function handleTaskCompletion(
 
       await unlockNextTasks(task)
       maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
+      maybeGeneratePhase4(task).catch((err) => console.error('[P4-GEN]', err))
 
       // After F4 (advance payment), notify SED to submit quotation line items (F5)
       if (task.taskName.toLowerCase().startsWith('f4 —')) {
@@ -342,6 +373,7 @@ export async function handleManagerApproval(taskId: string): Promise<void> {
 
       await unlockNextTasks(task)
       maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
+      maybeGeneratePhase4(task).catch((err) => console.error('[P4-GEN]', err))
     })(),
   )
 }

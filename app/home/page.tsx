@@ -4,16 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Announcement, Project, Task } from '@/lib/types'
+import type { CalendarEvent } from '@/lib/airtable'
 import { useSession } from '@/app/dashboard/layout-client'
-
-interface CalendarEvent {
-  id: string
-  title: string
-  date: string
-  endDate?: string
-  type: 'installation' | 'delivery' | 'activity' | 'fabrication'
-  projectId?: string
-}
 
 interface HomeData {
   announcements: Announcement[]

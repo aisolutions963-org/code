@@ -52,7 +52,7 @@ export default function FixDashboard() {
   const completed = tasks.filter((t) => t.status === 'Completed')
 
   let visibleTasks = tasks
-  if (view === 'deliveries') visibleTasks = tasks.filter((t) => t.handoverDocument && t.handoverDocument.length > 0)
+  if (view === 'deliveries') visibleTasks = tasks.filter((t) => !!t.completionDate)
   if (view === 'inspections') visibleTasks = tasks.filter((t) => t.qcCheckAtSiteDone !== undefined)
 
   return (

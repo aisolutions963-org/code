@@ -24,17 +24,11 @@ function collectGroups(tasks: Task[]): TaskGroup[] {
     for (const d of task.taskDocLinks ?? []) {
       if (d.url) links.push({ label: d.label || 'Link', url: d.url, notes: d.notes })
     }
-    for (const d of task.handoverDocLinks ?? []) {
-      if (d.url) links.push({ label: d.label || 'Handover', url: d.url, notes: d.notes })
-    }
     for (const d of task.fillersDocLinks ?? []) {
       if (d.url) links.push({ label: d.label || 'Fillers', url: d.url, notes: d.notes })
     }
     for (const a of task.taskDocuments ?? []) {
       if (a.url) links.push({ label: a.filename || 'File', url: a.url })
-    }
-    for (const a of task.handoverDocument ?? []) {
-      if (a.url) links.push({ label: a.filename || 'Handover file', url: a.url })
     }
     for (const a of task.fillersAndMissingList ?? []) {
       if (a.url) links.push({ label: a.filename || 'Fillers file', url: a.url })

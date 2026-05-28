@@ -39,7 +39,17 @@ db.exec(`
     read INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
 `)
+
+db.prepare(
+  `INSERT OR IGNORE INTO settings (key, value) VALUES ('accountant_email', 'aisolutions963@gmail.com')`
+).run()
 
 export interface DBUser {
   id: number
@@ -112,6 +122,18 @@ export function updateUser(
 
 export function deleteUser(id: number): void {
   db.prepare(`UPDATE users SET active = 0, updated_at = datetime('now') WHERE id = ?`).run(id)
+}
+
+export function getSetting(key: string): string | undefined {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined
+  return row?.value
+}
+
+export function setSetting(key: string, value: string): void {
+  db.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+  ).run(key, value)
 }
 
 export default db

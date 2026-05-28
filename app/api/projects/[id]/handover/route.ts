@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { createHandoverSheet, uploadAttachmentToRecord } from '@/lib/airtable'
+import { createHandoverSheet, getProjectById, updateProject } from '@/lib/airtable'
 import { CreateHandoverSchema } from '@/lib/validation'
-import { HANDOVER_SHEETS } from '@/lib/fieldMap'
+import { PROJECTS } from '@/lib/fieldMap'
+import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
 export const POST = requireRole('installation', 'manager', 'superadmin')(
-  async (req: NextRequest, _session, { params }) => {
+  async (req: NextRequest, session, { params }) => {
     let formData: FormData
     try {
       formData = await req.formData()
@@ -27,31 +28,26 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
       )
     }
 
-    const signedDoc = formData.get('signedDocument') as File | null
-    if (!signedDoc || signedDoc.size === 0) {
-      return NextResponse.json({ error: 'Signed H.O. document is required' }, { status: 400 })
+    const project = await getProjectById(params.id)
+    const sheet = await createHandoverSheet(params.id, parsed.data)
+
+    // Handover submitted → awaiting final payment from client. Project is not yet Closed.
+    await updateProject(params.id, { [PROJECTS.PROJECT_STAGE]: 'Installation Completed' })
+
+    const projectRef = project.projectId ?? params.id
+    const projectLabel = project.projectName
+      ? `${projectRef} — ${project.projectName}`
+      : projectRef
+
+    for (const role of ['manager', 'sed', 'superadmin'] as const) {
+      createNotification({
+        recipientRole: role,
+        title: `Handover submitted — final payment pending`,
+        body: `Handover recorded for ${projectLabel}. Final installation: ${parsed.data.finalInstallationDate}. Please request final payment from client to close project. Submitted by ${session.name}.`,
+        link: ROLE_DASHBOARD[role],
+      })
     }
 
-    try {
-      const sheet = await createHandoverSheet(params.id, parsed.data)
-
-      // Upload signed document to the handover sheet's PDF field
-      try {
-        const buffer = Buffer.from(await signedDoc.arrayBuffer())
-        await uploadAttachmentToRecord(sheet.id, HANDOVER_SHEETS.PDF, {
-          name: signedDoc.name,
-          type: signedDoc.type,
-          buffer,
-        })
-      } catch (uploadErr) {
-        console.error('[HANDOVER] Document upload failed:', uploadErr)
-        // Sheet was created — continue even if upload fails
-      }
-
-      return NextResponse.json({ sheet })
-    } catch (error) {
-      console.error('POST /api/projects/[id]/handover error:', error)
-      return NextResponse.json({ error: 'Failed to create handover sheet' }, { status: 500 })
-    }
+    return NextResponse.json({ sheet })
   },
 )

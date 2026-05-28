@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { getSetting } from './db'
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY)
@@ -84,9 +85,11 @@ export async function notifyAccountant(payment: {
   receivedDate: string
   recordedBy: string
 }): Promise<void> {
+  const accountantEmail = getSetting('accountant_email')
+  if (!accountantEmail) return
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
-    to: process.env.ACCOUNTANT_EMAIL!,
+    to: accountantEmail,
     subject: `Payment recorded — ${payment.projectId} — AED ${payment.amount.toLocaleString()}`,
     html: `
       <h2>Payment recorded on WoodWings</h2>

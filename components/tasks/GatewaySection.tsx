@@ -106,7 +106,6 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
         onDocLinkRemoved={handleDocLinkRemoved}
         existingAttachments={{
           taskDocuments: task.taskDocuments,
-          handoverDocument: task.handoverDocument,
           fillersAndMissingList: task.fillersAndMissingList,
         }}
       />

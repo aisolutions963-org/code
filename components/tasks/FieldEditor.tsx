@@ -12,7 +12,6 @@ interface FieldEditorProps {
   onDocLinkRemoved: (fieldKey: string, index: number) => void
   existingAttachments: {
     taskDocuments?: Attachment[]
-    handoverDocument?: Attachment[]
     fillersAndMissingList?: Attachment[]
   }
 }
@@ -52,7 +51,6 @@ const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   requiresManagerReviewManually: 'Requires Manager Review',
   priorityFlag: 'Priority Flag',
   taskDocLinks: 'Task Documents',
-  handoverDocLinks: 'Handover Document',
   fillersDocLinks: 'Fillers & Missing Items List',
 }
 
@@ -69,7 +67,6 @@ const FIELD_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
   qcCheckAtSiteDone: 'فحص الجودة في الموقع',
   fillersDone: 'تم الفيلر',
   taskDocLinks: 'مستندات المهمة',
-  handoverDocLinks: 'وثيقة التسليم',
   fillersDocLinks: 'قائمة الفيلر والمواد الناقصة',
 }
 
@@ -86,7 +83,6 @@ const OPTION_LABELS_AR: Partial<Record<string, string>> = {
 
 const DOC_LINK_FIELDS: (keyof TaskUpdateInput)[] = [
   'taskDocLinks',
-  'handoverDocLinks',
   'fillersDocLinks',
 ]
 
@@ -256,7 +252,6 @@ export default function FieldEditor({
   // Old attachment fields (read-only, backward compat)
   const oldAttachmentMap: Record<string, Attachment[] | undefined> = {
     taskDocLinks: existingAttachments.taskDocuments,
-    handoverDocLinks: existingAttachments.handoverDocument,
     fillersDocLinks: existingAttachments.fillersAndMissingList,
   }
 

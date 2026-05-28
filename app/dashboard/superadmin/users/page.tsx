@@ -26,6 +26,8 @@ const ROLE_LABELS: Record<string, string> = {
   installation: 'Installation',
 }
 
+import toast from 'react-hot-toast'
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 interface UserFormState {
@@ -37,6 +39,86 @@ interface UserFormState {
 }
 
 const emptyForm: UserFormState = { name: '', email: '', password: '', role: 'manager', airtable_member_id: '' }
+
+function EmailSettingsCard() {
+  const { data, mutate } = useSWR<{ accountantEmail: string }>('/api/settings', fetcher)
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  function startEdit() {
+    setValue(data?.accountantEmail ?? '')
+    setEditing(true)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountantEmail: value }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error ?? 'Failed')
+      }
+      await mutate()
+      setEditing(false)
+      toast.success('Accountant email updated')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm px-5 py-4 mb-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Accountant Email</p>
+          <p className="text-sm text-gray-500 leading-snug">Payment notifications are sent to this address.</p>
+        </div>
+        {editing ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              type="email"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-64"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false) }}
+            />
+            <button
+              onClick={handleSave}
+              disabled={saving || !value.includes('@')}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="text-xs px-2 py-1.5 text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-sm font-mono text-gray-800">{data?.accountantEmail ?? '—'}</span>
+            <button
+              onClick={startEdit}
+              className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+            >
+              Edit
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function UsersPage() {
   const { data, error, isLoading, mutate } = useSWR<{ users: User[] }>(
@@ -136,6 +218,8 @@ export default function UsersPage() {
         </div>
         <Button onClick={openAdd}>Add User</Button>
       </div>
+
+      <EmailSettingsCard />
 
       {isLoading && (
         <div className="flex justify-center py-12">

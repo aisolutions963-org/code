@@ -18,7 +18,7 @@ export interface Attachment {
 }
 
 export interface AttachmentInput {
-  url: string
+  url?: string
   filename: string
   id?: string
 }
@@ -40,7 +40,6 @@ export interface Task {
   project?: string[]
   projectItem?: string[]
   taskDocuments?: Attachment[]
-  handoverDocument?: Attachment[]
   fillersAndMissingList?: Attachment[]
   instructions?: string[]
   arabicInstructions?: string[]
@@ -86,7 +85,6 @@ export interface Task {
   projectQuotationNumber?: string
   projectQuotationReference?: string
   taskDocLinks?: DocLink[]
-  handoverDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
 }
 
@@ -113,7 +111,6 @@ export interface TaskUpdateInput {
   qcCheckAtSiteDone?: boolean
   fillersDone?: boolean
   taskDocuments?: AttachmentInput[]
-  handoverDocument?: AttachmentInput[]
   fillersAndMissingList?: AttachmentInput[]
   requiresManagerReviewManually?: boolean
   priorityFlag?: boolean
@@ -121,7 +118,6 @@ export interface TaskUpdateInput {
   sedNote?: string
   followUpOutcome?: string
   taskDocLinks?: DocLink[]
-  handoverDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
 }
 

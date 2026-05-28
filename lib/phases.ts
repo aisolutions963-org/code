@@ -18,6 +18,11 @@ export const PHASE_CONFIG = {
     triggerOrder: 29,
     perItemOrderMin: 31,
   },
+  Closing: {
+    phaseLabel: 'Phase 4 — Closing',
+    // Task name prefix that triggers Phase 4 generation on completion
+    triggerTaskPrefix: 'handing over form',
+  },
 } as const
 
 export const TASK_MARKERS = {

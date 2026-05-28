@@ -117,7 +117,6 @@ function GateRowExpanded({ task, role, onUpdate }: GateRowExpandedProps) {
         onDocLinkRemoved={handleDocLinkRemoved}
         existingAttachments={{
           taskDocuments: task.taskDocuments,
-          handoverDocument: task.handoverDocument,
           fillersAndMissingList: task.fillersAndMissingList,
         }}
       />

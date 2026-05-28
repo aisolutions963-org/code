@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { createPayment, getPaymentsByProject, getProjectById } from '@/lib/airtable'
+import {
+  createPayment,
+  getPaymentsByProject,
+  getProjectById,
+  getHandoverSheetForProject,
+  createMaintenanceRecord,
+  updateProject,
+} from '@/lib/airtable'
 import { notifyAccountant } from '@/lib/email'
 import { CreatePaymentSchema } from '@/lib/validation'
+import { PROJECTS } from '@/lib/fieldMap'
+import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
 export const GET = requireRole()(async (req: NextRequest) => {
   const projectId = req.nextUrl.searchParams.get('projectId')
@@ -33,7 +42,7 @@ export const POST = requireRole('manager', 'superadmin')(
     const body = parsed.data
     const payment = await createPayment(body)
 
-    if (process.env.ACCOUNTANT_EMAIL && process.env.RESEND_API_KEY) {
+    if (process.env.RESEND_API_KEY) {
       getProjectById(body.project[0])
         .then((proj) =>
           notifyAccountant({
@@ -50,6 +59,53 @@ export const POST = requireRole('manager', 'superadmin')(
         .catch((err) => console.error('Accountant email failed:', err))
     }
 
-    return NextResponse.json({ payment }, { status: 201 })
+    // Final payment → close project + start 1-year maintenance period
+    let closureWarning: string | undefined
+    if (body.paymentType === 'Final') {
+      try {
+        await closeProjectAfterFinalPayment(body.project[0], session.name)
+      } catch (err) {
+        console.error('Final payment closure failed:', err)
+        closureWarning = 'Payment recorded but project closure failed — please check project status.'
+      }
+    }
+
+    return NextResponse.json(
+      { payment, ...(closureWarning ? { warning: closureWarning } : {}) },
+      { status: 201 },
+    )
   },
 )
+
+async function closeProjectAfterFinalPayment(projectId: string, recordedBy: string) {
+  const [project, sheets] = await Promise.all([
+    getProjectById(projectId),
+    getHandoverSheetForProject(projectId),
+  ])
+
+  const handoverDate =
+    sheets[0]?.finalInstallationDate ?? new Date().toISOString().slice(0, 10)
+
+  const endDate = new Date(handoverDate)
+  endDate.setFullYear(endDate.getFullYear() + 1)
+  const endDateStr = endDate.toISOString().slice(0, 10)
+
+  await Promise.all([
+    updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed' }),
+    createMaintenanceRecord(projectId, { startDate: handoverDate, endDate: endDateStr }),
+  ])
+
+  const projectRef = project.projectId ?? projectId
+  const projectLabel = project.projectName
+    ? `${projectRef} — ${project.projectName}`
+    : projectRef
+
+  for (const role of ['sed', 'superadmin'] as const) {
+    createNotification({
+      recipientRole: role,
+      title: `Project closed — ${projectRef}`,
+      body: `Final payment received for ${projectLabel}. Project is now Closed. 1-year maintenance active until ${endDateStr}. Recorded by ${recordedBy}.`,
+      link: ROLE_DASHBOARD[role],
+    })
+  }
+}

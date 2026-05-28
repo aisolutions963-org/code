@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById } from '@/lib/airtable'
+import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById, upsertF2DeliveryEvent } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 import { canEditField, filterAllowedFields } from '@/lib/permissions'
 import {
@@ -127,6 +127,25 @@ export const PATCH = requireRole()(
 
     const refreshed = await getTaskById(params.id)
 
+    // When manager sets a delivery date on an F2 task, upsert a calendar event
+    let calendarWarning: string | undefined
+    if ('completionDate' in otherFields && otherFields.completionDate && refreshed.taskName.toLowerCase().startsWith('f2 production list')) {
+      const projectId = refreshed.project?.[0]
+      const projectLabel = refreshed.projectNickname ?? refreshed.projectName ?? refreshed.projectRef ?? ''
+      try {
+        await upsertF2DeliveryEvent({
+          taskId: params.id,
+          title: `Delivery${projectLabel ? ` — ${projectLabel}` : ''}`,
+          date: otherFields.completionDate as string,
+          projectId,
+          createdBy: session.name,
+        })
+      } catch (err) {
+        console.error('[F2 calendar] upsert failed:', err)
+        calendarWarning = 'Delivery date saved but calendar event failed to update.'
+      }
+    }
+
     // Notify manager when SED schedules a site visit date
     if ('taskStartDate' in otherFields && otherFields.taskStartDate && refreshed.pathCondition === 'Visit Site to Gather Details') {
       const projectRef = refreshed.projectRef ?? refreshed.project?.[0] ?? ''
@@ -174,7 +193,7 @@ export const PATCH = requireRole()(
           link: ROLE_DASHBOARD['manager'],
         })
       }
-      return NextResponse.json({ task: await getTaskById(params.id) })
+      return NextResponse.json({ task: await getTaskById(params.id), ...(calendarWarning ? { warning: calendarWarning } : {}) })
     }
 
     // If any approval gate field was touched, check if all 3 are now cleared across
@@ -192,6 +211,6 @@ export const PATCH = requireRole()(
       }
     }
 
-    return NextResponse.json({ task: refreshed })
+    return NextResponse.json({ task: refreshed, ...(calendarWarning ? { warning: calendarWarning } : {}) })
   },
 )

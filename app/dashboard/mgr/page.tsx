@@ -38,7 +38,7 @@ export default function MgrDashboard() {
       { refreshInterval: 30000, revalidateOnFocus: true },
     )
 
-  const { data: teamData } = useSWR<{ members: TeamMember[] }>(
+  const { data: teamData, isLoading: teamLoading } = useSWR<{ members: TeamMember[] }>(
     view === 'installation' ? '/api/team/installation' : null,
     fetcher,
     { refreshInterval: 60000 },
@@ -94,7 +94,7 @@ export default function MgrDashboard() {
           {!taskError && (
             <TaskList
               loading={taskLoading}
-              tasks={view === 'deliveries' ? tasks.filter(t => t.handoverDocument?.length) : tasks}
+              tasks={view === 'deliveries' ? tasks.filter(t => !!t.completionDate) : tasks}
               role="manager"
               onUpdate={handleUpdate}
             />
@@ -178,34 +178,103 @@ export default function MgrDashboard() {
         </div>
       )}
 
-      {/* Installation team assignment view */}
+      {/* Installation team view — members with assigned projects */}
       {view === 'installation' && (
         <>
-          {projectLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
-          {!projectLoading && !projectError && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {projects.map((p) => (
-                <div key={p.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
-                  <ProjectCard project={p} />
-                  <div className="pt-1 border-t border-gray-100">
-                    {p.assignedInstallationTeam && p.assignedInstallationTeam.length > 0 ? (
-                      <p className="text-xs text-gray-500">
-                        Team assigned ({p.assignedInstallationTeam.length} member{p.assignedInstallationTeam.length !== 1 ? 's' : ''})
-                      </p>
-                    ) : (
-                      <p className="text-xs text-gray-400 italic">No team assigned</p>
-                    )}
-                    <button
-                      onClick={() => setAssignProject(p)}
-                      className="mt-1.5 text-xs text-brand-600 hover:text-brand-700 font-medium"
-                    >
-                      Assign Team
-                    </button>
-                  </div>
-                </div>
-              ))}
+          {(projectLoading || teamLoading) && (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" />
             </div>
           )}
+          {!projectLoading && !teamLoading && !projectError && teamData && (() => {
+            const members = teamData.members
+            const unassigned = projects.filter(
+              (p) => !p.assignedInstallationTeam || p.assignedInstallationTeam.length === 0,
+            )
+            return (
+              <div className="space-y-6">
+                {/* Per-member cards */}
+                <div className="space-y-3">
+                  {members.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-8">No active installation team members found.</p>
+                  )}
+                  {members.map((member) => {
+                    const memberProjects = projects.filter((p) =>
+                      p.assignedInstallationTeam?.includes(member.id),
+                    )
+                    const initials = member.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+                    return (
+                      <div key={member.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        {/* Member header */}
+                        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+                              <span className="text-xs font-bold text-violet-700">{initials}</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{member.name}</p>
+                              <p className="text-xs text-gray-400">Installation</p>
+                            </div>
+                          </div>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${memberProjects.length > 0 ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {memberProjects.length} project{memberProjects.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {/* Assigned projects list */}
+                        {memberProjects.length > 0 ? (
+                          <div className="divide-y divide-gray-50">
+                            {memberProjects.map((p) => (
+                              <div key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{p.projectName}</p>
+                                  <p className="text-xs text-gray-400 mt-0.5">{p.projectId} · {p.projectStage}</p>
+                                </div>
+                                <button
+                                  onClick={() => setAssignProject(p)}
+                                  className="text-xs text-brand-600 hover:text-brand-700 font-medium shrink-0"
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="px-4 py-3">
+                            <p className="text-xs text-gray-400 italic">No projects assigned</p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Unassigned projects */}
+                {unassigned.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+                      Unassigned Projects ({unassigned.length})
+                    </p>
+                    <div className="space-y-2">
+                      {unassigned.map((p) => (
+                        <div key={p.id} className="bg-white border border-orange-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{p.projectName}</p>
+                            <p className="text-xs text-gray-400">{p.projectId} · {p.projectStage}</p>
+                          </div>
+                          <button
+                            onClick={() => setAssignProject(p)}
+                            className="text-xs text-brand-600 hover:text-brand-700 font-medium shrink-0"
+                          >
+                            Assign Team
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </>
       )}
 

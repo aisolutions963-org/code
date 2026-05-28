@@ -282,7 +282,6 @@ function transformTask(record: RawRecord): Task {
     projectRecordId: str(f[TASKS.PROJECT_RECORD_ID]) ?? lookupStrArr(f[TASKS.PROJECT_RECORD_ID])[0] ?? strArr(f[TASKS.PROJECT])[0] ?? undefined,
     projectItem: strArr(f[TASKS.PROJECT_ITEM]),
     taskDocuments: attachments(f[TASKS.TASK_DOCUMENTS]),
-    handoverDocument: attachments(f[TASKS.HANDOVER_DOCUMENT]),
     fillersAndMissingList: attachments(f[TASKS.FILLERS_MISSING_ITEMS_LIST]),
     instructions: lookupStrArr(f[TASKS.INSTRUCTIONS]),
     arabicInstructions: lookupStrArr(f[TASKS.ARABIC_INSTRUCTIONS]),
@@ -319,7 +318,6 @@ function transformTask(record: RawRecord): Task {
     followUpOutcome: str(f[TASKS.FOLLOW_UP_OUTCOME]),
     pathCondition: selectName(f[TASKS.PATH_CONDITION]),
     taskDocLinks: parseDocLinks(f[TASKS.TASK_DOC_LINKS]),
-    handoverDocLinks: parseDocLinks(f[TASKS.HANDOVER_DOC_LINKS]),
     fillersDocLinks: parseDocLinks(f[TASKS.FILLERS_DOC_LINKS]),
   }
 }
@@ -443,7 +441,6 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   qcCheckAtSiteDone: TASKS.QC_CHECK_AT_SITE_DONE,
   fillersDone: TASKS.FILLERS_DONE,
   taskDocuments: TASKS.TASK_DOCUMENTS,
-  handoverDocument: TASKS.HANDOVER_DOCUMENT,
   fillersAndMissingList: TASKS.FILLERS_MISSING_ITEMS_LIST,
   requiresManagerReviewManually: TASKS.REQUIRES_MANAGER_REVIEW_MANUALLY,
   priorityFlag: TASKS.PRIORITY_FLAG,
@@ -451,11 +448,10 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   sedNote: TASKS.SED_NOTE,
   followUpOutcome: TASKS.FOLLOW_UP_OUTCOME,
   taskDocLinks: TASKS.TASK_DOC_LINKS,
-  handoverDocLinks: TASKS.HANDOVER_DOC_LINKS,
   fillersDocLinks: TASKS.FILLERS_DOC_LINKS,
 }
 
-const DOC_LINK_KEYS = new Set(['taskDocLinks', 'handoverDocLinks', 'fillersDocLinks'])
+const DOC_LINK_KEYS = new Set(['taskDocLinks', 'fillersDocLinks'])
 
 function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
@@ -817,7 +813,6 @@ export async function attachFileToTask(
 
   const attachmentFieldMap: Record<string, keyof Task> = {
     [TASKS.TASK_DOCUMENTS]: 'taskDocuments',
-    [TASKS.HANDOVER_DOCUMENT]: 'handoverDocument',
     [TASKS.FILLERS_MISSING_ITEMS_LIST]: 'fillersAndMissingList',
   }
 
@@ -1623,6 +1618,36 @@ export async function createHandoverSheet(
   return transformHandoverSheet(data2.records[0])
 }
 
+export async function getHandoverSheetForProject(projectId: string): Promise<HandoverSheet[]> {
+  const records = await fetchAll(HANDOVER_SHEETS.TABLE_ID, {
+    filterByFormula: `FIND("${projectId}", ARRAYJOIN({${HANDOVER_SHEETS.PROJECT}}, ","))`,
+    sort: [{ field: HANDOVER_SHEETS.FINAL_INSTALLATION_DATE, direction: 'desc' }],
+  })
+  return records.map(transformHandoverSheet)
+}
+
+export async function createMaintenanceRecord(
+  projectId: string,
+  dates: { startDate: string; endDate: string },
+): Promise<void> {
+  const fields: Record<string, unknown> = {
+    [MAINTENANCE.PROJECTS]: [projectId],
+    [MAINTENANCE.STATUS]: 'Active',
+    [MAINTENANCE.START_DATE]: dates.startDate,
+    [MAINTENANCE.END_DATE]: dates.endDate,
+    [MAINTENANCE.WARRANTY_TYPE]: 'Standard 1-Year',
+  }
+  const res = await fetchWithRetry(tblUrl(MAINTENANCE.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ records: [{ fields }] }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+}
+
 export async function uploadAttachmentToRecord(
   recordId: string,
   fieldId: string,
@@ -1762,7 +1787,7 @@ export interface CalendarEvent {
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
-  const [gatePasses, tasks, fabTasks, payments, customEvents] = await Promise.all([
+  const [gatePasses, tasks, fabTasks, payments, customEvents, installationLogs] = await Promise.all([
     fetchAll(GATE_PASSES.TABLE_ID, {
       filterByFormula: `NOT({${GATE_PASSES.ESTIMATED_SUPPLY_DATE}}=BLANK())`,
       fields: [GATE_PASSES.NAME, GATE_PASSES.ESTIMATED_SUPPLY_DATE, GATE_PASSES.CONFIRMED_DELIVERY_DATE, GATE_PASSES.PROJECT],
@@ -1785,6 +1810,11 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     fetchAll(CALENDAR_EVENTS.TABLE_ID, {
       fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY, CALENDAR_EVENTS.CUSTOM_TASK],
       sort: [{ field: CALENDAR_EVENTS.DATE, direction: 'asc' }],
+    }),
+    fetchAll(INSTALLATION_LOGS.TABLE_ID, {
+      filterByFormula: `NOT({${INSTALLATION_LOGS.DATE}}=BLANK())`,
+      fields: [INSTALLATION_LOGS.NAME, INSTALLATION_LOGS.DATE, INSTALLATION_LOGS.WORK_DESCRIPTION],
+      sort: [{ field: INSTALLATION_LOGS.DATE, direction: 'asc' }],
     }),
   ])
 
@@ -1856,14 +1886,30 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const date = str(f[CALENDAR_EVENTS.DATE])
     const title = str(f[CALENDAR_EVENTS.TITLE])
     if (!date || !title) continue
+    const customTask = str(f[CALENDAR_EVENTS.CUSTOM_TASK])
     events.push({
       id: r.id,
       title,
       date,
-      type: 'activity',
+      type: customTask?.startsWith('f2:') ? 'delivery' : 'activity',
       notes: str(f[CALENDAR_EVENTS.NOTES]),
-      customTask: str(f[CALENDAR_EVENTS.CUSTOM_TASK]),
+      customTask,
       createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
+    })
+  }
+
+  for (const r of installationLogs) {
+    const f = r.fields
+    const date = str(f[INSTALLATION_LOGS.DATE])
+    if (!date) continue
+    const desc = str(f[INSTALLATION_LOGS.WORK_DESCRIPTION])
+    const name = str(f[INSTALLATION_LOGS.NAME])
+    events.push({
+      id: `instlog-${r.id}`,
+      title: desc || name || 'Installation Day',
+      date,
+      type: 'installation',
+      notes: desc,
     })
   }
 
@@ -1894,6 +1940,43 @@ export async function createCalendarEvent(input: {
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+}
+
+export async function upsertF2DeliveryEvent(input: {
+  taskId: string
+  title: string
+  date: string
+  projectId?: string
+  createdBy?: string
+}): Promise<void> {
+  const key = `f2:${input.taskId}`
+  const existing = await fetchAll(CALENDAR_EVENTS.TABLE_ID, {
+    filterByFormula: `{${CALENDAR_EVENTS.CUSTOM_TASK}}="${key}"`,
+    fields: [CALENDAR_EVENTS.TITLE],
+  })
+  const fields: Record<string, unknown> = {
+    [CALENDAR_EVENTS.TITLE]: input.title,
+    [CALENDAR_EVENTS.DATE]: input.date,
+    [CALENDAR_EVENTS.CUSTOM_TASK]: key,
+  }
+  if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
+  if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
+
+  if (existing.length > 0) {
+    const res = await fetchWithRetry(recUrl(CALENDAR_EVENTS.TABLE_ID, existing[0].id), {
+      method: 'PATCH',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ fields }),
+    })
+    if (!res.ok) throw new Error(`Airtable error ${res.status}`)
+  } else {
+    const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ fields }),
+    })
+    if (!res.ok) throw new Error(`Airtable error ${res.status}`)
   }
 }
 
@@ -2148,6 +2231,34 @@ export async function generatePhase3TasksForItem(
       [TASKS.TASK_NAME]: t.taskName,
       [TASKS.PROJECT]: [projectId],
       [TASKS.PROJECT_ITEM]: [itemId],
+      [TASKS.STATUS]: status,
+      [TASKS.TASK_TEMPLATES_LINK]: [t.id],
+    }
+  })
+
+  const ids = await createTasksBatch(records)
+  return { created: ids.length, todoTemplates }
+}
+
+export async function generatePhase4Tasks(
+  projectId: string,
+): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
+  const allTemplates = await getTaskTemplates('Closed')
+  // Only ordered Phase 4 tasks — exclude the unordered warranty/maintenance templates
+  const templates = allTemplates.filter(
+    (t) => t.phaseLabel === PHASE_CONFIG.Closing.phaseLabel && t.templateOrder !== null,
+  )
+  if (templates.length === 0) return { created: 0, todoTemplates: [] }
+
+  const minOrder = Math.min(...templates.map((t) => t.templateOrder!))
+  const todoTemplates: TaskTemplate[] = []
+
+  const records = templates.map((t) => {
+    const status: TaskStatus = t.templateOrder === minOrder ? 'To Do' : 'Locked'
+    if (status === 'To Do') todoTemplates.push(t)
+    return {
+      [TASKS.TASK_NAME]: t.taskName,
+      [TASKS.PROJECT]: [projectId],
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }

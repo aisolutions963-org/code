@@ -8,7 +8,6 @@ export const EDITABLE_FIELDS: Record<Role, (keyof TaskUpdateInput)[]> = {
     'installationDays',
     'taskDocLinks',
     'fillersDocLinks',
-    'handoverDocLinks',
     'completionDate',
     'qcCheckAtSiteDone',
     'fillersDone',
@@ -69,7 +68,6 @@ const ALL_TASK_UPDATE_KEYS: (keyof TaskUpdateInput)[] = [
   'qcCheckAtSiteDone',
   'fillersDone',
   'taskDocuments',
-  'handoverDocument',
   'fillersAndMissingList',
   'requiresManagerReviewManually',
   'priorityFlag',
@@ -77,7 +75,6 @@ const ALL_TASK_UPDATE_KEYS: (keyof TaskUpdateInput)[] = [
   'callCount',
   'followUpOutcome',
   'taskDocLinks',
-  'handoverDocLinks',
   'fillersDocLinks',
 ]
 

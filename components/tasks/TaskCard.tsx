@@ -11,6 +11,8 @@ import QuotationPanel from './panels/QuotationPanel'
 import AttachDocsPanel from './panels/AttachDocsPanel'
 import ChooseInstallTeamPanel from './panels/ChooseInstallTeamPanel'
 import FixingTeamNotePanel from './panels/FixingTeamNotePanel'
+import F2DeliveryPanel from './panels/F2DeliveryPanel'
+import HandoverModal from '@/components/projects/HandoverModal'
 
 type CallOutcome = 'approved' | 'review' | 'refused'
 
@@ -182,6 +184,7 @@ const AR_TASK_NAMES: Record<string, string> = {
   'Handing Over Form — F6 Generated': 'نموذج التسليم — F6',
   'Send to SED & Fixing Team — 2 Days to Check Item & Tools Before Delivery (auto)': 'إرسال لفريق التركيب — يومان للتحقق من القطع والأدوات',
   'Fixing Team Note: How Many Days & Labor Needed to Hand Over the Work': 'ملاحظة فريق التركيب: عدد الأيام والعمالة المطلوبة',
+  'How Many Days & Labor Needed to Hand Over the Work': 'ملاحظة فريق التركيب: عدد الأيام والعمالة المطلوبة',
   'Manage: Check Site Status, Give Client Exact Delivery Date & Inform for Payment': 'إدارة: التحقق من الموقع وتأكيد موعد التسليم',
   ' Inform Client of Estimated Date of Supply': 'إبلاغ العميل بالموعد التقديري للتوريد',
 }
@@ -247,7 +250,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     .toLowerCase()
     .startsWith('choose installation team')
   const isF2ProductionTask = task.taskName.toLowerCase().startsWith('f2 production list')
-  const isFixingTeamNoteTask = task.taskName.toLowerCase().startsWith('fixing team note')
+  const isFixingTeamNoteTask =
+    task.taskName.toLowerCase().startsWith('fixing team note') ||
+    task.taskName.toLowerCase().startsWith('how many days') ||
+    task.taskName.toLowerCase().startsWith('installation day')
+  const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
+  const isHandoverFormTask = task.taskName.toLowerCase().startsWith('handing over form')
+  const [showHandoverModal, setShowHandoverModal] = useState(false)
 
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
@@ -304,6 +313,18 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     }
   }
 
+  async function skipFabricateMissingTask() {
+    setSaving(true)
+    try {
+      await onUpdate(task.id, { status: 'Completed' })
+      toast.success('Skipped — no missing items')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function completeF2Task() {
     if (!localFields.plannedProdStartDate || !localFields.expectedFabEndDate) return
     setSaving(true)
@@ -334,6 +355,8 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       return
     }
     if (isF3Task && task.status !== 'Completed' && key === 'status' && (value === 'Completed' || value === 'In Progress')) return
+    if (isFabricateMissingTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
+    if (isHandoverFormTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
     if (isF4Task && task.status === 'Completed' && key === 'status') return
     if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') return
     setLocalFields((prev) => ({ ...prev, [key]: value }))
@@ -562,13 +585,77 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <ChooseInstallTeamPanel task={task} onUpdate={onUpdate} />
           )}
 
-          {/* Fixing team note — days & workers needed for handover */}
+          {/* Fixing team note — log installation days */}
           {isFixingTeamNoteTask && (
             <FixingTeamNotePanel task={task} onUpdate={onUpdate} />
           )}
 
-          {/* F2 Production List panel — fabrication date range entry */}
-          {isF2ProductionTask && task.status === 'Completed' && (
+          {/* Fabricate if any missing item — skip or proceed */}
+          {isFabricateMissingTask && task.status !== 'Completed' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-800">
+                Missing Items Check{' '}
+                <span className="font-normal text-amber-700">— are there any items that need fabrication?</span>
+              </p>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => onUpdate(task.id, { status: 'In Progress' }).catch(() => null)}
+                  disabled={saving || task.status === 'In Progress'}
+                  className="border border-amber-400 bg-amber-100 text-amber-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-60 text-left"
+                >
+                  <div className="font-bold">✓ Yes — Fabricate</div>
+                  <div className="font-normal text-amber-700 mt-0.5">
+                    {task.status === 'In Progress' ? 'In progress' : 'Start fabrication'}
+                  </div>
+                </button>
+                <button
+                  onClick={skipFabricateMissingTask}
+                  disabled={saving}
+                  className="border border-gray-300 bg-gray-50 text-gray-800 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-60 text-left"
+                >
+                  <div className="font-bold">✗ No — Skip</div>
+                  <div className="font-normal text-gray-600 mt-0.5">No missing items, continue</div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Handing Over Form — F6 panel for installation role */}
+          {isHandoverFormTask && task.status !== 'Completed' && (
+            <div className="bg-sky-50 border border-sky-200 rounded-lg px-3 py-3 space-y-2.5">
+              <div>
+                <p className="text-xs font-semibold text-sky-800">F6 — Handing Over Form</p>
+                <p className="text-xs text-sky-600 mt-0.5">
+                  Fill in the handover details. Submitting will notify the team and unlock Phase 4.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowHandoverModal(true)}
+                className="w-full py-2 rounded-lg text-sm font-semibold bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+              >
+                Fill Handover Form
+              </button>
+            </div>
+          )}
+          {isHandoverFormTask && task.status === 'Completed' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+              <p className="text-xs font-semibold text-green-800">✓ Handover form submitted — Phase 4 unlocked</p>
+            </div>
+          )}
+          {showHandoverModal && (
+            <HandoverModal
+              projectId={task.projectRecordId ?? task.project?.[0] ?? ''}
+              projectName={task.projectId ?? 'Project'}
+              onClose={() => setShowHandoverModal(false)}
+              onCreated={async () => {
+                setShowHandoverModal(false)
+                await onUpdate(task.id, { status: 'Completed' })
+              }}
+            />
+          )}
+
+          {/* F2 Production List panel — fabrication date range entry (fabrication role only) */}
+          {isF2ProductionTask && ar && task.status === 'Completed' && (
             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5" dir="rtl">
               <p className="text-xs font-semibold text-green-800 mb-1">✓ تم تسجيل جدول الإنتاج</p>
               {task.plannedProdStartDate && (
@@ -579,7 +666,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
               )}
             </div>
           )}
-          {isF2ProductionTask && task.status !== 'Completed' && (
+          {isF2ProductionTask && ar && task.status !== 'Completed' && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-3 space-y-3" dir="rtl">
               <p className="text-xs font-semibold text-orange-800">جدول الإنتاج — حدّد الفترة الزمنية لهذه القطعة</p>
               <div className="grid grid-cols-2 gap-3">
@@ -612,6 +699,16 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
+          {/* F2 Delivery Date panel — manager/superadmin schedule delivery once fabrication is done */}
+          {isF2ProductionTask && (role === 'manager' || role === 'superadmin') && task.status === 'Completed' && (
+            <F2DeliveryPanel task={task} onUpdate={onUpdate} />
+          )}
+          {isF2ProductionTask && (role === 'manager' || role === 'superadmin') && task.status !== 'Completed' && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-gray-500">Delivery date can be scheduled once fabrication marks this item as done.</p>
+            </div>
+          )}
+
           {/* SED note — shown read-only to manager/superadmin */}
           {(role === 'manager' || role === 'superadmin') && task.sedNote && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 space-y-1">
@@ -636,7 +733,6 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             onDocLinkRemoved={handleDocLinkRemoved}
             existingAttachments={{
               taskDocuments: task.taskDocuments,
-              handoverDocument: task.handoverDocument,
               fillersAndMissingList: task.fillersAndMissingList,
             }}
           />

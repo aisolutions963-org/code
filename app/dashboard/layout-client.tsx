@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, Suspense } from 'react'
 import IconSidebar from '@/components/layout/IconSidebar'
 import GlassTopBar from '@/components/layout/GlassTopBar'
 import MobileBottomNav from '@/components/layout/MobileBottomNav'
@@ -35,7 +35,9 @@ export default function DashboardLayoutClient({
       <DrawerProvider>
         <div className="flex h-screen overflow-hidden bg-gray-50">
           {/* Desktop sidebar — hidden on mobile */}
-          <IconSidebar role={role} name={name} />
+          <Suspense fallback={null}>
+            <IconSidebar role={role} name={name} />
+          </Suspense>
 
           {/* Main column */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50">
@@ -51,7 +53,9 @@ export default function DashboardLayoutClient({
         </div>
 
         {/* Mobile bottom nav — only visible on small screens */}
-        <MobileBottomNav role={role} name={name} />
+        <Suspense fallback={null}>
+          <MobileBottomNav role={role} name={name} />
+        </Suspense>
       </DrawerProvider>
     </SessionContext.Provider>
   )
