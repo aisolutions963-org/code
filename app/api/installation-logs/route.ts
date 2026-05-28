@@ -41,6 +41,7 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
       date: isoDate,
       numberOfLaborers: typeof numberOfLaborers === 'number' && numberOfLaborers > 0 ? numberOfLaborers : undefined,
       workDescription: typeof workDescription === 'string' && workDescription.trim() ? workDescription.trim() : undefined,
+      recordedBy: session.name,
     })
 
     return NextResponse.json({ log }, { status: 201 })

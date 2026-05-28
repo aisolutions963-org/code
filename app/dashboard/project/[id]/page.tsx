@@ -9,6 +9,7 @@ import ItemBoard from '@/components/projects/ItemBoard'
 import TaskList, { TaskListSkeleton } from '@/components/tasks/TaskList'
 import { ItemSummary } from '@/components/projects/ItemProgressCard'
 import ProjectAttachmentsSection from '@/components/projects/ProjectAttachmentsSection'
+import ProjectFormsSection from '@/components/projects/ProjectFormsSection'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -102,6 +103,14 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
+      {/* Docs bar — Attachments & Forms, pinned below header */}
+      {!tasksLoading && allTasks.length > 0 && (
+        <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-start gap-6 flex-wrap">
+          <ProjectAttachmentsSection tasks={allTasks} />
+          <ProjectFormsSection projectId={id} role={role} />
+        </div>
+      )}
+
       {/* Content */}
       <div className="p-6 max-w-5xl mx-auto space-y-8">
         {/* Error */}
@@ -163,11 +172,6 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
               onMutate={() => mutate()}
             />
           </section>
-        )}
-
-        {/* Attachments & Links */}
-        {!tasksLoading && allTasks.length > 0 && (
-          <ProjectAttachmentsSection tasks={allTasks} />
         )}
 
         {/* Empty state */}

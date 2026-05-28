@@ -312,6 +312,7 @@ function transformTask(record: RawRecord): Task {
     projectStage: strArr(f[TASKS.PROJECT_STAGE]),
     client: strArr(f[TASKS.CLIENT]),
     taskCreated: str(f[TASKS.TASK_CREATED]),
+    lastModified: str(f[TASKS.LAST_MODIFIED]),
     assignedTo: strArr(f[TASKS.ASSIGNED_TO]),
     callCount: num(f[TASKS.CALL_COUNT]),
     sedNote: str(f[TASKS.SED_NOTE]),
@@ -385,6 +386,7 @@ function transformPayment(record: RawRecord): Payment {
     payerName: str(f[PAYMENTS.PAYER_NAME]),
     commissionAmount: num(f[PAYMENTS.COMMISSION_AMOUNT]),
     notes: str(f[PAYMENTS.NOTES]),
+    recordedBy: str(f[PAYMENTS.RECORDED_BY]),
   }
 }
 
@@ -579,7 +581,7 @@ async function getFabricationActiveProjectIds(): Promise<Set<string>> {
   return ids
 }
 
-export async function getProjects(options: { stage?: string } = {}): Promise<Project[]> {
+export async function getProjects(options: { stage?: string; sedEmail?: string } = {}): Promise<Project[]> {
   let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Archived"))`
   if (options.stage) {
     formula = `{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`
@@ -591,7 +593,15 @@ export async function getProjects(options: { stage?: string } = {}): Promise<Pro
     }),
     getFabricationActiveProjectIds(),
   ])
-  return records.map(r => ({ ...transformProject(r), fabricationActive: fabActiveIds.has(r.id) }))
+  let projects = records.map(r => ({ ...transformProject(r), fabricationActive: fabActiveIds.has(r.id) }))
+  if (options.sedEmail) {
+    const email = options.sedEmail.toLowerCase()
+    projects = projects.filter(p =>
+      p.salesOwner?.email?.toLowerCase() === email ||
+      p.communSeds?.some(s => s.toLowerCase() === email),
+    )
+  }
+  return projects
 }
 
 export async function getAllProjects(): Promise<Project[]> {
@@ -754,6 +764,7 @@ export async function createPayment(input: PaymentCreateInput): Promise<Payment>
   if (input.payerName) fields[PAYMENTS.PAYER_NAME] = input.payerName
   if (input.commissionAmount != null) fields[PAYMENTS.COMMISSION_AMOUNT] = input.commissionAmount
   if (input.notes) fields[PAYMENTS.NOTES] = input.notes
+  if (input.recordedBy) fields[PAYMENTS.RECORDED_BY] = input.recordedBy
 
   const res = await fetchWithRetry(tblUrl(PAYMENTS.TABLE_ID), {
     method: 'POST',
@@ -1583,6 +1594,7 @@ function transformHandoverSheet(record: RawRecord): HandoverSheet {
     customerSatisfaction: str(f[HANDOVER_SHEETS.CUSTOMER_SATISFACTION]),
     installationDifficulty: str(f[HANDOVER_SHEETS.INSTALLATION_DIFFICULTY]),
     newsletterOptIn: f[HANDOVER_SHEETS.NEWSLETTER_OPT_IN] === true,
+    recordedBy: str(f[HANDOVER_SHEETS.RECORDED_BY]),
   }
 }
 
@@ -1594,6 +1606,7 @@ export async function createHandoverSheet(
     installationDifficulty: string
     newsletterOptIn?: boolean
     notes?: string
+    recordedBy?: string
   },
 ): Promise<HandoverSheet> {
   const fields: Record<string, unknown> = {
@@ -1605,6 +1618,7 @@ export async function createHandoverSheet(
   }
   if (data.notes) fields[HANDOVER_SHEETS.NOTES] = data.notes
   if (data.newsletterOptIn !== undefined) fields[HANDOVER_SHEETS.NEWSLETTER_OPT_IN] = data.newsletterOptIn
+  if (data.recordedBy) fields[HANDOVER_SHEETS.RECORDED_BY] = data.recordedBy
   const res = await fetchWithRetry(tblUrl(HANDOVER_SHEETS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
@@ -1688,6 +1702,7 @@ function transformPurchaseOrder(record: RawRecord): PurchaseOrder {
     actualDelivery: str(f[PURCHASE_ORDERS.ACTUAL_DELIVERY]),
     managerApproved: bool(f[PURCHASE_ORDERS.MANAGER_APPROVED]),
     notes: str(f[PURCHASE_ORDERS.NOTES]),
+    recordedBy: str(f[PURCHASE_ORDERS.RECORDED_BY]),
   }
 }
 
@@ -1710,6 +1725,7 @@ export async function createPurchaseOrder(input: PurchaseOrderCreateInput): Prom
   if (input.orderDate) fields[PURCHASE_ORDERS.ORDER_DATE] = input.orderDate
   if (input.expectedDelivery) fields[PURCHASE_ORDERS.EXPECTED_DELIVERY] = input.expectedDelivery
   if (input.notes) fields[PURCHASE_ORDERS.NOTES] = input.notes
+  if (input.recordedBy) fields[PURCHASE_ORDERS.RECORDED_BY] = input.recordedBy
   const res = await fetchWithRetry(tblUrl(PURCHASE_ORDERS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
@@ -1736,6 +1752,7 @@ function transformInstallationLog(record: RawRecord): InstallationLog {
     numberOfLaborers: num(f[INSTALLATION_LOGS.NUMBER_OF_LABORERS]),
     workDescription: str(f[INSTALLATION_LOGS.WORK_DESCRIPTION]),
     expectedFinishDate: str(f[INSTALLATION_LOGS.EXPECTED_FINISH_DATE]),
+    recordedBy: str(f[INSTALLATION_LOGS.RECORDED_BY]),
   }
 }
 
@@ -1757,6 +1774,7 @@ export async function createInstallationLog(input: InstallationLogCreateInput): 
   if (input.numberOfLaborers != null) fields[INSTALLATION_LOGS.NUMBER_OF_LABORERS] = input.numberOfLaborers
   if (input.workDescription) fields[INSTALLATION_LOGS.WORK_DESCRIPTION] = input.workDescription
   if (input.expectedFinishDate) fields[INSTALLATION_LOGS.EXPECTED_FINISH_DATE] = input.expectedFinishDate
+  if (input.recordedBy) fields[INSTALLATION_LOGS.RECORDED_BY] = input.recordedBy
   const res = await fetchWithRetry(tblUrl(INSTALLATION_LOGS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
@@ -2333,6 +2351,7 @@ function transformQuotation(record: RawRecord): Quotation {
     notes: str(f[QUOTATIONS.NOTES]),
     sentDate: str(f[QUOTATIONS.SENT_DATE]),
     approvedDate: str(f[QUOTATIONS.APPROVED_DATE]),
+    recordedBy: str(f[QUOTATIONS.RECORDED_BY]),
   }
 }
 
@@ -2345,6 +2364,7 @@ export async function createQuotation(input: {
   description?: string
   notes?: string
   quotationDate?: string
+  recordedBy?: string
 }): Promise<Quotation> {
   const fields: Record<string, unknown> = {
     [QUOTATIONS.NAME]: input.itemName,
@@ -2356,6 +2376,7 @@ export async function createQuotation(input: {
   if (input.description) fields[QUOTATIONS.DESCRIPTION] = input.description
   if (input.notes) fields[QUOTATIONS.NOTES] = input.notes
   if (input.quotationDate) fields[QUOTATIONS.SENT_DATE] = input.quotationDate
+  if (input.recordedBy) fields[QUOTATIONS.RECORDED_BY] = input.recordedBy
 
   const res = await fetchWithRetry(tblUrl(QUOTATIONS.TABLE_ID), {
     method: 'POST',

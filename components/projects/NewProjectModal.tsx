@@ -49,7 +49,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     projectDescription: '',
     detailedLocation: '',
     paymentMode: '' as '' | 'Standard' | 'Progressive',
-    requiredIntakePaths: '',
+
     clientPhone: '',
     emirate: '',
     location: '',
@@ -89,7 +89,6 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     if (!form.projectDescription.trim()) missing.push('Project Scope')
     if (!form.detailedLocation.trim()) missing.push('Exact Location')
     if (!form.paymentMode) missing.push('Payment Mode')
-    if (!form.requiredIntakePaths) missing.push('Requested Action')
     if (missing.length > 0) { setErr(`Required: ${missing.join(', ')}`); return }
 
     setSaving(true); setErr('')
@@ -262,18 +261,6 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
                 placeholder="Select Dubai to pick an area"
               />
             )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Requested Action *</label>
-            <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-              value={form.requiredIntakePaths}
-              onChange={(e) => set('requiredIntakePaths', e.target.value)}
-            >
-              <option value="">— select —</option>
-              {INTAKE_PATHS.map((p) => <option key={p}>{p}</option>)}
-            </select>
           </div>
 
           <div>

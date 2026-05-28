@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createProjectItem, createQuotation, generateItemTasksForProject, getProjectById, updateProject } from '@/lib/airtable'
+import { createProjectItem, createQuotation, generateItemTasksForProject, getProjectById, getQuotationsByProject, updateProject } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
 import { CreateQuotationItemsSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const quotations = await getQuotationsByProject(id)
+  return NextResponse.json({ quotations })
+}
 
 export async function POST(
   request: NextRequest,
@@ -73,6 +84,7 @@ export async function POST(
         description: item.description,
         notes: item.notes,
         quotationDate: parsed.data.quotationDate,
+        recordedBy: session.name,
       })
       results.push({ projectItemId: projectItem.id, quotationId: quotation.id })
 

@@ -355,8 +355,12 @@ function AddActivityModal({
   const [selectedDate, setSelectedDate] = useState(date)
   const [notes, setNotes] = useState('')
   const [customTask, setCustomTask] = useState('')
+  const [projectId, setProjectId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const { data: projectData } = useSWR<{ projects: Project[] }>('/api/projects', fetcher, { revalidateOnFocus: false })
+  const projects = projectData?.projects ?? []
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -372,6 +376,7 @@ function AddActivityModal({
           date: selectedDate,
           notes: notes.trim() || undefined,
           customTask: customTask.trim() || undefined,
+          projectId: projectId || undefined,
         }),
       })
       if (!res.ok) {
@@ -432,6 +437,21 @@ function AddActivityModal({
               required
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Project</label>
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            >
+              <option value="">— No project —</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.projectId ? `${p.projectId} — ` : ''}{p.nickname ?? p.projectName}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>

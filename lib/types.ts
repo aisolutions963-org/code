@@ -70,6 +70,7 @@ export interface Task {
   projectStage?: string[]
   client?: string[]
   taskCreated?: string
+  lastModified?: string
   clientPhone?: string
   projectItemName?: string
   assignedTo?: string[]
@@ -202,6 +203,7 @@ export interface Payment {
   payerName?: string
   commissionAmount?: number
   notes?: string
+  recordedBy?: string
 }
 
 export interface PaymentCreateInput {
@@ -218,6 +220,7 @@ export interface PaymentCreateInput {
   payerName?: string
   commissionAmount?: number
   notes?: string
+  recordedBy?: string
 }
 
 export interface GatePass {
@@ -323,6 +326,7 @@ export interface PurchaseOrder {
   actualDelivery?: string
   managerApproved?: boolean
   notes?: string
+  recordedBy?: string
 }
 
 export interface PurchaseOrderCreateInput {
@@ -332,6 +336,7 @@ export interface PurchaseOrderCreateInput {
   orderDate?: string
   expectedDelivery?: string
   notes?: string
+  recordedBy?: string
 }
 
 export interface InstallationLog {
@@ -343,6 +348,7 @@ export interface InstallationLog {
   numberOfLaborers?: number
   workDescription?: string
   expectedFinishDate?: string
+  recordedBy?: string
 }
 
 export interface InstallationLogCreateInput {
@@ -352,6 +358,7 @@ export interface InstallationLogCreateInput {
   numberOfLaborers?: number
   workDescription?: string
   expectedFinishDate?: string
+  recordedBy?: string
 }
 
 export interface HandoverSheet {
@@ -364,6 +371,7 @@ export interface HandoverSheet {
   customerSatisfaction?: string
   installationDifficulty?: string
   newsletterOptIn?: boolean
+  recordedBy?: string
 }
 
 export interface ProjectItem {
@@ -388,6 +396,7 @@ export interface Quotation {
   notes?: string
   sentDate?: string
   approvedDate?: string
+  recordedBy?: string
 }
 
 export interface QuotationItemInput {

@@ -12,7 +12,6 @@ import AttachDocsPanel from './panels/AttachDocsPanel'
 import ChooseInstallTeamPanel from './panels/ChooseInstallTeamPanel'
 import FixingTeamNotePanel from './panels/FixingTeamNotePanel'
 import F2DeliveryPanel from './panels/F2DeliveryPanel'
-import HandoverModal from '@/components/projects/HandoverModal'
 
 type CallOutcome = 'approved' | 'review' | 'refused'
 
@@ -131,6 +130,20 @@ interface TaskCardProps {
   task: Task
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return `${weeks}w ago`
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
 const INSPECTION_KEYWORDS = ['inspect', 'qc check', 'site check', 'handover', 'snagging']
@@ -255,8 +268,6 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     task.taskName.toLowerCase().startsWith('how many days') ||
     task.taskName.toLowerCase().startsWith('installation day')
   const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
-  const isHandoverFormTask = task.taskName.toLowerCase().startsWith('handing over form')
-  const [showHandoverModal, setShowHandoverModal] = useState(false)
 
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
@@ -356,7 +367,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     }
     if (isF3Task && task.status !== 'Completed' && key === 'status' && (value === 'Completed' || value === 'In Progress')) return
     if (isFabricateMissingTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
-    if (isHandoverFormTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
+
     if (isF4Task && task.status === 'Completed' && key === 'status') return
     if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') return
     setLocalFields((prev) => ({ ...prev, [key]: value }))
@@ -463,6 +474,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <TaskStatusBadge status={task.status} />
             {task.department.length > 0 && (
               <span className="text-xs text-gray-400">{task.department.join(', ')}</span>
+            )}
+            {task.lastModified && (
+              <span className="text-xs text-gray-400" title={new Date(task.lastModified).toLocaleString()}>
+                · {relativeTime(task.lastModified)}
+              </span>
             )}
           </div>
         </div>
@@ -620,39 +636,6 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
-          {/* Handing Over Form — F6 panel for installation role */}
-          {isHandoverFormTask && task.status !== 'Completed' && (
-            <div className="bg-sky-50 border border-sky-200 rounded-lg px-3 py-3 space-y-2.5">
-              <div>
-                <p className="text-xs font-semibold text-sky-800">F6 — Handing Over Form</p>
-                <p className="text-xs text-sky-600 mt-0.5">
-                  Fill in the handover details. Submitting will notify the team and unlock Phase 4.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowHandoverModal(true)}
-                className="w-full py-2 rounded-lg text-sm font-semibold bg-sky-600 text-white hover:bg-sky-700 transition-colors"
-              >
-                Fill Handover Form
-              </button>
-            </div>
-          )}
-          {isHandoverFormTask && task.status === 'Completed' && (
-            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
-              <p className="text-xs font-semibold text-green-800">✓ Handover form submitted — Phase 4 unlocked</p>
-            </div>
-          )}
-          {showHandoverModal && (
-            <HandoverModal
-              projectId={task.projectRecordId ?? task.project?.[0] ?? ''}
-              projectName={task.projectId ?? 'Project'}
-              onClose={() => setShowHandoverModal(false)}
-              onCreated={async () => {
-                setShowHandoverModal(false)
-                await onUpdate(task.id, { status: 'Completed' })
-              }}
-            />
-          )}
 
           {/* F2 Production List panel — fabrication date range entry (fabrication role only) */}
           {isF2ProductionTask && ar && task.status === 'Completed' && (

@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { createHandoverSheet, getProjectById, updateProject } from '@/lib/airtable'
+import { createHandoverSheet, getHandoverSheetForProject, getProjectById, updateProject } from '@/lib/airtable'
 import { CreateHandoverSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
+
+export const GET = requireRole()(
+  async (_req: NextRequest, _session, { params }) => {
+    const sheets = await getHandoverSheetForProject(params.id)
+    return NextResponse.json({ sheets })
+  },
+)
 
 export const POST = requireRole('installation', 'manager', 'superadmin')(
   async (req: NextRequest, session, { params }) => {
@@ -29,7 +36,7 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
     }
 
     const project = await getProjectById(params.id)
-    const sheet = await createHandoverSheet(params.id, parsed.data)
+    const sheet = await createHandoverSheet(params.id, { ...parsed.data, recordedBy: session.name })
 
     // Handover submitted → awaiting final payment from client. Project is not yet Closed.
     await updateProject(params.id, { [PROJECTS.PROJECT_STAGE]: 'Installation Completed' })

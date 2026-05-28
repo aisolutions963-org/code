@@ -15,7 +15,8 @@ export async function GET(request: NextRequest) {
   const all = searchParams.get('all') === 'true'
 
   try {
-    const projects = all ? await getAllProjects() : await getProjects({ stage })
+    const sedEmail = session.role === 'sed' ? session.email : undefined
+    const projects = all ? await getAllProjects() : await getProjects({ stage, sedEmail })
     return NextResponse.json({ projects })
   } catch (error) {
     console.error('GET /api/projects error:', error)
