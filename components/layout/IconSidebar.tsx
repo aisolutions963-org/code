@@ -178,6 +178,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: 'Timeline', href: '/dashboard/superadmin?view=timeline', icon: <ChartIcon /> },
     { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases', icon: <ShieldIcon /> },
     { label: 'Activity', href: '/dashboard/superadmin?view=activity', icon: <TasksIcon /> },
+    { label: 'Team Activity', href: '/dashboard/superadmin/team-activity', icon: <UsersIcon /> },
     { label: 'Payments', href: '/dashboard/superadmin?view=payments', icon: <CashIcon /> },
     { label: 'Pay Calendar', href: '/dashboard/superadmin?view=calendar', icon: <CalendarIcon /> },
     { label: 'Warranty', href: '/dashboard/superadmin?view=warranty', icon: <ShieldIcon /> },
