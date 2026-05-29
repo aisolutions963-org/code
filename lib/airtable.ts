@@ -260,7 +260,7 @@ function parseDocLinks(val: unknown): import('./types').DocLink[] {
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
       (d): d is import('./types').DocLink =>
-        d && typeof d.url === 'string' && typeof d.label === 'string',
+        d && typeof d.label === 'string',
     )
   } catch {
     return []
@@ -288,7 +288,7 @@ function transformTask(record: RawRecord): Task {
     taskOrder: numArr(f[TASKS.TASK_ORDER]),
     templateOrder: lookupNumArr(f[TASKS.TEMPLATE_ORDER]),
     projectId: str(f[TASKS.PROJECT_ID]),
-    project: strArr(f[TASKS.PROJECT]),
+    project: str(f[TASKS.PROJECT]) ? [str(f[TASKS.PROJECT])!] : [],
     projectRecordId: str(f[TASKS.PROJECT]) ?? undefined,
     projectItem: strArr(f[TASKS.PROJECT_ITEM]),
     taskDocuments: attachments(f[TASKS.TASK_DOCUMENTS]),

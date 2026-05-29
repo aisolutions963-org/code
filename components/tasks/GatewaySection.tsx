@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { Task, TaskUpdateInput, Role, Attachment, DocLink } from '@/lib/types'
+import { Task, TaskUpdateInput, Role, DocLink } from '@/lib/types'
 import { EDITABLE_FIELDS } from '@/lib/permissions'
 import TaskStatusBadge from './TaskStatusBadge'
 import FieldEditor from './FieldEditor'
+import QuotationPanel from './panels/QuotationPanel'
 
 function gatewayDisplayName(name: string): string {
   return name.replace(/^\[GATEWAY\]\s*/i, '').trim()
@@ -48,7 +49,15 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
+  const isMakeQuotation =
+    task.pathCondition === 'Make Quotation' ||
+    task.taskName.toLowerCase().includes('make quotation')
+  const isOrderSample = task.taskName === 'Order Sample' && !task.projectItem?.length
+  const isPerItemOrderSample =
+    !!task.projectItem?.length && task.pathCondition === 'Select Sample (item)'
+
   async function handleChange(key: keyof TaskUpdateInput, value: unknown) {
+    if (isMakeQuotation && key === 'status' && value === 'Completed') return
     setLocalFields((prev) => ({ ...prev, [key]: value }))
     setSaving(true)
     try {
@@ -90,6 +99,27 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
     }
   }
 
+  async function completeOrderSampleBranch(hasMaterial: boolean) {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/complete-branch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hasMaterial }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error((d as { error?: string }).error ?? 'Failed')
+      }
+      toast.success(hasMaterial ? 'Branch: We have material' : 'Branch: Ordering material')
+      await onUpdate(task.id, {})
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const instructions = task.instructions?.join(' ') ?? ''
 
   return (
@@ -97,6 +127,40 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
       {instructions && (
         <p className="text-sm text-gray-600 whitespace-pre-wrap">{instructions}</p>
       )}
+
+      {/* Quotation panel for Make Quotation path */}
+      {isMakeQuotation && (
+        <QuotationPanel task={task} variant="makeQuotation" onUpdate={onUpdate} />
+      )}
+
+      {/* Order Sample branch selector */}
+      {(isOrderSample || isPerItemOrderSample) && task.status !== 'Completed' && (
+        <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 space-y-2">
+          <p className="text-xs font-semibold text-green-800">
+            Sample Branch{' '}
+            <span className="font-normal text-green-700">— does the team have the material?</span>
+          </p>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              onClick={() => completeOrderSampleBranch(true)}
+              disabled={saving}
+              className="border border-green-400 bg-green-100 text-green-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-60 text-left"
+            >
+              <div className="font-bold">✓ We Have It</div>
+              <div className="font-normal text-green-700 mt-0.5">Send to Fabrication</div>
+            </button>
+            <button
+              onClick={() => completeOrderSampleBranch(false)}
+              disabled={saving}
+              className="border border-orange-300 bg-orange-50 text-orange-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-60 text-left"
+            >
+              <div className="font-bold">✗ Need to Order</div>
+              <div className="font-normal text-orange-700 mt-0.5">Request F3 material order</div>
+            </button>
+          </div>
+        </div>
+      )}
+
       <FieldEditor
         taskId={task.id}
         role={role}

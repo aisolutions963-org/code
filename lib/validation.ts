@@ -50,8 +50,8 @@ export const UpdateTaskSchema = z.object({
   followUpOutcome: z.enum(['Reject Project', 'SED to Follow Up', 'Manager to Follow Up']).optional(),
   taskDocuments: z.array(z.object({ url: z.string().url().optional(), filename: z.string().max(255) })).optional(),
   fillersAndMissingList: z.array(z.object({ url: z.string().url().optional(), filename: z.string().max(255) })).optional(),
-  taskDocLinks: z.array(z.object({ url: z.string().url(), label: z.string().min(1).max(255), notes: z.string().max(2000).optional() })).optional(),
-  fillersDocLinks: z.array(z.object({ url: z.string().url(), label: z.string().min(1).max(255), notes: z.string().max(2000).optional() })).optional(),
+  taskDocLinks: z.array(z.object({ url: z.string().url().or(z.literal('')).optional(), label: z.string().min(1).max(255), notes: z.string().max(2000).optional() })).optional(),
+  fillersDocLinks: z.array(z.object({ url: z.string().url().or(z.literal('')).optional(), label: z.string().min(1).max(255), notes: z.string().max(2000).optional() })).optional(),
 })
 
 export const CreatePaymentSchema = z.object({

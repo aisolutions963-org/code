@@ -24,7 +24,7 @@ export interface AttachmentInput {
 }
 
 export interface DocLink {
-  url: string
+  url?: string
   label: string
   notes?: string
 }
