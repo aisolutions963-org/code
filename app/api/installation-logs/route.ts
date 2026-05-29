@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { createInstallationLog, getInstallationLogsByProject } from '@/lib/airtable'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = requireRole()(async (req: NextRequest) => {
   const projectRecordId = req.nextUrl.searchParams.get('projectRecordId')
   if (!projectRecordId) {

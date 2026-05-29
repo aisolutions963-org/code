@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getSetting, setSetting } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = requireRole('superadmin')(async () => {
   return NextResponse.json({
     accountantEmail: getSetting('accountant_email') ?? '',

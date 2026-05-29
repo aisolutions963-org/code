@@ -2437,7 +2437,43 @@ export async function getTimesheetEntries(filters: TimesheetFilters = {}): Promi
     filterByFormula,
     sort: [{ field: PRODUCTION_TIMESHEETS.WORK_DATE, direction: 'desc' }],
   })
-  return records.map(transformTimesheetEntry)
+  const entries = records.map(transformTimesheetEntry)
+
+  if (entries.length === 0) return entries
+
+  // Enrich with worker names
+  const allWorkers = await getAllWorkers()
+  const workerNameMap = new Map(allWorkers.map((w) => [w.id, w.nickname ? `${w.name} (${w.nickname})` : w.name]))
+  for (const entry of entries) {
+    const wId = entry.workerIds[0]
+    if (wId) entry.workerName = workerNameMap.get(wId) ?? entry.workerName
+  }
+
+  // Enrich with project refs
+  const projectIdSet = new Set(entries.flatMap((e) => e.projectIds))
+  if (projectIdSet.size > 0) {
+    const formula = projectIdSet.size === 1
+      ? `RECORD_ID()="${[...projectIdSet][0]}"`
+      : `OR(${[...projectIdSet].map((id) => `RECORD_ID()="${id}"`).join(',')})`
+    const projectRecords = await fetchAll(PROJECTS.TABLE_ID, {
+      filterByFormula: formula,
+      fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.QUOTATION_NUMBER],
+    })
+    const projectRefMap = new Map(
+      projectRecords.map((r) => {
+        const f = r.fields
+        const ref = str(f[PROJECTS.QUOTATION_NUMBER]) || str(f[PROJECTS.PROJECT_ID]) || r.id
+        const name = str(f[PROJECTS.PROJECT_NAME]) ?? ''
+        return [r.id, name ? `${ref} — ${name}` : ref]
+      }),
+    )
+    for (const entry of entries) {
+      const pId = entry.projectIds[0]
+      if (pId) entry.projectRef = projectRefMap.get(pId) ?? entry.projectRef
+    }
+  }
+
+  return entries
 }
 
 export async function checkTimesheetDuplicate(
@@ -2490,6 +2526,19 @@ export async function updateTimesheetEntry(
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformTimesheetEntry(record)
+}
+
+export async function getTimesheetEntryById(id: string): Promise<TimesheetEntry> {
+  const res = await fetchWithRetry(recUrl(PRODUCTION_TIMESHEETS.TABLE, id), {
+    headers: airtableHeaders(),
+    cache: 'no-store',
   })
   if (!res.ok) {
     const body = await res.text()

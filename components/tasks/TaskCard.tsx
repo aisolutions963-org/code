@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput, Role, Attachment, DocLink } from '@/lib/types'
 import { EDITABLE_FIELDS } from '@/lib/permissions'
@@ -249,6 +249,15 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [saveError, setSaveError] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync local fields when server data changes, but only when card is closed
+  // to avoid overwriting in-progress edits
+  useEffect(() => {
+    if (!isOpen) {
+      setLocalFields(getInitialFieldValues(task, getEditableFieldsForRole(role)))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.lastModified])
 
   const isMakeQuotation =
     task.pathCondition === 'Make Quotation' ||

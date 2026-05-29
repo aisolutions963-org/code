@@ -422,11 +422,12 @@ function OverviewPage() {
   const regularTasks = sortedTasks.filter((t) => !(t.taskName === 'Follow Up' && t.status === 'To Do'))
 
   async function handleTaskUpdate(id: string, fields: Partial<TaskUpdateInput>) {
-    await fetch(`/api/tasks/${id}`, {
+    const res = await fetch(`/api/tasks/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields }),
     })
+    if (!res.ok) { const b = await res.json(); throw new Error(b.error ?? 'Update failed') }
     mutateTasks()
   }
 
