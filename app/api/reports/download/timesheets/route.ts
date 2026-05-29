@@ -1,28 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
+import { getTimesheetEntries } from '@/lib/airtable'
 
 export const dynamic = 'force-dynamic'
 
-export const GET = requireRole('superadmin')(async (_req: NextRequest) => {
-  // Timesheet table not yet implemented — return template with headers only
+export const GET = requireRole('superadmin')(async (req: NextRequest) => {
+  const url = new URL(req.url)
+  const from = url.searchParams.get('from') ?? undefined
+  const to = url.searchParams.get('to') ?? undefined
+
+  const entries = await getTimesheetEntries({ from, to })
+
+  const rows = entries.map((e) => ({
+    workDate: e.workDate,
+    workerName: e.workerName ?? e.workerIds[0] ?? '',
+    projectRef: e.projectRef ?? e.projectIds[0] ?? '',
+    regularHours: e.regularHours,
+    overtimeHours: e.overtimeHours,
+    totalHours: e.totalHours,
+    notes: e.notes ?? '',
+  }))
+
   const buffer = await buildXlsx('Timesheets', [
-    { header: 'Week Starting', key: 'weekStart', width: 14, isDate: true },
-    { header: 'Worker Name', key: 'workerName', width: 20 },
-    { header: 'Nickname', key: 'nickname', width: 14 },
-    { header: 'Project', key: 'project', width: 26 },
-    { header: 'Sat', key: 'sat', width: 6 },
-    { header: 'Sun', key: 'sun', width: 6 },
-    { header: 'Mon', key: 'mon', width: 6 },
-    { header: 'Tue', key: 'tue', width: 6 },
-    { header: 'Wed', key: 'wed', width: 6 },
-    { header: 'Thu', key: 'thu', width: 6 },
-    { header: 'Fri', key: 'fri', width: 6 },
-    { header: 'Regular Total', key: 'regularTotal', width: 14 },
-    { header: 'Overtime', key: 'overtime', width: 10 },
-    { header: 'Grand Total', key: 'grandTotal', width: 12 },
-    { header: 'Manager Approved', key: 'approved', width: 16 },
-  ], [])
+    { header: 'Date', key: 'workDate', width: 14, isDate: true },
+    { header: 'Worker', key: 'workerName', width: 22 },
+    { header: 'Project', key: 'projectRef', width: 24 },
+    { header: 'Regular Hrs', key: 'regularHours', width: 12 },
+    { header: 'Overtime Hrs', key: 'overtimeHours', width: 12 },
+    { header: 'Total Hrs', key: 'totalHours', width: 12 },
+    { header: 'Notes', key: 'notes', width: 30 },
+  ], rows)
 
   return xlsxResponse(buffer, 'Production_Timesheets')
 }) as (req: NextRequest) => Promise<NextResponse>

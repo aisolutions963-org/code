@@ -281,6 +281,28 @@ export const CALENDAR_EVENTS = {
   CUSTOM_TASK: 'flde3FqwogaB4RDf3',
 } as const
 
+export const PRODUCTION_TIMESHEETS = {
+  TABLE:          'tblEAgsiTCNCQmTZl',
+  ENTRY_LABEL:    'fldvw5Yal2gzlHWeV',
+  WORK_DATE:      'fldgYpSXiYQiUdJHR',
+  WORKER:         'fldEQa6tiu1vTq9Sb',
+  PROJECT:        'fldptqShoVtL3hjbs',
+  REGULAR_HOURS:  'fldPEBPtEqibQF9gG',
+  OVERTIME_HOURS: 'fldMeKDus6J01rkcA',
+  TOTAL_HOURS:    'fldwqP8tDqTXKyF0Q',
+  SUBMITTED_BY:   'fldpCClOzeq2Mfiqp',
+  NOTES:          'fld7nmDRcOiBt9DCM',
+} as const
+
+export const WORKERS = {
+  TABLE:      'tblaelluGouAlw7Xo',
+  NAME:       'fldpgSQBVcF0nA2Kx',
+  FULL_NAME:  'fldykYIjjHcVUU07b',
+  NICKNAME:   'fld0C8rZpHkXI01z8',
+  ROLE:       'fldfoj2jJ0om9sFrr',
+  ACTIVE:     'fldtVRH12qbl8xFQo',
+} as const
+
 export const MATERIALS_NEEDED = {
   TABLE_ID: 'tblDTNeiICTwzdi6N',
   NAME: 'fld90lAndpbxEdRM7',

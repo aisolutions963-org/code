@@ -15,6 +15,8 @@ import {
   PURCHASE_ORDERS,
   INSTALLATION_LOGS,
   CALENDAR_EVENTS,
+  PRODUCTION_TIMESHEETS,
+  WORKERS,
 } from './fieldMap'
 import { PHASE_CONFIG } from './phases'
 import {
@@ -44,6 +46,12 @@ import {
   PurchaseOrderCreateInput,
   InstallationLog,
   InstallationLogCreateInput,
+  TimesheetEntry,
+  CreateTimesheetInput,
+  UpdateTimesheetInput,
+  TimesheetFilters,
+  WorkerOption,
+  WeeklySummary,
 } from './types'
 import { ROLE_TO_DEPARTMENT } from './permissions'
 import { validateEnv } from './env'
@@ -2395,4 +2403,161 @@ export async function getQuotationsByProject(projectId: string): Promise<Quotati
   const formula = `FIND("${projectId}", ARRAYJOIN({${QUOTATIONS.PROJECT}}, ","))`
   const records = await fetchAll(QUOTATIONS.TABLE_ID, { filterByFormula: formula })
   return records.map(transformQuotation)
+}
+
+// ─── Timesheets ──────────────────────────────────────────────────────────────
+
+function transformTimesheetEntry(rec: RawRecord): TimesheetEntry {
+  const f = rec.fields
+  return {
+    id: rec.id,
+    entryLabel: str(f[PRODUCTION_TIMESHEETS.ENTRY_LABEL]),
+    workDate: str(f[PRODUCTION_TIMESHEETS.WORK_DATE]) ?? '',
+    workerIds: strArr(f[PRODUCTION_TIMESHEETS.WORKER]),
+    projectIds: strArr(f[PRODUCTION_TIMESHEETS.PROJECT]),
+    regularHours: num(f[PRODUCTION_TIMESHEETS.REGULAR_HOURS]) ?? 0,
+    overtimeHours: num(f[PRODUCTION_TIMESHEETS.OVERTIME_HOURS]) ?? 0,
+    totalHours: num(f[PRODUCTION_TIMESHEETS.TOTAL_HOURS]) ?? 0,
+    notes: str(f[PRODUCTION_TIMESHEETS.NOTES]),
+  }
+}
+
+export async function getTimesheetEntries(filters: TimesheetFilters = {}): Promise<TimesheetEntry[]> {
+  const conditions: string[] = []
+  if (filters.from) conditions.push(`{${PRODUCTION_TIMESHEETS.WORK_DATE}} >= "${filters.from}"`)
+  if (filters.to) conditions.push(`{${PRODUCTION_TIMESHEETS.WORK_DATE}} <= "${filters.to}"`)
+  if (filters.workerId) conditions.push(`FIND("${filters.workerId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.WORKER}}, ","))`)
+  if (filters.projectId) conditions.push(`FIND("${filters.projectId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.PROJECT}}, ","))`)
+  const filterByFormula = conditions.length > 0
+    ? conditions.length === 1 ? conditions[0] : `AND(${conditions.join(', ')})`
+    : undefined
+  const records = await fetchAll(PRODUCTION_TIMESHEETS.TABLE, {
+    filterByFormula,
+    sort: [{ field: PRODUCTION_TIMESHEETS.WORK_DATE, direction: 'desc' }],
+  })
+  return records.map(transformTimesheetEntry)
+}
+
+export async function checkTimesheetDuplicate(
+  workerId: string,
+  projectId: string,
+  workDate: string,
+): Promise<boolean> {
+  const formula = `AND({${PRODUCTION_TIMESHEETS.WORK_DATE}}="${workDate}", FIND("${workerId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.WORKER}}, ",")), FIND("${projectId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.PROJECT}}, ",")))`
+  const records = await fetchAll(PRODUCTION_TIMESHEETS.TABLE, {
+    filterByFormula: formula,
+    fields: [PRODUCTION_TIMESHEETS.ENTRY_LABEL],
+    maxRecords: 1,
+  })
+  return records.length > 0
+}
+
+export async function createTimesheetEntry(input: CreateTimesheetInput): Promise<TimesheetEntry> {
+  const regular = input.regularHours
+  const overtime = input.overtimeHours ?? 0
+  const fields: Record<string, unknown> = {
+    [PRODUCTION_TIMESHEETS.WORK_DATE]: input.workDate,
+    [PRODUCTION_TIMESHEETS.WORKER]: input.workerIds,
+    [PRODUCTION_TIMESHEETS.PROJECT]: input.projectIds,
+    [PRODUCTION_TIMESHEETS.REGULAR_HOURS]: regular,
+    [PRODUCTION_TIMESHEETS.OVERTIME_HOURS]: overtime,
+  }
+  if (input.notes) fields[PRODUCTION_TIMESHEETS.NOTES] = input.notes
+  const res = await fetchWithRetry(tblUrl(PRODUCTION_TIMESHEETS.TABLE), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformTimesheetEntry(record)
+}
+
+export async function updateTimesheetEntry(
+  id: string,
+  input: UpdateTimesheetInput,
+): Promise<TimesheetEntry> {
+  const fields: Record<string, unknown> = {}
+  if (input.regularHours !== undefined) fields[PRODUCTION_TIMESHEETS.REGULAR_HOURS] = input.regularHours
+  if (input.overtimeHours !== undefined) fields[PRODUCTION_TIMESHEETS.OVERTIME_HOURS] = input.overtimeHours
+  if (input.notes !== undefined) fields[PRODUCTION_TIMESHEETS.NOTES] = input.notes
+  const res = await fetchWithRetry(recUrl(PRODUCTION_TIMESHEETS.TABLE, id), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformTimesheetEntry(record)
+}
+
+export async function deleteTimesheetEntry(id: string): Promise<void> {
+  const res = await fetchWithRetry(recUrl(PRODUCTION_TIMESHEETS.TABLE, id), {
+    method: 'DELETE',
+    headers: airtableHeaders(),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+}
+
+export async function getTimesheetWorkers(): Promise<WorkerOption[]> {
+  const records = await fetchAll(WORKERS.TABLE, {
+    filterByFormula: `{${WORKERS.ACTIVE}}=TRUE()`,
+    sort: [{ field: WORKERS.NAME, direction: 'asc' }],
+    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.ACTIVE],
+  })
+  return records.map((rec) => {
+    const f = rec.fields
+    return {
+      id: rec.id,
+      name: str(f[WORKERS.NAME]) ?? rec.id,
+      fullName: str(f[WORKERS.FULL_NAME]),
+      nickname: str(f[WORKERS.NICKNAME]),
+      role: selectName(f[WORKERS.ROLE]),
+    }
+  })
+}
+
+export async function getTimesheetWeeklySummary(weekStart: string): Promise<WeeklySummary> {
+  const start = new Date(weekStart)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 6)
+  const weekEnd = end.toISOString().slice(0, 10)
+  const entries = await getTimesheetEntries({ from: weekStart, to: weekEnd })
+  const workerMap = new Map<string, {
+    workerName: string
+    days: Map<string, { regularHours: number; overtimeHours: number; totalHours: number; projectRef?: string; entryId: string }>
+  }>()
+  for (const entry of entries) {
+    const wId = entry.workerIds[0] ?? 'unknown'
+    if (!workerMap.has(wId)) {
+      workerMap.set(wId, { workerName: entry.workerName ?? wId, days: new Map() })
+    }
+    const worker = workerMap.get(wId)!
+    worker.days.set(entry.workDate, {
+      regularHours: entry.regularHours,
+      overtimeHours: entry.overtimeHours,
+      totalHours: entry.totalHours,
+      projectRef: entry.projectRef,
+      entryId: entry.id,
+    })
+  }
+  const workers = Array.from(workerMap.entries()).map(([workerId, data]) => {
+    const days = Array.from(data.days.entries())
+      .map(([date, d]) => ({ date, ...d }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    const totalRegular = days.reduce((s, d) => s + d.regularHours, 0)
+    const totalOvertime = days.reduce((s, d) => s + d.overtimeHours, 0)
+    const totalHours = days.reduce((s, d) => s + d.totalHours, 0)
+    return { workerId, workerName: data.workerName, days, totalRegular, totalOvertime, totalHours }
+  })
+  return { weekStart, weekEnd, workers }
 }

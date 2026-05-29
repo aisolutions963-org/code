@@ -408,6 +408,75 @@ export interface QuotationItemInput {
   notes?: string
 }
 
+export interface TimesheetEntry {
+  id: string
+  entryLabel?: string
+  workDate: string
+  workerIds: string[]
+  workerName?: string
+  projectIds: string[]
+  projectRef?: string
+  projectName?: string
+  regularHours: number
+  overtimeHours: number
+  totalHours: number
+  notes?: string
+}
+
+export interface CreateTimesheetInput {
+  workDate: string
+  workerIds: string[]
+  projectIds: string[]
+  regularHours: number
+  overtimeHours?: number
+  notes?: string
+}
+
+export interface UpdateTimesheetInput {
+  regularHours?: number
+  overtimeHours?: number
+  notes?: string
+}
+
+export interface TimesheetFilters {
+  from?: string
+  to?: string
+  workerId?: string
+  projectId?: string
+}
+
+export interface WorkerOption {
+  id: string
+  name: string
+  fullName?: string
+  nickname?: string
+  role?: string
+}
+
+export interface WeeklySummary {
+  weekStart: string
+  weekEnd: string
+  workers: WeeklySummaryWorker[]
+}
+
+export interface WeeklySummaryWorker {
+  workerId: string
+  workerName: string
+  days: WeeklySummaryDay[]
+  totalRegular: number
+  totalOvertime: number
+  totalHours: number
+}
+
+export interface WeeklySummaryDay {
+  date: string
+  regularHours: number
+  overtimeHours: number
+  totalHours: number
+  projectRef?: string
+  entryId: string
+}
+
 // Session payload stored in JWT cookie
 export interface SessionPayload {
   id: number

@@ -15,6 +15,7 @@ import GatePassModal from '@/components/projects/GatePassModal'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 import AssignInstallationModal, { TeamMember } from '@/components/projects/AssignInstallationModal'
+import TimesheetsView from '@/components/timesheets/TimesheetsView'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -33,7 +34,7 @@ export default function MgrDashboard() {
 
   const { data: projectData, error: projectError, isLoading: projectLoading, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
-      view === 'projects' || view === 'payments' || view === 'installation' || view === 'materials' ? '/api/projects' : null,
+      view === 'projects' || view === 'payments' || view === 'installation' || view === 'materials' || view === 'timesheets' ? '/api/projects' : null,
       fetcher,
       { refreshInterval: 30000, revalidateOnFocus: true },
     )
@@ -276,6 +277,11 @@ export default function MgrDashboard() {
             )
           })()}
         </>
+      )}
+
+      {/* Timesheets view */}
+      {view === 'timesheets' && (
+        <TimesheetsView projects={projects} />
       )}
 
       {assignProject && (
