@@ -23,15 +23,6 @@ const DUBAI_LOCATIONS = [
   'The Springs', 'Tilal Al Ghaf', 'Town Square', 'Umm Suqeim',
 ]
 
-const INTAKE_PATHS = [
-  'Make Quotation',
-  'Visit Site to Gather Details',
-  'Assign Installation for Measurement',
-  'Select Material / Order Samples',
-  'Draft Proposal or Photo Ideas',
-  'Client Clarifications & Sketches',
-]
-
 interface SedMember { id: string; name: string }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -101,6 +92,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
         detailedLocation: form.detailedLocation,
         paymentMode: form.paymentMode,
       }
+
       if (form.clientPhone) body.clientPhone = form.clientPhone
       if (form.emirate) body.emirate = form.emirate
       if (form.location) body.location = form.location

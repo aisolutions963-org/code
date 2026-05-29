@@ -171,7 +171,7 @@ export interface ProjectCreateInput {
   projectDescription: string
   detailedLocation: string
   paymentMode: string
-  requiredIntakePaths: string
+
   clientPhone?: string
   emirate?: string
   location?: string

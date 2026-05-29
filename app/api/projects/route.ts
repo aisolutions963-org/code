@@ -72,7 +72,8 @@ export async function POST(request: NextRequest) {
       tasksCreated = result.created
     } catch (err) {
       console.error('[A19] Task generation failed after project creation:', err)
-      tasksWarning = 'Project created but tasks could not be generated — use the ⚡ button to retry.'
+      const detail = err instanceof Error ? err.message : String(err)
+      tasksWarning = `Project created but tasks could not be generated: ${detail}`
     }
 
     return NextResponse.json({ project, tasksCreated, ...(tasksWarning ? { warning: tasksWarning } : {}) }, { status: 201 })

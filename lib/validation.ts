@@ -188,14 +188,7 @@ export const CreateProjectSchema = z.object({
   projectDescription: z.string().min(1).max(5000),
   detailedLocation: z.string().min(1).max(1000),
   paymentMode: z.enum(['Standard', 'Progressive']),
-  requiredIntakePaths: z.enum([
-    'Make Quotation',
-    'Visit Site to Gather Details',
-    'Assign Installation for Measurement',
-    'Select Material / Order Samples',
-    'Draft Proposal or Photo Ideas',
-    'Client Clarifications & Sketches',
-  ]),
+
   clientPhone: z.string().max(30).optional(),
   emirate: z.string().max(100).optional(),
   location: z.string().max(200).optional(),

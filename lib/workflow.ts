@@ -307,7 +307,10 @@ export async function handleTaskCompletion(
         task.managerReviewStatus === 'Approved' ||
         task.managerReviewStatus === 'Not Needed'
 
-      if (needsReview && !alreadyApproved) {
+      // F1 is an info-capture intake form — it completes directly, no manager review needed
+      const isF1Task = task.taskName.toLowerCase().startsWith('f1 —')
+
+      if (needsReview && !alreadyApproved && !isF1Task) {
         await updateTaskRaw(taskId, {
           [TASKS.STATUS]: 'Pending Approval' as TaskStatus,
           [TASKS.MANAGER_REVIEW_STATUS]: 'Pending',

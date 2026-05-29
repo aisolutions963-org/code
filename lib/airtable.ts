@@ -289,7 +289,7 @@ function transformTask(record: RawRecord): Task {
     templateOrder: lookupNumArr(f[TASKS.TEMPLATE_ORDER]),
     projectId: str(f[TASKS.PROJECT_ID]),
     project: strArr(f[TASKS.PROJECT]),
-    projectRecordId: str(f[TASKS.PROJECT_RECORD_ID]) ?? lookupStrArr(f[TASKS.PROJECT_RECORD_ID])[0] ?? strArr(f[TASKS.PROJECT])[0] ?? undefined,
+    projectRecordId: str(f[TASKS.PROJECT]) ?? undefined,
     projectItem: strArr(f[TASKS.PROJECT_ITEM]),
     taskDocuments: attachments(f[TASKS.TASK_DOCUMENTS]),
     fillersAndMissingList: attachments(f[TASKS.FILLERS_MISSING_ITEMS_LIST]),
@@ -496,7 +496,7 @@ export async function getTasksByRole(
 ): Promise<Task[]> {
   let formula = buildDepartmentFormula(role)
   if (options.projectId) {
-    formula = `AND(${formula}, FIND("${options.projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")))`
+    formula = `AND(${formula}, {${TASKS.PROJECT}} = "${options.projectId}")`
   }
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
@@ -566,8 +566,8 @@ export async function getLockedTasksForScope(
   projectId: string,
   itemId?: string,
 ): Promise<Task[]> {
-  // PROJECT_RECORD_ID is a lookup of the project's RECORD_ID() — filterable by record ID string
-  const projectFilter = `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ","))`
+  // PROJECT is a singleLineText field storing the project Airtable record ID
+  const projectFilter = `{${TASKS.PROJECT}} = "${projectId}"`
   const formula = itemId
     ? `AND(${projectFilter}, {${TASKS.STATUS}}="Locked")`
     : `AND(${projectFilter}, {${TASKS.STATUS}}="Locked", {${TASKS.PROJECT_ITEM}}=BLANK())`
@@ -725,7 +725,7 @@ export async function createProject(input: ProjectCreateInput): Promise<Project>
     [PROJECTS.PROJECT_DESCRIPTION]: input.projectDescription,
     [PROJECTS.DETAILED_LOCATION]: input.detailedLocation,
     [PROJECTS.PAYMENT_MODE]: input.paymentMode,
-    [PROJECTS.REQUIRED_INTAKE_PATHS]: input.requiredIntakePaths,
+
     [PROJECTS.PROJECT_STAGE]: 'Preparing',
   }
   if (input.clientPhone) fields[PROJECTS.CLIENT_PHONE] = input.clientPhone
@@ -868,7 +868,7 @@ export async function getTasksForProject(
 }
 
 export async function getAllTasksForProject(projectId: string): Promise<Task[]> {
-  const formula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), {${TASKS.STATUS}} != "Locked")`
+  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.STATUS}} != "Locked")`
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
     sort: [{ field: TASKS.TEMPLATE_ORDER, direction: 'asc' }],
@@ -879,13 +879,13 @@ export async function getAllTasksForProject(projectId: string): Promise<Task[]> 
 }
 
 export async function getIncompleteTasksForProject(projectId: string): Promise<Task[]> {
-  const formula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), {${TASKS.STATUS}} != "Completed", {${TASKS.STATUS}} != "Locked")`
+  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.STATUS}} != "Completed", {${TASKS.STATUS}} != "Locked")`
   const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })
   return records.map(transformTask)
 }
 
 export async function getAllTasksForProjectAll(projectId: string): Promise<Task[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ","))`
+  const formula = `{${TASKS.PROJECT}} = "${projectId}"`
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
     sort: [{ field: TASKS.TEMPLATE_ORDER, direction: 'asc' }],
@@ -907,7 +907,7 @@ export async function getLockedBranchTasksForProject(projectId: string): Promise
 export async function checkAndUnlockCallClientTask(projectId: string): Promise<void> {
   // Gate check only passes after at least one path task is completed — prevents bypassing
   // all approval gates without doing any actual work on a path.
-  const pathDoneFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), NOT({${TASKS.PATH_CONDITION}} = BLANK()), {${TASKS.STATUS}} = "Completed")`
+  const pathDoneFormula = `AND({${TASKS.PROJECT}} = "${projectId}", NOT({${TASKS.PATH_CONDITION}} = BLANK()), {${TASKS.STATUS}} = "Completed")`
   const pathDoneRecords = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: pathDoneFormula,
     fields: [TASKS.STATUS],
@@ -915,7 +915,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
   if (pathDoneRecords.length === 0) return
 
   // Fetch all [GATE] tasks for this project and check their approval fields
-  const gateFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), FIND("[GATE]", {${TASKS.TASK_NAME}}) > 0)`
+  const gateFormula = `AND({${TASKS.PROJECT}} = "${projectId}", FIND("[GATE]", {${TASKS.TASK_NAME}}) > 0)`
   const gateRecords = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: gateFormula,
     fields: [TASKS.CONCEPT_DESIGN_APPROVAL, TASKS.SAMPLE_APPROVAL, TASKS.QUOTATION_OUTCOME],
@@ -933,7 +933,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
   if (!conceptApproved || !sampleApproved || !quotationApproved) return
 
   // All 3 cleared — unlock the locked "Call the Client" task for this project
-  const callFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), FIND("Call the Client", {${TASKS.TASK_NAME}}) > 0, {${TASKS.STATUS}} = "Locked")`
+  const callFormula = `AND({${TASKS.PROJECT}} = "${projectId}", FIND("Call the Client", {${TASKS.TASK_NAME}}) > 0, {${TASKS.STATUS}} = "Locked")`
   const callRecords = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: callFormula,
     fields: [TASKS.TASK_NAME, TASKS.DEPARTMENT, TASKS.PROJECT_ID],
@@ -966,7 +966,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
 export async function checkAndUnlockInactivityFollowUp(
   projectId: string,
 ): Promise<boolean> {
-  const formula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), {${TASKS.TASK_NAME}} = "Follow Up", {${TASKS.STATUS}} = "Locked")`
+  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.TASK_NAME}} = "Follow Up", {${TASKS.STATUS}} = "Locked")`
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
     fields: [TASKS.TASK_NAME],
@@ -1558,7 +1558,7 @@ export async function createMaterialOrder(order: MaterialOrderInput): Promise<Ma
 }
 
 export async function deleteTasksByProjectId(projectId: string): Promise<number> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ","))`
+  const formula = `{${TASKS.PROJECT}} = "${projectId}"`
   const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula, fields: [TASKS.STATUS] })
   if (records.length === 0) return 0
 
@@ -2081,7 +2081,7 @@ async function createTasksBatch(
 }
 
 export async function getTaskCountForProject(projectId: string): Promise<number> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ","))`
+  const formula = `{${TASKS.PROJECT}} = "${projectId}"`
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
     fields: [TASKS.STATUS],
@@ -2094,7 +2094,7 @@ export async function generateTasksForProject(
   stage: string,
 ): Promise<{ created: number; skipped: number; todoTemplates: TaskTemplate[] }> {
   // Lock all active tasks from the previous phase so they disappear from dashboards
-  const lockFormula = `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT_RECORD_ID}}, ",")), OR({${TASKS.STATUS}}="To Do", {${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="Pending Approval"))`
+  const lockFormula = `AND({${TASKS.PROJECT}} = "${projectId}", OR({${TASKS.STATUS}}="To Do", {${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="Pending Approval"))`
   const toArchive = await fetchAll(TASKS.TABLE_ID, { filterByFormula: lockFormula, fields: [TASKS.STATUS] })
   if (toArchive.length > 0) {
     await Promise.all(toArchive.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'Locked' as TaskStatus })))
@@ -2164,7 +2164,7 @@ export async function generateTasksForProject(
     if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
-      [TASKS.PROJECT]: [projectId],
+      [TASKS.PROJECT]: projectId,
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }
@@ -2222,7 +2222,7 @@ export async function generateItemTasksForProject(
     if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
-      [TASKS.PROJECT]: [projectId],
+      [TASKS.PROJECT]: projectId,
       [TASKS.PROJECT_ITEM]: [itemId],
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
@@ -2257,7 +2257,7 @@ export async function generatePhase3TasksForItem(
     if (status === 'To Do') todoTemplates.push(t)
     return {
       [TASKS.TASK_NAME]: t.taskName,
-      [TASKS.PROJECT]: [projectId],
+      [TASKS.PROJECT]: projectId,
       [TASKS.PROJECT_ITEM]: [itemId],
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
@@ -2286,7 +2286,7 @@ export async function generatePhase4Tasks(
     if (status === 'To Do') todoTemplates.push(t)
     return {
       [TASKS.TASK_NAME]: t.taskName,
-      [TASKS.PROJECT]: [projectId],
+      [TASKS.PROJECT]: projectId,
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }
