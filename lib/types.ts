@@ -408,6 +408,22 @@ export interface QuotationItemInput {
   notes?: string
 }
 
+export interface WorkerCreateInput {
+  name: string
+  fullName?: string
+  nickname?: string
+  role?: string
+  active?: boolean
+}
+
+export interface WorkerUpdateInput {
+  name?: string
+  fullName?: string
+  nickname?: string
+  role?: string
+  active?: boolean
+}
+
 export interface TimesheetEntry {
   id: string
   entryLabel?: string
@@ -451,6 +467,7 @@ export interface WorkerOption {
   fullName?: string
   nickname?: string
   role?: string
+  active?: boolean
 }
 
 export interface WeeklySummary {

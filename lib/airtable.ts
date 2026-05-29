@@ -52,6 +52,8 @@ import {
   TimesheetFilters,
   WorkerOption,
   WeeklySummary,
+  WorkerCreateInput,
+  WorkerUpdateInput,
 } from './types'
 import { ROLE_TO_DEPARTMENT } from './permissions'
 import { validateEnv } from './env'
@@ -2560,4 +2562,78 @@ export async function getTimesheetWeeklySummary(weekStart: string): Promise<Week
     return { workerId, workerName: data.workerName, days, totalRegular, totalOvertime, totalHours }
   })
   return { weekStart, weekEnd, workers }
+}
+
+// ─── Workers CRUD ─────────────────────────────────────────────────────────────
+
+function transformWorker(rec: RawRecord): WorkerOption {
+  const f = rec.fields
+  return {
+    id: rec.id,
+    name: str(f[WORKERS.NAME]) ?? rec.id,
+    fullName: str(f[WORKERS.FULL_NAME]),
+    nickname: str(f[WORKERS.NICKNAME]),
+    role: selectName(f[WORKERS.ROLE]),
+    active: bool(f[WORKERS.ACTIVE]) ?? false,
+  }
+}
+
+export async function getAllWorkers(): Promise<WorkerOption[]> {
+  const records = await fetchAll(WORKERS.TABLE, {
+    sort: [{ field: WORKERS.NAME, direction: 'asc' }],
+    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.ACTIVE],
+  })
+  return records.map(transformWorker)
+}
+
+export async function createWorker(input: WorkerCreateInput): Promise<WorkerOption> {
+  const fields: Record<string, unknown> = {
+    [WORKERS.NAME]: input.name,
+  }
+  if (input.fullName) fields[WORKERS.FULL_NAME] = input.fullName
+  if (input.nickname) fields[WORKERS.NICKNAME] = input.nickname
+  if (input.role) fields[WORKERS.ROLE] = input.role
+  if (input.active !== undefined) fields[WORKERS.ACTIVE] = input.active
+  const res = await fetchWithRetry(tblUrl(WORKERS.TABLE), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformWorker(record)
+}
+
+export async function updateWorker(id: string, input: WorkerUpdateInput): Promise<WorkerOption> {
+  const fields: Record<string, unknown> = {}
+  if (input.name !== undefined) fields[WORKERS.NAME] = input.name
+  if (input.fullName !== undefined) fields[WORKERS.FULL_NAME] = input.fullName
+  if (input.nickname !== undefined) fields[WORKERS.NICKNAME] = input.nickname
+  if (input.role !== undefined) fields[WORKERS.ROLE] = input.role
+  if (input.active !== undefined) fields[WORKERS.ACTIVE] = input.active
+  const res = await fetchWithRetry(recUrl(WORKERS.TABLE, id), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformWorker(record)
+}
+
+export async function deleteWorker(id: string): Promise<void> {
+  const res = await fetchWithRetry(recUrl(WORKERS.TABLE, id), {
+    method: 'DELETE',
+    headers: airtableHeaders(),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
 }

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WoodWings PMS — Superadmin User Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0e8; --white: #ffffff; --navy: #1a1a2e; --gold: #c9a96e; --gold-light: #f0e6d3;
+    --text: #2d2d3a; --muted: #6b6b80; --border: #e2ddd6; --sidebar-w: 260px;
+    --locked: #6b7280; --todo: #3b82f6; --inprogress: #f59e0b; --pending: #8b5cf6; --completed: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; display: flex; }
+  h1,h2,h3,h4 { font-family: 'DM Serif Display', serif; color: var(--navy); }
+  a { color: var(--gold); text-decoration: none; } a:hover { text-decoration: underline; }
+  #toc { width: var(--sidebar-w); min-height: 100vh; background: var(--navy); position: sticky; top: 0; height: 100vh; overflow-y: auto; flex-shrink: 0; }
+  .toc-brand { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 8px; }
+  .toc-brand .logo { font-family: 'DM Serif Display', serif; color: var(--gold); font-size: 1.2rem; }
+  .toc-brand .role-label { color: rgba(255,255,255,0.45); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+  #toc a { display: flex; align-items: center; gap: 8px; padding: 8px 20px; color: rgba(255,255,255,0.55); font-size: 0.82rem; font-weight: 500; border-left: 3px solid transparent; transition: all 0.15s; }
+  #toc a:hover, #toc a.active { color: var(--gold); border-left-color: var(--gold); background: rgba(201,169,110,0.08); text-decoration: none; }
+  .toc-section-label { padding: 16px 20px 4px; color: rgba(255,255,255,0.25); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+  #main { flex: 1; max-width: calc(100% - var(--sidebar-w)); }
+  .page-header { background: var(--navy); color: white; padding: 48px 60px 40px; border-bottom: 4px solid var(--gold); }
+  .page-header .manual-type { color: var(--gold); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .page-header h1 { font-size: 2.4rem; color: white; margin-bottom: 12px; }
+  .page-header p { color: rgba(255,255,255,0.6); font-size: 1rem; max-width: 560px; }
+  .content { padding: 0 60px 80px; }
+  .section { padding: 52px 0 0; border-bottom: 1px solid var(--border); }
+  .section:last-child { border-bottom: none; }
+  .section-num { color: var(--gold); font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; font-family: 'DM Sans', sans-serif; }
+  .section h2 { font-size: 1.75rem; margin-bottom: 6px; }
+  .section-intro { color: var(--muted); font-size: 0.95rem; margin-bottom: 28px; }
+  h3 { font-size: 1.2rem; margin: 28px 0 12px; }
+  h4 { font-size: 1rem; margin: 20px 0 8px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
+  p { margin-bottom: 12px; }
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin-bottom: 5px; }
+  .tbl-wrap { overflow-x: auto; margin: 16px 0 24px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  table { width: 100%; border-collapse: collapse; background: var(--white); font-size: 0.88rem; }
+  th { background: var(--navy); color: white; padding: 11px 16px; text-align: left; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.04em; }
+  td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #faf8f5; }
+  .callout { display: flex; gap: 14px; padding: 16px 18px; border-radius: 10px; margin: 18px 0; font-size: 0.9rem; }
+  .callout-icon { font-size: 1.2rem; flex-shrink: 0; padding-top: 1px; }
+  .callout-body strong { display: block; margin-bottom: 3px; font-weight: 600; }
+  .callout.warning { background: #fffbeb; border-left: 4px solid #f59e0b; }
+  .callout.warning .callout-icon::before { content: "⚠️"; }
+  .callout.tip { background: #eff6ff; border-left: 4px solid #3b82f6; }
+  .callout.tip .callout-icon::before { content: "💡"; }
+  .callout.note { background: #f8fafc; border-left: 4px solid #94a3b8; }
+  .callout.note .callout-icon::before { content: "📌"; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+  .badge::before { content: "●"; font-size: 0.6rem; }
+  .b-locked { background: #f1f1f1; color: var(--locked); }
+  .b-todo { background: #eff6ff; color: var(--todo); }
+  .b-inprogress { background: #fffbeb; color: #b45309; }
+  .b-pending { background: #f5f3ff; color: #7c3aed; }
+  .b-completed { background: #ecfdf5; color: #059669; }
+  .status-legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+  .steps { margin: 16px 0; }
+  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; }
+  .step-num { width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+  .step-body { flex: 1; }
+  .step-body strong { display: block; margin-bottom: 3px; color: var(--navy); }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
+  .kpi-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .kpi-card .kpi-num { font-size: 1.8rem; font-weight: 700; color: var(--navy); }
+  .kpi-card .kpi-label { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .kpi-card .kpi-link { font-size: 0.7rem; color: var(--gold); margin-top: 6px; }
+  .report-cat { border: 1px solid var(--border); border-radius: 10px; margin: 12px 0; overflow: hidden; }
+  .report-cat-header { background: var(--gold-light); padding: 10px 16px; font-weight: 600; font-size: 0.88rem; color: var(--navy); }
+  .report-item { padding: 10px 16px; border-top: 1px solid var(--border); font-size: 0.87rem; display: flex; justify-content: space-between; align-items: center; }
+  .report-item span { color: var(--muted); font-size: 0.8rem; }
+  .qrc { background: var(--navy); color: white; border-radius: 14px; padding: 36px; margin-top: 40px; }
+  .qrc h2 { color: var(--gold); font-size: 1.5rem; margin-bottom: 24px; }
+  .qrc h3 { color: var(--gold); font-size: 1rem; margin: 20px 0 10px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
+  .qrc table { background: rgba(255,255,255,0.05); }
+  .qrc th { background: rgba(201,169,110,0.2); color: var(--gold); }
+  .qrc td { color: rgba(255,255,255,0.8); border-bottom-color: rgba(255,255,255,0.08); }
+  .qrc tr:nth-child(even) td { background: rgba(255,255,255,0.03); }
+  @media print {
+    #toc { display: none !important; }
+    #main { max-width: 100%; }
+    .page-header { background: white !important; color: var(--navy) !important; border-bottom: 3px solid var(--gold); padding: 24px 32px; }
+    .page-header h1, .page-header .manual-type { color: var(--navy) !important; }
+    .page-header p { color: var(--muted) !important; }
+    .content { padding: 0 32px 40px; }
+    .qrc { background: white !important; border: 2px solid var(--navy); }
+    .qrc h2, .qrc h3 { color: var(--navy) !important; }
+    .qrc td { color: var(--text) !important; }
+  }
+  @media (max-width: 900px) {
+    body { flex-direction: column; } #toc { width: 100%; height: auto; position: relative; }
+    #main { max-width: 100%; } .content { padding: 0 24px 60px; } .page-header { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+<nav id="toc">
+  <div class="toc-brand"><div class="logo">WoodWings PMS</div><div class="role-label">Superadmin Manual</div></div>
+  <div class="toc-section-label">Contents</div>
+  <a href="#s1">§1 Introduction</a>
+  <a href="#s2">§2 Your Dashboard</a>
+  <a href="#s3">§3 Task Management</a>
+  <a href="#s4">§4 System Administration</a>
+  <a href="#s5">§5 Reports & Downloads</a>
+  <a href="#s6">§6 Project Workflow Control</a>
+  <a href="#s7">§7 Common Scenarios</a>
+  <a href="#s8">§8 Permissions</a>
+  <a href="#s9">§9 Quick Reference</a>
+</nav>
+<div id="main">
+  <div class="page-header">
+    <div class="manual-type">User Manual — Version 1.0</div>
+    <h1>Superadmin Role Guide</h1>
+    <p>Full system access. You are the system owner — responsible for user management, project stage control, system-wide visibility, and all reporting.</p>
+  </div>
+  <div class="content">
+
+    <div class="section" id="s1">
+      <div class="section-num">Section 1</div>
+      <h2>Introduction</h2>
+      <p class="section-intro">The Superadmin role has unrestricted access to every part of WoodWings PMS. With that comes responsibility for keeping the system healthy and the team unblocked.</p>
+
+      <h3>Your Role: Superadmin</h3>
+      <p>As Superadmin, you own the following functions that no other role can perform:</p>
+      <ul>
+        <li>Setting the outcome of "Call the Client" tasks (Approved / Needs Review / Refused)</li>
+        <li>Manually advancing or managing project stages</li>
+        <li>Creating, editing, and deactivating user accounts</li>
+        <li>Managing the worker roster (for timesheets)</li>
+        <li>Viewing the full system KPI overview and SED performance chart</li>
+        <li>Downloading all Excel reports across Sales, Accountant, Material, and Calendar categories</li>
+        <li>Viewing all team members' active tasks on the Team Activity page</li>
+        <li>Posting system-wide announcements</li>
+        <li>Deleting timesheet entries</li>
+        <li>Viewing the superadmin timesheets page with full filter, edit, and export capability</li>
+      </ul>
+
+      <h3>How to Log In</h3>
+      <p>Navigate to <code>/login</code>, enter your credentials, and you are redirected to <code>/dashboard/superadmin</code>.</p>
+      <p>To log out, use the menu at the bottom-left of the sidebar and select <strong>Log Out</strong>.</p>
+
+      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>Keep credentials secure</strong>Your account can affect all users and all data. Never share your password. If you suspect a breach, change your password immediately and contact IT.</div></div>
+    </div>
+
+    <div class="section" id="s2">
+      <div class="section-num">Section 2</div>
+      <h2>Your Dashboard</h2>
+      <p class="section-intro">The superadmin dashboard at <code>/dashboard/superadmin</code> is the system command centre.</p>
+
+      <div class="tbl-wrap"><table>
+        <tr><th>Tab / Page</th><th>What it shows</th><th>When to use it</th></tr>
+        <tr><td><strong>Overview</strong></td><td>KPI cards, SED performance chart, your personal tasks, and the Reports download section.</td><td>Every morning — system health at a glance.</td></tr>
+        <tr><td><strong>My Tasks</strong></td><td>Tasks assigned to you directly, including Call the Client tasks.</td><td>Daily — action any tasks assigned to your account.</td></tr>
+        <tr><td><strong>Pipeline</strong></td><td>Full project pipeline with filters by stage.</td><td>Weekly review of all active and recent projects.</td></tr>
+        <tr><td><strong>Timeline</strong></td><td>Production and delivery timeline view.</td><td>Planning ahead — delivery and production scheduling.</td></tr>
+        <tr><td><strong>Phase Gates</strong></td><td>Overview of all project gate statuses by phase.</td><td>When a project seems stalled — identify the blocking gate.</td></tr>
+        <tr><td><strong>Activity</strong></td><td>Recent task activity across all roles.</td><td>Audit and oversight — see what has changed recently.</td></tr>
+        <tr><td><strong>Team Activity</strong></td><td>Every team member with their active tasks, grouped by person.</td><td>When you need to see who is working on what right now.</td></tr>
+        <tr><td><strong>Payments / Pay Calendar</strong></td><td>All payment records and calendar view.</td><td>Financial oversight and payment reminders.</td></tr>
+        <tr><td><strong>Warranty</strong></td><td>Projects in the maintenance/warranty period.</td><td>After a project closes — monitor warranty status.</td></tr>
+        <tr><td><strong>Announcements</strong></td><td>Post and manage system-wide announcements visible to all users.</td><td>Company communications, system notices, holidays.</td></tr>
+        <tr><td><strong>All Projects</strong></td><td>Complete project list, all stages.</td><td>Full project management and oversight.</td></tr>
+        <tr><td><strong>Users</strong></td><td>All user accounts — create, edit, deactivate.</td><td>Onboarding new staff or managing access.</td></tr>
+        <tr><td><strong>Timesheets</strong></td><td>All daily worker timesheet entries with filters and Excel export.</td><td>Payroll review and worker hour analysis.</td></tr>
+        <tr><td><strong>Workers</strong></td><td>Manage the worker roster — add, edit, activate/deactivate workers.</td><td>When onboarding a new daily worker or updating the roster.</td></tr>
+      </table></div>
+
+      <h3>Overview Tab — KPI Cards</h3>
+      <p>The Overview tab displays 8 KPI cards showing live project counts. Each card is clickable and links to a filtered project list.</p>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-num">●</div><div class="kpi-label">Total Projects</div></div>
+        <div class="kpi-card"><div class="kpi-num">●</div><div class="kpi-label">Preparing</div></div>
+        <div class="kpi-card"><div class="kpi-num">●</div><div class="kpi-label">Open</div></div>
+        <div class="kpi-card"><div class="kpi-num">●</div><div class="kpi-label">Not Approved</div></div>
+        <div class="kpi-card"><div class="kpi-num">●</div><div class="kpi-label">Finished</div></div>
+        <div class="kpi-card"><div class="kpi-num">●</div><div class="kpi-label">Maintenance Active</div></div>
+        <div class="kpi-card"><div class="kpi-num">●</div><div class="kpi-label">Finished Unpaid</div></div>
+        <div class="kpi-card"><div class="kpi-num">●</div><div class="kpi-label">Maintenance Expired</div></div>
+      </div>
+
+      <h3>SED Performance Chart</h3>
+      <p>Below the KPI cards is a horizontal bar chart showing project counts per SED by stage (Preparing / Open / Closed / Not-Approved). Use the tabs above the chart to switch between <strong>Combined View</strong> and individual SED breakdowns.</p>
+    </div>
+
+    <div class="section" id="s3">
+      <div class="section-num">Section 3</div>
+      <h2>Task Management</h2>
+      <p class="section-intro">As Superadmin you can see and action all tasks across all roles. Your most important unique task is the "Call the Client" decision.</p>
+
+      <h3>Status Flow</h3>
+      <div class="status-legend">
+        <span class="badge b-locked">Locked</span>
+        <span style="color:var(--muted);line-height:2">→</span>
+        <span class="badge b-todo">To Do</span>
+        <span style="color:var(--muted);line-height:2">→</span>
+        <span class="badge b-inprogress">In Progress</span>
+        <span style="color:var(--muted);line-height:2">→</span>
+        <span class="badge b-pending">Pending Approval</span>
+        <span style="color:var(--muted);line-height:2">→</span>
+        <span class="badge b-completed">Completed</span>
+      </div>
+
+      <h3>Call the Client — Your Exclusive Task</h3>
+      <p>When all Phase 1 gate checks pass (Quotation, Sample, and/or Concept Design all approved), the <strong>Call the Client</strong> task unlocks and is assigned to you. This is the single most important action in Phase 1 — your decision determines the project's path.</p>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Find the task</strong>It appears in your <strong>My Tasks</strong> tab with a distinct 3-button panel.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Call the client</strong>Make the call outside the system, then record the outcome.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Select the outcome:</strong>
+          <ul style="margin-top:6px;">
+            <li><strong>Approved</strong> — client confirmed. Project advances to Phase 2 (Open stage). Notifications sent to Accountant, Fabrication, and Manager.</li>
+            <li><strong>Needs Review</strong> — client wants changes. All Phase 1 action tasks reset to To Do for SED to rework.</li>
+            <li><strong>Refused</strong> — client declined. Project is marked Not-Approved.</li>
+          </ul>
+        </div></div>
+      </div>
+      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>This cannot be undone lightly</strong>Setting a project to Refused or triggering a Needs Review resets significant work. Confirm with the SED before selecting Refused.</div></div>
+
+      <h3>Approving and Rejecting Tasks</h3>
+      <p>You have the same approval capability as the Manager. Tasks in <span class="badge b-pending">Pending Approval</span> appear in your My Tasks view with Approve / Reject buttons.</p>
+    </div>
+
+    <div class="section" id="s4">
+      <div class="section-num">Section 4</div>
+      <h2>System Administration</h2>
+
+      <h3>Managing Users</h3>
+      <p>Go to <strong>Users</strong> tab on the superadmin dashboard.</p>
+      <div class="tbl-wrap"><table>
+        <tr><th>Action</th><th>How</th></tr>
+        <tr><td>Add a new user</td><td>Click <strong>Add User</strong> → fill in name, email, role, and set a password → Save</td></tr>
+        <tr><td>Edit a user</td><td>Click Edit on the user row → update fields → Save</td></tr>
+        <tr><td>Deactivate a user</td><td>Toggle the Active switch on the user row. Deactivated users cannot log in.</td></tr>
+        <tr><td>Reset a user's role</td><td>Edit the user → change the Role dropdown → Save</td></tr>
+      </table></div>
+      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>Deactivating vs deleting</strong>Always deactivate rather than delete a user. Deactivated users' historical data remains intact. Deletion removes them permanently.</div></div>
+
+      <h3>Managing Workers (Timesheet Roster)</h3>
+      <p>Go to <strong>Workers</strong> in the sidebar. Workers are daily labourers who appear in the timesheet entry form — separate from system users.</p>
+      <div class="tbl-wrap"><table>
+        <tr><th>Action</th><th>How</th></tr>
+        <tr><td>Add a worker</td><td>Click <strong>Add Worker</strong> → enter name, full name, nickname, role, check Active → Save</td></tr>
+        <tr><td>Edit a worker</td><td>Click Edit on the worker row → update fields → Save</td></tr>
+        <tr><td>Deactivate a worker</td><td>Click the Active/Inactive badge on the row to toggle. Inactive workers do not appear in the timesheet dropdown.</td></tr>
+        <tr><td>Delete a worker</td><td>Click Delete on the row. Confirmation required. Only delete if the worker has no historical timesheet data.</td></tr>
+      </table></div>
+
+      <h3>Posting Announcements</h3>
+      <p>Go to <strong>Announcements</strong> tab. Click <strong>New Announcement</strong>. Fill in the title, message body, select who can see it (Visible To), set an optional expiry date, and optionally pin it to the top of the home page for all users.</p>
+
+      <h3>Team Activity Page</h3>
+      <p>Go to <strong>Team Activity</strong> in the sidebar. This page shows every active team member with their current active tasks, grouped by person. Click a person card to expand their task list. Tasks refresh every 60 seconds automatically.</p>
+    </div>
+
+    <div class="section" id="s5">
+      <div class="section-num">Section 5</div>
+      <h2>Reports &amp; Downloads</h2>
+      <p class="section-intro">The Reports section on the Overview tab lets you download Excel exports of all key business data. All reports default to the last 90 days and can be filtered by date.</p>
+
+      <h3>Sales Reports</h3>
+      <div class="report-cat">
+        <div class="report-cat-header">Sales Category</div>
+        <div class="report-item">Quotations Pipeline <span>All quotations with status, dates, and amounts</span></div>
+        <div class="report-item">SED Follow-Ups <span>All follow-up tasks with outcomes and notes</span></div>
+        <div class="report-item">Ongoing Projects <span>Active projects with per-item breakdowns</span></div>
+        <div class="report-item">SED Projects Status <span>All projects sorted by SED owner</span></div>
+      </div>
+
+      <h3>Accountant Reports</h3>
+      <div class="report-cat">
+        <div class="report-cat-header">Accountant Category</div>
+        <div class="report-item">Payables <span>Purchase orders and supplier payments due</span></div>
+        <div class="report-item">Receivables <span>Pending/overdue client payments with debt age</span></div>
+        <div class="report-item">Quotation Line Items <span>All quotation items with quantities, unit prices, and subtotals</span></div>
+      </div>
+
+      <h3>Material Reports</h3>
+      <div class="report-cat">
+        <div class="report-cat-header">Material Category</div>
+        <div class="report-item">Material Orders <span>All material orders with supplier, qty, status, and arrival dates</span></div>
+        <div class="report-item">Production Timesheets <span>Daily worker entries with regular/overtime/total hours</span></div>
+      </div>
+
+      <h3>How to Download a Report</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body">Go to the <strong>Overview</strong> tab → scroll to the Reports section.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body">Select the category tab (Sales / Accountant / Material / Calendar).</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body">Optionally set a date range in the filter at the top of the section.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body">Click <strong>Download Excel</strong> next to the report you need. The file downloads automatically.</div></div>
+      </div>
+
+      <h3>Timesheets Export</h3>
+      <p>On the <strong>Timesheets</strong> page, use the filter bar (date range + worker filter) then click <strong>Export Excel</strong> in the top-right corner. The export respects all active filters.</p>
+    </div>
+
+    <div class="section" id="s6">
+      <div class="section-num">Section 6</div>
+      <h2>Project Workflow Control</h2>
+      <p class="section-intro">As Superadmin you are the gatekeeper for the most critical project transitions.</p>
+
+      <h3>Phase 1 → Phase 2 (Preparing → Open)</h3>
+      <p>This transition happens when you set the <strong>Call the Client</strong> outcome to <strong>Approved</strong>. The system then:</p>
+      <ul>
+        <li>Advances the project to Open stage</li>
+        <li>Sends notifications to Accountant, Fabrication, and Manager</li>
+        <li>Unlocks F4 (advance payment) and F5 (quotation items) tasks</li>
+      </ul>
+
+      <h3>3-Day Inactivity Rule</h3>
+      <p>The system automatically monitors project activity. If a project in Preparing stage has no task set to In Progress for 3 consecutive days, an escalation is triggered:</p>
+      <ul>
+        <li>Manager receives a notification</li>
+        <li>Project may be marked Not-Approved automatically</li>
+      </ul>
+      <p>You can review these escalations in the <strong>Activity</strong> tab and take action if the inactivity was justified (e.g., client was travelling).</p>
+
+      <h3>Maintenance Period</h3>
+      <p>After a project closes, it enters a 1-year maintenance period:</p>
+      <ul>
+        <li><strong>Closed &amp; Valid Maintenance</strong> — within the 1-year warranty window</li>
+        <li><strong>Closed &amp; Warranty Done</strong> — after 1 year from close date</li>
+      </ul>
+      <p>Monitor these in the <strong>Warranty</strong> tab.</p>
+    </div>
+
+    <div class="section" id="s7">
+      <div class="section-num">Section 7</div>
+      <h2>Common Scenarios</h2>
+
+      <h3>Scenario 1 — A new team member joins. How do I set them up?</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Users</strong> tab → <strong>Add User</strong>.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body">Enter their name, email address, and select their role (sed / manager / fabrication / installation).</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body">Set a temporary password and ensure <strong>Active</strong> is checked.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body">Save. The user can now log in and will be routed to their role-specific dashboard.</div></div>
+      </div>
+
+      <h3>Scenario 2 — The "Call the Client" task is in my queue. What do I do?</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body">Check with the SED owner for the latest client status before making the call.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body">Call the client personally or confirm the SED has done so.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body">Open the task in My Tasks → select the outcome: Approved, Needs Review, or Refused.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body">If Approved — the project moves to Open and the whole team is notified.</div></div>
+      </div>
+
+      <h3>Scenario 3 — I want to see how many hours a specific worker logged this month</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Timesheets</strong> in the sidebar.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body">Set the date range to the current month (From: first of month, To: today).</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body">Select the worker from the Worker filter dropdown.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body">The summary chips show total regular, overtime, and grand total hours. Click <strong>Export Excel</strong> for a detailed breakdown.</div></div>
+      </div>
+
+      <h3>Scenario 4 — A SED is not performing. How do I check their pipeline?</h3>
+      <p>On the Overview tab, look at the <strong>SED Performance Chart</strong>. Switch to the individual SED tab to see their project counts by stage. For a full list, go to <strong>All Projects</strong> and filter by the SED's name in the Sales Owner column. You can also download the <strong>SED Projects Status</strong> report from the Reports section.</p>
+
+      <h3>Scenario 5 — An employee has left. How do I remove their access?</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Users</strong> tab. Find the employee.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body">Toggle the <strong>Active</strong> switch to Inactive. Their session is invalidated immediately.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body">Do not delete the user — their historical data and task records are preserved.</div></div>
+      </div>
+    </div>
+
+    <div class="section" id="s8">
+      <div class="section-num">Section 8</div>
+      <h2>Permissions Reference</h2>
+      <h3>What you CAN do (unique to Superadmin)</h3>
+      <ul>
+        <li>Set Call the Client outcome (Approved / Needs Review / Refused)</li>
+        <li>Create, edit, and deactivate user accounts</li>
+        <li>Add, edit, and deactivate workers in the timesheet roster</li>
+        <li>Delete timesheet entries</li>
+        <li>Download all Excel reports</li>
+        <li>View system-wide KPI overview and SED performance chart</li>
+        <li>View all team members' active tasks (Team Activity page)</li>
+        <li>Post system-wide announcements</li>
+        <li>Monitor warranty / maintenance periods</li>
+        <li>View Phase Gates overview across all projects</li>
+      </ul>
+      <h3>Troubleshooting Guide</h3>
+      <div class="tbl-wrap"><table>
+        <tr><th>Problem</th><th>Solution</th></tr>
+        <tr><td>A user says they cannot log in</td><td>Check their account in Users tab — ensure Active is toggled on and their email is correct.</td></tr>
+        <tr><td>A project is stuck and no tasks are unlocking</td><td>Open Phase Gates view — identify the blocking gate. If it is Pending Approval, find and approve or reject it.</td></tr>
+        <tr><td>Call the Client task does not appear in My Tasks</td><td>The Phase 1 gate checks may not all be complete yet. Check the project — at least one of Quotation/Sample/Design must be approved.</td></tr>
+        <tr><td>A report download returns an empty file</td><td>No data exists for the selected date range. Widen the date filter.</td></tr>
+        <tr><td>A worker does not appear in the manager's timesheet dropdown</td><td>Go to Workers page — check the worker is Active.</td></tr>
+        <tr><td>An announcement is not visible to a specific role</td><td>Edit the announcement and check the Visible To field — ensure the correct role is selected.</td></tr>
+        <tr><td>The 3-day rule triggered incorrectly on a project</td><td>The escalation is automatic. Review the Activity log for the project and contact the SED owner. You can re-open or reassign if justified.</td></tr>
+      </table></div>
+    </div>
+
+    <div class="section" id="s9">
+      <div class="section-num">Section 9</div>
+      <h2>Quick Reference Card</h2>
+      <div class="qrc">
+        <h2>Superadmin Quick Reference</h2>
+        <h3>Status Colour Legend</h3>
+        <div class="status-legend">
+          <span class="badge b-locked">Locked</span>
+          <span class="badge b-todo">To Do</span>
+          <span class="badge b-inprogress">In Progress</span>
+          <span class="badge b-pending">Pending Approval</span>
+          <span class="badge b-completed">Completed</span>
+        </div>
+        <h3>Exclusive Superadmin Actions</h3>
+        <div class="tbl-wrap"><table>
+          <tr><th>Action</th><th>Where</th></tr>
+          <tr><td>Set Call the Client outcome</td><td>My Tasks tab → Call the Client task card</td></tr>
+          <tr><td>Create / manage users</td><td>Users tab in sidebar</td></tr>
+          <tr><td>Manage worker roster</td><td>Workers page in sidebar</td></tr>
+          <tr><td>Download Excel reports</td><td>Overview tab → Reports section</td></tr>
+          <tr><td>View all team active tasks</td><td>Team Activity page in sidebar</td></tr>
+          <tr><td>Post announcements</td><td>Announcements tab</td></tr>
+          <tr><td>View full timesheets + export</td><td>Timesheets page in sidebar</td></tr>
+          <tr><td>Delete a timesheet entry</td><td>Timesheets page → Delete button on row</td></tr>
+        </table></div>
+        <h3>Reports Quick Reference</h3>
+        <div class="tbl-wrap"><table>
+          <tr><th>Category</th><th>Reports</th></tr>
+          <tr><td>Sales</td><td>Quotations Pipeline, SED Follow-Ups, Ongoing Projects, SED Projects Status</td></tr>
+          <tr><td>Accountant</td><td>Payables, Receivables, Quotation Line Items</td></tr>
+          <tr><td>Material</td><td>Material Orders, Production Timesheets</td></tr>
+        </table></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script>
+  const links = document.querySelectorAll('#toc a');
+  const sections = document.querySelectorAll('.section');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const link = document.querySelector('#toc a[href="#' + e.target.id + '"]');
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

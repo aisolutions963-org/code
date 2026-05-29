@@ -195,6 +195,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: 'All Projects', href: '/dashboard/superadmin?view=projects', icon: <FolderIcon /> },
     { label: 'Users', href: '/dashboard/superadmin?view=users', icon: <UsersIcon /> },
     { label: 'Timesheets', href: '/dashboard/superadmin/timesheets', icon: <ClockIcon /> },
+    { label: 'Workers', href: '/dashboard/superadmin/workers', icon: <UsersIcon /> },
   ],
 }
 
