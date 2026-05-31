@@ -45,8 +45,8 @@ function LiveClock() {
 
   return (
     <div className="text-center">
-      <p className="text-4xl font-bold text-white tabular-nums">{timeStr}</p>
-      <p className="text-gray-400 mt-1 text-sm">{dateStr}</p>
+      <p className="text-4xl font-bold text-white tabular-nums" suppressHydrationWarning>{timeStr}</p>
+      <p className="text-gray-400 mt-1 text-sm" suppressHydrationWarning>{dateStr}</p>
     </div>
   )
 }

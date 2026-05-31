@@ -12,119 +12,12 @@ import AttachDocsPanel from './panels/AttachDocsPanel'
 import ChooseInstallTeamPanel from './panels/ChooseInstallTeamPanel'
 import FixingTeamNotePanel from './panels/FixingTeamNotePanel'
 import F2DeliveryPanel from './panels/F2DeliveryPanel'
+import F5QuotationPanel from './panels/F5QuotationPanel'
+import OrderSamplePanel from './panels/OrderSamplePanel'
+import FabricateMissingPanel from './panels/FabricateMissingPanel'
+import F2ProductionPanel from './panels/F2ProductionPanel'
+import CallClientDecisionPanelComponent from './panels/CallClientDecisionPanel'
 
-type CallOutcome = 'approved' | 'review' | 'refused'
-
-const OUTCOME_CONFIG: Record<CallOutcome, {
-  label: string
-  description: string
-  consequence: string
-  color: string
-  confirmColor: string
-}> = {
-  approved: {
-    label: 'Approved',
-    description: 'Client confirmed — project moves forward',
-    consequence: 'Project advances to Phase 2 (Open) and Phase 2 tasks are generated.',
-    color: 'border-green-300 bg-green-50 text-green-800 hover:bg-green-100',
-    confirmColor: 'bg-green-600 hover:bg-green-700 text-white',
-  },
-  review: {
-    label: 'Needs Review',
-    description: 'Client wants changes — repeat action steps',
-    consequence: 'Action tasks (paths, gates) are reset to To Do. SED restarts the action flow.',
-    color: 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100',
-    confirmColor: 'bg-amber-500 hover:bg-amber-600 text-white',
-  },
-  refused: {
-    label: 'Rejected',
-    description: 'Client declined — project rejected',
-    consequence: 'Project is marked Not-Approved. No further tasks will be generated.',
-    color: 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100',
-    confirmColor: 'bg-red-600 hover:bg-red-700 text-white',
-  },
-}
-
-function CallClientDecisionPanel({
-  taskId,
-  onDecided,
-}: {
-  taskId: string
-  onDecided: () => void
-}) {
-  const [pending, setPending] = useState<CallOutcome | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  async function confirm() {
-    if (!pending) return
-    setSaving(true)
-    try {
-      const res = await fetch(`/api/tasks/${taskId}/call-outcome`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome: pending }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        throw new Error(d.error ?? 'Failed')
-      }
-      toast.success(`Recorded: ${OUTCOME_CONFIG[pending].label}`)
-      onDecided()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to record outcome')
-      setSaving(false)
-      setPending(null)
-    }
-  }
-
-  if (pending) {
-    const cfg = OUTCOME_CONFIG[pending]
-    return (
-      <div className="mt-4 border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-3">
-        <p className="text-xs font-semibold text-gray-700">Confirm outcome: {cfg.label}</p>
-        <p className="text-xs text-gray-500">{cfg.consequence}</p>
-        <div className="flex gap-2">
-          <button
-            onClick={confirm}
-            disabled={saving}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 ${cfg.confirmColor}`}
-          >
-            {saving ? 'Saving…' : `Confirm ${cfg.label}`}
-          </button>
-          <button
-            onClick={() => setPending(null)}
-            disabled={saving}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-60"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="mt-4 space-y-2">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-        Call Outcome — End of Phase 1
-      </p>
-      <div className="grid grid-cols-1 gap-2">
-        {(Object.entries(OUTCOME_CONFIG) as [CallOutcome, typeof OUTCOME_CONFIG[CallOutcome]][]).map(
-          ([key, cfg]) => (
-            <button
-              key={key}
-              onClick={() => setPending(key)}
-              className={`text-left border rounded-lg px-3 py-2.5 transition-colors ${cfg.color}`}
-            >
-              <p className="text-xs font-bold">{cfg.label}</p>
-              <p className="text-[11px] opacity-80 mt-0.5">{cfg.description}</p>
-            </button>
-          ),
-        )}
-      </div>
-    </div>
-  )
-}
 
 interface TaskCardProps {
   task: Task
@@ -263,6 +156,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     task.pathCondition === 'Make Quotation' ||
     task.taskName.toLowerCase().includes('make quotation')
   const isF4Task = task.taskName.toLowerCase().startsWith('f4 —')
+  const isF5Task = task.taskName.toLowerCase().startsWith('f5 —')
   const isF3Task = task.taskName.toLowerCase().startsWith('f3 —')
   const isOrderSample = task.taskName === 'Order Sample' && !task.projectItem?.length
   const isPerItemOrderSample =
@@ -375,6 +269,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       return
     }
     if (isF3Task && task.status !== 'Completed' && key === 'status' && (value === 'Completed' || value === 'In Progress')) return
+    if (isF5Task && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
     if (isFabricateMissingTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
 
     if (isF4Task && task.status === 'Completed' && key === 'status') return
@@ -430,7 +325,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           )}
         </div>
         <div className="px-4 py-4">
-          <CallClientDecisionPanel
+          <CallClientDecisionPanelComponent
             taskId={task.id}
             onDecided={() => onUpdate(task.id, {})}
           />
@@ -568,31 +463,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           )}
 
           {/* Order Sample — branch selector */}
-          {(isOrderSample || isPerItemOrderSample) && task.status !== 'Completed' && (
-            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 space-y-2">
-              <p className="text-xs font-semibold text-green-800">
-                Sample Branch{' '}
-                <span className="font-normal text-green-700">— does the team have the material?</span>
-              </p>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => completeOrderSampleBranch(true)}
-                  disabled={saving}
-                  className="border border-green-400 bg-green-100 text-green-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-60 text-left"
-                >
-                  <div className="font-bold">✓ We Have It</div>
-                  <div className="font-normal text-green-700 mt-0.5">Send to Fabrication</div>
-                </button>
-                <button
-                  onClick={() => completeOrderSampleBranch(false)}
-                  disabled={saving}
-                  className="border border-orange-300 bg-orange-50 text-orange-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-60 text-left"
-                >
-                  <div className="font-bold">✗ Need to Order</div>
-                  <div className="font-normal text-orange-700 mt-0.5">Request F3 material order</div>
-                </button>
-              </div>
-            </div>
+          {(isOrderSample || isPerItemOrderSample) && (
+            <OrderSamplePanel task={task} onUpdate={onUpdate} />
+          )}
+
+          {/* F5 quotation details panel */}
+          {isF5Task && task.status !== 'Completed' && (
+            <F5QuotationPanel task={task} onUpdate={onUpdate} />
           )}
 
           {/* F3 material order panel */}
@@ -616,79 +493,14 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           )}
 
           {/* Fabricate if any missing item — skip or proceed */}
-          {isFabricateMissingTask && task.status !== 'Completed' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
-              <p className="text-xs font-semibold text-amber-800">
-                Missing Items Check{' '}
-                <span className="font-normal text-amber-700">— are there any items that need fabrication?</span>
-              </p>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => onUpdate(task.id, { status: 'In Progress' }).catch(() => null)}
-                  disabled={saving || task.status === 'In Progress'}
-                  className="border border-amber-400 bg-amber-100 text-amber-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-60 text-left"
-                >
-                  <div className="font-bold">✓ Yes — Fabricate</div>
-                  <div className="font-normal text-amber-700 mt-0.5">
-                    {task.status === 'In Progress' ? 'In progress' : 'Start fabrication'}
-                  </div>
-                </button>
-                <button
-                  onClick={skipFabricateMissingTask}
-                  disabled={saving}
-                  className="border border-gray-300 bg-gray-50 text-gray-800 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-60 text-left"
-                >
-                  <div className="font-bold">✗ No — Skip</div>
-                  <div className="font-normal text-gray-600 mt-0.5">No missing items, continue</div>
-                </button>
-              </div>
-            </div>
+          {isFabricateMissingTask && (
+            <FabricateMissingPanel task={task} onUpdate={onUpdate} />
           )}
 
 
           {/* F2 Production List panel — fabrication date range entry (fabrication role only) */}
-          {isF2ProductionTask && ar && task.status === 'Completed' && (
-            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5" dir="rtl">
-              <p className="text-xs font-semibold text-green-800 mb-1">✓ تم تسجيل جدول الإنتاج</p>
-              {task.plannedProdStartDate && (
-                <p className="text-xs text-green-700">بداية التصنيع: {task.plannedProdStartDate}</p>
-              )}
-              {task.expectedFabEndDate && (
-                <p className="text-xs text-green-700">يوم التسليم: {task.expectedFabEndDate}</p>
-              )}
-            </div>
-          )}
-          {isF2ProductionTask && ar && task.status !== 'Completed' && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-3 space-y-3" dir="rtl">
-              <p className="text-xs font-semibold text-orange-800">جدول الإنتاج — حدّد الفترة الزمنية لهذه القطعة</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">بداية التصنيع</label>
-                  <input
-                    type="date"
-                    value={(localFields.plannedProdStartDate as string) ?? ''}
-                    onChange={(e) => handleChange('plannedProdStartDate', e.target.value || undefined)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">يوم التسليم (آخر يوم)</label>
-                  <input
-                    type="date"
-                    value={(localFields.expectedFabEndDate as string) ?? ''}
-                    onChange={(e) => handleChange('expectedFabEndDate', e.target.value || undefined)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={completeF2Task}
-                disabled={!localFields.plannedProdStartDate || !localFields.expectedFabEndDate || saving}
-                className="w-full py-2 rounded-lg text-sm font-semibold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving ? 'جاري الحفظ…' : '✓ حفظ وإكمال'}
-              </button>
-            </div>
+          {isF2ProductionTask && ar && (
+            <F2ProductionPanel task={task} onUpdate={onUpdate} />
           )}
 
           {/* F2 Delivery Date panel — manager/superadmin schedule delivery once fabrication is done */}

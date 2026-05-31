@@ -22,12 +22,24 @@ export const PATCH = requireRole<Context>('superadmin')(async (req: NextRequest,
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
-  const worker = await updateWorker(id, parsed.data)
-  return NextResponse.json({ worker })
+  try {
+    const worker = await updateWorker(id, parsed.data)
+    return NextResponse.json({ worker })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to update worker'
+    console.error('[PATCH /api/workers/[id]]', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 })
 
 export const DELETE = requireRole<Context>('superadmin')(async (_req, _session, ctx) => {
   const { id } = ctx.params
-  await deleteWorker(id)
-  return NextResponse.json({ success: true })
+  try {
+    await deleteWorker(id)
+    return NextResponse.json({ success: true })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to delete worker'
+    console.error('[DELETE /api/workers/[id]]', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 })

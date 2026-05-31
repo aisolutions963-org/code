@@ -24,6 +24,12 @@ export const POST = requireRole('superadmin')(async (req: NextRequest) => {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
-  const worker = await createWorker(parsed.data)
-  return NextResponse.json({ worker }, { status: 201 })
+  try {
+    const worker = await createWorker(parsed.data)
+    return NextResponse.json({ worker }, { status: 201 })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to create worker'
+    console.error('[POST /api/workers]', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 })

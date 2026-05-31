@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createGatePass, getGatePassesByProject } from '@/lib/airtable'
+import { createGatePass, getGatePassesByProject, getAllGatePasses } from '@/lib/airtable'
 import { GatePassCreateInput } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
@@ -10,12 +10,23 @@ export async function GET(request: NextRequest) {
   }
 
   const projectId = request.nextUrl.searchParams.get('projectId')
-  if (!projectId) {
-    return NextResponse.json({ error: 'projectId query param required' }, { status: 400 })
+
+  if (projectId) {
+    try {
+      const gatePasses = await getGatePassesByProject(projectId)
+      return NextResponse.json({ gatePasses })
+    } catch (error) {
+      console.error('GET /api/gate-passes error:', error)
+      return NextResponse.json({ error: 'Failed to fetch gate passes' }, { status: 500 })
+    }
+  }
+
+  if (!['manager', 'superadmin', 'installation'].includes(session.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   try {
-    const gatePasses = await getGatePassesByProject(projectId)
+    const gatePasses = await getAllGatePasses()
     return NextResponse.json({ gatePasses })
   } catch (error) {
     console.error('GET /api/gate-passes error:', error)

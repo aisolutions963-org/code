@@ -7,13 +7,10 @@ import { WorkerOption } from '@/lib/types'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const ROLE_OPTIONS = [
-  'Carpenter',
-  'Painter',
-  'Installer',
-  'Helper',
-  'Driver',
-  'Supervisor',
-  'Other',
+  'Fabrication',
+  'Installation',
+  'Fabrication & Installation',
+  'Driver / Logistics',
 ]
 
 function Spinner() {

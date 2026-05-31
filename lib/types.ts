@@ -233,6 +233,8 @@ export interface GatePass {
   gatePassStatus?: string
   siteReady?: boolean
   clientNotified?: boolean
+  projectName?: string
+  projectDisplayId?: string
 }
 
 export interface GatePassCreateInput {

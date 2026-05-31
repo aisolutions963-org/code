@@ -182,21 +182,35 @@ function MetricCard({ label, value, sub, color }: { label: string; value: string
 
 // ─── Page 1: Overview ────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, href, loading }: { label: string; value: number; href: string; loading: boolean }) {
+function KpiCard({ label, value, href, downloadHref, loading }: { label: string; value: number; href: string; downloadHref: string; loading: boolean }) {
   return (
-    <Link href={href} className="group bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md hover:border-brand-300 transition-all relative overflow-hidden block">
-      <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <svg className="w-3.5 h-3.5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
+    <div className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-brand-300 transition-all relative overflow-hidden">
+      <Link href={href} className="block p-4">
+        {loading ? (
+          <div className="h-7 w-12 bg-gray-100 rounded animate-pulse mx-auto mb-1" />
+        ) : (
+          <p className="text-3xl font-bold text-gray-900 text-center">{value}</p>
+        )}
+        <p className="text-xs text-gray-500 text-center mt-1 leading-tight">{label}</p>
+      </Link>
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <a
+          href={downloadHref}
+          onClick={(e) => e.stopPropagation()}
+          title="Download Excel"
+          className="w-6 h-6 flex items-center justify-center rounded hover:bg-green-50 text-green-600 hover:text-green-700 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </a>
+        <Link href={href} className="w-6 h-6 flex items-center justify-center rounded hover:bg-brand-50 text-brand-500 transition-colors">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </Link>
       </div>
-      {loading ? (
-        <div className="h-7 w-12 bg-gray-100 rounded animate-pulse mx-auto mb-1" />
-      ) : (
-        <p className="text-3xl font-bold text-gray-900 text-center">{value}</p>
-      )}
-      <p className="text-xs text-gray-500 text-center mt-1 leading-tight">{label}</p>
-    </Link>
+    </div>
   )
 }
 
@@ -445,14 +459,14 @@ function OverviewPage() {
 
       {/* ── Section 1: KPI Cards ────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard label="Total Projects" value={kpi?.total ?? 0} href={BASE_PROJECTS_URL} loading={kpiLoading} />
-        <KpiCard label="Preparing" value={kpi?.preparing ?? 0} href={`${BASE_PROJECTS_URL}&stage=Preparing`} loading={kpiLoading} />
-        <KpiCard label="Open" value={kpi?.open ?? 0} href={`${BASE_PROJECTS_URL}&stage=Open`} loading={kpiLoading} />
-        <KpiCard label="Not Approved" value={kpi?.notApproved ?? 0} href={`${BASE_PROJECTS_URL}&stage=Not-Approved`} loading={kpiLoading} />
-        <KpiCard label="Finished" value={kpi?.finished ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed`} loading={kpiLoading} />
-        <KpiCard label="Maintenance Active" value={kpi?.maintenanceActive ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Valid+Maintenance`} loading={kpiLoading} />
-        <KpiCard label="Finished — Not Paid" value={kpi?.finishedUnpaid ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed&unpaid=true`} loading={kpiLoading} />
-        <KpiCard label="Maintenance Expired" value={kpi?.maintenanceExpired ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Warranty+Done`} loading={kpiLoading} />
+        <KpiCard label="Total Projects" value={kpi?.total ?? 0} href={BASE_PROJECTS_URL} downloadHref="/api/reports/download/projects-by-stage" loading={kpiLoading} />
+        <KpiCard label="Preparing" value={kpi?.preparing ?? 0} href={`${BASE_PROJECTS_URL}&stage=Preparing`} downloadHref="/api/reports/download/projects-by-stage?stage=Preparing" loading={kpiLoading} />
+        <KpiCard label="Open" value={kpi?.open ?? 0} href={`${BASE_PROJECTS_URL}&stage=Open`} downloadHref="/api/reports/download/projects-by-stage?stage=Open" loading={kpiLoading} />
+        <KpiCard label="Not Approved" value={kpi?.notApproved ?? 0} href={`${BASE_PROJECTS_URL}&stage=Not-Approved`} downloadHref="/api/reports/download/projects-by-stage?stage=Not-Approved" loading={kpiLoading} />
+        <KpiCard label="Finished" value={kpi?.finished ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed" loading={kpiLoading} />
+        <KpiCard label="Maintenance Active" value={kpi?.maintenanceActive ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Valid+Maintenance`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+%26+Valid+Maintenance" loading={kpiLoading} />
+        <KpiCard label="Finished — Not Paid" value={kpi?.finishedUnpaid ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed&unpaid=true`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed&unpaid=true" loading={kpiLoading} />
+        <KpiCard label="Maintenance Expired" value={kpi?.maintenanceExpired ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Warranty+Done`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+%26+Warranty+Done" loading={kpiLoading} />
       </div>
 
       {/* ── Section 2: SED Performance Chart ───────────────── */}
@@ -469,11 +483,19 @@ function OverviewPage() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-700">My Tasks & Approvals</p>
-          {myTasks.length > 0 && (
-            <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full">
-              {myTasks.length}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {myTasks.length > 0 && (
+              <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full">
+                {myTasks.length}
+              </span>
+            )}
+            <a
+              href="/dashboard/superadmin?view=tasks"
+              className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+            >
+              View All
+            </a>
+          </div>
         </div>
         <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
           {tasksLoading ? (
@@ -526,16 +548,23 @@ function OverviewPage() {
   )
 }
 
-function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onNotesSaved?: () => void }) {
+function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onReopen: (id: string) => Promise<void>; onNotesSaved?: () => void }) {
   const [loading, setLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
+  const [reopenLoading, setReopenLoading] = useState(false)
   const [err, setErr] = useState('')
   const [genMsg, setGenMsg] = useState('')
+  const [expanded, setExpanded] = useState(false)
   const stale = isStale(p.lastModifiedTasks)
 
   async function advance() {
     setLoading(true); setErr(''); setGenMsg('')
     try { await onAdvance(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setLoading(false) }
+  }
+
+  async function reopen() {
+    setReopenLoading(true); setErr('')
+    try { await onReopen(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setReopenLoading(false) }
   }
 
   async function generateTasks(force = false) {
@@ -565,14 +594,27 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
 
   const canGenerate = p.projectStage === 'Preparing' || p.projectStage === 'Open'
 
+  const address = [p.detailedLocation, p.location, p.emirate].filter(Boolean).join(', ')
+
   return (
     <>
       <tr className={`hover:bg-gray-50 transition-colors ${stale ? 'bg-yellow-50/30' : ''}`}>
         <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.projectId}</td>
         <td className="px-4 py-3 max-w-xs">
-          <p className="font-medium text-gray-900 truncate">{p.projectName}</p>
-          {p.nickname && <p className="text-xs text-gray-500 truncate">{p.nickname}</p>}
-          <div className="mt-1">
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            className="flex items-center gap-1.5 text-left group"
+          >
+            <svg
+              className={`w-3 h-3 text-gray-400 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="font-medium text-gray-900 truncate group-hover:text-brand-600">{p.projectName}</span>
+          </button>
+          {p.nickname && <p className="text-xs text-gray-500 truncate mt-0.5 pl-5">{p.nickname}</p>}
+          <div className="mt-1 pl-5">
             <ProjectNotesEditor
               projectId={p.id}
               initialNotes={p.managerNotes}
@@ -583,7 +625,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
         </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">
-          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : 'gray'}>
+          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : 'gray'}>
             {p.projectStage}
           </Badge>
         </td>
@@ -594,16 +636,22 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
         <td className="px-4 py-3 text-right">
           <div className="flex items-center justify-end gap-2">
             {canGenerate && (
-              <Button
-                size="sm"
-                variant="secondary"
-                loading={genLoading}
-                onClick={() => generateTasks()}
-              >
+              <Button size="sm" variant="secondary" loading={genLoading} onClick={() => generateTasks()}>
                 ⚡ Tasks
               </Button>
             )}
-            {p.projectStage !== 'Closed' && (
+            {p.projectStage === 'Not-Approved' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={reopenLoading}
+                onClick={reopen}
+                className="text-green-600 hover:text-green-700 border-green-300 hover:border-green-400"
+              >
+                ↩ Reopen
+              </Button>
+            )}
+            {p.projectStage !== 'Closed' && p.projectStage !== 'Not-Approved' && (
               <Button size="sm" variant="secondary" loading={loading} onClick={advance}>Advance →</Button>
             )}
             <Button
@@ -617,6 +665,76 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
           </div>
         </td>
       </tr>
+
+      {/* Project Brief — F1 intake data */}
+      {expanded && (
+        <tr>
+          <td colSpan={6} className="px-6 pb-5 pt-1 bg-gray-50/60 border-t border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4 py-3">
+
+              {p.projectDescription && (
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Scope</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{p.projectDescription}</p>
+                </div>
+              )}
+
+              {address && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Address</p>
+                  <p className="text-sm text-gray-700">{address}</p>
+                </div>
+              )}
+
+              {p.clientPhone && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Client Phone</p>
+                  <a href={`tel:${p.clientPhone}`} className="text-sm text-brand-600 hover:underline font-mono">{p.clientPhone}</a>
+                </div>
+              )}
+
+              {p.paymentMode && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Payment Mode</p>
+                  <p className="text-sm text-gray-700">{p.paymentMode}</p>
+                </div>
+              )}
+
+              {p.salesOwner && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Sales Owner (SED)</p>
+                  <p className="text-sm text-gray-700">{p.salesOwner.name ?? p.salesOwner.email}</p>
+                </div>
+              )}
+
+              {p.communSeds && p.communSeds.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Community SEDs</p>
+                  <p className="text-sm text-gray-700">{p.communSeds.join(', ')}</p>
+                </div>
+              )}
+
+              {p.sedNotes && (
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">SED Notes</p>
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{p.sedNotes}</p>
+                </div>
+              )}
+
+              {p.projectCreatedAt && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Created</p>
+                  <p className="text-sm text-gray-500">
+                    {new Date(p.projectCreatedAt).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              )}
+
+            </div>
+          </td>
+        </tr>
+      )}
+
       {err && (
         <tr>
           <td colSpan={6} className="px-4 pb-2">
@@ -2042,6 +2160,114 @@ function MaterialsPage() {
   return <MaterialsReviewView projects={projects} />
 }
 
+// ─── Page: All Projects ───────────────────────────────────────────────────────
+
+function ProjectsPage() {
+  const searchParams = useSearchParams()
+  const stageFilter = searchParams.get('stage') ?? null
+  const unpaidFilter = searchParams.get('unpaid') === 'true'
+
+  const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
+    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+  )
+
+  const allProjects = data?.projects ?? []
+  let filtered = stageFilter ? allProjects.filter((p) => p.projectStage === stageFilter) : allProjects
+  if (unpaidFilter) filtered = filtered.filter((p) => (p.remainingBalance ?? 0) > 0)
+
+  async function handleAdvance(id: string) {
+    const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
+    if (!res.ok) {
+      const d = await res.json()
+      throw new Error(
+        d.blockingTasks
+          ? `${d.error}: ${d.blockingTasks.map((t: { taskName: string }) => t.taskName).join(', ')}`
+          : d.error ?? 'Failed',
+      )
+    }
+    mutate()
+  }
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return
+    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error((d as { error?: string }).error ?? 'Failed to delete')
+    }
+    mutate()
+  }
+
+  async function handleReopen(id: string) {
+    const res = await fetch(`/api/projects/${id}/reopen`, { method: 'POST' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error((d as { error?: string }).error ?? 'Failed to reopen')
+    }
+    mutate()
+  }
+
+  const title = stageFilter ? `Projects — ${stageFilter}` : 'All Projects'
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+          {!isLoading && (
+            <p className="text-sm text-gray-500">
+              {filtered.length} project{filtered.length !== 1 ? 's' : ''}
+              {unpaidFilter ? ' — balance outstanding' : ''}
+            </p>
+          )}
+        </div>
+        <Link href="/dashboard/superadmin" className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+          ← Overview
+        </Link>
+      </div>
+
+      {isLoading && <Spinner />}
+
+      {!isLoading && filtered.length === 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center">
+          <p className="text-sm text-gray-400">No projects found.</p>
+        </div>
+      )}
+
+      {!isLoading && filtered.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Ref</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((p) => (
+                  <ProjectRow
+                    key={p.id}
+                    project={p}
+                    onAdvance={handleAdvance}
+                    onDelete={handleDelete}
+                    onReopen={handleReopen}
+                    onNotesSaved={() => mutate()}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 const VALID_PAGES = new Set<Page>(['overview','timeline','phases','activity','payments','calendar','warranty','users','announcements','projects','tasks','materials'])
@@ -2062,7 +2288,7 @@ export default function SuperadminDashboard() {
       {page === 'warranty' && <WarrantyPage />}
       {page === 'users' && <UsersPage />}
       {page === 'announcements' && <AnnouncementsPage />}
-      {page === 'projects' && <OverviewPage />}
+      {page === 'projects' && <ProjectsPage />}
       {page === 'tasks' && <MyTasksPage />}
       {page === 'materials' && <MaterialsPage />}
     </div>

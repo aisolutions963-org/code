@@ -795,6 +795,39 @@ export async function getGatePassesByProject(projectId: string): Promise<GatePas
   return records.map(transformGatePass)
 }
 
+export async function getAllGatePasses(): Promise<GatePass[]> {
+  const records = await fetchAll(GATE_PASSES.TABLE_ID, {
+    sort: [{ field: GATE_PASSES.ESTIMATED_SUPPLY_DATE, direction: 'desc' }],
+  })
+  const gatePasses = records.map(transformGatePass)
+  if (gatePasses.length === 0) return gatePasses
+
+  const projectRecordIds = Array.from(new Set(gatePasses.flatMap((gp) => gp.project)))
+  const nameMap: Record<string, { name: string; displayId: string }> = {}
+  const chunks: string[][] = []
+  for (let i = 0; i < projectRecordIds.length; i += 10) chunks.push(projectRecordIds.slice(i, i + 10))
+
+  await Promise.all(chunks.map(async (chunk) => {
+    const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
+    const recs = await fetchAll(PROJECTS.TABLE_ID, {
+      filterByFormula: formula,
+      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID],
+    })
+    for (const r of recs) {
+      nameMap[r.id] = {
+        name: str(r.fields[PROJECTS.PROJECT_NAME]) ?? '',
+        displayId: str(r.fields[PROJECTS.PROJECT_ID]) ?? '',
+      }
+    }
+  }))
+
+  return gatePasses.map((gp) => ({
+    ...gp,
+    projectName: gp.project[0] ? (nameMap[gp.project[0]]?.name ?? undefined) : undefined,
+    projectDisplayId: gp.project[0] ? (nameMap[gp.project[0]]?.displayId ?? undefined) : undefined,
+  }))
+}
+
 export async function createGatePass(input: GatePassCreateInput): Promise<GatePass> {
   const fields: Record<string, unknown> = {
     [GATE_PASSES.PROJECT]: input.project,
