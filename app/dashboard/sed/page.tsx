@@ -54,7 +54,13 @@ export default function SedDashboard() {
   const completed = tasks.filter((t) => t.status === 'Completed')
 
   let visibleTasks = tasks
-  if (view === 'approvals') visibleTasks = tasks.filter((t) => t.conceptDesignApproval || t.sampleApproval || t.quotationOutcome)
+  if (view === 'approvals') visibleTasks = tasks.filter((t) => {
+    const name = t.taskName.toLowerCase()
+    const isPending = (name.startsWith('[gate]') || name.includes('take approval from client')) &&
+      (t.status === 'To Do' || t.status === 'In Progress')
+    const hasOutcome = !!(t.conceptDesignApproval || t.sampleApproval || t.quotationOutcome)
+    return isPending || hasOutcome
+  })
   if (view === 'site-visits') visibleTasks = tasks.filter((t) =>
     t.taskName.toLowerCase().includes('site visit') || t.taskName.toLowerCase().includes('visit update')
   )
@@ -86,7 +92,7 @@ export default function SedDashboard() {
       </div>
 
       {/* Task views */}
-      {view !== 'projects' && view !== 'site-visits' && (
+      {view !== 'projects' && view !== 'site-visits' && view !== 'approvals' && (
         <>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
@@ -97,6 +103,11 @@ export default function SedDashboard() {
             <TaskList loading={isLoading} tasks={visibleTasks} role="sed" onUpdate={handleUpdate} />
           )}
         </>
+      )}
+
+      {/* Client Approvals view */}
+      {view === 'approvals' && (
+        <ClientApprovalsView tasks={visibleTasks} loading={isLoading} onUpdate={handleUpdate} />
       )}
 
       {/* Site Visits view */}
@@ -191,6 +202,121 @@ export default function SedDashboard() {
           onClose={() => setShowMaterialModal(false)}
           onCreated={() => setShowMaterialModal(false)}
         />
+      )}
+    </div>
+  )
+}
+
+function ClientApprovalsView({
+  tasks,
+  loading,
+  onUpdate,
+}: {
+  tasks: Task[]
+  loading: boolean
+  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+}) {
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  const pending = tasks.filter((t) => {
+    const name = t.taskName.toLowerCase()
+    return (name.startsWith('[gate]') || name.includes('take approval from client')) &&
+      (t.status === 'To Do' || t.status === 'In Progress')
+  })
+
+  const decided = tasks.filter((t) => t.conceptDesignApproval || t.sampleApproval || t.quotationOutcome)
+
+  if (pending.length === 0 && decided.length === 0) {
+    return <p className="text-center py-12 text-sm text-gray-400">No client approval tasks found.</p>
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Waiting for client */}
+      {pending.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+            <h2 className="text-sm font-semibold text-gray-700">Waiting for Client</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+              {pending.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {pending.map((t) => (
+              <div key={t.id} className="bg-white border border-amber-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3 shadow-sm">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-gray-800 truncate">
+                    {t.taskName.replace(/^\[gate\]\s*/i, '')}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {t.projectName ?? t.projectRef ?? ''}
+                    {t.projectItemName ? ` › ${t.projectItemName}` : ''}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                  {t.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Decisions recorded */}
+      {decided.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
+            <h2 className="text-sm font-semibold text-gray-700">Decisions Recorded</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+              {decided.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {decided.map((t) => (
+              <div key={t.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{t.taskName}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {t.projectName ?? t.projectRef ?? ''}
+                      {t.projectItemName ? ` › ${t.projectItemName}` : ''}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                    t.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {t.status}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {t.conceptDesignApproval && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                      Design: {t.conceptDesignApproval}
+                    </span>
+                  )}
+                  {t.sampleApproval && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+                      Sample: {t.sampleApproval}
+                    </span>
+                  )}
+                  {t.quotationOutcome && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                      Quotation: {t.quotationOutcome}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

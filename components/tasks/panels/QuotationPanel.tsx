@@ -26,7 +26,12 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
 
   // F4 payment form state
   const [amount, setAmount] = useState('')
-  const [paymentType, setPaymentType] = useState('Advance')
+  const [paymentType, setPaymentType] = useState(() => {
+    const name = task.taskName.toLowerCase()
+    if (name.includes('delivery')) return 'Delivery'
+    if (name.includes('final')) return 'Final'
+    return 'Advance'
+  })
   const [paymentStatus, setPaymentStatus] = useState('Received')
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer')
   const [referenceNo, setReferenceNo] = useState('')
