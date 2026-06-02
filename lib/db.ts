@@ -103,6 +103,12 @@ export function getAllUsers(): Omit<DBUser, 'hashed_password'>[] {
     .all() as Omit<DBUser, 'hashed_password'>[]
 }
 
+export function getUsersByRole(role: string): Omit<DBUser, 'hashed_password'>[] {
+  return db
+    .prepare('SELECT id, name, email, role, active, airtable_member_id, created_at, updated_at FROM users WHERE role = ? AND active = 1')
+    .all(role) as Omit<DBUser, 'hashed_password'>[]
+}
+
 export function createUser(user: {
   name: string
   email: string

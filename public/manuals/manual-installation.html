@@ -116,7 +116,7 @@
 <body>
 <div id="main">
   <div class="page-header">
-    <div class="manual-type">دليل المستخدم — الإصدار 1.0</div>
+    <div class="manual-type">دليل المستخدم — الإصدار 1.1</div>
     <h1>دليل فريق التركيب</h1>
     <p>كل ما يحتاجه فريق التركيب للعمل على المهام الميدانية، وتسجيل فحوصات ما قبل التسليم، وإتمام أعمال التركيب والجودة عبر نظام WoodWings PMS.</p>
   </div>
@@ -280,6 +280,18 @@
           <li>أرفق صوراً إذا طُلب منك ذلك</li>
         </ul>
       </div>
+
+      <div class="task-card" style="border-color: #8b5cf6;">
+        <div class="task-card-title">سجل أيام التركيب (Fixing Team Note)</div>
+        <div class="task-card-desc">مهمة تسجيل تقدم التركيب اليومي. تظهر بألوان بنفسجية. يمكنك إضافة عدة سجلات يومية — كل سجل يحتوي على التاريخ وعدد العمال وملاحظات اليوم.</div>
+        <ul style="margin-top: 10px; font-size: 0.88rem;">
+          <li>اضغط <strong>إضافة يوم</strong> لإضافة سجل جديد</li>
+          <li>أدخل تاريخ اليوم وعدد العمال وملاحظات العمل المنجز</li>
+          <li>يمكن إضافة عدة أيام في نفس المهمة</li>
+          <li>بعد إضافة جميع سجلات الأيام، اضغط <strong>تسليم للمدير</strong> للموافقة</li>
+        </ul>
+        <div class="callout note" style="margin-top:12px;"><div class="callout-icon"></div><div class="callout-body"><strong>هذه المهمة تتطلب موافقة المدير</strong>المدير يراجع السجلات اليومية قبل الموافقة على الانتقال للمرحلة التالية.</div></div>
+      </div>
     </div>
 
     <!-- القسم 5 -->
@@ -303,6 +315,8 @@
         <div class="flow-arrow">↓</div>
         <div class="flow-box">مهمة: التركيب الأول — نفّذ التركيب في الموقع</div>
         <div class="flow-arrow">↓</div>
+        <div class="flow-box highlight">مهمة: سجل أيام التركيب (Fixing Team Note) — سجّل يومياً التاريخ والعمال والملاحظات، ثم أرسل للموافقة</div>
+        <div class="flow-arrow">↓ (موافقة المدير)</div>
         <div class="flow-box">إذا كانت هناك قطع ناقصة → فريق التصنيع يصنّعها</div>
         <div class="flow-arrow">↓</div>
         <div class="flow-box">مهمة: التركيب الثاني واللمسات الأخيرة</div>
@@ -314,9 +328,11 @@
         <div class="flow-arrow">↓</div>
         <div class="flow-box">مهمة: الحشوات والتشطيبات</div>
         <div class="flow-arrow">↓</div>
-        <div class="flow-box">المدير يُبلّغ العميل للدفعة الأخيرة</div>
+        <div class="flow-box">المدير يُبلّغ العميل للدفعة النهائية (F4 Final Payment)</div>
         <div class="flow-arrow">↓</div>
-        <div class="flow-box highlight">توقيع نموذج التسليم مع العميل — المشروع مغلق</div>
+        <div class="flow-box highlight">مهمة: نموذج التسليم (Handing Over Form) — المدير يملأ نموذج الاستلام مع العميل → المشروع ينتقل إلى "التركيب مكتمل"</div>
+        <div class="flow-arrow">↓ (بعد الدفعة النهائية)</div>
+        <div class="flow-box highlight">المشروع مغلق — يبدأ سريان ضمان سنة كاملة</div>
       </div>
     </div>
 
@@ -454,6 +470,7 @@
           <tr><td>فحص ما قبل التسليم</td><td>افحص القطع والأدوات وسجّل الملاحظات</td><td>يومان</td></tr>
           <tr><td>تقدير العمالة والأيام</td><td>أدخل عدد الأيام وعدد العمال</td><td>فور انتهاء الفحص</td></tr>
           <tr><td>التركيب الأول</td><td>نفّذ التركيب وسجّل ما ينقص</td><td>بعد موافقة المدير</td></tr>
+          <tr><td>سجل أيام التركيب (Fixing Team Note)</td><td>سجّل يومياً التاريخ والعمال والملاحظات — أرسل للمدير عند الانتهاء</td><td>خلال فترة التركيب</td></tr>
           <tr><td>التركيب الثاني واللمسات</td><td>أكمل ما تبقى واللمسات النهائية</td><td>بعد توفر القطع الناقصة</td></tr>
           <tr><td>فحص الجودة في الموقع</td><td>افحص الكل وارفق صوراً</td><td>قبل التسليم</td></tr>
           <tr><td>الحشوات والتشطيبات</td><td>أنجز الحشوات وسجّل الاكتمال</td><td>ضمن مرحلة الإغلاق</td></tr>

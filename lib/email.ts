@@ -75,6 +75,49 @@ export async function notifyCallClient(project: {
   })
 }
 
+export async function notifyAccountantEvent(event: {
+  eventName: string
+  projectLabel: string
+}): Promise<void> {
+  const accountantEmail = getSetting('accountant_email')
+  if (!accountantEmail) return
+  await getResend().emails.send({
+    from: 'WoodWings <notifications@woodwings.ae>',
+    to: accountantEmail,
+    subject: `${event.eventName} — ${event.projectLabel}`,
+    html: `
+      <h2>${event.eventName}</h2>
+      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+        <tr><td><strong>Project</strong></td><td>${event.projectLabel}</td></tr>
+      </table>
+      <p>Log in to the WoodWings dashboard for more details.</p>
+    `,
+  })
+}
+
+export async function notifyRejection(task: {
+  taskName: string
+  projectId?: string
+  managerComment?: string
+  recipientEmail: string
+}): Promise<void> {
+  await getResend().emails.send({
+    from: 'WoodWings <notifications@woodwings.ae>',
+    to: task.recipientEmail,
+    subject: `Task returned for rework — ${task.projectId ?? 'WoodWings'}`,
+    html: `
+      <h2>Your task was reviewed and returned for rework</h2>
+      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+        <tr><td><strong>Task</strong></td><td>${task.taskName}</td></tr>
+        ${task.projectId ? `<tr><td><strong>Project</strong></td><td>${task.projectId}</td></tr>` : ''}
+        ${task.managerComment ? `<tr><td><strong>Manager note</strong></td><td>${task.managerComment}</td></tr>` : ''}
+      </table>
+      <p>Please review the note above, make the required correction, and resubmit.</p>
+      <p>Log in to the WoodWings dashboard to find the task in your list.</p>
+    `,
+  })
+}
+
 export async function notifyAccountant(payment: {
   projectName: string
   projectId: string

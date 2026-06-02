@@ -12,8 +12,9 @@ import {
   createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
-import { notifyManager, notifyManagerEscalation } from './email'
+import { notifyManager, notifyManagerEscalation, notifyCallClient, notifyRejection, notifyAccountantEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
+import { getUsersByRole } from './db'
 import { PHASE_CONFIG, TASK_MARKERS } from './phases'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
@@ -84,11 +85,28 @@ async function maybeUnlockCallClient(projectId: string, projectItemId?: string):
 
     await updateTaskRaw(callClientTask.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })
     createNotification({
+      recipientRole: 'superadmin',
+      title: `Action required: ${callClientTask.taskName}`,
+      body: 'All approval gates cleared — call the client to confirm the project.',
+      link: ROLE_DASHBOARD['superadmin'],
+    })
+    createNotification({
       recipientRole: 'sed',
-      title: `New task ready: ${callClientTask.taskName}`,
-      body: 'All three approvals confirmed — time to call the client.',
+      title: `All gates approved — awaiting client call`,
+      body: 'Quotation, sample, and design all approved. Superadmin will now call the client.',
       link: ROLE_DASHBOARD['sed'],
     })
+    if (process.env.MANAGER_EMAIL && process.env.RESEND_API_KEY) {
+      getProjectById(projectId)
+        .then((project) =>
+          notifyCallClient({
+            projectName: project.projectName,
+            projectId: project.projectId,
+            clientName: project.clientName,
+          }),
+        )
+        .catch((err) => console.error('[A13] notifyCallClient failed:', err))
+    }
   }
 }
 
@@ -227,6 +245,10 @@ async function unlockNextTasks(task: Task): Promise<void> {
           body: `Project ${projectLabel}`,
           link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
         })
+      }
+      if (t.taskName.toLowerCase().includes('notify accountant') && process.env.RESEND_API_KEY) {
+        notifyAccountantEvent({ eventName: title, projectLabel })
+          .catch((err) => console.error('[A15] notifyAccountantEvent failed:', err))
       }
     }
     // Trigger chain continuation once — all auto tasks are Completed so the
@@ -405,13 +427,31 @@ export async function handleManagerRejection(taskId: string): Promise<void> {
       [TASKS.STATUS]: 'To Do' as TaskStatus,
     }),
   )
-  // Notify the task's department that their work was rejected and needs rework
   const projectRef = task.projectId ?? task.project?.[0] ?? ''
+  // In-app notification to the task's department
   notifyTasksReady(
     [{ taskName: task.taskName, departments: task.department ?? [] }],
     `Rejected by manager — task returned for rework (${projectRef})` +
       (task.managerComment ? `\nNote: ${task.managerComment}` : ''),
   )
+  // Email all active users in the task's department role
+  if (process.env.RESEND_API_KEY) {
+    const roles = (task.department ?? [])
+      .map((d) => DEPT_ROLE_MAP[d])
+      .filter((r): r is string => Boolean(r))
+    const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['sed']))
+    for (const role of uniqueRoles) {
+      const users = getUsersByRole(role)
+      for (const user of users) {
+        notifyRejection({
+          taskName: task.taskName,
+          projectId: projectRef,
+          managerComment: task.managerComment ?? undefined,
+          recipientEmail: user.email,
+        }).catch((err) => console.error('[A14] Rejection email failed:', err))
+      }
+    }
+  }
 }
 
 export async function handleCallClientOutcome(

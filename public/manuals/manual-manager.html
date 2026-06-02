@@ -116,7 +116,7 @@
 </nav>
 <div id="main">
   <div class="page-header">
-    <div class="manual-type">User Manual — Version 1.0</div>
+    <div class="manual-type">User Manual — Version 1.1</div>
     <h1>Manager Role Guide</h1>
     <p>Operations management. Approvals, project oversight, payments, installation team coordination, delivery scheduling, and daily worker timesheets — all in one place.</p>
   </div>
@@ -255,8 +255,21 @@
         <tr><td>Newsletter Opt-In</td><td>Did the client agree to be added to the newsletter</td></tr>
       </table></div>
 
+      <h3>F4 — Payment Recording (Three Types)</h3>
+      <p>The system has three F4 payment tasks, each appearing at a different project phase. All three show the same <strong>Record Payment</strong> panel — fill in the amount, method, date, and payer type, then click <strong>Record &amp; Complete</strong>.</p>
+      <div class="tbl-wrap"><table>
+        <tr><th>Task Name</th><th>Phase</th><th>Payment Type (auto-selected)</th></tr>
+        <tr><td>F4 — Record Advance Payment</td><td>Phase 2 (Open)</td><td>Advance — paid when client confirms the project</td></tr>
+        <tr><td>F4 Form — Delivery Payment</td><td>Phase 3 (Working)</td><td>Delivery — paid before or at delivery</td></tr>
+        <tr><td>F4 Form — Final Payment</td><td>Phase 4 (Closing)</td><td>Final — triggers project closure and creates maintenance record</td></tr>
+      </table></div>
+      <div class="callout note"><div class="callout-icon"></div><div class="callout-body"><strong>Payer Type is required</strong>You must select a Payer Type (Broker / Contractor / End User / Designer) before the payment can be recorded. If the payer is a Broker, you can also enter a commission amount.</div></div>
+
       <h3>Assign Installation Team</h3>
-      <p>On any project card in the <strong>Projects</strong> or <strong>Install Teams</strong> tab, click <strong>Assign Team</strong> or <strong>Edit</strong> to open the assignment modal. Select one or more installation team members and save.</p>
+      <p>On any project card in the <strong>Projects</strong> or <strong>Install Teams</strong> tab, click <strong>Assign Team</strong> or <strong>Edit</strong> to open the assignment modal. Select one or more installation team members and save. The notification sent to the team includes the project name and item name.</p>
+
+      <h3>Notifications Page</h3>
+      <p>Click the bell icon in the left sidebar to open the <strong>Notifications</strong> page (<code>/dashboard/notifications</code>). Shows your full notification history with all/unread filter and mark-as-read. Note: live-computed alerts (pending approvals, stale projects) shown in the bell badge are not stored here — only system-generated notification records appear.</p>
     </div>
 
     <div class="section" id="s5">
@@ -277,29 +290,29 @@
         <li>Approve per-item tasks that require manager sign-off</li>
       </ul>
 
-      <h3>Phase 3: Working — Material & Fabrication</h3>
+      <h3>Phase 3: Working — Material &amp; Fabrication</h3>
       <ul>
-        <li><strong>Create Gate Pass</strong> once fabrication is complete and items are ready</li>
-        <li>Inform the client of the estimated supply/delivery date</li>
-        <li>Check site readiness, then confirm the exact delivery date with the client</li>
-        <li>Notify the accountant of expected payment timing</li>
-        <li><strong>F2 Production List</strong> — enter the production timeline (start + end dates) on the relevant task</li>
-        <li><strong>Assign Installation Team</strong> — select team members for the project</li>
-        <li>Send notification to the full team once installation team is assigned</li>
+        <li><strong>F2 Production List</strong> — enter production start and end dates on the relevant task</li>
+        <li>When <strong>Fabrication Done</strong> completes, "Inform Client of Estimated Date of Supply" unlocks immediately (system bypasses sibling tasks at that step)</li>
+        <li>A <strong>Supply</strong> section banner appears automatically — visual separator only, self-completes, no action needed</li>
+        <li>Check site readiness, confirm exact delivery date with the client</li>
+        <li><strong>Schedule Delivery Date (F2)</strong> — set confirmed delivery date on the task</li>
+        <li><strong>Assign Installation Team</strong> — select team members; notification includes project + item name</li>
+        <li>Notify accountant of expected payment timing</li>
       </ul>
 
       <h3>Phase 3: Working — Installation</h3>
       <ul>
-        <li>Schedule the delivery date</li>
-        <li>Notify client to make the delivery payment; notify the accountant</li>
-        <li><strong>Approval to complete fixing</strong> — review installation team notes and approve to proceed</li>
+        <li>Notify client to make delivery payment — the <strong>F4 Form — Delivery Payment</strong> task appears; fill the payment panel to record and complete it</li>
+        <li>Review installation team daily logs on the <strong>Fixing Team Note</strong> task, then give <strong>Approval to Complete Fixing</strong></li>
       </ul>
 
       <h3>Phase 4: Closing</h3>
+      <p>Phase 4 tasks auto-generate when the <strong>Handing Over Form</strong> task appears. No manual trigger needed.</p>
       <ul>
-        <li>Notify client to pay the final payment; notify accountant</li>
-        <li>Sign off on F6 Handover Sheet</li>
-        <li>Confirm project is moved to Closed status</li>
+        <li>Notify client to pay the final payment — <strong>F4 Form — Final Payment</strong> task appears; recording this payment automatically closes the project and starts the 1-year maintenance period</li>
+        <li>Submit the <strong>F6 Handover Sheet</strong> — advances project stage to "Installation Completed"</li>
+        <li>Project moves to <strong>Closed</strong> status automatically once the Final Payment is recorded</li>
       </ul>
     </div>
 
@@ -429,9 +442,12 @@
           <tr><th>Form / Action</th><th>When</th><th>Where</th></tr>
           <tr><td>Gate Pass</td><td>Items ready for delivery</td><td>Projects tab → project card → Gate Pass button</td></tr>
           <tr><td>F3 — Material Order</td><td>Need to order materials</td><td>Projects tab → F3 button</td></tr>
+          <tr><td>F4 — Advance Payment</td><td>Client confirms project (Phase 2)</td><td>Task card → Record Payment panel</td></tr>
+          <tr><td>F4 — Delivery Payment</td><td>Before delivery (Phase 3)</td><td>Task card → Record Payment panel</td></tr>
+          <tr><td>F4 — Final Payment</td><td>Project closing (Phase 4)</td><td>Task card → Record Payment panel (closes project)</td></tr>
           <tr><td>F5 — Quotation Items</td><td>Defining project items</td><td>Projects tab → F5 button</td></tr>
           <tr><td>F6 — Handover</td><td>Project closing</td><td>Projects tab → F6 button</td></tr>
-          <tr><td>Assign Team</td><td>After Gate Pass issued</td><td>Install Teams tab → project → Assign</td></tr>
+          <tr><td>Assign Team</td><td>After delivery date scheduled</td><td>Install Teams tab → project → Assign</td></tr>
           <tr><td>Log Timesheet</td><td>Daily, per worker</td><td>Timesheets tab → Log Entry</td></tr>
         </table></div>
 

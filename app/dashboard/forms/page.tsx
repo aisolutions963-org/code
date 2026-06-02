@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, GatePass, Project } from '@/lib/types'
+import { Task, TaskUpdateInput, GatePass } from '@/lib/types'
 import { useSession } from '@/app/dashboard/layout-client'
 import F3OrderPanel from '@/components/tasks/panels/F3OrderPanel'
 import F5QuotationPanel from '@/components/tasks/panels/F5QuotationPanel'
@@ -16,8 +16,6 @@ import OrderSamplePanel from '@/components/tasks/panels/OrderSamplePanel'
 import FabricateMissingPanel from '@/components/tasks/panels/FabricateMissingPanel'
 import CallClientDecisionPanel from '@/components/tasks/panels/CallClientDecisionPanel'
 import GatePassModal from '@/components/projects/GatePassModal'
-import Modal from '@/components/ui/Modal'
-import Button from '@/components/ui/Button'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -238,16 +236,7 @@ export default function FormsPage() {
   )
   const gatePasses = gpData?.gatePasses ?? []
 
-  const [showProjectPicker, setShowProjectPicker] = useState(false)
-  const [pickerProjectId, setPickerProjectId] = useState('')
-  const [gatePassProject, setGatePassProject] = useState<Project | null>(null)
-  const [projectsNeeded, setProjectsNeeded] = useState(false)
-
-  const { data: projectData } = useSWR<{ projects: Project[] }>(
-    projectsNeeded ? '/api/projects' : null,
-    fetcher,
-  )
-  const projects = projectData?.projects ?? []
+  const [showGatePassModal, setShowGatePassModal] = useState(false)
 
   const allTasks = data?.tasks ?? []
 
@@ -280,17 +269,6 @@ export default function FormsPage() {
     mutate()
   }
 
-  function openGatePassPicker() {
-    setProjectsNeeded(true)
-    setPickerProjectId('')
-    setShowProjectPicker(true)
-  }
-
-  function confirmProjectPicker() {
-    const proj = projects.find((p) => p.id === pickerProjectId) ?? null
-    setGatePassProject(proj)
-    setShowProjectPicker(false)
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -332,7 +310,7 @@ export default function FormsPage() {
               </div>
               {canCreateGatePass && (
                 <button
-                  onClick={openGatePassPicker}
+                  onClick={() => setShowGatePassModal(true)}
                   className="text-xs text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -405,48 +383,12 @@ export default function FormsPage() {
         ))}
       </div>
 
-      {/* Project picker for gate pass */}
-      <Modal
-        open={showProjectPicker}
-        onClose={() => setShowProjectPicker(false)}
-        title="New Gate Pass — Select Project"
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowProjectPicker(false)}>Cancel</Button>
-            <Button disabled={!pickerProjectId} onClick={confirmProjectPicker}>Continue</Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-gray-500">Select the project this gate pass is for.</p>
-          {projects.length === 0 ? (
-            <div className="flex justify-center py-6">
-              <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-              value={pickerProjectId}
-              onChange={(e) => setPickerProjectId(e.target.value)}
-            >
-              <option value="">Select project…</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.projectId} — {p.projectName}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      </Modal>
-
-      {/* Gate Pass creation form */}
-      {gatePassProject && (
+      {/* Gate Pass creation — single-step modal */}
+      {showGatePassModal && (
         <GatePassModal
-          project={gatePassProject}
-          onClose={() => setGatePassProject(null)}
-          onCreated={() => { setGatePassProject(null); mutateGp() }}
+          project={null}
+          onClose={() => setShowGatePassModal(false)}
+          onCreated={() => { setShowGatePassModal(false); mutateGp() }}
         />
       )}
     </div>
