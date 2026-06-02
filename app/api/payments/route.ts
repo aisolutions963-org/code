@@ -13,7 +13,7 @@ import { CreatePaymentSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
-export const GET = requireRole()(async (req: NextRequest) => {
+export const GET = requireRole('manager', 'superadmin')(async (req: NextRequest) => {
   const projectId = req.nextUrl.searchParams.get('projectId')
   if (!projectId) {
     return NextResponse.json({ error: 'projectId query param required' }, { status: 400 })

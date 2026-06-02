@@ -22,13 +22,15 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const canSeePayments = session.role === 'manager' || session.role === 'superadmin'
+
   try {
     const [project, tasks, payments, gatePasses] = await Promise.all([
       getProjectById(id),
       session.role === 'superadmin' || session.role === 'manager'
         ? getAllTasksForProject(id)
         : getTasksForProject(id, session.role),
-      getPaymentsByProject(id),
+      canSeePayments ? getPaymentsByProject(id) : Promise.resolve([]),
       getGatePassesByProject(id),
     ])
 
