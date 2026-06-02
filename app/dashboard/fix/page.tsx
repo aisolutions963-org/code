@@ -8,6 +8,8 @@ import TaskList from '@/components/tasks/TaskList'
 import HandoverModal from '@/components/projects/HandoverModal'
 import InstallationLogModal from '@/components/projects/InstallationLogModal'
 
+interface AssignmentNote { id: number; title: string; body: string; created_at: string; read: number }
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function FixDashboard() {
@@ -26,6 +28,16 @@ export default function FixDashboard() {
     '/api/projects',
     fetcher,
     { refreshInterval: 60000 },
+  )
+
+  const { data: notifData, mutate: mutateNotifs } = useSWR<{ notifications: AssignmentNote[] }>(
+    '/api/notifications',
+    fetcher,
+    { refreshInterval: 60000, revalidateOnFocus: true },
+  )
+
+  const assignmentNotes = (notifData?.notifications ?? []).filter(
+    (n) => n.title === 'Installation team assigned',
   )
 
   const tasks = data?.tasks ?? []
@@ -92,6 +104,44 @@ export default function FixDashboard() {
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
               فشل تحميل المهام. <button onClick={() => mutate()} className="underline">إعادة المحاولة</button>
+            </div>
+          )}
+
+          {assignmentNotes.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">ملاحظات التكليف</p>
+              {assignmentNotes.map((note) => (
+                <div
+                  key={note.id}
+                  className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                    note.read ? 'bg-white border-gray-200' : 'bg-indigo-50 border-indigo-200'
+                  }`}
+                >
+                  <div className="mt-0.5 shrink-0 w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-gray-800">تم تعيينك في فريق التركيب</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{note.body}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      {new Date(note.created_at).toLocaleDateString('ar-AE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                  {!note.read && (
+                    <span className="mt-1 shrink-0 w-2 h-2 rounded-full bg-indigo-500" />
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => {
+                  fetch('/api/notifications', { method: 'PATCH' }).then(() => mutateNotifs())
+                }}
+                className="text-[11px] text-gray-400 hover:text-gray-600"
+              >
+                تحديد الكل كمقروء
+              </button>
             </div>
           )}
 

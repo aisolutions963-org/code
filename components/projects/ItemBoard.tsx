@@ -6,6 +6,7 @@ import ItemGroupSection from '@/components/tasks/ItemGroupSection'
 import { PHASE_CONFIG } from '@/lib/phases'
 
 interface Props {
+  projectId: string
   items: ItemSummary[]
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
@@ -63,7 +64,7 @@ function SummaryStrip({ items }: { items: ItemSummary[] }) {
   )
 }
 
-export default function ItemBoard({ items, role, onUpdate, onMutate }: Props) {
+export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }: Props) {
   const handleUpdate = async (id: string, fields: Partial<TaskUpdateInput>) => {
     await onUpdate(id, fields)
     onMutate()
@@ -84,7 +85,7 @@ export default function ItemBoard({ items, role, onUpdate, onMutate }: Props) {
       <div className="space-y-4">
         {items.map((item) => {
           const phase2Min = PHASE_CONFIG.Open.perItemOrderMin        // 23
-      const phase3Min = PHASE_CONFIG.Working.perItemOrderMin     // 31
+      const phase3Min = PHASE_CONFIG.Working.perItemOrderMin     // 30
       const hasPhase3 = item.allTasks.some(
         (t) => (t.templateOrder?.[0] ?? 0) >= phase3Min,
       )
@@ -95,7 +96,9 @@ export default function ItemBoard({ items, role, onUpdate, onMutate }: Props) {
         if (order === undefined) return true
         return order < phase2Min || order >= phase3Min
       })
-          const projectId = visibleTasks[0]?.project?.[0] ?? item.allTasks[0]?.project?.[0] ?? ''
+          const allTaskPaths = item.allTasks
+            .map((t) => t.pathCondition)
+            .filter((p): p is string => !!p)
           return (
             <ItemGroupSection
               key={item.id}
@@ -103,8 +106,10 @@ export default function ItemBoard({ items, role, onUpdate, onMutate }: Props) {
               itemName={item.name}
               projectId={projectId}
               tasks={visibleTasks}
+              allTaskPaths={allTaskPaths}
               role={role}
               onUpdate={handleUpdate}
+              onMutate={onMutate}
             />
           )
         })}

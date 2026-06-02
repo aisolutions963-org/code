@@ -339,6 +339,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         HOME_ITEM,
         { label: 'My Tasks', href: '/dashboard/fab', icon: <TasksIcon /> },
+        { label: 'Forms', href: '/dashboard/forms', icon: <FormsIcon /> },
       ],
     },
     {

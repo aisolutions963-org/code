@@ -50,7 +50,9 @@ export default function DashboardLayoutClient({
 
             {/* Content — pb-16 on mobile reserves space above bottom nav */}
             <main className="flex-1 overflow-y-auto scrollbar-thin pb-16 md:pb-0">
-              {children}
+              <Suspense fallback={null}>
+                {children}
+              </Suspense>
             </main>
           </div>
 

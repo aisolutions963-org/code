@@ -56,7 +56,7 @@ export default function F3OrderPanel({ task, onUpdate }: F3OrderPanelProps) {
       }
       toast.success(
         f3Path === 'small'
-          ? 'Order submitted — superadmin notified'
+          ? 'Order submitted'
           : 'Sent to Fabrication for store check',
       )
       await onUpdate(task.id, {})
@@ -86,7 +86,7 @@ export default function F3OrderPanel({ task, onUpdate }: F3OrderPanelProps) {
           }`}
         >
           <div className="font-bold">Small Order</div>
-          <div className="font-normal mt-0.5 opacity-80">Order directly — notifies superadmin</div>
+          <div className="font-normal mt-0.5 opacity-80">Order directly</div>
         </button>
         <button
           type="button"

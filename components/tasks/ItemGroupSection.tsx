@@ -1,84 +1,20 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput, Role } from '@/lib/types'
 import TaskCard from './TaskCard'
-import TaskStatusBadge from './TaskStatusBadge'
 import GateGroupCard from './GateGroupCard'
 
-function SampleBranchSubCard({
-  task,
-  role,
-  onUpdate,
-}: {
-  task: Task
-  role: Role
-  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
-}) {
-  const [expanded, setExpanded] = useState(false)
+type ActionPath = 'Site Visit (item)' | 'Select Sample (item)' | 'Design (item)' | 'Measurement (item)'
 
-  const displayName = task.taskName
-    .replace(/^sample branch:\s*/i, '')
-    .replace(/\s*\(per item\)\s*$/i, '')
-    .trim()
+const ACTION_OPTIONS: { value: ActionPath; label: string }[] = [
+  { value: 'Site Visit (item)', label: 'SED Site Visit' },
+  { value: 'Select Sample (item)', label: 'Select/Order Sample' },
+  { value: 'Design (item)', label: 'Design' },
+  { value: 'Measurement (item)', label: 'Take Measurement' },
+]
 
-  const isCompleted = task.status === 'Completed'
-  const isLocked = task.status === 'Locked'
-  const isActive = !isCompleted && !isLocked
-
-  return (
-    <div
-      className={`rounded-lg border overflow-hidden ${
-        isCompleted
-          ? 'border-green-200'
-          : isLocked
-            ? 'border-gray-200 opacity-50'
-            : 'border-amber-200'
-      }`}
-    >
-      <button
-        className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-          isCompleted
-            ? 'bg-green-50 hover:bg-green-100'
-            : isLocked
-              ? 'bg-gray-50 cursor-default'
-              : 'bg-amber-50 hover:bg-amber-100'
-        }`}
-        onClick={() => isActive && setExpanded((e) => !e)}
-        disabled={isLocked}
-      >
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-            isCompleted ? 'bg-green-500' : isLocked ? 'bg-gray-300' : 'bg-amber-400'
-          }`}
-        />
-        <span
-          className={`flex-1 text-xs font-medium truncate ${
-            isCompleted ? 'text-green-800' : isLocked ? 'text-gray-400' : 'text-amber-900'
-          }`}
-        >
-          {displayName}
-        </span>
-        <TaskStatusBadge status={task.status} />
-        {isActive && (
-          <svg
-            className={`w-3 h-3 shrink-0 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        )}
-      </button>
-      {expanded && isActive && (
-        <div className="border-t border-amber-100">
-          <TaskCard task={task} role={role} onUpdate={onUpdate} />
-        </div>
-      )}
-    </div>
-  )
-}
 
 interface QuotationDetails {
   description?: string | null
@@ -91,8 +27,10 @@ interface ItemGroupSectionProps {
   itemName: string
   projectId: string
   tasks: Task[]
+  allTaskPaths?: string[]
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+  onMutate?: () => void
 }
 
 export default function ItemGroupSection({
@@ -100,12 +38,17 @@ export default function ItemGroupSection({
   itemName,
   projectId,
   tasks,
+  allTaskPaths,
   role,
   onUpdate,
+  onMutate,
 }: ItemGroupSectionProps) {
   const [details, setDetails] = useState<QuotationDetails | null>(null)
   const [fetching, setFetching] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
+  const [showAddActions, setShowAddActions] = useState(false)
+  const [selectedActions, setSelectedActions] = useState<ActionPath[]>([])
+  const [addingSaving, setAddingSaving] = useState(false)
   const fetchedRef = useRef(false)
 
   async function fetchDetails() {
@@ -138,19 +81,40 @@ export default function ItemGroupSection({
         })
       : null
 
+  const existingPaths = new Set(
+    allTaskPaths ?? tasks.map((t) => t.pathCondition).filter((p): p is string => !!p),
+  )
+  const availableNewActions = ACTION_OPTIONS.filter((o) => !existingPaths.has(o.value))
+
+  async function handleAddActions() {
+    if (selectedActions.length === 0) return
+    setAddingSaving(true)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/items/${itemId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actions: selectedActions }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      toast.success(`${data.created} task${data.created !== 1 ? 's' : ''} added`)
+      setShowAddActions(false)
+      setSelectedActions([])
+      onMutate?.()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add actions')
+    } finally {
+      setAddingSaving(false)
+    }
+  }
+
   // [GATE] tasks for this item — rendered as a GateGroupCard like Phase 1 approval gates
   const gateTasks = tasks.filter(
     (t) => /\[gate\]/i.test(t.taskName) && !/\[gateway\]/i.test(t.taskName),
   )
   const gateIds = new Set(gateTasks.map((t) => t.id))
 
-  // "Sample Branch" sub-tasks (order 25, Select Sample path) — rendered compactly below parent
-  const sampleBranchTasks = tasks.filter((t) =>
-    t.taskName.toLowerCase().startsWith('sample branch:'),
-  )
-  const sampleBranchIds = new Set(sampleBranchTasks.map((t) => t.id))
-
-  const mainTasks = tasks.filter((t) => !sampleBranchIds.has(t.id) && !gateIds.has(t.id))
+  const mainTasks = tasks.filter((t) => !gateIds.has(t.id))
 
   return (
     <div className="border border-teal-100 rounded-xl overflow-hidden">
@@ -165,6 +129,14 @@ export default function ItemGroupSection({
         <span className="ml-auto text-xs text-teal-500 bg-teal-100 px-1.5 py-0.5 rounded-full shrink-0">
           {mainTasks.length + (gateTasks.length > 0 ? 1 : 0)} task{mainTasks.length + (gateTasks.length > 0 ? 1 : 0) !== 1 ? 's' : ''}
         </span>
+        {availableNewActions.length > 0 && ['sed', 'manager', 'superadmin'].includes(role) && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowAddActions((v) => !v) }}
+            className="ml-1 text-[10px] text-teal-600 hover:text-teal-800 font-medium shrink-0 px-1.5 py-0.5 rounded hover:bg-teal-100 transition-colors"
+          >
+            + Actions
+          </button>
+        )}
 
         {/* Hover tooltip */}
         {showTooltip && (
@@ -207,23 +179,51 @@ export default function ItemGroupSection({
         )}
       </div>
 
+      {/* Add actions panel */}
+      {showAddActions && availableNewActions.length > 0 && (
+        <div className="px-3 py-2.5 bg-teal-50 border-b border-teal-100 space-y-2">
+          <p className="text-[11px] font-semibold text-teal-700">Add actions to this item</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {availableNewActions.map((opt) => (
+              <label key={opt.value} className="flex items-center gap-1 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedActions.includes(opt.value)}
+                  onChange={() =>
+                    setSelectedActions((prev) =>
+                      prev.includes(opt.value)
+                        ? prev.filter((a) => a !== opt.value)
+                        : [...prev, opt.value],
+                    )
+                  }
+                  className="accent-teal-600"
+                />
+                <span className="text-xs text-gray-700">{opt.label}</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAddActions}
+              disabled={addingSaving || selectedActions.length === 0}
+              className="text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 px-3 py-1 rounded-lg transition-colors"
+            >
+              {addingSaving ? 'Adding…' : 'Add'}
+            </button>
+            <button
+              onClick={() => { setShowAddActions(false); setSelectedActions([]) }}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tasks inside the item group */}
       <div className="space-y-2 p-2">
         {mainTasks.map((task) => (
-          <div key={task.id}>
-            <TaskCard task={task} role={role} onUpdate={onUpdate} />
-            {/* Compact branch sub-cards nested below the "Select Sample" task */}
-            {task.pathCondition === 'Select Sample (item)' && sampleBranchTasks.length > 0 && (
-              <div className="px-3 pb-3 pt-1.5 bg-gray-50 space-y-1.5 border-t border-gray-100">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-                  Branch outcome
-                </p>
-                {sampleBranchTasks.map((bt) => (
-                  <SampleBranchSubCard key={bt.id} task={bt} role={role} onUpdate={onUpdate} />
-                ))}
-              </div>
-            )}
-          </div>
+          <TaskCard key={task.id} task={task} role={role} onUpdate={onUpdate} />
         ))}
 
         {/* Per-item approval gates — same visual treatment as Phase 1 GateGroupCard */}

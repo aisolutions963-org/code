@@ -37,7 +37,11 @@ export default function ChooseInstallTeamPanel({ task, onUpdate }: ChooseInstall
       const res = await fetch(`/api/projects/${projectId}/assign-installation`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamMemberIds: [selectedMember.id] }),
+        body: JSON.stringify({
+          teamMemberIds: [selectedMember.id],
+          ...(task.projectItemName ? { itemName: task.projectItemName } : {}),
+          ...(task.projectItem?.[0] ? { itemId: task.projectItem[0] } : {}),
+        }),
       })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))

@@ -58,7 +58,7 @@ import {
 import { ROLE_TO_DEPARTMENT } from './permissions'
 import { validateEnv } from './env'
 import { recordAirtableFailure } from './metrics'
-import { notifyTasksReady } from './notifications'
+import { notifyTasksReady, createNotification, ROLE_DASHBOARD } from './notifications'
 
 validateEnv()
 
@@ -337,11 +337,11 @@ function transformProject(record: RawRecord): Project {
   const f = record.fields
   const owner = f[PROJECTS.SALES_OWNER] as { id: string; email: string; name: string } | undefined
   const rawCommun = f[PROJECTS.COMMUN_SEDS]
-  const communSeds: string[] = Array.isArray(rawCommun)
+  const communRaw = Array.isArray(rawCommun)
     ? (rawCommun as Array<{ name?: string; email?: string; id?: string }>)
-        .map((c) => c.name ?? c.email ?? c.id ?? '')
-        .filter(Boolean)
     : []
+  const communSeds = communRaw.map((c) => c.name ?? c.email ?? c.id ?? '').filter(Boolean)
+  const communSedIds = communRaw.map((c) => c.id ?? '').filter(Boolean)
   const quotationNumber = str(f[PROJECTS.QUOTATION_NUMBER])
   return {
     id: record.id,
@@ -374,6 +374,7 @@ function transformProject(record: RawRecord): Project {
     detailedLocation: str(f[PROJECTS.DETAILED_LOCATION]),
     projectDescription: str(f[PROJECTS.PROJECT_DESCRIPTION]),
     communSeds: communSeds.length > 0 ? communSeds : undefined,
+    communSedIds: communSedIds.length > 0 ? communSedIds : undefined,
   }
 }
 
@@ -490,13 +491,50 @@ function buildDepartmentFormula(role: Role): string {
   return `AND(${deptOr}, NOT(FIND("Superadmin", ARRAYJOIN({${TASKS.DEPARTMENT}}, ","))), {${TASKS.STATUS}} != "Locked")`
 }
 
+// Returns the Airtable record IDs of all projects owned/communed by a specific SED.
+// Uses a minimal field fetch (3 fields) for performance.
+export async function getSedProjectIds(opts: {
+  sedAirtableMemberId?: string
+  sedEmail?: string
+}): Promise<string[]> {
+  if (!opts.sedAirtableMemberId && !opts.sedEmail) return []
+  const records = await fetchAll(PROJECTS.TABLE_ID, {
+    fields: [PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS],
+  })
+  const memberId = opts.sedAirtableMemberId
+  const email = opts.sedEmail?.toLowerCase()
+  return records
+    .filter((r) => {
+      const owner = r.fields[PROJECTS.SALES_OWNER] as { id?: string; email?: string } | undefined
+      const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
+      const communIds: string[] = Array.isArray(rawCommun)
+        ? (rawCommun as Array<{ id?: string }>).map((c) => c.id ?? '').filter(Boolean)
+        : []
+      if (memberId) {
+        if (owner?.id === memberId) return true
+        if (communIds.includes(memberId)) return true
+      }
+      if (email && owner?.email?.toLowerCase() === email) return true
+      return false
+    })
+    .map((r) => r.id)
+}
+
 export async function getTasksByRole(
   role: Role,
-  options: { projectId?: string } = {},
+  options: { projectId?: string; sedProjectIds?: string[] } = {},
 ): Promise<Task[]> {
+  // SED with no assigned projects → no tasks
+  if (options.sedProjectIds !== undefined && options.sedProjectIds.length === 0) return []
+
   let formula = buildDepartmentFormula(role)
   if (options.projectId) {
     formula = `AND(${formula}, {${TASKS.PROJECT}} = "${options.projectId}")`
+  } else if (options.sedProjectIds && options.sedProjectIds.length > 0) {
+    const projectFilter = options.sedProjectIds.length === 1
+      ? `{${TASKS.PROJECT}} = "${options.sedProjectIds[0]}"`
+      : `OR(${options.sedProjectIds.map((id) => `{${TASKS.PROJECT}} = "${id}"`).join(', ')})`
+    formula = `AND(${formula}, ${projectFilter})`
   }
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
@@ -591,7 +629,7 @@ async function getFabricationActiveProjectIds(): Promise<Set<string>> {
   return ids
 }
 
-export async function getProjects(options: { stage?: string; sedEmail?: string } = {}): Promise<Project[]> {
+export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string } = {}): Promise<Project[]> {
   let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Archived"))`
   if (options.stage) {
     formula = `{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`
@@ -604,12 +642,20 @@ export async function getProjects(options: { stage?: string; sedEmail?: string }
     getFabricationActiveProjectIds(),
   ])
   let projects = records.map(r => ({ ...transformProject(r), fabricationActive: fabActiveIds.has(r.id) }))
-  if (options.sedEmail) {
-    const email = options.sedEmail.toLowerCase()
-    projects = projects.filter(p =>
-      p.salesOwner?.email?.toLowerCase() === email ||
-      p.communSeds?.some(s => s.toLowerCase() === email),
-    )
+  if (options.sedAirtableMemberId || options.sedEmail) {
+    const memberId = options.sedAirtableMemberId
+    const email = options.sedEmail?.toLowerCase()
+    projects = projects.filter(p => {
+      if (memberId) {
+        if (p.salesOwner?.id === memberId) return true
+        if (p.communSedIds?.includes(memberId)) return true
+      }
+      if (email) {
+        if (p.salesOwner?.email?.toLowerCase() === email) return true
+        if (p.communSeds?.some(s => s.toLowerCase() === email)) return true
+      }
+      return false
+    })
   }
   return projects
 }
@@ -917,8 +963,17 @@ export async function getIncompleteTasksForProject(projectId: string): Promise<T
   return records.map(transformTask)
 }
 
-export async function getAllTasksForProjectAll(projectId: string): Promise<Task[]> {
-  const formula = `{${TASKS.PROJECT}} = "${projectId}"`
+export async function getAllTasksForProjectAll(projectId: string, role?: Role): Promise<Task[]> {
+  let formula = `{${TASKS.PROJECT}} = "${projectId}"`
+  if (role && role !== 'superadmin') {
+    const departments = ROLE_TO_DEPARTMENT[role]
+    const deptChecks = departments
+      .map((d) => `FIND("${d}", ARRAYJOIN({${TASKS.DEPARTMENT}}, ","))`)
+      .join(', ')
+    const deptOr = departments.length > 1 ? `OR(${deptChecks})` : deptChecks
+    const deptFilter = `AND(${deptOr}, NOT(FIND("Superadmin", ARRAYJOIN({${TASKS.DEPARTMENT}}, ","))))`
+    formula = `AND(${formula}, OR(${deptFilter}, {${TASKS.DEPARTMENT}} = BLANK()))`
+  }
   const records = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: formula,
     sort: [{ field: TASKS.TEMPLATE_ORDER, direction: 'asc' }],
@@ -1124,10 +1179,20 @@ export async function getInstallationTeamMembers(): Promise<TeamMember[]> {
 export async function assignInstallationTeam(
   projectId: string,
   teamMemberIds: string[],
+  opts?: { itemName?: string; itemId?: string },
 ): Promise<Project> {
-  return updateProject(projectId, {
+  const project = await updateProject(projectId, {
     [PROJECTS.INSTALLATION_TEAM_MEMBERS]: teamMemberIds,
   })
+  const projectRef = project.nickname ?? project.projectName ?? project.projectId
+  const body = opts?.itemName ? `${projectRef} — ${opts.itemName}` : projectRef
+  createNotification({
+    recipientRole: 'installation',
+    title: 'Installation team assigned',
+    body,
+    link: ROLE_DASHBOARD['installation'],
+  })
+  return project
 }
 
 async function enrichTasksWithProjectItemNames(tasks: Task[]): Promise<Task[]> {
@@ -1841,14 +1906,16 @@ export interface CalendarEvent {
   type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication'
   projectId?: string
   projectName?: string
+  itemName?: string
   amount?: number
   notes?: string
   customTask?: string
   createdBy?: string
+  createdAt?: string
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
-  const [gatePasses, tasks, fabTasks, payments, customEvents, installationLogs] = await Promise.all([
+  const [gatePasses, tasks, fabTasks, payments, customEvents, installationLogs, allProjects] = await Promise.all([
     fetchAll(GATE_PASSES.TABLE_ID, {
       filterByFormula: `NOT({${GATE_PASSES.ESTIMATED_SUPPLY_DATE}}=BLANK())`,
       fields: [GATE_PASSES.NAME, GATE_PASSES.ESTIMATED_SUPPLY_DATE, GATE_PASSES.CONFIRMED_DELIVERY_DATE, GATE_PASSES.PROJECT],
@@ -1856,17 +1923,17 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     }),
     fetchAll(TASKS.TABLE_ID, {
       filterByFormula: `AND(NOT({${TASKS.TASK_START_DATE}}=BLANK()), OR({${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="To Do"))`,
-      fields: [TASKS.TASK_NAME, TASKS.TASK_START_DATE, TASKS.COMPLETION_DATE, TASKS.DEPARTMENT, TASKS.PROJECT_ID],
+      fields: [TASKS.TASK_NAME, TASKS.TASK_START_DATE, TASKS.COMPLETION_DATE, TASKS.DEPARTMENT, TASKS.PROJECT_ID, TASKS.PROJECT],
       sort: [{ field: TASKS.TASK_START_DATE, direction: 'asc' }],
     }),
     fetchAll(TASKS.TABLE_ID, {
       filterByFormula: `OR(NOT({${TASKS.PLANNED_PROD_START_DATE}}=BLANK()), NOT({${TASKS.EXPECTED_FAB_END_DATE}}=BLANK()))`,
-      fields: [TASKS.TASK_NAME, TASKS.PLANNED_PROD_START_DATE, TASKS.EXPECTED_FAB_END_DATE, TASKS.PROJECT_ID, TASKS.PROJECT_ITEM],
+      fields: [TASKS.TASK_NAME, TASKS.PLANNED_PROD_START_DATE, TASKS.EXPECTED_FAB_END_DATE, TASKS.PROJECT_ID, TASKS.PROJECT_ITEM, TASKS.PROJECT],
       sort: [{ field: TASKS.PLANNED_PROD_START_DATE, direction: 'asc' }],
     }),
     fetchAll(PAYMENTS.TABLE_ID, {
       filterByFormula: `OR(NOT({${PAYMENTS.DUE_DATE}}=BLANK()), NOT({${PAYMENTS.RECEIVED_DATE}}=BLANK()))`,
-      fields: [PAYMENTS.NAME, PAYMENTS.AMOUNT, PAYMENTS.PAYMENT_TYPE, PAYMENTS.DUE_DATE, PAYMENTS.RECEIVED_DATE, PAYMENTS.PROJECT],
+      fields: [PAYMENTS.NAME, PAYMENTS.AMOUNT, PAYMENTS.PAYMENT_TYPE, PAYMENTS.DUE_DATE, PAYMENTS.RECEIVED_DATE, PAYMENTS.PROJECT, PAYMENTS.RECORDED_BY],
     }),
     fetchAll(CALENDAR_EVENTS.TABLE_ID, {
       fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY, CALENDAR_EVENTS.CUSTOM_TASK],
@@ -1874,10 +1941,25 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     }),
     fetchAll(INSTALLATION_LOGS.TABLE_ID, {
       filterByFormula: `NOT({${INSTALLATION_LOGS.DATE}}=BLANK())`,
-      fields: [INSTALLATION_LOGS.NAME, INSTALLATION_LOGS.DATE, INSTALLATION_LOGS.WORK_DESCRIPTION],
+      fields: [INSTALLATION_LOGS.NAME, INSTALLATION_LOGS.DATE, INSTALLATION_LOGS.WORK_DESCRIPTION, INSTALLATION_LOGS.PROJECT, INSTALLATION_LOGS.RECORDED_BY],
       sort: [{ field: INSTALLATION_LOGS.DATE, direction: 'asc' }],
     }),
+    fetchAll(PROJECTS.TABLE_ID, {
+      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID, PROJECTS.NICKNAME],
+    }),
   ])
+
+  // Build project lookup: Airtable record ID → display name
+  const projectNameMap = new Map<string, string>()
+  for (const p of allProjects) {
+    const label = str(p.fields[PROJECTS.NICKNAME]) ?? str(p.fields[PROJECTS.PROJECT_NAME]) ?? str(p.fields[PROJECTS.PROJECT_ID])
+    if (label) projectNameMap.set(p.id, label)
+  }
+
+  const getProjectName = (linkedIds: unknown): string | undefined => {
+    const ids = linkedIds as string[] | undefined
+    return ids?.[0] ? projectNameMap.get(ids[0]) : undefined
+  }
 
   const events: CalendarEvent[] = []
 
@@ -1890,6 +1972,8 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
         title: str(f[GATE_PASSES.NAME]) ?? 'Delivery',
         date,
         type: 'delivery',
+        projectName: getProjectName(f[GATE_PASSES.PROJECT]),
+        createdAt: r.createdTime,
       })
     }
   }
@@ -1906,8 +1990,18 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       date,
       type,
       projectId: str(f[TASKS.PROJECT_ID]),
+      projectName: getProjectName(f[TASKS.PROJECT]),
+      createdAt: r.createdTime,
     })
   }
+
+  // Batch-resolve item names for fabrication tasks
+  const allItemIds = new Set<string>()
+  for (const r of fabTasks) {
+    const ids = r.fields[TASKS.PROJECT_ITEM] as string[] | undefined
+    if (ids?.[0]) allItemIds.add(ids[0])
+  }
+  const itemNameMap = allItemIds.size > 0 ? await getProjectItemNameMap(Array.from(allItemIds)) : {}
 
   for (const r of fabTasks) {
     const f = r.fields
@@ -1917,6 +2011,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const label = str(f[TASKS.TASK_NAME]) ?? 'Production'
     const d = startDate || endDate
     if (d) {
+      const itemIds = f[TASKS.PROJECT_ITEM] as string[] | undefined
       events.push({
         id: `${r.id}-fab`,
         title: label,
@@ -1924,6 +2019,9 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
         endDate: endDate || d,
         type: 'fabrication',
         projectId,
+        projectName: getProjectName(f[TASKS.PROJECT]),
+        itemName: itemIds?.[0] ? itemNameMap[itemIds[0]] : undefined,
+        createdAt: r.createdTime,
       })
     }
   }
@@ -1934,11 +2032,13 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const amount = num(f[PAYMENTS.AMOUNT])
     const receivedDate = str(f[PAYMENTS.RECEIVED_DATE])
     const dueDate = str(f[PAYMENTS.DUE_DATE])
+    const projectName = getProjectName(f[PAYMENTS.PROJECT])
+    const createdBy = str(f[PAYMENTS.RECORDED_BY])
     if (receivedDate) {
-      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', amount })
+      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', amount, projectName, createdBy, createdAt: r.createdTime })
     }
     if (dueDate && dueDate !== receivedDate) {
-      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', amount })
+      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', amount, projectName, createdBy, createdAt: r.createdTime })
     }
   }
 
@@ -1956,6 +2056,8 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       notes: str(f[CALENDAR_EVENTS.NOTES]),
       customTask,
       createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
+      projectName: getProjectName(f[CALENDAR_EVENTS.PROJECT]),
+      createdAt: r.createdTime,
     })
   }
 
@@ -1971,10 +2073,35 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       date,
       type: 'installation',
       notes: desc,
+      createdBy: str(f[INSTALLATION_LOGS.RECORDED_BY]),
+      projectName: getProjectName(f[INSTALLATION_LOGS.PROJECT]),
+      createdAt: r.createdTime,
     })
   }
 
   return events
+}
+
+export async function createAdHocTask(fields: {
+  taskName: string
+  projectId: string
+  departments: string[]
+  status?: string
+}): Promise<string> {
+  const record: Record<string, unknown> = {
+    [TASKS.TASK_NAME]: fields.taskName,
+    [TASKS.PROJECT]: fields.projectId,
+    [TASKS.STATUS]: fields.status ?? 'To Do',
+    [TASKS.DEPARTMENT]: fields.departments,
+  }
+  const ids = await createTasksBatch([record])
+  return ids[0]
+}
+
+export async function measurementTaskExists(projectId: string): Promise<boolean> {
+  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.TASK_NAME}} = "Take Measurements", {${TASKS.STATUS}} != "Completed")`
+  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula, fields: [TASKS.STATUS] })
+  return records.length > 0
 }
 
 export async function createCalendarEvent(input: {
@@ -2101,7 +2228,7 @@ async function createTasksBatch(
     const res = await fetchWithRetry(tblUrl(TASKS.TABLE_ID), {
       method: 'POST',
       headers: airtableHeaders(),
-      body: JSON.stringify({ records: chunk.map((fields) => ({ fields })) }),
+      body: JSON.stringify({ records: chunk.map((fields) => ({ fields })), typecast: true }),
     })
     if (!res.ok) {
       const body = await res.text()
@@ -2217,6 +2344,7 @@ export async function generateTasksForProject(
 export async function generateItemTasksForProject(
   projectId: string,
   itemId: string,
+  chosenPaths: string[],
 ): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
   const allOpenTemplates = await getTaskTemplates('Open')
 
@@ -2225,12 +2353,35 @@ export async function generateItemTasksForProject(
   const itemTemplates = allOpenTemplates.filter(
     (t) =>
       (t.phaseLabel === null || t.phaseLabel === phaseLabel) &&
-      (t.templateOrder === null || t.templateOrder >= perItemOrderMin),
+      (t.templateOrder === null || t.templateOrder >= perItemOrderMin) &&
+      (t.pathCondition === null || chosenPaths.includes(t.pathCondition)),
   )
   if (itemTemplates.length === 0) return { created: 0, todoTemplates: [] }
 
-  // Build per-path min-order map so each path's first task starts as To Do
-  const orderedTemplates = itemTemplates.filter((t) => t.templateOrder !== null)
+  // Idempotency: fetch existing tasks for this item and skip paths/templates already created.
+  // This allows safely adding new actions to an item after initial submission.
+  const existingRaw = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}})), FIND("${itemId}", ARRAYJOIN({${TASKS.PROJECT_ITEM}})))`,
+    fields: [TASKS.PATH_CONDITION, TASKS.TASK_TEMPLATES_LINK],
+  })
+  const existingPaths = new Set<string>()
+  const existingTemplateIds = new Set<string>()
+  for (const r of existingRaw) {
+    const path = selectName(r.fields[TASKS.PATH_CONDITION])
+    if (path) existingPaths.add(path)
+    const tplLinks = r.fields[TASKS.TASK_TEMPLATES_LINK]
+    if (Array.isArray(tplLinks)) {
+      for (const id of tplLinks) existingTemplateIds.add(id as string)
+    }
+  }
+
+  const newTemplates = itemTemplates.filter((t) =>
+    t.pathCondition !== null ? !existingPaths.has(t.pathCondition) : !existingTemplateIds.has(t.id),
+  )
+  if (newTemplates.length === 0) return { created: 0, todoTemplates: [] }
+
+  // Build per-path min-order map so each new path's first task starts as To Do
+  const orderedTemplates = newTemplates.filter((t) => t.templateOrder !== null)
   const pathMinMap = new Map<string | null, number>()
   for (const t of orderedTemplates) {
     const path = t.pathCondition ?? null
@@ -2242,14 +2393,16 @@ export async function generateItemTasksForProject(
 
   const todoTemplates: TaskTemplate[] = []
 
-  const records = itemTemplates.map((t) => {
+  const records = newTemplates.map((t) => {
     let status: TaskStatus
     const isGate = /\[gate\]/i.test(t.taskName) && !/\[gateway\]/i.test(t.taskName)
     if (t.templateOrder === null || isGate) {
-      // Gate tasks are accessible immediately regardless of order position
+      status = 'To Do'
+    } else if (t.pathCondition !== null) {
+      // Action path tasks all start as To Do — visible and workable immediately after quotation
       status = 'To Do'
     } else {
-      const pathMin = pathMinMap.get(t.pathCondition ?? null)!
+      const pathMin = pathMinMap.get(null)!
       status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
     }
     if (status === 'To Do') todoTemplates.push(t)
@@ -2274,19 +2427,37 @@ export async function generatePhase3TasksForItem(
   projectId: string,
   itemId: string,
 ): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
-  const allTemplates = await getTaskTemplates('Open')
+  const allTemplates = await getTaskTemplates()
   const templates = allTemplates.filter(
     (t) => t.phaseLabel === PHASE_CONFIG.Working.phaseLabel,
   )
   if (templates.length === 0) return { created: 0, todoTemplates: [] }
 
-  const ordered = templates.filter((t) => t.templateOrder !== null)
-  const minOrder = Math.min(...ordered.map((t) => t.templateOrder!))
+  // Idempotency: skip templates already created for this item
+  const existingRaw = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}})), FIND("${itemId}", ARRAYJOIN({${TASKS.PROJECT_ITEM}})))`,
+    fields: [TASKS.TASK_TEMPLATES_LINK],
+  })
+  const existingTemplateIds = new Set<string>()
+  for (const r of existingRaw) {
+    const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
+    if (Array.isArray(links)) links.forEach((id) => existingTemplateIds.add(id as string))
+  }
+  const newTemplates = templates.filter((t) => !existingTemplateIds.has(t.id))
+  if (newTemplates.length === 0) return { created: 0, todoTemplates: [] }
+
+  // Sequential unlock: the lowest-order new template starts as To Do, everything else Locked.
+  // The workflow's unlockNextTasks will unlock subsequent tasks as each one completes.
+  const orderedNew = newTemplates.filter((t) => t.templateOrder !== null)
+  const minNewOrder = orderedNew.length > 0
+    ? Math.min(...orderedNew.map((t) => t.templateOrder!))
+    : null
+
   const todoTemplates: TaskTemplate[] = []
 
-  const records = templates.map((t) => {
+  const records = newTemplates.map((t) => {
     const status: TaskStatus =
-      t.templateOrder === null || t.templateOrder === minOrder ? 'To Do' : 'Locked'
+      t.templateOrder === minNewOrder ? 'To Do' : 'Locked'
     if (status === 'To Do') todoTemplates.push(t)
     return {
       [TASKS.TASK_NAME]: t.taskName,

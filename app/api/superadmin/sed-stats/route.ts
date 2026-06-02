@@ -10,6 +10,7 @@ const API_KEY = process.env.AIRTABLE_API_KEY!
 
 interface AirtableProject {
   stage: string
+  ownerId: string
   ownerEmail: string
   ownerName: string
 }
@@ -32,9 +33,10 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
       offset?: string
     }
     for (const r of data.records) {
-      const owner = r.fields[PROJECTS.SALES_OWNER] as { name?: string; email?: string } | undefined
+      const owner = r.fields[PROJECTS.SALES_OWNER] as { id?: string; name?: string; email?: string } | undefined
       results.push({
         stage: (r.fields[PROJECTS.PROJECT_STAGE] as string) ?? '',
+        ownerId: owner?.id ?? '',
         ownerEmail: owner?.email?.toLowerCase() ?? '',
         ownerName: owner?.name ?? owner?.email ?? '',
       })
@@ -48,13 +50,17 @@ export const GET = requireRole('superadmin')(async () => {
   const [projects, sedUsers] = await Promise.all([
     fetchProjectsForStats(),
     Promise.resolve(
-      (db.prepare(`SELECT name, email FROM users WHERE role = 'sed' AND active = 1 ORDER BY name`).all() as { name: string; email: string }[]),
+      (db.prepare(`SELECT name, email, airtable_member_id FROM users WHERE role = 'sed' AND active = 1 ORDER BY name`).all() as { name: string; email: string; airtable_member_id: string | null }[]),
     ),
   ])
 
-  // Match by email (reliable), display by DB name
+  // Match by airtable_member_id first (most reliable), fall back to email
+  const memberIdToName = new Map<string, string>()
   const emailToName = new Map<string, string>()
-  for (const u of sedUsers) emailToName.set(u.email.toLowerCase(), u.name)
+  for (const u of sedUsers) {
+    if (u.airtable_member_id) memberIdToName.set(u.airtable_member_id, u.name)
+    emailToName.set(u.email.toLowerCase(), u.name)
+  }
 
   const sedNames = sedUsers.map((u) => u.name)
 
@@ -65,9 +71,11 @@ export const GET = requireRole('superadmin')(async () => {
   }
 
   for (const p of projects) {
-    if (!p.ownerEmail) continue
-    // Resolve to DB display name via email match; fall back to Airtable name
-    const displayName = emailToName.get(p.ownerEmail) ?? p.ownerName
+    if (!p.ownerId && !p.ownerEmail) continue
+    const displayName =
+      (p.ownerId ? memberIdToName.get(p.ownerId) : undefined) ??
+      (p.ownerEmail ? emailToName.get(p.ownerEmail) : undefined) ??
+      p.ownerName
     if (!displayName) continue
     if (!map[displayName]) {
       map[displayName] = { preparing: 0, open: 0, closed: 0, notApproved: 0 }

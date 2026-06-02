@@ -17,7 +17,7 @@ import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } f
 import { PHASE_CONFIG, TASK_MARKERS } from './phases'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
-const { HEADLINE_PREFIX, AUTO_MARKER: AUTO_TASK_MARKER, CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX } = TASK_MARKERS
+const { HEADLINE_PREFIX, AUTO_MARKER: AUTO_TASK_MARKER, CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX, FABRICATION_DONE_MARKER } = TASK_MARKERS
 
 function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([
@@ -29,6 +29,19 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
       ),
     ),
   ])
+}
+
+async function resolveProjectLabel(task: Task): Promise<string> {
+  if (task.projectId && !task.projectId.startsWith('rec')) return task.projectId
+  if (task.projectRef && !task.projectRef.startsWith('rec')) return task.projectRef
+  const recordId = task.project?.[0] ?? task.projectRecordId
+  if (!recordId) return ''
+  try {
+    const p = await getProjectById(recordId)
+    return p.nickname ?? p.projectName ?? (p.projectId || recordId)
+  } catch {
+    return recordId
+  }
 }
 
 async function maybeUnlockCallClient(projectId: string, projectItemId?: string): Promise<void> {
@@ -100,6 +113,11 @@ async function unlockNextTasks(task: Task): Promise<void> {
   // (To Do, In Progress, Pending Approval), the chain must not advance yet.
   // For per-item tasks, scope siblings to the same item so gate completion on one
   // item doesn't block advancement on another item.
+  //
+  // Exception: "fabrication done" bypasses the AND-join entirely — it unlocks the
+  // next task (e.g. "inform client") immediately without waiting for paint/carpentry
+  // siblings at the same templateOrder to finish.
+  const isFabricationDone = task.taskName.toLowerCase().includes(FABRICATION_DONE_MARKER)
   const siblingsActive = allProjectTasks.filter(
     (t) =>
       t.id !== task.id &&
@@ -110,7 +128,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
         : !t.projectItem?.length) &&
       (t.status === 'To Do' || t.status === 'In Progress' || t.status === 'Pending Approval'),
   )
-  if (siblingsActive.length > 0) return
+  if (siblingsActive.length > 0 && !isFabricationDone) return
 
   // Per-item gate check: after AND-join clears for any per-item task, run the item-level
   // gate check. maybeUnlockCallClient returns early if not all [gate] tasks are Completed.
@@ -165,8 +183,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
       t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) ||
       t.taskName.toLowerCase().includes(AUTO_TASK_MARKER),
   )
-  const projectRef = task.projectId ?? projectId
-  const projectLabel = task.projectRef ? `${task.projectRef}` : projectRef
+  const projectLabel = await resolveProjectLabel(task)
 
   if (autoComplete.length > 0) {
     const now = new Date().toISOString()
@@ -269,10 +286,10 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
   if (!itemId || !projectId) return
 
   const { todoTemplates } = await generatePhase3TasksForItem(projectId, itemId)
-  const projectRef = task.projectId ?? projectId
+  const projectLabel = await resolveProjectLabel(task)
   notifyTasksReady(
     todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
-    `Phase 3 started for item (${projectRef})`,
+    `Phase 3 started for item (${projectLabel})`,
   )
 }
 
@@ -284,10 +301,10 @@ async function maybeGeneratePhase4(task: Task): Promise<void> {
   const { todoTemplates } = await generatePhase4Tasks(projectId)
   if (todoTemplates.length === 0) return
 
-  const projectRef = task.projectId ?? projectId
+  const projectLabel = await resolveProjectLabel(task)
   notifyTasksReady(
     todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
-    `Phase 4 — Closing started for project ${projectRef}`,
+    `Phase 4 — Closing started for project ${projectLabel}`,
   )
 }
 
@@ -336,10 +353,10 @@ export async function handleTaskCompletion(
 
       // After F4 (advance payment), notify SED to submit quotation line items (F5)
       if (task.taskName.toLowerCase().startsWith('f4 —')) {
-        const projectRef = task.projectId ?? task.project?.[0] ?? ''
+        const projectLabel = await resolveProjectLabel(task)
         createNotification({
           recipientRole: 'sed',
-          title: `Submit quotation details (F5) — ${projectRef}`,
+          title: `Submit quotation details (F5) — ${projectLabel}`,
           body: `Advance payment has been recorded. Please open F5 in the project to submit the quotation line items.`,
           link: ROLE_DASHBOARD['sed'],
         })
@@ -347,12 +364,12 @@ export async function handleTaskCompletion(
 
       // After F5 (quotation details by item), notify manager, fabrication, installation, superadmin
       if (task.taskName.toLowerCase().startsWith('f5 —')) {
-        const projectRef = task.projectId ?? task.project?.[0] ?? ''
+        const projectLabel = await resolveProjectLabel(task)
         const f5Body = `SED has submitted the quotation line items and chosen actions per item. Review the project to proceed.`
         for (const role of ['manager', 'fabrication', 'installation', 'superadmin'] as const) {
           createNotification({
             recipientRole: role,
-            title: `Quotation details submitted (F5) — ${projectRef}`,
+            title: `Quotation details submitted (F5) — ${projectLabel}`,
             body: f5Body,
             link: ROLE_DASHBOARD[role],
           })
@@ -489,7 +506,7 @@ export async function handleCallClientOutcome(
         await Promise.all(resets)
 
         // Notify SED and manager that the client requested a review
-        const projectRef = task.projectId ?? projectId
+        const projectRef = await resolveProjectLabel(task)
         const reviewBody = `Client requested review on project ${projectRef}. Phase 1 action tasks have been reset.`
         createNotification({
           recipientRole: 'sed',
@@ -564,7 +581,7 @@ export async function handleOrderSampleBranch(
         toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
       )
 
-      const projectRef = task.projectId ?? projectId
+      const projectLabel = await resolveProjectLabel(task)
       for (const t of toUnlock) {
         const depts = t.department ?? []
         const roles = depts
@@ -575,7 +592,7 @@ export async function handleOrderSampleBranch(
           createNotification({
             recipientRole: role,
             title: `New task ready: ${t.taskName}`,
-            body: `Completed: ${task.taskName} (${projectRef})`,
+            body: `Completed: ${task.taskName} (${projectLabel})`,
             link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
           })
         }
@@ -600,7 +617,7 @@ export async function handleF3Order(input: {
       if (!projectId) throw new Error('Task has no linked project')
 
       const today = new Date().toISOString().slice(0, 10)
-      const projectRef = task.projectId ?? task.projectName ?? projectId
+      const projectRef = await resolveProjectLabel(task)
 
       const materials = await createMaterialOrder({
         purpose: 'Project',

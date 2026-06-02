@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getTaskCountForProject, generateTasksForProject } from '@/lib/airtable'
+import { getTaskCountForProject, generateTasksForProject, generatePhase3TasksForItem, getProjectItemsForProject, getProjectById } from '@/lib/airtable'
+import { getUserByAirtableMemberId, addSedProjectMapping } from '@/lib/db'
 
 export async function POST(
   request: NextRequest,
@@ -24,6 +25,28 @@ export async function POST(
     return NextResponse.json({ error: 'stage is required' }, { status: 400 })
   }
 
+  // Special: generate Phase 3 tasks for all items of this project
+  if (stage === 'phase3') {
+    try {
+      const items = await getProjectItemsForProject(id)
+      if (items.length === 0) {
+        return NextResponse.json({ success: true, created: 0, message: 'No items found for this project' })
+      }
+      let totalCreated = 0
+      for (const item of items) {
+        const { created } = await generatePhase3TasksForItem(id, item.id)
+        totalCreated += created
+      }
+      return NextResponse.json({ success: true, created: totalCreated, items: items.length })
+    } catch (error) {
+      console.error('POST /api/projects/[id]/generate-tasks phase3 error:', error)
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Phase 3 generation failed' },
+        { status: 500 },
+      )
+    }
+  }
+
   try {
     if (!force) {
       const existingCount = await getTaskCountForProject(id)
@@ -39,7 +62,21 @@ export async function POST(
       }
     }
 
-    const result = await generateTasksForProject(id, stage)
+    const [result, project] = await Promise.all([
+      generateTasksForProject(id, stage),
+      getProjectById(id),
+    ])
+
+    // Sync SQLite SED mappings so the assigned SED can always see this project
+    if (project.salesOwner?.id) {
+      const owner = getUserByAirtableMemberId(project.salesOwner.id)
+      if (owner) addSedProjectMapping(id, owner.id)
+    }
+    for (const communMemberId of project.communSedIds ?? []) {
+      const u = getUserByAirtableMemberId(communMemberId)
+      if (u) addSedProjectMapping(id, u.id)
+    }
+
     return NextResponse.json({ success: true, ...result })
   } catch (error) {
     console.error('POST /api/projects/[id]/generate-tasks error:', error)

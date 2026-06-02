@@ -166,6 +166,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
               </h2>
             )}
             <ItemBoard
+              projectId={id}
               items={data!.items}
               role={role}
               onUpdate={handleUpdate}

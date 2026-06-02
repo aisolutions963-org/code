@@ -82,6 +82,8 @@ export const UpdateAnnouncementSchema = CreateAnnouncementSchema.partial()
 
 export const AssignInstallationSchema = z.object({
   teamMemberIds: z.array(z.string()).max(20),
+  itemName: z.string().max(300).optional(),
+  itemId: z.string().optional(),
 })
 
 export const MaterialDecisionSchema = z.object({
@@ -100,6 +102,16 @@ export const CreateQuotationItemsSchema = z.object({
         quantity: z.number().int().min(1).max(9999),
         unitPrice: z.number().min(0).max(10_000_000),
         notes: z.string().max(2000).optional(),
+        actions: z
+          .array(
+            z.enum([
+              'Site Visit (item)',
+              'Select Sample (item)',
+              'Design (item)',
+              'Measurement (item)',
+            ]),
+          )
+          .min(1, 'Select at least one action for each item'),
       }),
     )
     .min(1, 'At least one item is required')

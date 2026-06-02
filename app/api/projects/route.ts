@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getProjects, getAllProjects, createProject, generateTasksForProject, projectNameExists } from '@/lib/airtable'
-import { getUserById } from '@/lib/db'
+import { getProjects, getAllProjects, getProjectById, createProject, generateTasksForProject, projectNameExists } from '@/lib/airtable'
+import { getUserById, getUserByAirtableMemberId, addSedProjectMapping, getSedProjectIdsByUserId } from '@/lib/db'
 import { CreateProjectSchema } from '@/lib/validation'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET(request: NextRequest) {
   const session = await getSession()
@@ -15,8 +16,29 @@ export async function GET(request: NextRequest) {
   const all = searchParams.get('all') === 'true'
 
   try {
-    const sedEmail = session.role === 'sed' ? session.email : undefined
-    const projects = all ? await getAllProjects() : await getProjects({ stage, sedEmail })
+    let projects
+    if (all) {
+      projects = await getAllProjects()
+    } else if (session.role === 'sed') {
+      const dbUser = getUserById(session.id)
+      const [airtableProjects, sqliteIds] = await Promise.all([
+        getProjects({
+          stage,
+          sedAirtableMemberId: dbUser?.airtable_member_id ?? undefined,
+          sedEmail: session.email,
+        }),
+        Promise.resolve(getSedProjectIdsByUserId(session.id)),
+      ])
+      // Fetch any SQLite-mapped projects not already returned by Airtable filter
+      const airtableProjectIds = new Set(airtableProjects.map((p) => p.id))
+      const missingIds = sqliteIds.filter((id) => !airtableProjectIds.has(id))
+      const extra = missingIds.length > 0
+        ? await Promise.all(missingIds.map((id) => getProjectById(id).catch(() => null)))
+        : []
+      projects = [...airtableProjects, ...extra.filter((p): p is NonNullable<typeof p> => p !== null)]
+    } else {
+      projects = await getProjects({ stage })
+    }
     return NextResponse.json({ projects })
   } catch (error) {
     console.error('GET /api/projects error:', error)
@@ -64,6 +86,26 @@ export async function POST(request: NextRequest) {
 
     const project = await createProject(data)
 
+    // Map the assigned sales owner so they see the project regardless of who created it
+    if (data.salesOwnerCollaboratorId) {
+      const salesOwnerUser = getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
+      if (salesOwnerUser) addSedProjectMapping(project.id, salesOwnerUser.id)
+    }
+    // If creator is SED themselves (may not have airtable_member_id), map by user ID too
+    if (session.role === 'sed') {
+      addSedProjectMapping(project.id, session.id)
+    }
+
+    // Also map communal SEDs so they see the project and its tasks
+    if (data.communSedIds?.length) {
+      for (const communMemberId of data.communSedIds) {
+        const communUser = getUserByAirtableMemberId(communMemberId)
+        if (communUser) {
+          addSedProjectMapping(project.id, communUser.id)
+        }
+      }
+    }
+
     // A19 — generate Phase 1 tasks; await so the response includes the count
     let tasksCreated = 0
     let tasksWarning: string | undefined
@@ -74,6 +116,20 @@ export async function POST(request: NextRequest) {
       console.error('[A19] Task generation failed after project creation:', err)
       const detail = err instanceof Error ? err.message : String(err)
       tasksWarning = `Project created but tasks could not be generated: ${detail}`
+    }
+
+    // Notify the assigned SED
+    if (data.salesOwnerCollaboratorId) {
+      const sedUser = getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
+      if (sedUser) {
+        createNotification({
+          recipientRole: 'sed',
+          recipientUserId: sedUser.id,
+          title: `New project assigned: ${project.projectName}`,
+          body: `Client: ${project.clientName}`,
+          link: '/dashboard/sed?view=projects',
+        })
+      }
     }
 
     return NextResponse.json({ project, tasksCreated, ...(tasksWarning ? { warning: tasksWarning } : {}) }, { status: 201 })

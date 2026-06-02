@@ -2,17 +2,7 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Quotation, Payment, Role } from '@/lib/types'
-
-interface PurchaseOrder {
-  id: string
-  name?: string
-  supplier?: string
-  status?: string
-  totalAmount?: number
-  orderDate?: string
-  recordedBy?: string
-}
+import { Quotation, Payment, Material, Role } from '@/lib/types'
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
@@ -35,8 +25,8 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
     fetcher,
     { revalidateOnFocus: false, shouldRetryOnError: false },
   )
-  const { data: ordersData, error: ordersError } = useSWR<{ purchaseOrders: PurchaseOrder[] }>(
-    open ? `/api/projects/${projectId}/purchase-orders` : null,
+  const { data: materialsData, error: materialsError } = useSWR<{ materials: Material[] }>(
+    open ? `/api/projects/${projectId}/materials` : null,
     fetcher,
     { revalidateOnFocus: false, shouldRetryOnError: false },
   )
@@ -47,11 +37,11 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
   )
 
   const quotations = quotationsData?.quotations ?? []
-  const orders = ordersData?.purchaseOrders ?? []
+  const materials = materialsData?.materials ?? []
   const payments = paymentsData?.payments ?? []
-  const total = quotations.length + orders.length + (showPayments ? payments.length : 0)
+  const total = quotations.length + materials.length + (showPayments ? payments.length : 0)
 
-  const allLoaded = done(quotationsData, quotationsError) && done(ordersData, ordersError) &&
+  const allLoaded = done(quotationsData, quotationsError) && done(materialsData, materialsError) &&
     (!showPayments || done(paymentsData, paymentsError))
 
   return (
@@ -147,29 +137,30 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
             </div>
           )}
 
-          {/* F3 — Purchase Orders / Materials */}
-          {orders.length > 0 && (
+          {/* F3 — Materials */}
+          {materials.length > 0 && (
             <div className="border border-gray-100 rounded-xl overflow-hidden">
               <div className="px-3 py-2 bg-orange-50 border-b border-orange-100">
-                <p className="text-xs font-semibold text-orange-700">F3 — Materials ({orders.length})</p>
+                <p className="text-xs font-semibold text-orange-700">F3 — Materials ({materials.length})</p>
               </div>
               <div className="divide-y divide-gray-50">
-                {orders.map((o) => (
-                  <div key={o.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
+                {materials.map((m) => (
+                  <div key={m.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-gray-700 truncate">{o.name ?? o.supplier ?? 'Order'}</p>
+                      <p className="text-xs font-medium text-gray-700 truncate">{m.name}</p>
                       <p className="text-[11px] text-gray-400 mt-0.5">
-                        {o.orderDate ?? ''}
-                        {o.recordedBy ? `${o.orderDate ? ' · ' : ''}by ${o.recordedBy}` : ''}
+                        {m.requestDate ?? ''}
+                        {m.requestedBy ? `${m.requestDate ? ' · ' : ''}by ${m.requestedBy}` : ''}
+                        {m.supplier ? ` · ${m.supplier}` : ''}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {o.totalAmount != null && (
-                        <span className="text-xs text-gray-500">AED {o.totalAmount.toLocaleString()}</span>
+                      {m.quantity != null && m.unit && (
+                        <span className="text-xs text-gray-500">{m.quantity} {m.unit}</span>
                       )}
-                      {o.status && (
+                      {m.orderStatus && (
                         <span className="text-[10px] font-semibold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
-                          {o.status}
+                          {m.orderStatus}
                         </span>
                       )}
                     </div>

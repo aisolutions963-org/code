@@ -20,7 +20,10 @@ export const PATCH = requireRole('manager', 'superadmin')(
       )
     }
 
-    const project = await assignInstallationTeam(params.id, parsed.data.teamMemberIds)
+    const project = await assignInstallationTeam(params.id, parsed.data.teamMemberIds, {
+      itemName: parsed.data.itemName,
+      itemId: parsed.data.itemId,
+    })
     return NextResponse.json({ project })
   },
 )

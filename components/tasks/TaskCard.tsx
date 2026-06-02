@@ -150,17 +150,28 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       setLocalFields(getInitialFieldValues(task, getEditableFieldsForRole(role)))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.lastModified])
+  }, [task.lastModified, isOpen])
+
+  // Always sync status from server — the API may route 'Completed' → 'Pending Approval'
+  // (manager review) and the dropdown must reflect the real server state
+  useEffect(() => {
+    setLocalFields((prev) => ({ ...prev, status: task.status }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.status])
 
   const isMakeQuotation =
     task.pathCondition === 'Make Quotation' ||
     task.taskName.toLowerCase().includes('make quotation')
   const isF4Task = task.taskName.toLowerCase().startsWith('f4 —')
   const isF5Task = task.taskName.toLowerCase().startsWith('f5 —')
-  const isF3Task = task.taskName.toLowerCase().startsWith('f3 —')
+  const isF3Task =
+    task.taskName.toLowerCase().startsWith('f3 —') ||
+    task.taskName.toLowerCase().includes('order sample material f3')
   const isOrderSample = task.taskName === 'Order Sample' && !task.projectItem?.length
   const isPerItemOrderSample =
-    !!task.projectItem?.length && task.pathCondition === 'Select Sample (item)'
+    !!task.projectItem?.length &&
+    task.pathCondition === 'Select Sample (item)' &&
+    !task.taskName.toLowerCase().startsWith('sample branch:')
   const isAttachDocsTask = task.taskName.toLowerCase().startsWith('click done: attach 7 items')
   const isChooseInstallTeamTask = task.taskName
     .toLowerCase()
@@ -259,21 +270,50 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   }
 
   function handleChange(key: keyof TaskUpdateInput, value: unknown) {
-    if ((isOrderSample || isPerItemOrderSample) && key === 'status' && value === 'Completed') return
-    if (isAttachDocsTask && key === 'status' && value === 'Completed') return
-    if (isChooseInstallTeamTask && key === 'status' && value === 'Completed') return
-    if (isFixingTeamNoteTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
-    if (isF2ProductionTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
+    if (key === 'status' && value === 'Completed') {
+      if (isOrderSample || isPerItemOrderSample) {
+        toast.error(ar ? 'استخدم خيار الفرع أدناه' : 'Use the branch selector below to complete')
+        return
+      }
+      if (isAttachDocsTask) {
+        toast.error(ar ? 'أرفق المستندات أولاً' : 'Attach all 7 documents first using the panel below')
+        return
+      }
+      if (isChooseInstallTeamTask) {
+        toast.error(ar ? 'اختر الفريق أولاً' : 'Choose the installation team using the panel below')
+        return
+      }
+      if (isFixingTeamNoteTask && task.status !== 'Completed') {
+        toast.error(ar ? 'استخدم زر إتمام المهمة أدناه' : 'Use the "Complete task" button in the panel below')
+        return
+      }
+      if (isF2ProductionTask && task.status !== 'Completed') {
+        toast.error(ar ? 'أدخل التواريخ في اللوحة أدناه' : 'Enter dates in the production panel below')
+        return
+      }
+      if (isF3Task && task.status !== 'Completed') {
+        toast.error(ar ? 'استكمل طلب المواد أدناه' : 'Complete the material order in the panel below')
+        return
+      }
+      if (isF5Task && task.status !== 'Completed') {
+        toast.error(ar ? 'استكمل بنود الميزانية أدناه' : 'Complete the quotation items in the panel below')
+        return
+      }
+      if (isFabricateMissingTask && task.status !== 'Completed') {
+        toast.error(ar ? 'استخدم اللوحة أدناه' : 'Use the panel below to complete or skip')
+        return
+      }
+      if ((isMakeQuotation || isF4Task) && !task.projectQuotationNumber) {
+        toast.error(ar ? 'استكمل بيانات العرض أدناه' : 'Complete the quotation details in the panel below')
+        return
+      }
+    }
     if (isF2ProductionTask && task.status !== 'Completed' && (key === 'plannedProdStartDate' || key === 'expectedFabEndDate')) {
       setLocalFields((prev) => ({ ...prev, [key]: value }))
       return
     }
-    if (isF3Task && task.status !== 'Completed' && key === 'status' && (value === 'Completed' || value === 'In Progress')) return
-    if (isF5Task && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
-    if (isFabricateMissingTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
-
+    if (isF3Task && task.status !== 'Completed' && key === 'status' && value === 'In Progress') return
     if (isF4Task && task.status === 'Completed' && key === 'status') return
-    if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') return
     setLocalFields((prev) => ({ ...prev, [key]: value }))
     scheduleUpdate(key, value)
   }

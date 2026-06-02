@@ -161,6 +161,7 @@ export interface Project {
   detailedLocation?: string
   projectDescription?: string
   communSeds?: string[]
+  communSedIds?: string[]
   fabricationActive?: boolean
 }
 

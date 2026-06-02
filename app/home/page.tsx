@@ -158,19 +158,13 @@ function MiniCalendar({
               Add
             </button>
           )}
-          <button
-            onClick={prevMonth}
-            className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-          >
+          <button onClick={prevMonth} className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <span className="text-xs font-medium text-gray-600 min-w-[120px] text-center">{monthLabel}</span>
-          <button
-            onClick={nextMonth}
-            className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100"
-          >
+          <button onClick={nextMonth} className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
@@ -229,8 +223,8 @@ function MiniCalendar({
                 )}
                 {hasTooltip && (
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-10 hidden group-hover:block w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-lg pointer-events-none">
-                    {fab.titles.map((t, i) => (
-                      <div key={i} className="truncate text-emerald-300">{t}</div>
+                    {fab.titles.map((t, idx) => (
+                      <div key={idx} className="truncate text-emerald-300">{t}</div>
                     ))}
                     {evs.map((ev) => (
                       <div key={ev.id} className="truncate">{ev.title}</div>
@@ -276,7 +270,6 @@ function MiniCalendar({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="min-w-0 flex-1">
                 <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-md mb-1.5 ${
@@ -297,8 +290,6 @@ function MiniCalendar({
                 </svg>
               </button>
             </div>
-
-            {/* Details */}
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-gray-400 w-14 shrink-0">Date</span>
@@ -776,7 +767,6 @@ function ProjectPipeline({ role }: { role: string }) {
   const active = allProjects.filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
   const tasks = taskData?.tasks ?? []
 
-  // Index tasks by project record ID
   const tasksByProject = new Map<string, Task[]>()
   for (const t of tasks) {
     const pid = t.project?.[0]
@@ -813,9 +803,7 @@ function ProjectPipeline({ role }: { role: string }) {
             const s = STAGE_STYLES[stage.key]
             return (
               <div key={stage.key} className="flex items-start">
-                {/* Stage column */}
                 <div className="w-44 flex-shrink-0">
-                  {/* Stage header */}
                   <div className="flex items-center gap-1.5 mb-3">
                     <div className={`h-0.5 w-4 ${s.bar} opacity-50 rounded-full`} />
                     <span className={`text-[11px] font-bold uppercase tracking-widest ${s.header}`}>
@@ -826,7 +814,6 @@ function ProjectPipeline({ role }: { role: string }) {
                     </span>
                   </div>
 
-                  {/* Cards */}
                   <div className="space-y-2">
                     {stageProjects.length === 0 ? (
                       <div className="h-14 border border-dashed border-gray-700 rounded-xl flex items-center justify-center">
@@ -884,7 +871,6 @@ function ProjectPipeline({ role }: { role: string }) {
                   </div>
                 </div>
 
-                {/* Arrow connector */}
                 {i < PIPELINE_STAGES.length - 1 && (
                   <div className="w-10 flex-shrink-0 flex items-center justify-center pt-5">
                     <svg className="w-10 h-5 text-gray-600" viewBox="0 0 40 20" fill="none">
@@ -904,7 +890,6 @@ function ProjectPipeline({ role }: { role: string }) {
         </div>
       </div>
 
-      {/* Legend */}
       <div className="mt-4 pt-3 border-t border-gray-700/50 flex items-center gap-4">
         <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
@@ -920,7 +905,6 @@ function ProjectPipeline({ role }: { role: string }) {
         </span>
       </div>
 
-      {/* Scope popup */}
       {scopeProject && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"

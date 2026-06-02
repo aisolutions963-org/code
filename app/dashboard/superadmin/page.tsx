@@ -548,6 +548,32 @@ function OverviewPage() {
   )
 }
 
+function RequestMeasurementButton({ projectId }: { projectId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error' | 'exists'>('idle')
+
+  async function request() {
+    setState('loading')
+    try {
+      const res = await fetch(`/api/projects/${projectId}/request-measurement`, { method: 'POST' })
+      if (res.status === 409) { setState('exists'); return }
+      if (!res.ok) throw new Error()
+      setState('done')
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (state === 'done') return <span className="text-xs text-green-600 font-medium whitespace-nowrap">✓ Sent</span>
+  if (state === 'exists') return <span className="text-xs text-gray-400 font-medium whitespace-nowrap">Already sent</span>
+  if (state === 'error') return <button onClick={request} className="text-xs text-red-500 underline">Retry</button>
+
+  return (
+    <Button size="sm" variant="secondary" loading={state === 'loading'} onClick={request}>
+      📐 Measure
+    </Button>
+  )
+}
+
 function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onReopen: (id: string) => Promise<void>; onNotesSaved?: () => void }) {
   const [loading, setLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
@@ -639,6 +665,9 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }:
               <Button size="sm" variant="secondary" loading={genLoading} onClick={() => generateTasks()}>
                 ⚡ Tasks
               </Button>
+            )}
+            {(p.projectStage === 'Preparing' || p.projectStage === 'Open') && (
+              <RequestMeasurementButton projectId={p.id} />
             )}
             {p.projectStage === 'Not-Approved' && (
               <Button

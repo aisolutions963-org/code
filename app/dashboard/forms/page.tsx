@@ -271,7 +271,7 @@ export default function FormsPage() {
     const res = await fetch(`/api/tasks/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fields),
+      body: JSON.stringify({ fields }),
     })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
