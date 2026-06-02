@@ -13,6 +13,9 @@ interface CalendarEvent {
   type: 'payment-due' | 'payment-received' | 'delivery' | 'installation' | 'fabrication'
   amount?: number
   notes?: string
+  projectName?: string
+  itemName?: string
+  createdBy?: string
 }
 
 const TYPE_CFG: Record<string, { bg: string; border: string; text: string; dot: string }> = {
@@ -75,13 +78,20 @@ export default function TimelineStrip() {
   }, [events, baseDate])
 
   const fabSpans = useMemo(() => {
-    const spans: Array<{ startIdx: number; endIdx: number; title: string; id: string }> = []
+    const spans: Array<{ startIdx: number; endIdx: number; title: string; tooltip: string; id: string }> = []
     for (const ev of events) {
       if (ev.type === 'fabrication' && ev.endDate) {
         const startIdx = dayIndex(baseDate, isoToLocal(ev.date))
         const endIdx = dayIndex(baseDate, isoToLocal(ev.endDate))
         if (endIdx >= 0 && startIdx < TOTAL_DAYS) {
-          spans.push({ startIdx: Math.max(0, startIdx), endIdx: Math.min(TOTAL_DAYS - 1, endIdx), title: ev.title, id: ev.id })
+          const tooltip = [
+            ev.title,
+            ev.projectName && `Project: ${ev.projectName}`,
+            ev.itemName && `Item: ${ev.itemName}`,
+            ev.createdBy && `By: ${ev.createdBy}`,
+            ev.notes && `Notes: ${ev.notes}`,
+          ].filter(Boolean).join('\n')
+          spans.push({ startIdx: Math.max(0, startIdx), endIdx: Math.min(TOTAL_DAYS - 1, endIdx), title: ev.title, tooltip, id: ev.id })
         }
       }
     }
@@ -155,7 +165,7 @@ export default function TimelineStrip() {
           {fabSpans.map((span) => (
             <div
               key={span.id}
-              title={span.title}
+              title={span.tooltip}
               className="absolute top-9 h-5 rounded-full bg-amber-500/25 border border-amber-500/30 flex items-center px-2"
               style={{ left: span.startIdx * DAY_W + 2, width: (span.endIdx - span.startIdx + 1) * DAY_W - 4 }}
             >
@@ -175,7 +185,14 @@ export default function TimelineStrip() {
                     return (
                       <div
                         key={ev.id}
-                        title={`${ev.type}: ${ev.title}${ev.amount ? ` — AED ${ev.amount.toLocaleString()}` : ''}`}
+                        title={[
+                          `${ev.type.replace('-', ' ')}: ${ev.title}`,
+                          ev.projectName && `Project: ${ev.projectName}`,
+                          ev.itemName && `Item: ${ev.itemName}`,
+                          ev.amount != null && `AED ${ev.amount.toLocaleString()}`,
+                          ev.createdBy && `By: ${ev.createdBy}`,
+                          ev.notes && `Notes: ${ev.notes}`,
+                        ].filter(Boolean).join('\n')}
                         className={`w-2.5 h-2.5 rounded-full ${cfg.dot} opacity-80 hover:opacity-100 cursor-default transition-opacity`}
                       />
                     )

@@ -28,7 +28,7 @@ export default function SedDashboard() {
 
   const { data: projectData, isLoading: projectLoading, error: projectError, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
-      view === 'projects' ? '/api/projects' : null,
+      (view === 'projects' || view === 'site-visits') ? '/api/projects' : null,
       fetcher,
       { refreshInterval: 30000, revalidateOnFocus: true },
     )

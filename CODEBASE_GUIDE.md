@@ -358,6 +358,16 @@ handleManagerApproval(taskId, action, comment, session)
 **How task ordering works:**
 Each task has a `templateOrder` number. Tasks with a lower number must complete before higher-numbered tasks unlock. Some tasks are in "AND groups" — all tasks in the group must complete before anything after them unlocks.
 
+**AND-join bypass — Fabrication Done:**
+Normally every sibling at the same `templateOrder` must complete before the next order unlocks. Exception: if the completed task's name contains `'fabrication done'` (`FABRICATION_DONE_MARKER`), it bypasses the AND-join entirely and immediately unlocks the next order — without waiting for Carpentry and Paint siblings at the same order. This is so "Inform Client of Estimated Date of Supply" (order 41) unlocks as soon as Fabrication Done (order 40) is marked complete, regardless of Carpentry/Paint progress.
+
+**Headline and auto tasks:**
+Some tasks auto-complete the instant they unlock and never appear as actionable items:
+- Tasks starting with `HEADLINE_PREFIX` (`'to follow tasks progress'`): auto-complete silently, **no notification sent** — purely a visual section banner in the task list.
+- Tasks containing `AUTO_MARKER` (`'(auto)'`): auto-complete and **do send a notification** to the relevant role.
+
+Both types immediately chain forward via `unlockNextTasks` so the sequence continues without user action.
+
 ---
 
 ### `lib/phases.ts` — Phase configuration
@@ -384,6 +394,15 @@ export const PHASE_CONFIG = {
     phaseLabel: 'Phase 4 — Closing',
     triggerTaskPrefix: 'handing over form',  // task name prefix that triggers Phase 4
   },
+}
+
+export const TASK_MARKERS = {
+  GATE_PREFIX: '[gate]',              // gate-controlled tasks (call-client unlock)
+  AUTO_MARKER: '(auto)',              // auto-completes + sends notification
+  HEADLINE_PREFIX: 'to follow tasks progress',  // auto-completes, NO notification — visual banner only
+  CALL_CLIENT_PREFIX: 'call the client',
+  TAKE_APPROVAL_PREFIX: 'take approval from client',
+  FABRICATION_DONE_MARKER: 'fabrication done',  // bypasses AND-join guard (see workflow engine)
 }
 ```
 
@@ -811,6 +830,30 @@ The project lifecycle has four phases, each auto-starting when the previous phas
 
 `generatePhase4Tasks` fetches templates with `stage = 'Closed'` and `phaseLabel === 'Phase 4 — Closing'`, then creates them with sequential status (min order = `To Do`, rest = `Locked`).
 
+### Phase 3 template chain (key orders)
+
+| Order | Task | Notes |
+|-------|------|-------|
+| 30 | Choose Installation Team | Phase 3 trigger (order 29 completes → generates these) |
+| 31 | F3 — Fill Order Material Form | Small or Big order path |
+| 32 | Store Revised Material List / All Material Estimation Price | AND-join group |
+| 33 | Submit Final Material List | |
+| 35 | Order Material & Notification | |
+| 36 | Payment | |
+| 37 | Follow Up till Material Received | |
+| 38 | F2 Production List (Time Line & End Date) | |
+| 40 | Fabrication Done + Carpentry + Paint | AND-join group; Fabrication Done bypasses it |
+| 41 | Inform Client of Estimated Date of Supply | Unlocks when Fabrication Done (40) completes |
+| 44 | How Many Days / Check Site / Check Items | AND-join group |
+| 47 | F2 Schedule the Delivery Date | |
+| 47.5 | **to follow tasks progress — Supply** | Headline banner; auto-completes silently |
+| 48 | Get installation ready | |
+| 49 | Notify Client, Notify Accountant, Design & QC Check, Approval to Complete | AND-join group |
+| 50 | F4 Form — Delivery Payment | |
+| 54 | Fabricate if Missing / Installation Day N | |
+| 55 | Attach Site Photo | |
+| 56 | Handing Over Form — F6 Generated | Triggers Phase 4 generation |
+
 ### Seeding tasks manually (superadmin/dev)
 
 `POST /api/projects/[id]/generate-tasks` with body `{ stage: 'phase1' | 'phase2' | 'phase3' | 'phase4', force?: boolean }` can be used to seed tasks for an existing project. The `phase3` handler iterates all project items and calls `generatePhase3TasksForItem` for each (idempotency prevents duplicates).
@@ -856,4 +899,4 @@ The project lifecycle has four phases, each auto-starting when the previous phas
 
 ---
 
-*This document reflects the live codebase as of 2026-06-02. If something changed and this guide is outdated, the authoritative source is always the code itself.*
+*This document reflects the live codebase as of 2026-06-02 (session 2). If something changed and this guide is outdated, the authoritative source is always the code itself.*

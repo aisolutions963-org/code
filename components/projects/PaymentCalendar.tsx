@@ -13,6 +13,8 @@ interface CalendarEvent {
   amount?: number
   notes?: string
   createdBy?: string
+  projectName?: string
+  itemName?: string
 }
 
 const TYPE_CONFIG: Record<
@@ -190,7 +192,14 @@ export default function PaymentCalendar() {
                       {dayEvents.slice(0, 4).map((ev) => (
                         <span
                           key={ev.id}
-                          title={`${TYPE_CONFIG[ev.type]?.label}: ${ev.title}${ev.amount ? ` — AED ${ev.amount.toLocaleString()}` : ''}${ev.notes ? ` — ${ev.notes}` : ''}${ev.createdBy ? ` · Added by ${ev.createdBy}` : ''}`}
+                          title={[
+                            `${TYPE_CONFIG[ev.type]?.label}: ${ev.title}`,
+                            ev.projectName && `Project: ${ev.projectName}`,
+                            ev.itemName && `Item: ${ev.itemName}`,
+                            ev.amount != null && `AED ${ev.amount.toLocaleString()}`,
+                            ev.createdBy && `By: ${ev.createdBy}`,
+                            ev.notes && `Notes: ${ev.notes}`,
+                          ].filter(Boolean).join('\n')}
                           className={`w-2 h-2 rounded-full ${TYPE_CONFIG[ev.type]?.dot ?? 'bg-gray-300'} cursor-default`}
                         />
                       ))}
@@ -215,23 +224,37 @@ export default function PaymentCalendar() {
           {monthEvents.map(({ day, ev }) => {
             const cfg = TYPE_CONFIG[ev.type]
             return (
-              <div key={ev.id} className={`flex items-start gap-3 px-3 py-2 rounded-lg border text-xs ${cfg.row}`}>
+              <div key={ev.id} className={`flex items-start gap-3 px-3 py-2.5 rounded-lg border text-xs ${cfg.row}`}>
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${cfg.dot}`} />
                 <span className="font-medium w-12 flex-shrink-0 mt-0.5">{MONTHS[month].slice(0, 3)} {day}</span>
-                <span className="font-semibold mt-0.5">{cfg.label}</span>
-                <div className="flex-1 min-w-0">
-                  <span className="truncate block">{ev.title}</span>
-                  {ev.notes && (
-                    <span className={`truncate block mt-0.5 ${cfg.text} opacity-70`}>{ev.notes}</span>
+                <span className="font-semibold mt-0.5 w-16 flex-shrink-0">{cfg.label}</span>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <span className="truncate block font-medium">{ev.title}</span>
+                  {ev.projectName && (
+                    <span className="truncate flex items-center gap-1 text-gray-500">
+                      <svg className="w-3 h-3 shrink-0 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                      </svg>
+                      {ev.projectName}
+                      {ev.itemName && <span className="opacity-70">› {ev.itemName}</span>}
+                    </span>
                   )}
                   {ev.createdBy && (
-                    <span className="truncate block mt-0.5 text-gray-400 opacity-80">
-                      Added by {ev.createdBy}
+                    <span className="truncate flex items-center gap-1 text-gray-400 opacity-80">
+                      <svg className="w-3 h-3 shrink-0 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      {ev.createdBy}
                     </span>
+                  )}
+                  {ev.notes && (
+                    <span className={`truncate block ${cfg.text} opacity-70`}>{ev.notes}</span>
                   )}
                 </div>
                 {ev.amount != null && (
-                  <span className={`font-mono font-medium mt-0.5 ${cfg.text}`}>
+                  <span className={`font-mono font-medium mt-0.5 flex-shrink-0 ${cfg.text}`}>
                     AED {ev.amount.toLocaleString()}
                   </span>
                 )}
