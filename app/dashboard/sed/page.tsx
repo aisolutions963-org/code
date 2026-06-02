@@ -55,7 +55,9 @@ export default function SedDashboard() {
 
   let visibleTasks = tasks
   if (view === 'approvals') visibleTasks = tasks.filter((t) => t.conceptDesignApproval || t.sampleApproval || t.quotationOutcome)
-  if (view === 'site-visits') visibleTasks = tasks.filter((t) => t.taskStartDate)
+  if (view === 'site-visits') visibleTasks = tasks.filter((t) =>
+    t.taskName.toLowerCase().includes('site visit') || t.taskName.toLowerCase().includes('visit update')
+  )
   if (view === 'qc') visibleTasks = tasks.filter((t) => t.qcCheckAtSiteDone !== undefined)
 
   return (
@@ -84,7 +86,7 @@ export default function SedDashboard() {
       </div>
 
       {/* Task views */}
-      {view !== 'projects' && (
+      {view !== 'projects' && view !== 'site-visits' && (
         <>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
@@ -95,6 +97,16 @@ export default function SedDashboard() {
             <TaskList loading={isLoading} tasks={visibleTasks} role="sed" onUpdate={handleUpdate} />
           )}
         </>
+      )}
+
+      {/* Site Visits view */}
+      {view === 'site-visits' && (
+        <SiteVisitsView
+          tasks={visibleTasks}
+          projects={projects}
+          loading={isLoading || projectLoading}
+          onUpdate={handleUpdate}
+        />
       )}
 
       {/* Projects view */}
@@ -180,6 +192,161 @@ export default function SedDashboard() {
           onCreated={() => setShowMaterialModal(false)}
         />
       )}
+    </div>
+  )
+}
+
+const STATUS_STYLE: Record<string, string> = {
+  'To Do':            'bg-blue-100 text-blue-700',
+  'In Progress':      'bg-amber-100 text-amber-700',
+  'Completed':        'bg-green-100 text-green-700',
+  'Pending Approval': 'bg-orange-100 text-orange-700',
+  'Locked':           'bg-gray-100 text-gray-400',
+}
+
+function SiteVisitsView({
+  tasks,
+  projects,
+  loading,
+  onUpdate,
+}: {
+  tasks: Task[]
+  projects: Project[]
+  loading: boolean
+  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+}) {
+  const projectMap = new Map(projects.map((p) => [p.id, p]))
+
+  // Group tasks by project
+  const grouped = new Map<string, { project: Project | null; tasks: Task[] }>()
+  for (const t of tasks) {
+    const pid = t.projectRecordId ?? t.project?.[0] ?? ''
+    if (!grouped.has(pid)) {
+      grouped.set(pid, { project: projectMap.get(pid) ?? null, tasks: [] })
+    }
+    grouped.get(pid)!.tasks.push(t)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  if (grouped.size === 0) {
+    return (
+      <div className="text-center py-12 text-sm text-gray-400">
+        No site visit tasks found.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {Array.from(grouped.entries()).map(([pid, { project: p, tasks: grpTasks }]) => {
+        const locationQuery = [p?.detailedLocation, p?.location, p?.emirate].filter(Boolean).join(', ')
+        const mapsUrl = locationQuery
+          ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationQuery)}`
+          : null
+
+        return (
+          <div key={pid} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            {/* Project header */}
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {p?.projectId && (
+                    <span className="font-mono text-[11px] text-gray-400">{p.projectId}</span>
+                  )}
+                  {p?.projectStage && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
+                      {p.projectStage}
+                    </span>
+                  )}
+                </div>
+                <p className="font-semibold text-sm text-gray-900 mt-0.5 truncate">
+                  {p?.projectName ?? grpTasks[0]?.projectName ?? 'Unknown Project'}
+                </p>
+                {p?.clientName && (
+                  <p className="text-xs text-gray-500">{p.clientName}</p>
+                )}
+              </div>
+              {mapsUrl && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors border border-blue-200"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Open in Maps
+                </a>
+              )}
+            </div>
+
+            {/* Location info */}
+            {(p?.emirate || p?.location || p?.detailedLocation) && (
+              <div className="px-4 py-2.5 border-b border-gray-100 space-y-1">
+                {p?.emirate && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-gray-400 w-20 shrink-0">Emirate</span>
+                    <span className="font-medium text-gray-700 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px]">
+                      {p.emirate}
+                    </span>
+                  </div>
+                )}
+                {p?.location && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <span className="text-gray-400 w-20 shrink-0">Area</span>
+                    <span className="text-gray-700">{p.location}</span>
+                  </div>
+                )}
+                {p?.detailedLocation && (
+                  <div className="flex items-start gap-2 text-xs">
+                    <span className="text-gray-400 w-20 shrink-0">Address</span>
+                    <span className="text-gray-600">{p.detailedLocation}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Site visit tasks */}
+            <div className="divide-y divide-gray-100">
+              {grpTasks.map((t) => (
+                <div key={t.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-gray-800 truncate">{t.taskName}</p>
+                    {t.projectItemName && (
+                      <p className="text-[11px] text-gray-400 mt-0.5">Item: {t.projectItemName}</p>
+                    )}
+                    {t.taskStartDate && (
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        Scheduled:{' '}
+                        {new Date(t.taskStartDate + 'T00:00:00').toLocaleDateString('en-AE', {
+                          weekday: 'short', day: 'numeric', month: 'short',
+                        })}
+                      </p>
+                    )}
+                    {t.postVisitOutcome && (
+                      <p className="text-[11px] text-gray-500 mt-0.5 italic">Outcome: {t.postVisitOutcome}</p>
+                    )}
+                  </div>
+                  <span className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_STYLE[t.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                    {t.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
