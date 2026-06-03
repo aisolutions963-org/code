@@ -934,7 +934,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
       : []
     const taskName = str(r.fields[TASKS.TASK_NAME]) ?? 'Call the Client'
     const projRef = str(r.fields[TASKS.PROJECT_ID]) ?? projectId
-    notifyTasksReady(
+    await notifyTasksReady(
       [{ taskName, departments: depts.length > 0 ? depts : ['Manager'] }],
       `All approval gates cleared for project ${projRef} — ready to call the client`,
     )
@@ -1583,6 +1583,7 @@ function transformHandoverSheet(record: RawRecord): HandoverSheet {
     customerSatisfaction: str(f[HANDOVER_SHEETS.CUSTOMER_SATISFACTION]),
     installationDifficulty: str(f[HANDOVER_SHEETS.INSTALLATION_DIFFICULTY]),
     newsletterOptIn: f[HANDOVER_SHEETS.NEWSLETTER_OPT_IN] === true,
+    installationLogIds: strArr(f[HANDOVER_SHEETS.INSTALLATION_LOGS]),
   }
 }
 
@@ -1624,6 +1625,66 @@ export async function getHandoverSheetForProject(projectId: string): Promise<Han
     sort: [{ field: HANDOVER_SHEETS.FINAL_INSTALLATION_DATE, direction: 'desc' }],
   })
   return records.map(transformHandoverSheet)
+}
+
+export async function updateHandoverSheet(
+  id: string,
+  data: {
+    status?: string
+    finalInstallationDate?: string
+    customerSatisfaction?: string
+    installationDifficulty?: string
+    newsletterOptIn?: boolean
+    notes?: string
+    installationLogIds?: string[]
+  },
+): Promise<HandoverSheet> {
+  const fields: Record<string, unknown> = {}
+  if (data.status !== undefined) fields[HANDOVER_SHEETS.STATUS] = data.status
+  if (data.finalInstallationDate !== undefined) fields[HANDOVER_SHEETS.FINAL_INSTALLATION_DATE] = data.finalInstallationDate
+  if (data.customerSatisfaction !== undefined) fields[HANDOVER_SHEETS.CUSTOMER_SATISFACTION] = data.customerSatisfaction
+  if (data.installationDifficulty !== undefined) fields[HANDOVER_SHEETS.INSTALLATION_DIFFICULTY] = data.installationDifficulty
+  if (data.newsletterOptIn !== undefined) fields[HANDOVER_SHEETS.NEWSLETTER_OPT_IN] = data.newsletterOptIn
+  if (data.notes !== undefined) fields[HANDOVER_SHEETS.NOTES] = data.notes
+  if (data.installationLogIds !== undefined) fields[HANDOVER_SHEETS.INSTALLATION_LOGS] = data.installationLogIds
+  const res = await fetchWithRetry(`${tblUrl(HANDOVER_SHEETS.TABLE_ID)}/${id}`, {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record = (await res.json()) as RawRecord
+  return transformHandoverSheet(record)
+}
+
+// Link an installation log to the project's handover sheet, creating a draft sheet if none exists yet.
+export async function addInstallationLogToHandover(projectId: string, logId: string): Promise<void> {
+  const existing = await getHandoverSheetForProject(projectId)
+  if (existing.length > 0) {
+    const sheet = existing[0]
+    const currentIds = sheet.installationLogIds ?? []
+    if (!currentIds.includes(logId)) {
+      await updateHandoverSheet(sheet.id, { installationLogIds: [...currentIds, logId] })
+    }
+  } else {
+    const fields: Record<string, unknown> = {
+      [HANDOVER_SHEETS.PROJECT]: [projectId],
+      [HANDOVER_SHEETS.STATUS]: 'In Progress',
+      [HANDOVER_SHEETS.INSTALLATION_LOGS]: [logId],
+    }
+    const res = await fetchWithRetry(tblUrl(HANDOVER_SHEETS.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ records: [{ fields }] }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error ${res.status}: ${body}`)
+    }
+  }
 }
 
 export async function createMaintenanceRecord(

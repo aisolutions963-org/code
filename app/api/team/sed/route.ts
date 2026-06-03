@@ -3,7 +3,7 @@ import { requireRole } from '@/lib/apiHandler'
 import { getAllUsers } from '@/lib/db'
 
 export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, session) => {
-  const users = getAllUsers()
+  const users = await getAllUsers()
   const seds = users.filter(
     (u) => u.role === 'sed' && u.active === 1 && u.airtable_member_id && u.id !== session.id,
   )

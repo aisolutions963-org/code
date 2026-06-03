@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { createHandoverSheet, getProjectById, updateProject } from '@/lib/airtable'
+import {
+  createHandoverSheet,
+  updateHandoverSheet,
+  getHandoverSheetForProject,
+  getInstallationLogsByProject,
+  getProjectById,
+  updateProject,
+} from '@/lib/airtable'
 import { CreateHandoverSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
@@ -28,8 +35,23 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
       )
     }
 
-    const project = await getProjectById(params.id)
-    const sheet = await createHandoverSheet(params.id, parsed.data)
+    const [project, existingSheets, logs] = await Promise.all([
+      getProjectById(params.id),
+      getHandoverSheetForProject(params.id),
+      getInstallationLogsByProject(params.id),
+    ])
+
+    // Upsert: update the draft sheet built up from installation logs, or create one fresh
+    const sheet = existingSheets.length > 0
+      ? await updateHandoverSheet(existingSheets[0].id, {
+          status: 'Generated',
+          finalInstallationDate: parsed.data.finalInstallationDate,
+          customerSatisfaction: parsed.data.customerSatisfaction,
+          installationDifficulty: parsed.data.installationDifficulty,
+          newsletterOptIn: parsed.data.newsletterOptIn,
+          notes: parsed.data.notes,
+        })
+      : await createHandoverSheet(params.id, parsed.data)
 
     // Handover submitted → awaiting final payment from client. Project is not yet Closed.
     await updateProject(params.id, { [PROJECTS.PROJECT_STAGE]: 'Installation Completed' })
@@ -40,7 +62,7 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
       : projectRef
 
     for (const role of ['manager', 'sed', 'superadmin'] as const) {
-      createNotification({
+      await createNotification({
         recipientRole: role,
         title: `Handover submitted — final payment pending`,
         body: `Handover recorded for ${projectLabel}. Final installation: ${parsed.data.finalInstallationDate}. Please request final payment from client to close project. Submitted by ${session.name}.`,
@@ -48,6 +70,6 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
       })
     }
 
-    return NextResponse.json({ sheet })
+    return NextResponse.json({ sheet, logs })
   },
 )

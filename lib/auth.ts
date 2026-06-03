@@ -42,7 +42,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 export async function login(email: string, password: string): Promise<SessionPayload | null> {
-  const user = getUserByEmail(email)
+  const user = await getUserByEmail(email)
   if (!user) return null
   const valid = await verifyPassword(password, user.hashed_password)
   if (!valid) return null

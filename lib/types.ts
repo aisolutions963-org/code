@@ -364,6 +364,7 @@ export interface HandoverSheet {
   customerSatisfaction?: string
   installationDifficulty?: string
   newsletterOptIn?: boolean
+  installationLogIds?: string[]
 }
 
 export interface ProjectItem {

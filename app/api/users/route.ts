@@ -5,7 +5,7 @@ import { createTeamMember, deleteTeamMember } from '@/lib/airtable'
 import { CreateUserSchema } from '@/lib/validation'
 
 export const GET = requireRole('superadmin')(async () => {
-  const users = getAllUsers()
+  const users = await getAllUsers()
   return NextResponse.json({ users })
 })
 
@@ -39,21 +39,19 @@ export const POST = requireRole('superadmin')(async (req: NextRequest) => {
     }
   }
 
-  // Step 2: create SQLite user — compensate by deleting Airtable member if this fails
+  // Step 2: create DB user — compensate by deleting Airtable member if this fails
   try {
-    const user = createUser({ name, email, hashed_password: hashed, role, airtable_member_id })
+    const user = await createUser({ name, email, hashed_password: hashed, role, airtable_member_id })
     const { hashed_password: _, ...safeUser } = user
     return NextResponse.json({ user: safeUser }, { status: 201 })
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to create user'
-    if (msg.includes('UNIQUE constraint')) {
-      // Compensate: remove the Airtable record we just created
+    if (msg.includes('UNIQUE constraint') || msg.includes('SQLITE_CONSTRAINT')) {
       if (airtable_member_id && !providedMemberId) {
         await deleteTeamMember(airtable_member_id).catch(() => {})
       }
       return NextResponse.json({ error: 'Email already exists' }, { status: 409 })
     }
-    // Compensate on any other SQLite error
     if (airtable_member_id && !providedMemberId) {
       await deleteTeamMember(airtable_member_id).catch(() => {})
     }

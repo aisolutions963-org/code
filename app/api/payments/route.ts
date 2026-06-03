@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import {
   createPayment,
@@ -101,7 +101,7 @@ async function closeProjectAfterFinalPayment(projectId: string, recordedBy: stri
     : projectRef
 
   for (const role of ['sed', 'superadmin'] as const) {
-    createNotification({
+    await createNotification({
       recipientRole: role,
       title: `Project closed — ${projectRef}`,
       body: `Final payment received for ${projectLabel}. Project is now Closed. 1-year maintenance active until ${endDateStr}. Recorded by ${recordedBy}.`,

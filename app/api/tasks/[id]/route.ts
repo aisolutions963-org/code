@@ -101,7 +101,7 @@ export const PATCH = requireRole()(
         const workersVal = otherFields.noOfLaborsPerDay ?? taskForValidation.noOfLaborsPerDay
         const body = `${daysVal != null ? `${daysVal} days` : ''}${daysVal != null && workersVal != null ? ', ' : ''}${workersVal != null ? `${workersVal} workers/day` : ''} needed for handover${projectLabel ? ` — ${projectLabel}` : ''}`
         for (const role of ['manager', 'sed', 'superadmin'] as const) {
-          createNotification({
+          await createNotification({
             recipientRole: role,
             title: `Fixing team handover note — ${projectRef}`,
             body,
@@ -149,7 +149,7 @@ export const PATCH = requireRole()(
     // Notify manager when SED schedules a site visit date
     if ('taskStartDate' in otherFields && otherFields.taskStartDate && refreshed.pathCondition === 'Visit Site to Gather Details') {
       const projectRef = refreshed.projectRef ?? refreshed.project?.[0] ?? ''
-      createNotification({
+      await createNotification({
         recipientRole: 'manager',
         title: `Site visit scheduled — ${projectRef}`,
         body: `Visit date set to ${otherFields.taskStartDate as string}${refreshed.projectName ? ` — ${refreshed.projectName}` : ''}`,
@@ -166,27 +166,27 @@ export const PATCH = requireRole()(
 
       if (followUpOutcome === 'Reject Project' && projectId) {
         await updateProject(projectId, { [PROJECTS.APPROVAL_STATUS]: 'Not-Approved' })
-        createNotification({
+        await createNotification({
           recipientRole: 'sed',
           title: `Project rejected — ${projectRef}`,
           body: `Superadmin has rejected project "${refreshed.projectName ?? projectRef}" due to inactivity.`,
           link: ROLE_DASHBOARD['sed'],
         })
-        createNotification({
+        await createNotification({
           recipientRole: 'manager',
           title: `Project rejected — ${projectRef}`,
           body: `Project "${refreshed.projectName ?? projectRef}" was rejected due to inactivity.`,
           link: ROLE_DASHBOARD['manager'],
         })
       } else if (followUpOutcome === 'SED to Follow Up') {
-        createNotification({
+        await createNotification({
           recipientRole: 'sed',
           title: `Action needed — ${projectRef}`,
           body: `Superadmin requests SED follow up on project "${refreshed.projectName ?? projectRef}"${projectName}. Please take the next action.`,
           link: ROLE_DASHBOARD['sed'],
         })
       } else if (followUpOutcome === 'Manager to Follow Up') {
-        createNotification({
+        await createNotification({
           recipientRole: 'manager',
           title: `Follow up with client — ${projectRef}`,
           body: `Superadmin requests manager to follow up with the client or SED on project "${refreshed.projectName ?? projectRef}".`,

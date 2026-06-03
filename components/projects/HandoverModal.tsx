@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
+import { InstallationLog } from '@/lib/types'
 
 const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const sel = `${inp} bg-white`
@@ -20,6 +21,7 @@ function openHandoverPrint(
     notes: string
   },
   handoverId: string,
+  logs: InstallationLog[] = [],
 ) {
   const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
   const html = `<!DOCTYPE html>
@@ -89,6 +91,16 @@ function openHandoverPrint(
     </div>` : ''}
   </div>
 
+  ${logs.length > 0 ? `
+  <div class="section">
+    <div class="section-header">Installation Log (${logs.length} entr${logs.length === 1 ? 'y' : 'ies'})</div>
+    ${logs.map((l, i) => `
+    <div class="field-row">
+      <span class="field-label" style="min-width:120px;">Day ${i + 1} — ${l.date}</span>
+      <span class="field-value" style="white-space:pre-line;">${l.workDescription ?? '—'}${l.numberOfLaborers ? ` (${l.numberOfLaborers} laborer${l.numberOfLaborers !== 1 ? 's' : ''})` : ''}</span>
+    </div>`).join('')}
+  </div>` : ''}
+
   <div class="section">
     <div class="section-header">Handover Confirmation</div>
     <div class="sig-row">
@@ -140,6 +152,7 @@ export default function HandoverModal({
   const [done, setDone] = useState(false)
   const [handoverId, setHandoverId] = useState('')
   const [savedData, setSavedData] = useState<Parameters<typeof openHandoverPrint>[1] | null>(null)
+  const [savedLogs, setSavedLogs] = useState<InstallationLog[]>([])
 
   async function handleGenerate() {
     setErr('')
@@ -164,6 +177,7 @@ export default function HandoverModal({
       if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
       const data = await res.json()
       const id = data.sheet.handoverId ?? data.sheet.id
+      const logs: InstallationLog[] = data.logs ?? []
 
       const printData = {
         finalInstallationDate,
@@ -173,10 +187,11 @@ export default function HandoverModal({
         notes: notes.trim(),
       }
       setSavedData(printData)
+      setSavedLogs(logs)
       setHandoverId(id)
       setDone(true)
       onCreated()
-      openHandoverPrint(projectName, printData, id)
+      openHandoverPrint(projectName, printData, id, logs)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to generate')
     } finally {
@@ -200,7 +215,7 @@ export default function HandoverModal({
           </div>
           <p className="text-xs text-gray-400">Print dialog opened — save as PDF or print directly.</p>
           <div className="flex justify-center gap-3">
-            <Button variant="secondary" onClick={() => openHandoverPrint(projectName, savedData, handoverId)}>
+            <Button variant="secondary" onClick={() => openHandoverPrint(projectName, savedData, handoverId, savedLogs)}>
               Re-open PDF
             </Button>
             <Button onClick={onClose}>Done</Button>

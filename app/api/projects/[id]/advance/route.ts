@@ -77,7 +77,7 @@ export async function POST(
       try {
         const { todoTemplates } = await generateTasksForProject(id, nextStage)
         if (todoTemplates.length > 0) {
-          notifyTasksReady(
+          await notifyTasksReady(
             todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
             `${nextStage} phase started for project ${updated.projectId ?? id}`,
           )

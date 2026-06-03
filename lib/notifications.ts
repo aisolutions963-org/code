@@ -1,4 +1,4 @@
-import db from './db'
+import { db } from './db'
 
 export const DEPT_ROLE_MAP: Record<string, string> = {
   SED: 'sed',
@@ -30,70 +30,72 @@ export interface DBNotification {
 
 const RETENTION_DAYS = 30
 
-const insertStmt = db.prepare(`
-  INSERT INTO notifications (recipient_role, title, body, link)
-  VALUES (@recipient_role, @title, @body, @link)
-`)
-
-const pruneStmt = db.prepare(
-  `DELETE FROM notifications WHERE created_at < datetime('now', '-${RETENTION_DAYS} days')`,
-)
-
-export function createNotification(opts: {
+export async function createNotification(opts: {
   recipientRole: string
   title: string
   body?: string
   link?: string
-}): void {
+}): Promise<void> {
   try {
-    insertStmt.run({
-      recipient_role: opts.recipientRole,
-      title: opts.title,
-      body: opts.body ?? '',
-      link: opts.link ?? '',
+    const c = await db()
+    await c.execute({
+      sql: `INSERT INTO notifications (recipient_role, title, body, link) VALUES (?, ?, ?, ?)`,
+      args: [opts.recipientRole, opts.title, opts.body ?? '', opts.link ?? ''],
     })
-    pruneStmt.run()
+    await c.execute({
+      sql: `DELETE FROM notifications WHERE created_at < datetime('now', '-${RETENTION_DAYS} days')`,
+      args: [],
+    })
   } catch (err) {
     console.error('[Notifications] Insert failed:', err)
   }
 }
 
-export function getNotificationsForRole(role: string, limit = 50): DBNotification[] {
-  return db
-    .prepare(
-      `SELECT * FROM notifications WHERE recipient_role = ?
-       ORDER BY created_at DESC LIMIT ?`,
-    )
-    .all(role, limit) as DBNotification[]
+export async function getNotificationsForRole(role: string, limit = 50): Promise<DBNotification[]> {
+  const c = await db()
+  const result = await c.execute({
+    sql: `SELECT * FROM notifications WHERE recipient_role = ? ORDER BY created_at DESC LIMIT ?`,
+    args: [role, limit],
+  })
+  return result.rows.map((r) =>
+    Object.fromEntries(result.columns.map((col, i) => [col, r[i]])) as unknown as DBNotification,
+  )
 }
 
-export function getUnreadCountForRole(role: string): number {
-  const row = db
-    .prepare(`SELECT COUNT(*) as cnt FROM notifications WHERE recipient_role = ? AND read = 0`)
-    .get(role) as { cnt: number }
-  return row.cnt
+export async function getUnreadCountForRole(role: string): Promise<number> {
+  const c = await db()
+  const result = await c.execute({
+    sql: `SELECT COUNT(*) as cnt FROM notifications WHERE recipient_role = ? AND read = 0`,
+    args: [role],
+  })
+  const r = result.rows[0]
+  return r ? Number(r[0]) : 0
 }
 
-export function markNotificationRead(id: number): void {
-  db.prepare(`UPDATE notifications SET read = 1 WHERE id = ?`).run(id)
+export async function markNotificationRead(id: number): Promise<void> {
+  const c = await db()
+  await c.execute({ sql: `UPDATE notifications SET read = 1 WHERE id = ?`, args: [id] })
 }
 
-export function markAllReadForRole(role: string): void {
-  db.prepare(`UPDATE notifications SET read = 1 WHERE recipient_role = ?`).run(role)
+export async function markAllReadForRole(role: string): Promise<void> {
+  const c = await db()
+  await c.execute({
+    sql: `UPDATE notifications SET read = 1 WHERE recipient_role = ?`,
+    args: [role],
+  })
 }
 
-// Dispatch "task ready" notifications for a list of tasks with their departments and shared body.
-export function notifyTasksReady(
+export async function notifyTasksReady(
   tasks: { taskName: string; departments: string[] }[],
   body: string,
-): void {
+): Promise<void> {
   for (const t of tasks) {
     const roles = t.departments
       .map((d) => DEPT_ROLE_MAP[d])
       .filter((r): r is string => Boolean(r))
     const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
     for (const role of uniqueRoles) {
-      createNotification({
+      await createNotification({
         recipientRole: role,
         title: `New task ready: ${t.taskName}`,
         body,

@@ -4,7 +4,7 @@ import { getSetting, setSetting } from '@/lib/db'
 
 export const GET = requireRole('superadmin')(async () => {
   return NextResponse.json({
-    accountantEmail: getSetting('accountant_email') ?? '',
+    accountantEmail: (await getSetting('accountant_email')) ?? '',
   })
 })
 
@@ -21,6 +21,6 @@ export const PATCH = requireRole('superadmin')(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
   }
 
-  setSetting('accountant_email', accountantEmail.trim().toLowerCase())
+  await setSetting('accountant_email', accountantEmail.trim().toLowerCase())
   return NextResponse.json({ accountantEmail: accountantEmail.trim().toLowerCase() })
 })

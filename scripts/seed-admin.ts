@@ -3,7 +3,7 @@ import { hashPassword, createUser } from '../lib/db'
 
 async function seed() {
   const hashed = await hashPassword('change-this-password')
-  createUser({
+  await createUser({
     name: 'Kanaan',
     email: 'admin@woodwings.com',
     hashed_password: hashed,
