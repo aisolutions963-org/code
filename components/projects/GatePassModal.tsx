@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import useSWR from 'swr'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
@@ -8,15 +9,19 @@ import { Project } from '@/lib/types'
 const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const lbl = 'block text-xs font-medium text-gray-500 mb-1'
 
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
 export default function GatePassModal({
-  project,
+  project: initialProject,
   onClose,
   onCreated,
 }: {
-  project: Project
+  project: Project | null
   onClose: () => void
   onCreated: () => void
 }) {
+  const [selectedProject, setSelectedProject] = useState<Project | null>(initialProject)
+  const [projectSearch, setProjectSearch] = useState('')
   const [itemsDescription, setItemsDescription] = useState('')
   const [estimatedSupplyDate, setEstimatedSupplyDate] = useState('')
   const [confirmedDeliveryDate, setConfirmedDeliveryDate] = useState('')
@@ -24,7 +29,24 @@ export default function GatePassModal({
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
 
+  const needsPicker = initialProject === null
+  const { data: projectsData } = useSWR<{ projects: Project[] }>(
+    needsPicker ? '/api/projects' : null,
+    fetcher,
+  )
+  const allProjects = projectsData?.projects ?? []
+  const filtered = projectSearch.trim()
+    ? allProjects.filter(
+        (p) =>
+          p.projectName.toLowerCase().includes(projectSearch.toLowerCase()) ||
+          (p.projectId ?? '').toLowerCase().includes(projectSearch.toLowerCase()),
+      )
+    : allProjects
+
+  const project = selectedProject
+
   async function handleSave() {
+    if (!project) { setErr('Please select a project'); return }
     if (!itemsDescription.trim()) { setErr('Items description is required'); return }
     if (!estimatedSupplyDate) { setErr('Estimated supply date is required'); return }
     setSaving(true); setErr('')
@@ -59,7 +81,7 @@ export default function GatePassModal({
             </svg>
           </div>
           <p className="text-sm font-semibold text-gray-900">Gate pass created</p>
-          <p className="text-xs text-gray-500">{project.projectName}</p>
+          <p className="text-xs text-gray-500">{project?.projectName}</p>
           <Button onClick={onClose}>Done</Button>
         </div>
       </Modal>
@@ -70,7 +92,7 @@ export default function GatePassModal({
     <Modal
       open
       onClose={onClose}
-      title={`Gate Pass — ${project.projectName}`}
+      title={project ? `Gate Pass — ${project.projectName}` : 'New Gate Pass'}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -81,6 +103,49 @@ export default function GatePassModal({
       <div className="space-y-4 text-sm">
         {err && (
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{err}</p>
+        )}
+
+        {needsPicker && (
+          <div>
+            <label className={lbl}>Project *</label>
+            {selectedProject ? (
+              <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <span className="text-sm font-medium text-gray-900">{selectedProject.projectName}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProject(null)}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <input
+                  type="text"
+                  className={inp}
+                  placeholder="Search project name or ID…"
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
+                />
+                {filtered.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
+                    {filtered.slice(0, 10).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { setSelectedProject(p); setProjectSearch('') }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
+                      >
+                        <span className="font-medium text-gray-900">{p.projectName}</span>
+                        {p.projectId && <span className="text-gray-400 ml-2 text-xs">{p.projectId}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         <div>

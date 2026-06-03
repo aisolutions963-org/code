@@ -75,6 +75,24 @@ export async function notifyCallClient(project: {
   })
 }
 
+export async function notifyAccountantEvent(params: {
+  eventName: string
+  projectLabel: string
+}): Promise<void> {
+  const accountantEmail = await getSetting('accountant_email')
+  if (!accountantEmail) return
+  await getResend().emails.send({
+    from: 'WoodWings <notifications@woodwings.ae>',
+    to: accountantEmail,
+    subject: `${params.eventName} — ${params.projectLabel}`,
+    html: `
+      <h2>${params.eventName}</h2>
+      <p><strong>Project:</strong> ${params.projectLabel}</p>
+      <p>Log in to the WoodWings dashboard to review payment details.</p>
+    `,
+  })
+}
+
 export async function notifyAccountant(payment: {
   projectName: string
   projectId: string

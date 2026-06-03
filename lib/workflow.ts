@@ -12,7 +12,7 @@ import {
   createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
-import { notifyManager, notifyManagerEscalation } from './email'
+import { notifyManager, notifyManagerEscalation, notifyAccountantEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
 import { PHASE_CONFIG, TASK_MARKERS } from './phases'
 
@@ -186,6 +186,13 @@ async function unlockNextTasks(task: Task): Promise<void> {
       // "Send to SED & Fixing Team" is a fabrication-completion signal — send a
       // targeted, human-readable alert to SED and installation instead of a task
       // notification, since the task itself is invisible (auto-completed immediately).
+      if (t.taskName.toLowerCase().includes('notify accountant') && process.env.RESEND_API_KEY) {
+        const eventName = t.taskName.replace(/\s*\(auto\)\s*/gi, '').trim()
+        notifyAccountantEvent({ eventName, projectLabel }).catch((err) =>
+          console.error('[ACCOUNTANT-EMAIL]', err),
+        )
+        continue
+      }
       if (t.taskName.toLowerCase().includes('send to sed') && t.taskName.toLowerCase().includes('fixing team')) {
         for (const role of ['sed', 'installation'] as const) {
           createNotification({

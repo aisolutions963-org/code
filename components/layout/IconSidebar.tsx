@@ -114,6 +114,14 @@ function ShieldIcon() {
   )
 }
 
+function FormsIcon() {
+  return (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  )
+}
+
 function PipelineIcon() {
   return (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,6 +177,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: 'Materials', href: '/dashboard/mgr?view=materials', icon: <HammerIcon /> },
     { label: 'Install Teams', href: '/dashboard/mgr?view=installation', icon: <TruckIcon /> },
     { label: 'All Projects', href: '/dashboard/mgr?view=projects', icon: <FolderIcon /> },
+    { label: 'Forms', href: '/dashboard/forms', icon: <FormsIcon /> },
   ],
   superadmin: [
     HOME_ITEM,
@@ -184,6 +193,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: 'Announcements', href: '/dashboard/superadmin?view=announcements', icon: <BellIcon /> },
     { label: 'All Projects', href: '/dashboard/superadmin?view=projects', icon: <FolderIcon /> },
     { label: 'Users', href: '/dashboard/superadmin?view=users', icon: <UsersIcon /> },
+    { label: 'Forms', href: '/dashboard/forms', icon: <FormsIcon /> },
   ],
 }
 

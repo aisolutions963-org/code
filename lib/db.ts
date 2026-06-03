@@ -6,10 +6,9 @@ let _initPromise: Promise<void> | null = null
 
 function getClient(): Client {
   if (!_client) {
-    _client = createClient({
-      url: process.env.TURSO_URL!,
-      authToken: process.env.TURSO_AUTH_TOKEN,
-    })
+    const url = process.env.TURSO_URL ?? process.env.TURSO_DB_URL ?? 'file:data/users.db'
+    const authToken = process.env.TURSO_AUTH_TOKEN ?? process.env.TURSO_DB_AUTH_TOKEN
+    _client = createClient({ url, ...(authToken ? { authToken } : {}) })
   }
   return _client
 }
