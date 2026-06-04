@@ -79,7 +79,7 @@ export async function POST(
       // Fire-and-forget: generate per-item tasks and notify departments
       ;(async () => {
         try {
-          const { todoTemplates } = await generateItemTasksForProject(id, projectItem.id)
+          const { todoTemplates } = await generateItemTasksForProject(id, projectItem.id, [])
           if (todoTemplates.length > 0) {
             await notifyTasksReady(
               todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),

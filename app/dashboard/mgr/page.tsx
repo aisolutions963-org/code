@@ -15,6 +15,7 @@ import GatePassModal from '@/components/projects/GatePassModal'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 import AssignInstallationModal, { TeamMember } from '@/components/projects/AssignInstallationModal'
+import TimesheetsView from '@/components/timesheets/TimesheetsView'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -33,7 +34,7 @@ export default function MgrDashboard() {
 
   const { data: projectData, error: projectError, isLoading: projectLoading, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
-      view === 'projects' || view === 'payments' || view === 'installation' || view === 'materials' ? '/api/projects' : null,
+      view === 'projects' || view === 'payments' || view === 'installation' || view === 'materials' || view === 'timesheets' ? '/api/projects' : null,
       fetcher,
       { refreshInterval: 30000, revalidateOnFocus: true },
     )
@@ -150,6 +151,7 @@ export default function MgrDashboard() {
                     <button onClick={() => setGatePassProject(p)} className="text-xs text-orange-600 hover:text-orange-700 font-medium">
                       Gate Pass
                     </button>
+                    <RequestMeasurementButton projectId={p.id} />
                   </div>
                 </div>
               ))}
@@ -278,6 +280,11 @@ export default function MgrDashboard() {
         </>
       )}
 
+      {/* Timesheets view */}
+      {view === 'timesheets' && (
+        <TimesheetsView projects={projects} />
+      )}
+
       {assignProject && (
         <AssignInstallationModal
           project={assignProject}
@@ -321,5 +328,35 @@ export default function MgrDashboard() {
       )}
 
     </div>
+  )
+}
+
+function RequestMeasurementButton({ projectId }: { projectId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error' | 'exists'>('idle')
+
+  async function request() {
+    setState('loading')
+    try {
+      const res = await fetch(`/api/projects/${projectId}/request-measurement`, { method: 'POST' })
+      if (res.status === 409) { setState('exists'); return }
+      if (!res.ok) throw new Error()
+      setState('done')
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (state === 'done') return <span className="text-xs text-green-600 font-medium">✓ Measurement requested</span>
+  if (state === 'exists') return <span className="text-xs text-gray-400 font-medium">Measurement already requested</span>
+  if (state === 'error') return <span className="text-xs text-red-500 font-medium">Failed — <button onClick={request} className="underline">retry</button></span>
+
+  return (
+    <button
+      onClick={request}
+      disabled={state === 'loading'}
+      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-50"
+    >
+      {state === 'loading' ? 'Requesting…' : '📐 Request Measurements'}
+    </button>
   )
 }

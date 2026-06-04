@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate as globalMutate } from 'swr'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
 import { Project, MaintenanceRecord, Announcement, Payment, Task, TaskUpdateInput } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
@@ -69,6 +69,68 @@ interface SuperadminMetrics {
   callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 }
 
+interface KpiCounts {
+  total: number
+  preparing: number
+  open: number
+  notApproved: number
+  finished: number
+  maintenanceActive: number
+  finishedUnpaid: number
+  maintenanceExpired: number
+}
+
+interface SedStat {
+  sedName: string
+  preparing: number
+  open: number
+  closed: number
+  notApproved: number
+}
+
+type ReportCategory = 'Sales' | 'Accountant' | 'Material' | 'Calendar'
+
+interface ReportItem {
+  name: string
+  description: string
+  route: string
+}
+
+const REPORT_TABS: { category: ReportCategory; color: string; reports: ReportItem[] }[] = [
+  {
+    category: 'Sales',
+    color: 'text-green-700 bg-green-50 border-green-200',
+    reports: [
+      { name: 'Quotations Pipeline', description: 'All quotes with status, SED, and amounts', route: 'quotations' },
+      { name: 'SED Follow-Ups', description: 'Follow-up log with outcomes and next actions', route: 'follow-ups' },
+      { name: 'Ongoing Projects', description: 'Per-item production status matrix', route: 'ongoing-projects' },
+      { name: 'SED Projects Status', description: 'Project portfolio per SED with quote amounts', route: 'sed-projects' },
+    ],
+  },
+  {
+    category: 'Accountant',
+    color: 'text-red-700 bg-red-50 border-red-200',
+    reports: [
+      { name: 'Payables', description: 'Supplier invoices and payments owed', route: 'payables' },
+      { name: 'Receivables', description: 'Client outstanding balances and old debts', route: 'receivables' },
+      { name: 'Quotation Line Items', description: 'Itemised scope and amounts per quotation', route: 'quotation-line-items' },
+    ],
+  },
+  {
+    category: 'Material',
+    color: 'text-purple-700 bg-purple-50 border-purple-200',
+    reports: [
+      { name: 'Material Orders', description: 'All procurement orders and delivery status', route: 'material-orders' },
+      { name: 'Production Timesheets', description: 'Weekly worker-hour log per project', route: 'timesheets' },
+    ],
+  },
+  {
+    category: 'Calendar',
+    color: 'text-yellow-700 bg-yellow-50 border-yellow-200',
+    reports: [],
+  },
+]
+
 interface TimelineProject {
   id: string
   projectId: string
@@ -120,201 +182,415 @@ function MetricCard({ label, value, sub, color }: { label: string; value: string
 
 // ─── Page 1: Overview ────────────────────────────────────────────────────────
 
-function OverviewPage() {
-  const { data: metricsData, isLoading: mLoading } = useSWR<SuperadminMetrics>(
-    '/api/superadmin/metrics', fetcher, { refreshInterval: 30000 },
+function KpiCard({ label, value, href, downloadHref, loading }: { label: string; value: number; href: string; downloadHref: string; loading: boolean }) {
+  return (
+    <div className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-brand-300 transition-all relative overflow-hidden">
+      <Link href={href} className="block p-4">
+        {loading ? (
+          <div className="h-7 w-12 bg-gray-100 rounded animate-pulse mx-auto mb-1" />
+        ) : (
+          <p className="text-3xl font-bold text-gray-900 text-center">{value}</p>
+        )}
+        <p className="text-xs text-gray-500 text-center mt-1 leading-tight">{label}</p>
+      </Link>
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <a
+          href={downloadHref}
+          onClick={(e) => e.stopPropagation()}
+          title="Download Excel"
+          className="w-6 h-6 flex items-center justify-center rounded hover:bg-green-50 text-green-600 hover:text-green-700 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </a>
+        <Link href={href} className="w-6 h-6 flex items-center justify-center rounded hover:bg-brand-50 text-brand-500 transition-colors">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </Link>
+      </div>
+    </div>
   )
-  const { data: projectsData, isLoading: pLoading, mutate: mutp } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+}
+
+function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
+  const [selectedSed, setSelectedSed] = useState<string | null>(null)
+
+  const chartData = selectedSed
+    ? [
+        { name: 'Preparing', value: data.find((d) => d.sedName === selectedSed)?.preparing ?? 0, fill: '#92400E' },
+        { name: 'Open', value: data.find((d) => d.sedName === selectedSed)?.open ?? 0, fill: '#16a34a' },
+        { name: 'Closed', value: data.find((d) => d.sedName === selectedSed)?.closed ?? 0, fill: '#f9a8d4' },
+        { name: 'Not Approved', value: data.find((d) => d.sedName === selectedSed)?.notApproved ?? 0, fill: '#dc2626' },
+      ]
+    : data.map((d) => ({
+        name: d.sedName,
+        preparing: d.preparing,
+        open: d.open,
+        closed: d.closed,
+        notApproved: d.notApproved,
+      }))
+
+  const maxVal = selectedSed
+    ? Math.max(...(chartData as { value: number }[]).map((d) => d.value), 1)
+    : Math.max(...data.map((d) => d.preparing + d.open + d.closed + d.notApproved), 1)
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+        <p className="text-sm font-semibold text-gray-700">
+          {selectedSed ? `${selectedSed}'s Projects` : 'SED Performance'}
+        </p>
+        <div className="flex gap-1 flex-wrap">
+          {seds.map((s) => (
+            <button
+              key={s}
+              onClick={() => setSelectedSed(selectedSed === s ? null : s)}
+              className={`px-2.5 py-1 text-xs rounded-full border font-medium transition-colors ${
+                selectedSed === s
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'text-gray-500 border-gray-200 hover:border-brand-300 hover:text-brand-600'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-4">
+        {/* Legend */}
+        <div className="flex gap-4 text-xs text-gray-500 mb-3">
+          {[
+            { label: 'Preparing', color: '#92400E' },
+            { label: 'Open', color: '#16a34a' },
+            { label: 'Closed', color: '#f9a8d4' },
+            { label: 'Not Approved', color: '#dc2626' },
+          ].map((l) => (
+            <span key={l.label} className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
+              {l.label}
+            </span>
+          ))}
+        </div>
+
+        <ResponsiveContainer width="100%" height={Math.max(120, (selectedSed ? 4 : data.length) * 40)}>
+          {selectedSed ? (
+            <BarChart
+              layout="vertical"
+              data={chartData as { name: string; value: number; fill: string }[]}
+              margin={{ top: 0, right: 20, left: 80, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+              <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+              <Bar dataKey="value" radius={[0, 3, 3, 0]} name="Projects">
+                {(chartData as { name: string; value: number; fill: string }[]).map((entry, idx) => (
+                  <Cell key={idx} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          ) : (
+            <BarChart
+              layout="vertical"
+              data={chartData as { name: string; preparing: number; open: number; closed: number; notApproved: number }[]}
+              margin={{ top: 0, right: 20, left: 80, bottom: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+              <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+              <Bar dataKey="preparing" fill="#92400E" radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
+              <Bar dataKey="open" fill="#16a34a" radius={[0, 0, 0, 0]} name="Open" stackId="a" />
+              <Bar dataKey="closed" fill="#f9a8d4" radius={[0, 0, 0, 0]} name="Closed" stackId="a" />
+              <Bar dataKey="notApproved" fill="#dc2626" radius={[0, 3, 3, 0]} name="Not Approved" stackId="a" />
+            </BarChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
+function ReportsSection() {
+  const [activeTab, setActiveTab] = useState<ReportCategory>('Sales')
+  const [downloading, setDownloading] = useState<string | null>(null)
+
+  async function downloadReport(route: string, name: string) {
+    setDownloading(route)
+    try {
+      const from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      const res = await fetch(`/api/reports/download/${route}?from=${from}`)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      window.alert('Download failed. Please try again.')
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  const currentTab = REPORT_TABS.find((t) => t.category === activeTab)!
+  const TAB_ACTIVE: Record<ReportCategory, string> = {
+    Sales: 'bg-green-600 text-white border-green-600',
+    Accountant: 'bg-red-600 text-white border-red-600',
+    Material: 'bg-purple-600 text-white border-purple-600',
+    Calendar: 'bg-yellow-500 text-white border-yellow-500',
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-gray-100">
+        <p className="text-sm font-semibold text-gray-700">Reports</p>
+      </div>
+      {/* Tabs */}
+      <div className="flex gap-2 px-5 pt-4 pb-2">
+        {REPORT_TABS.map((tab) => (
+          <button
+            key={tab.category}
+            onClick={() => setActiveTab(tab.category)}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+              activeTab === tab.category ? TAB_ACTIVE[tab.category] : 'text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
+            }`}
+          >
+            {tab.category}
+          </button>
+        ))}
+      </div>
+
+      {/* Report list */}
+      <div className="px-5 pb-4">
+        {currentTab.reports.length === 0 ? (
+          <p className="text-sm text-gray-400 py-6 text-center">Coming soon</p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {currentTab.reports.map((report) => (
+              <div key={report.route} className="flex items-center justify-between gap-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{report.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{report.description}</p>
+                </div>
+                <button
+                  onClick={() => downloadReport(report.route, report.name)}
+                  disabled={downloading === report.route}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 transition-colors"
+                >
+                  {downloading === report.route ? (
+                    <div className="w-3 h-3 border border-gray-500 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  )}
+                  Excel
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function OverviewPage() {
+  const { data: kpiData, isLoading: kpiLoading } = useSWR<KpiCounts>(
+    '/api/superadmin/kpi-counts', fetcher,
+  )
+  const { data: sedData, isLoading: sedLoading } = useSWR<{ seds: string[]; data: SedStat[] }>(
+    '/api/superadmin/sed-stats', fetcher, { refreshInterval: 30000 },
+  )
+  const { data: tasksData, isLoading: tasksLoading, mutate: mutateTasks } = useSWR<{ tasks: Task[] }>(
+    '/api/tasks', fetcher, { refreshInterval: 30000 },
   )
   const [showNewProject, setShowNewProject] = useState(false)
 
-  const projects = projectsData?.projects ?? []
-  const active = projects.filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
-  // Detect silent API error: fetcher resolves but response body has `error` key
-  const projectsApiError = projectsData && !Array.isArray(projectsData.projects)
-    ? (projectsData as unknown as { error?: string }).error ?? 'Unknown error'
-    : null
+  const kpi = kpiData
+  const allTasks = tasksData?.tasks ?? []
 
-  async function handleAdvance(id: string) {
-    const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
-    if (!res.ok) {
-      const d = await res.json()
-      throw new Error(
-        d.blockingTasks
-          ? `${d.error}: ${d.blockingTasks.map((t: { taskName: string }) => t.taskName).join(', ')}`
-          : d.error ?? 'Failed',
-      )
-    }
-    mutp()
+  // My tasks: same logic as MyTasksPage — pending approvals, call-client, follow-up
+  const myTasks = allTasks.filter(
+    (t) =>
+      t.status === 'Pending Approval' ||
+      t.taskName.toLowerCase().includes('call the client') ||
+      t.taskName === 'Follow Up',
+  ).filter((t) => t.status !== 'Locked' && t.status !== 'Completed')
+
+  const sortedTasks = [
+    ...myTasks.filter((t) => t.status === 'Pending Approval'),
+    ...myTasks.filter((t) => t.status === 'In Progress'),
+    ...myTasks.filter((t) => t.status === 'To Do'),
+  ]
+
+  const followUpTasks = myTasks.filter((t) => t.taskName === 'Follow Up' && t.status === 'To Do')
+  const regularTasks = sortedTasks.filter((t) => !(t.taskName === 'Follow Up' && t.status === 'To Do'))
+
+  async function handleTaskUpdate(id: string, fields: Partial<TaskUpdateInput>) {
+    const res = await fetch(`/api/tasks/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    })
+    if (!res.ok) { const b = await res.json(); throw new Error(b.error ?? 'Update failed') }
+    mutateTasks()
   }
 
-  async function handleDelete(id: string, name: string) {
-    if (!window.confirm(`Delete project "${name}" and all its tasks? This cannot be undone.`)) return
-    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}))
-      window.alert(d.error ?? 'Failed to delete project')
-      return
-    }
-    mutp()
-  }
-
-  if (mLoading || pLoading) return <Spinner />
-
-  const m = metricsData
+  const BASE_PROJECTS_URL = '/dashboard/superadmin?view=projects'
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Overview</h2>
-          <p className="text-sm text-gray-500">Portfolio summary and alerts</p>
+          <p className="text-sm text-gray-500">Portfolio summary and team performance</p>
         </div>
         <Button size="sm" onClick={() => setShowNewProject(true)}>+ New Project</Button>
       </div>
 
-      {/* Metrics bar */}
+      {/* ── Section 1: KPI Cards ────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MetricCard label="Total Projects" value={m?.totalProjects ?? 0} />
-        <MetricCard label="Active" value={m?.activeProjects ?? 0} color="text-blue-600" />
-        <MetricCard label="Stale (>3d)" value={m?.staleProjects ?? 0} color="text-yellow-600" />
-        <MetricCard label="Pending Approval" value={m?.pendingApprovals ?? 0} color="text-orange-500" />
-        <MetricCard label="Overdue Payments" value={m?.overduePayments ?? 0} color="text-red-600" />
-        <MetricCard label="Total Revenue" value={`AED ${fmt(m?.totalRevenue ?? 0)}`} />
-        <MetricCard label="Collected" value={`AED ${fmt(m?.totalPaid ?? 0)}`} color="text-green-600" />
-        <MetricCard label="Remaining" value={`AED ${fmt(m?.totalRemaining ?? 0)}`} color="text-red-500" />
+        <KpiCard label="Total Projects" value={kpi?.total ?? 0} href={BASE_PROJECTS_URL} downloadHref="/api/reports/download/projects-by-stage" loading={kpiLoading} />
+        <KpiCard label="Preparing" value={kpi?.preparing ?? 0} href={`${BASE_PROJECTS_URL}&stage=Preparing`} downloadHref="/api/reports/download/projects-by-stage?stage=Preparing" loading={kpiLoading} />
+        <KpiCard label="Open" value={kpi?.open ?? 0} href={`${BASE_PROJECTS_URL}&stage=Open`} downloadHref="/api/reports/download/projects-by-stage?stage=Open" loading={kpiLoading} />
+        <KpiCard label="Not Approved" value={kpi?.notApproved ?? 0} href={`${BASE_PROJECTS_URL}&stage=Not-Approved`} downloadHref="/api/reports/download/projects-by-stage?stage=Not-Approved" loading={kpiLoading} />
+        <KpiCard label="Finished" value={kpi?.finished ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed" loading={kpiLoading} />
+        <KpiCard label="Maintenance Active" value={kpi?.maintenanceActive ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Valid+Maintenance`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+%26+Valid+Maintenance" loading={kpiLoading} />
+        <KpiCard label="Finished — Not Paid" value={kpi?.finishedUnpaid ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed&unpaid=true`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed&unpaid=true" loading={kpiLoading} />
+        <KpiCard label="Maintenance Expired" value={kpi?.maintenanceExpired ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Warranty+Done`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+%26+Warranty+Done" loading={kpiLoading} />
       </div>
 
-      {projectsApiError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-          Failed to load projects: {projectsApiError}.
-          Check the terminal (Next.js dev server) for the full error, or visit{' '}
-          <a href="/api/debug/projects" target="_blank" className="underline font-medium">/api/debug/projects</a> to diagnose.
+      {/* ── Section 2: SED Performance Chart ───────────────── */}
+      {!sedLoading && (sedData?.data?.length ?? 0) > 0 && (
+        <SedChart data={sedData!.data} seds={sedData!.seds} />
+      )}
+      {sedLoading && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
+          <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto" />
         </div>
       )}
 
-      {/* Call-client alert */}
-      {(m?.callClientTasks?.length ?? 0) > 0 && (
-        <div className="bg-teal-50 border-2 border-teal-400 rounded-xl px-4 py-4">
-          <div className="flex items-center gap-2.5 mb-2">
-            <svg className="w-5 h-5 text-teal-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-            </svg>
-            <p className="text-sm font-bold text-teal-800">
-              {m!.callClientTasks.length} project{m!.callClientTasks.length > 1 ? 's' : ''} ready — call client for final confirmation
-            </p>
+      {/* ── Section 3: My Tasks & Approvals ────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">My Tasks & Approvals</p>
+          <div className="flex items-center gap-2">
+            {myTasks.length > 0 && (
+              <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full">
+                {myTasks.length}
+              </span>
+            )}
+            <a
+              href="/dashboard/superadmin?view=tasks"
+              className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+            >
+              View All
+            </a>
           </div>
-          <ul className="space-y-2 ml-7">
-            {m!.callClientTasks.map((t) => (
-              <li key={t.taskId} className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0 mt-1" />
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="text-xs font-mono text-teal-700 font-semibold">{t.projectRef}</span>
-                    <span className="text-xs text-teal-800">{t.projectName}</span>
-                    <span className="text-xs text-teal-500">— {t.clientName}</span>
-                  </div>
-                  {t.clientPhone && (
-                    <a
-                      href={`tel:${t.clientPhone}`}
-                      className="text-xs font-semibold text-teal-700 hover:text-teal-900 underline underline-offset-2"
-                    >
-                      {t.clientPhone}
-                    </a>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 ml-7 text-xs text-teal-600">
-            All approval gates cleared. Go to Activity → find the &ldquo;Call the Client&rdquo; task to complete it.
-          </p>
         </div>
-      )}
-
-      {/* Inactivity alert — fires the inactivity check for each stale Preparing project */}
-      {(() => {
-        const stalePrep = active.filter(
-          (p) =>
-            p.projectStage === 'Preparing' &&
-            isStale(p.lastModifiedTasks),
-        )
-        if (stalePrep.length > 0) {
-          // Fire-and-forget: unlock Follow Up task + notify superadmin for each stale project
-          stalePrep.forEach((p) => {
-            fetch(`/api/projects/${p.id}/inactivity-check`, { method: 'POST' }).catch(() => {})
-          })
-        }
-        return stalePrep.length > 0 ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <p className="text-sm font-semibold text-amber-800">
-              {stalePrep.length} project{stalePrep.length > 1 ? 's' : ''} with no activity for 3+ days — Follow Up task activated
-            </p>
-            <ul className="mt-1 space-y-0.5">
-              {stalePrep.map((p) => (
-                <li key={p.id} className="text-xs text-amber-700">
-                  {p.projectName} — {p.clientName} — last activity: {p.lastModifiedTasks?.slice(0, 10) ?? 'unknown'}
-                </li>
+        <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
+          {tasksLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : followUpTasks.length === 0 && regularTasks.length === 0 ? (
+            <div className="flex flex-col items-center py-10 gap-2">
+              <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-gray-400">No pending tasks. You&apos;re all caught up.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {followUpTasks.map((t) => (
+                <FollowUpDecisionPanel key={t.id} task={t} onDone={mutateTasks} />
               ))}
-            </ul>
-            <p className="text-xs text-amber-600 mt-1.5">Go to Tasks tab to handle each project.</p>
-          </div>
-        ) : null
-      })()}
+              {regularTasks.map((t) => (
+                <div key={t.id} className="px-5 py-3 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="font-mono text-xs text-gray-400 shrink-0">{t.projectRef ?? ''}</span>
+                    <span className="text-sm text-gray-800 flex-1 min-w-0 truncate">{t.taskName}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {t.department && t.department.length > 0 && (
+                        <span className="text-[10px] font-semibold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+                          {t.department[0]}
+                        </span>
+                      )}
+                      <TaskStatusBadge status={t.status} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Section 4: Reports ─────────────────────────────── */}
+      <ReportsSection />
 
       {showNewProject && (
         <NewProjectModal
           onClose={() => setShowNewProject(false)}
-          onCreated={() => { setShowNewProject(false); mutp() }}
+          onCreated={() => setShowNewProject(false)}
         />
       )}
-
-      {/* Active projects table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100">
-          <p className="text-sm font-semibold text-gray-700">Active Projects</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {active.map((p) => (
-                <ProjectRow key={p.id} project={p} onAdvance={handleAdvance} onDelete={handleDelete} onNotesSaved={mutp} />
-              ))}
-              {active.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-sm text-gray-400">No active projects.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   )
 }
 
-function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onNotesSaved?: () => void }) {
+function RequestMeasurementButton({ projectId }: { projectId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error' | 'exists'>('idle')
+
+  async function request() {
+    setState('loading')
+    try {
+      const res = await fetch(`/api/projects/${projectId}/request-measurement`, { method: 'POST' })
+      if (res.status === 409) { setState('exists'); return }
+      if (!res.ok) throw new Error()
+      setState('done')
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (state === 'done') return <span className="text-xs text-green-600 font-medium whitespace-nowrap">✓ Sent</span>
+  if (state === 'exists') return <span className="text-xs text-gray-400 font-medium whitespace-nowrap">Already sent</span>
+  if (state === 'error') return <button onClick={request} className="text-xs text-red-500 underline">Retry</button>
+
+  return (
+    <Button size="sm" variant="secondary" loading={state === 'loading'} onClick={request}>
+      📐 Measure
+    </Button>
+  )
+}
+
+function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onReopen: (id: string) => Promise<void>; onNotesSaved?: () => void }) {
   const [loading, setLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
+  const [reopenLoading, setReopenLoading] = useState(false)
   const [err, setErr] = useState('')
   const [genMsg, setGenMsg] = useState('')
+  const [expanded, setExpanded] = useState(false)
   const stale = isStale(p.lastModifiedTasks)
 
   async function advance() {
     setLoading(true); setErr(''); setGenMsg('')
     try { await onAdvance(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setLoading(false) }
+  }
+
+  async function reopen() {
+    setReopenLoading(true); setErr('')
+    try { await onReopen(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setReopenLoading(false) }
   }
 
   async function generateTasks(force = false) {
@@ -344,14 +620,27 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
 
   const canGenerate = p.projectStage === 'Preparing' || p.projectStage === 'Open'
 
+  const address = [p.detailedLocation, p.location, p.emirate].filter(Boolean).join(', ')
+
   return (
     <>
       <tr className={`hover:bg-gray-50 transition-colors ${stale ? 'bg-yellow-50/30' : ''}`}>
         <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.projectId}</td>
         <td className="px-4 py-3 max-w-xs">
-          <p className="font-medium text-gray-900 truncate">{p.projectName}</p>
-          {p.nickname && <p className="text-xs text-gray-500 truncate">{p.nickname}</p>}
-          <div className="mt-1">
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            className="flex items-center gap-1.5 text-left group"
+          >
+            <svg
+              className={`w-3 h-3 text-gray-400 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="font-medium text-gray-900 truncate group-hover:text-brand-600">{p.projectName}</span>
+          </button>
+          {p.nickname && <p className="text-xs text-gray-500 truncate mt-0.5 pl-5">{p.nickname}</p>}
+          <div className="mt-1 pl-5">
             <ProjectNotesEditor
               projectId={p.id}
               initialNotes={p.managerNotes}
@@ -362,7 +651,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
         </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">
-          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : 'gray'}>
+          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : 'gray'}>
             {p.projectStage}
           </Badge>
         </td>
@@ -373,16 +662,25 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
         <td className="px-4 py-3 text-right">
           <div className="flex items-center justify-end gap-2">
             {canGenerate && (
-              <Button
-                size="sm"
-                variant="secondary"
-                loading={genLoading}
-                onClick={() => generateTasks()}
-              >
+              <Button size="sm" variant="secondary" loading={genLoading} onClick={() => generateTasks()}>
                 ⚡ Tasks
               </Button>
             )}
-            {p.projectStage !== 'Closed' && (
+            {(p.projectStage === 'Preparing' || p.projectStage === 'Open') && (
+              <RequestMeasurementButton projectId={p.id} />
+            )}
+            {p.projectStage === 'Not-Approved' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={reopenLoading}
+                onClick={reopen}
+                className="text-green-600 hover:text-green-700 border-green-300 hover:border-green-400"
+              >
+                ↩ Reopen
+              </Button>
+            )}
+            {p.projectStage !== 'Closed' && p.projectStage !== 'Not-Approved' && (
               <Button size="sm" variant="secondary" loading={loading} onClick={advance}>Advance →</Button>
             )}
             <Button
@@ -396,6 +694,76 @@ function ProjectRow({ project: p, onAdvance, onDelete, onNotesSaved }: { project
           </div>
         </td>
       </tr>
+
+      {/* Project Brief — F1 intake data */}
+      {expanded && (
+        <tr>
+          <td colSpan={6} className="px-6 pb-5 pt-1 bg-gray-50/60 border-t border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4 py-3">
+
+              {p.projectDescription && (
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Scope</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{p.projectDescription}</p>
+                </div>
+              )}
+
+              {address && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Address</p>
+                  <p className="text-sm text-gray-700">{address}</p>
+                </div>
+              )}
+
+              {p.clientPhone && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Client Phone</p>
+                  <a href={`tel:${p.clientPhone}`} className="text-sm text-brand-600 hover:underline font-mono">{p.clientPhone}</a>
+                </div>
+              )}
+
+              {p.paymentMode && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Payment Mode</p>
+                  <p className="text-sm text-gray-700">{p.paymentMode}</p>
+                </div>
+              )}
+
+              {p.salesOwner && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Sales Owner (SED)</p>
+                  <p className="text-sm text-gray-700">{p.salesOwner.name ?? p.salesOwner.email}</p>
+                </div>
+              )}
+
+              {p.communSeds && p.communSeds.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Community SEDs</p>
+                  <p className="text-sm text-gray-700">{p.communSeds.join(', ')}</p>
+                </div>
+              )}
+
+              {p.sedNotes && (
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">SED Notes</p>
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{p.sedNotes}</p>
+                </div>
+              )}
+
+              {p.projectCreatedAt && (
+                <div>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Created</p>
+                  <p className="text-sm text-gray-500">
+                    {new Date(p.projectCreatedAt).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              )}
+
+            </div>
+          </td>
+        </tr>
+      )}
+
       {err && (
         <tr>
           <td colSpan={6} className="px-4 pb-2">
@@ -1395,7 +1763,7 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
     projectDescription: '',
     detailedLocation: '',
     paymentMode: '' as '' | 'Standard' | 'Progressive',
-    requiredIntakePaths: '',
+
     clientPhone: '',
     emirate: '',
     location: '',
@@ -1421,7 +1789,6 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
     if (!form.projectDescription.trim()) missing.push('Project Scope')
     if (!form.detailedLocation.trim()) missing.push('Exact Location')
     if (!form.paymentMode) missing.push('Payment Mode')
-    if (!form.requiredIntakePaths) missing.push('Requested Action')
     if (missing.length > 0) { setErr(`Required: ${missing.join(', ')}`); return }
 
     setSaving(true); setErr('')
@@ -1433,7 +1800,7 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
         projectDescription: form.projectDescription,
         detailedLocation: form.detailedLocation,
         paymentMode: form.paymentMode,
-        requiredIntakePaths: form.requiredIntakePaths,
+
         salesOwnerCollaboratorId: selectedSedId,
       }
       if (form.clientPhone) body.clientPhone = form.clientPhone
@@ -1598,17 +1965,6 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 placeholder="Select Dubai to pick an area"
               />
             )}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Requested Action *</label>
-            <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-              value={form.requiredIntakePaths}
-              onChange={(e) => set('requiredIntakePaths', e.target.value)}
-            >
-              <option value="">— select —</option>
-              {INTAKE_PATHS.map((p) => <option key={p}>{p}</option>)}
-            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Payment Mode *</label>
@@ -1833,6 +2189,114 @@ function MaterialsPage() {
   return <MaterialsReviewView projects={projects} />
 }
 
+// ─── Page: All Projects ───────────────────────────────────────────────────────
+
+function ProjectsPage() {
+  const searchParams = useSearchParams()
+  const stageFilter = searchParams.get('stage') ?? null
+  const unpaidFilter = searchParams.get('unpaid') === 'true'
+
+  const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
+    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+  )
+
+  const allProjects = data?.projects ?? []
+  let filtered = stageFilter ? allProjects.filter((p) => p.projectStage === stageFilter) : allProjects
+  if (unpaidFilter) filtered = filtered.filter((p) => (p.remainingBalance ?? 0) > 0)
+
+  async function handleAdvance(id: string) {
+    const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
+    if (!res.ok) {
+      const d = await res.json()
+      throw new Error(
+        d.blockingTasks
+          ? `${d.error}: ${d.blockingTasks.map((t: { taskName: string }) => t.taskName).join(', ')}`
+          : d.error ?? 'Failed',
+      )
+    }
+    mutate()
+  }
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return
+    const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error((d as { error?: string }).error ?? 'Failed to delete')
+    }
+    mutate()
+  }
+
+  async function handleReopen(id: string) {
+    const res = await fetch(`/api/projects/${id}/reopen`, { method: 'POST' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error((d as { error?: string }).error ?? 'Failed to reopen')
+    }
+    mutate()
+  }
+
+  const title = stageFilter ? `Projects — ${stageFilter}` : 'All Projects'
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+          {!isLoading && (
+            <p className="text-sm text-gray-500">
+              {filtered.length} project{filtered.length !== 1 ? 's' : ''}
+              {unpaidFilter ? ' — balance outstanding' : ''}
+            </p>
+          )}
+        </div>
+        <Link href="/dashboard/superadmin" className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+          ← Overview
+        </Link>
+      </div>
+
+      {isLoading && <Spinner />}
+
+      {!isLoading && filtered.length === 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center">
+          <p className="text-sm text-gray-400">No projects found.</p>
+        </div>
+      )}
+
+      {!isLoading && filtered.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Ref</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.map((p) => (
+                  <ProjectRow
+                    key={p.id}
+                    project={p}
+                    onAdvance={handleAdvance}
+                    onDelete={handleDelete}
+                    onReopen={handleReopen}
+                    onNotesSaved={() => mutate()}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 const VALID_PAGES = new Set<Page>(['overview','timeline','phases','activity','payments','calendar','warranty','users','announcements','projects','tasks','materials'])
@@ -1853,7 +2317,7 @@ export default function SuperadminDashboard() {
       {page === 'warranty' && <WarrantyPage />}
       {page === 'users' && <UsersPage />}
       {page === 'announcements' && <AnnouncementsPage />}
-      {page === 'projects' && <OverviewPage />}
+      {page === 'projects' && <ProjectsPage />}
       {page === 'tasks' && <MyTasksPage />}
       {page === 'materials' && <MaterialsPage />}
     </div>

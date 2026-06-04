@@ -50,8 +50,8 @@ export const UpdateTaskSchema = z.object({
   followUpOutcome: z.enum(['Reject Project', 'SED to Follow Up', 'Manager to Follow Up']).optional(),
   taskDocuments: z.array(z.object({ url: z.string().url().optional(), filename: z.string().max(255) })).optional(),
   fillersAndMissingList: z.array(z.object({ url: z.string().url().optional(), filename: z.string().max(255) })).optional(),
-  taskDocLinks: z.array(z.object({ url: z.string().url(), label: z.string().min(1).max(255), notes: z.string().max(2000).optional() })).optional(),
-  fillersDocLinks: z.array(z.object({ url: z.string().url(), label: z.string().min(1).max(255), notes: z.string().max(2000).optional() })).optional(),
+  taskDocLinks: z.array(z.object({ url: z.string().url().or(z.literal('')).optional(), label: z.string().min(1).max(255), notes: z.string().max(2000).optional() })).optional(),
+  fillersDocLinks: z.array(z.object({ url: z.string().url().or(z.literal('')).optional(), label: z.string().min(1).max(255), notes: z.string().max(2000).optional() })).optional(),
 })
 
 export const CreatePaymentSchema = z.object({
@@ -82,6 +82,8 @@ export const UpdateAnnouncementSchema = CreateAnnouncementSchema.partial()
 
 export const AssignInstallationSchema = z.object({
   teamMemberIds: z.array(z.string()).max(20),
+  itemName: z.string().max(300).optional(),
+  itemId: z.string().optional(),
 })
 
 export const MaterialDecisionSchema = z.object({
@@ -100,6 +102,16 @@ export const CreateQuotationItemsSchema = z.object({
         quantity: z.number().int().min(1).max(9999),
         unitPrice: z.number().min(0).max(10_000_000),
         notes: z.string().max(2000).optional(),
+        actions: z
+          .array(
+            z.enum([
+              'Site Visit (item)',
+              'Select Sample (item)',
+              'Design (item)',
+              'Measurement (item)',
+            ]),
+          )
+          .min(1, 'Select at least one action for each item'),
       }),
     )
     .min(1, 'At least one item is required')
@@ -188,14 +200,7 @@ export const CreateProjectSchema = z.object({
   projectDescription: z.string().min(1).max(5000),
   detailedLocation: z.string().min(1).max(1000),
   paymentMode: z.enum(['Standard', 'Progressive']),
-  requiredIntakePaths: z.enum([
-    'Make Quotation',
-    'Visit Site to Gather Details',
-    'Assign Installation for Measurement',
-    'Select Material / Order Samples',
-    'Draft Proposal or Photo Ideas',
-    'Client Clarifications & Sketches',
-  ]),
+
   clientPhone: z.string().max(30).optional(),
   emirate: z.string().max(100).optional(),
   location: z.string().max(200).optional(),

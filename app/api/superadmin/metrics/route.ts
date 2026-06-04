@@ -3,6 +3,8 @@ import { requireRole } from '@/lib/apiHandler'
 import { getAllProjects, getPendingApprovalsCount, getCallClientPendingTasks } from '@/lib/airtable'
 import { PAYMENTS } from '@/lib/fieldMap'
 
+export const dynamic = 'force-dynamic'
+
 async function getOverduePaymentsCount(): Promise<number> {
   const key = process.env.AIRTABLE_API_KEY
   const base = process.env.AIRTABLE_BASE_ID

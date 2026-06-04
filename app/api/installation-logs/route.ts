@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { createInstallationLog, getInstallationLogsByProject, addInstallationLogToHandover } from '@/lib/airtable'
+import { createInstallationLog, getInstallationLogsByProject } from '@/lib/airtable'
+
+export const dynamic = 'force-dynamic'
 
 export const GET = requireRole()(async (req: NextRequest) => {
   const projectRecordId = req.nextUrl.searchParams.get('projectRecordId')
@@ -41,11 +43,8 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
       date: isoDate,
       numberOfLaborers: typeof numberOfLaborers === 'number' && numberOfLaborers > 0 ? numberOfLaborers : undefined,
       workDescription: typeof workDescription === 'string' && workDescription.trim() ? workDescription.trim() : undefined,
+      recordedBy: session.name,
     })
-
-    // Accumulate this log into the project's handover sheet (creates a draft if none exists yet)
-    addInstallationLogToHandover(projectRecordId, log.id)
-      .catch((err) => console.error('[HANDOVER] Failed to link log:', err))
 
     return NextResponse.json({ log }, { status: 201 })
   },

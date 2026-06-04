@@ -35,7 +35,12 @@ export default function DashboardLayoutClient({
       <DrawerProvider>
         <div className="flex h-screen overflow-hidden bg-gray-50">
           {/* Desktop sidebar — hidden on mobile */}
-          <Suspense fallback={null}>
+          <Suspense fallback={
+            <aside
+              className="w-52 shrink-0 h-full hidden md:block"
+              style={{ background: 'rgba(14,14,24,0.97)', borderRight: '1px solid rgba(255,255,255,0.07)' }}
+            />
+          }>
             <IconSidebar role={role} name={name} />
           </Suspense>
 
@@ -45,7 +50,9 @@ export default function DashboardLayoutClient({
 
             {/* Content — pb-16 on mobile reserves space above bottom nav */}
             <main className="flex-1 overflow-y-auto scrollbar-thin pb-16 md:pb-0">
-              {children}
+              <Suspense fallback={null}>
+                {children}
+              </Suspense>
             </main>
           </div>
 

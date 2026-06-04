@@ -24,7 +24,7 @@ export interface AttachmentInput {
 }
 
 export interface DocLink {
-  url: string
+  url?: string
   label: string
   notes?: string
 }
@@ -70,6 +70,7 @@ export interface Task {
   projectStage?: string[]
   client?: string[]
   taskCreated?: string
+  lastModified?: string
   clientPhone?: string
   projectItemName?: string
   assignedTo?: string[]
@@ -160,6 +161,7 @@ export interface Project {
   detailedLocation?: string
   projectDescription?: string
   communSeds?: string[]
+  communSedIds?: string[]
   fabricationActive?: boolean
 }
 
@@ -170,7 +172,7 @@ export interface ProjectCreateInput {
   projectDescription: string
   detailedLocation: string
   paymentMode: string
-  requiredIntakePaths: string
+
   clientPhone?: string
   emirate?: string
   location?: string
@@ -202,6 +204,7 @@ export interface Payment {
   payerName?: string
   commissionAmount?: number
   notes?: string
+  recordedBy?: string
 }
 
 export interface PaymentCreateInput {
@@ -218,6 +221,7 @@ export interface PaymentCreateInput {
   payerName?: string
   commissionAmount?: number
   notes?: string
+  recordedBy?: string
 }
 
 export interface GatePass {
@@ -230,6 +234,8 @@ export interface GatePass {
   gatePassStatus?: string
   siteReady?: boolean
   clientNotified?: boolean
+  projectName?: string
+  projectDisplayId?: string
 }
 
 export interface GatePassCreateInput {
@@ -323,6 +329,7 @@ export interface PurchaseOrder {
   actualDelivery?: string
   managerApproved?: boolean
   notes?: string
+  recordedBy?: string
 }
 
 export interface PurchaseOrderCreateInput {
@@ -332,6 +339,7 @@ export interface PurchaseOrderCreateInput {
   orderDate?: string
   expectedDelivery?: string
   notes?: string
+  recordedBy?: string
 }
 
 export interface InstallationLog {
@@ -343,6 +351,7 @@ export interface InstallationLog {
   numberOfLaborers?: number
   workDescription?: string
   expectedFinishDate?: string
+  recordedBy?: string
 }
 
 export interface InstallationLogCreateInput {
@@ -352,6 +361,7 @@ export interface InstallationLogCreateInput {
   numberOfLaborers?: number
   workDescription?: string
   expectedFinishDate?: string
+  recordedBy?: string
 }
 
 export interface HandoverSheet {
@@ -364,7 +374,7 @@ export interface HandoverSheet {
   customerSatisfaction?: string
   installationDifficulty?: string
   newsletterOptIn?: boolean
-  installationLogIds?: string[]
+  recordedBy?: string
 }
 
 export interface ProjectItem {
@@ -389,6 +399,7 @@ export interface Quotation {
   notes?: string
   sentDate?: string
   approvedDate?: string
+  recordedBy?: string
 }
 
 export interface QuotationItemInput {
@@ -398,6 +409,92 @@ export interface QuotationItemInput {
   unitPrice: number
   description?: string
   notes?: string
+}
+
+export interface WorkerCreateInput {
+  name: string
+  fullName?: string
+  nickname?: string
+  role?: string
+  active?: boolean
+}
+
+export interface WorkerUpdateInput {
+  name?: string
+  fullName?: string
+  nickname?: string
+  role?: string
+  active?: boolean
+}
+
+export interface TimesheetEntry {
+  id: string
+  entryLabel?: string
+  workDate: string
+  workerIds: string[]
+  workerName?: string
+  projectIds: string[]
+  projectRef?: string
+  projectName?: string
+  regularHours: number
+  overtimeHours: number
+  totalHours: number
+  notes?: string
+}
+
+export interface CreateTimesheetInput {
+  workDate: string
+  workerIds: string[]
+  projectIds: string[]
+  regularHours: number
+  overtimeHours?: number
+  notes?: string
+}
+
+export interface UpdateTimesheetInput {
+  regularHours?: number
+  overtimeHours?: number
+  notes?: string
+}
+
+export interface TimesheetFilters {
+  from?: string
+  to?: string
+  workerId?: string
+  projectId?: string
+}
+
+export interface WorkerOption {
+  id: string
+  name: string
+  fullName?: string
+  nickname?: string
+  role?: string
+  active?: boolean
+}
+
+export interface WeeklySummary {
+  weekStart: string
+  weekEnd: string
+  workers: WeeklySummaryWorker[]
+}
+
+export interface WeeklySummaryWorker {
+  workerId: string
+  workerName: string
+  days: WeeklySummaryDay[]
+  totalRegular: number
+  totalOvertime: number
+  totalHours: number
+}
+
+export interface WeeklySummaryDay {
+  date: string
+  regularHours: number
+  overtimeHours: number
+  totalHours: number
+  projectRef?: string
+  entryId: string
 }
 
 // Session payload stored in JWT cookie

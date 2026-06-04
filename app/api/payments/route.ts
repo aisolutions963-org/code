@@ -40,7 +40,7 @@ export const POST = requireRole('manager', 'superadmin')(
     }
 
     const body = parsed.data
-    const payment = await createPayment(body)
+    const payment = await createPayment({ ...body, recordedBy: session.name })
 
     if (process.env.RESEND_API_KEY) {
       getProjectById(body.project[0])

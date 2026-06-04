@@ -1,15 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import useSWR from 'swr'
+import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
 
 const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const lbl = 'block text-xs font-medium text-gray-500 mb-1'
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function GatePassModal({
   project: initialProject,
@@ -20,8 +17,11 @@ export default function GatePassModal({
   onClose: () => void
   onCreated: () => void
 }) {
-  const [selectedProject, setSelectedProject] = useState<Project | null>(initialProject)
-  const [projectSearch, setProjectSearch] = useState('')
+  const [project, setProject] = useState<Project | null>(initialProject)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+
   const [itemsDescription, setItemsDescription] = useState('')
   const [estimatedSupplyDate, setEstimatedSupplyDate] = useState('')
   const [confirmedDeliveryDate, setConfirmedDeliveryDate] = useState('')
@@ -29,21 +29,22 @@ export default function GatePassModal({
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
 
-  const needsPicker = initialProject === null
-  const { data: projectsData } = useSWR<{ projects: Project[] }>(
-    needsPicker ? '/api/projects' : null,
-    fetcher,
-  )
-  const allProjects = projectsData?.projects ?? []
-  const filtered = projectSearch.trim()
-    ? allProjects.filter(
-        (p) =>
-          p.projectName.toLowerCase().includes(projectSearch.toLowerCase()) ||
-          (p.projectId ?? '').toLowerCase().includes(projectSearch.toLowerCase()),
-      )
-    : allProjects
+  // When opened in standalone mode (no project passed), fetch all active projects
+  useEffect(() => {
+    if (initialProject) return
+    setProjectsLoading(true)
+    fetch('/api/projects')
+      .then((r) => r.json())
+      .then((d) => setProjects(d.projects ?? []))
+      .catch(() => {})
+      .finally(() => setProjectsLoading(false))
+  }, [initialProject])
 
-  const project = selectedProject
+  function handleProjectSelect(id: string) {
+    setSelectedProjectId(id)
+    const found = projects.find((p) => p.id === id) ?? null
+    setProject(found)
+  }
 
   async function handleSave() {
     if (!project) { setErr('Please select a project'); return }
@@ -88,11 +89,15 @@ export default function GatePassModal({
     )
   }
 
+  const title = project
+    ? `Gate Pass — ${project.projectName}`
+    : 'New Gate Pass'
+
   return (
     <Modal
       open
       onClose={onClose}
-      title={project ? `Gate Pass — ${project.projectName}` : 'New Gate Pass'}
+      title={title}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -105,45 +110,28 @@ export default function GatePassModal({
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{err}</p>
         )}
 
-        {needsPicker && (
+        {/* Project selector — only shown in standalone mode */}
+        {!initialProject && (
           <div>
             <label className={lbl}>Project *</label>
-            {selectedProject ? (
-              <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                <span className="text-sm font-medium text-gray-900">{selectedProject.projectName}</span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedProject(null)}
-                  className="text-xs text-gray-400 hover:text-gray-600"
-                >
-                  Change
-                </button>
+            {projectsLoading ? (
+              <div className="flex items-center gap-2 py-2">
+                <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-gray-400">Loading projects…</span>
               </div>
             ) : (
-              <div className="space-y-1">
-                <input
-                  type="text"
-                  className={inp}
-                  placeholder="Search project name or ID…"
-                  value={projectSearch}
-                  onChange={(e) => setProjectSearch(e.target.value)}
-                />
-                {filtered.length > 0 && (
-                  <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
-                    {filtered.slice(0, 10).map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => { setSelectedProject(p); setProjectSearch('') }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
-                      >
-                        <span className="font-medium text-gray-900">{p.projectName}</span>
-                        {p.projectId && <span className="text-gray-400 ml-2 text-xs">{p.projectId}</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <select
+                className={inp}
+                value={selectedProjectId}
+                onChange={(e) => handleProjectSelect(e.target.value)}
+              >
+                <option value="">Select project…</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.projectId} — {p.projectName}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
         )}

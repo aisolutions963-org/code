@@ -16,7 +16,7 @@ export const PHASE_CONFIG = {
   Working: {
     phaseLabel: 'Phase 3 — Working',
     triggerOrder: 29,
-    perItemOrderMin: 31,
+    perItemOrderMin: 30,
   },
   Closing: {
     phaseLabel: 'Phase 4 — Closing',
@@ -31,4 +31,7 @@ export const TASK_MARKERS = {
   HEADLINE_PREFIX: 'to follow tasks progress',
   CALL_CLIENT_PREFIX: 'call the client',
   TAKE_APPROVAL_PREFIX: 'take approval from client',
+  // Completing this task bypasses the AND-join so "inform client" unlocks immediately,
+  // without waiting for paint/carpentry siblings at the same templateOrder to finish.
+  FABRICATION_DONE_MARKER: 'fabrication done',
 } as const

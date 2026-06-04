@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import useSWR from 'swr'
 import toast from 'react-hot-toast'
-import { Task, TaskUpdateInput } from '@/lib/types'
+import { Task, TaskUpdateInput, Payment } from '@/lib/types'
 
 interface QuotationPanelProps {
   task: Task
@@ -10,14 +11,49 @@ interface QuotationPanelProps {
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
 }
 
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const today = new Date().toISOString().slice(0, 10)
+
+const inp = 'w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'
+const sel = 'w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'
+const lbl = 'text-xs text-gray-500 block mb-1'
+
 export default function QuotationPanel({ task, variant, onUpdate }: QuotationPanelProps) {
   const [quotationInput, setQuotationInput] = useState(task.projectQuotationNumber ?? '')
   const [referenceInput, setReferenceInput] = useState(task.projectQuotationReference ?? '')
   const [quotationError, setQuotationError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // F4 payment form state
+  const [amount, setAmount] = useState('')
+  const [paymentType, setPaymentType] = useState(() => {
+    const name = task.taskName.toLowerCase()
+    if (name.includes('delivery')) return 'Delivery'
+    if (name.includes('final')) return 'Final'
+    return 'Advance'
+  })
+  const [paymentStatus, setPaymentStatus] = useState('Received')
+  const [paymentMethod, setPaymentMethod] = useState('Bank Transfer')
+  const [referenceNo, setReferenceNo] = useState('')
+  const [receivedDate, setReceivedDate] = useState(today)
+  const [payerType, setPayerType] = useState('')
+  const [payerName, setPayerName] = useState('')
+  const [commission, setCommission] = useState('')
+  const [notes, setNotes] = useState('')
+  const [formError, setFormError] = useState('')
+
+  const projectId = task.projectRecordId ?? task.project?.[0] ?? ''
+
+  const { data: paymentsData } = useSWR<{ payments: Payment[] }>(
+    variant === 'f4' && task.status === 'Completed' && projectId
+      ? `/api/payments?projectId=${projectId}`
+      : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  )
+  const payments = paymentsData?.payments ?? []
+
   async function patchProjectQuotation(qn: string, ref: string): Promise<void> {
-    const projectId = task.projectRecordId ?? task.project?.[0]
     if (!projectId) throw new Error('No project linked to this task')
     const patchBody: Record<string, string> = { quotationNumber: qn }
     if (ref) patchBody.quotationReference = ref
@@ -32,6 +68,7 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     }
   }
 
+  // ── makeQuotation handlers ──────────────────────────────────────────────
   async function saveAndComplete() {
     setSaving(true)
     setQuotationError('')
@@ -66,6 +103,57 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     }
   }
 
+  // ── F4 handler ──────────────────────────────────────────────────────────
+  async function recordPaymentAndComplete() {
+    setFormError('')
+    const amountNum = parseFloat(amount)
+    if (!amount || isNaN(amountNum) || amountNum <= 0) {
+      setFormError('Enter a valid amount'); return
+    }
+    if (!receivedDate) { setFormError('Received date is required'); return }
+    if (!payerType) { setFormError('Payer type is required'); return }
+    if (!projectId) { setFormError('No project linked to this task'); return }
+
+    setSaving(true)
+    try {
+      const qn = quotationInput.trim()
+      if (qn) await patchProjectQuotation(qn, referenceInput.trim())
+
+      const body: Record<string, unknown> = {
+        project: [projectId],
+        amount: amountNum,
+        paymentType,
+        paymentStatus,
+        paymentMethod,
+        receivedDate,
+        payerType,
+      }
+      if (referenceNo.trim()) body.referenceNo = referenceNo.trim()
+      if (payerName.trim()) body.payerName = payerName.trim()
+      if (payerType === 'Broker' && commission) body.commissionAmount = parseFloat(commission)
+      if (notes.trim()) body.notes = notes.trim()
+
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error((d as { error?: string }).error ?? 'Failed to record payment')
+      }
+
+      await onUpdate(task.id, { status: 'Completed' } as Partial<TaskUpdateInput>)
+      toast.success('Payment recorded')
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Failed')
+      toast.error(e instanceof Error ? e.message : 'Failed to record payment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── makeQuotation variant ───────────────────────────────────────────────
   if (variant === 'makeQuotation') {
     return (
       <>
@@ -141,59 +229,213 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     )
   }
 
-  // F4 variant
-  return (
-    <>
-      {task.status !== 'Completed' &&
-        (task.projectQuotationNumber ? (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
-            <p className="text-xs font-semibold text-blue-800 mb-1">Quotation on file</p>
-            <p className="text-xs text-blue-700">
-              <span className="font-mono font-medium">{task.projectQuotationNumber}</span>
-              {task.projectQuotationReference && (
-                <span className="ml-2 font-mono text-blue-500">{task.projectQuotationReference}</span>
+  // ── F4 variant — completed state ────────────────────────────────────────
+  if (task.status === 'Completed') {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 space-y-2">
+        <p className="text-xs font-semibold text-green-800">✓ Payment Recorded</p>
+        {task.projectQuotationNumber && (
+          <p className="text-xs text-green-700">
+            Quotation:{' '}
+            <span className="font-mono font-medium">{task.projectQuotationNumber}</span>
+            {task.projectQuotationReference && (
+              <span className="ml-2 font-mono text-green-500">{task.projectQuotationReference}</span>
+            )}
+          </p>
+        )}
+        {payments.map((pm) => (
+          <div key={pm.id} className="bg-white border border-green-200 rounded-lg px-3 py-2 text-xs space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-gray-800">AED {pm.amount.toLocaleString()}</span>
+              <span className="text-gray-500">{pm.paymentType} · {pm.paymentStatus}</span>
+            </div>
+            <div className="text-gray-600 flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>{pm.paymentMethod}</span>
+              {pm.receivedDate && <span>{pm.receivedDate}</span>}
+              {pm.referenceNo && <span className="font-mono">{pm.referenceNo}</span>}
+              {pm.payerType && (
+                <span>{pm.payerType}{pm.payerName ? ` — ${pm.payerName}` : ''}</span>
               )}
-            </p>
+              {pm.commissionAmount != null && (
+                <span>Commission: AED {pm.commissionAmount.toLocaleString()}</span>
+              )}
+            </div>
+            {pm.notes && <p className="text-gray-500 italic">{pm.notes}</p>}
+            {pm.recordedBy && <p className="text-gray-400">Recorded by {pm.recordedBy}</p>}
           </div>
+        ))}
+      </div>
+    )
+  }
+
+  // ── F4 variant — form ───────────────────────────────────────────────────
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-3">
+      <p className="text-xs font-semibold text-blue-800">Record Payment</p>
+
+      {/* Quotation number */}
+      <div>
+        <label className={lbl}>
+          Quotation Number
+          <span className="ml-1 text-gray-400">(optional)</span>
+        </label>
+        {task.projectQuotationNumber ? (
+          <p className="text-sm font-mono font-medium text-blue-700 py-1">
+            {task.projectQuotationNumber}
+            {task.projectQuotationReference && (
+              <span className="ml-2 font-normal text-blue-400">{task.projectQuotationReference}</span>
+            )}
+          </p>
         ) : (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-2">
-            <p className="text-xs font-semibold text-blue-800">
-              Quotation Number <span className="text-red-500">*</span>
-              <span className="ml-1 font-normal text-blue-600">— required to record advance payment</span>
-            </p>
+          <div className="grid grid-cols-2 gap-2">
             <input
-              className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+              className={inp}
               placeholder="e.g. WW-2024-001"
               value={quotationInput}
-              onChange={(e) => { setQuotationInput(e.target.value); setQuotationError('') }}
+              onChange={(e) => setQuotationInput(e.target.value)}
             />
-            <p className="text-xs font-semibold text-blue-800">
-              Reference Number
-              <span className="ml-1 font-normal text-blue-600">— optional, manually assigned</span>
-            </p>
             <input
-              className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white font-mono"
-              placeholder="e.g. R0, R1…"
+              className={inp + ' font-mono'}
+              placeholder="Ref (e.g. R0)"
               value={referenceInput}
               onChange={(e) => setReferenceInput(e.target.value)}
             />
-            {quotationError && <p className="text-xs text-red-600">{quotationError}</p>}
-          </div>
-        ))}
-      {task.status === 'Completed' &&
-        (task.projectQuotationNumber || task.projectQuotationReference) && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5">
-            <p className="text-xs font-semibold text-blue-800 mb-1">Payment Recorded</p>
-            <p className="text-xs text-blue-700">
-              {task.projectQuotationNumber && (
-                <span className="font-mono font-medium">{task.projectQuotationNumber}</span>
-              )}
-              {task.projectQuotationReference && (
-                <span className="ml-2 font-mono text-blue-500">{task.projectQuotationReference}</span>
-              )}
-            </p>
           </div>
         )}
-    </>
+      </div>
+
+      {/* Amount + Date */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={lbl}>Amount (AED) <span className="text-red-500">*</span></label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className={inp}
+            placeholder="0.00"
+            value={amount}
+            onChange={(e) => { setAmount(e.target.value); setFormError('') }}
+          />
+        </div>
+        <div>
+          <label className={lbl}>Received Date <span className="text-red-500">*</span></label>
+          <input
+            type="date"
+            className={inp}
+            value={receivedDate}
+            onChange={(e) => setReceivedDate(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Payment Type + Method */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={lbl}>Payment Type</label>
+          <select className={sel} value={paymentType} onChange={(e) => setPaymentType(e.target.value)}>
+            <option>Advance</option>
+            <option>Delivery</option>
+            <option>Material</option>
+            <option>Progressive Payment</option>
+            <option>Final</option>
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Payment Method</label>
+          <select className={sel} value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            <option>Bank Transfer</option>
+            <option>Cash</option>
+            <option>Cheque</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Status + Reference */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={lbl}>Payment Status</label>
+          <select className={sel} value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
+            <option>Received</option>
+            <option>Pending</option>
+            <option>Overdue</option>
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Reference No.</label>
+          <input
+            className={inp + ' font-mono'}
+            placeholder="e.g. TXN-001"
+            value={referenceNo}
+            onChange={(e) => setReferenceNo(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Payer Type + Name */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={lbl}>Payer Type <span className="text-red-500">*</span></label>
+          <select
+            className={sel}
+            value={payerType}
+            onChange={(e) => { setPayerType(e.target.value); setFormError('') }}
+          >
+            <option value="">Select…</option>
+            <option>Broker</option>
+            <option>Contractor</option>
+            <option>End User</option>
+            <option>Designer</option>
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Payer Name</label>
+          <input
+            className={inp}
+            placeholder="Full name"
+            value={payerName}
+            onChange={(e) => setPayerName(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Commission — Broker only */}
+      {payerType === 'Broker' && (
+        <div>
+          <label className={lbl}>Commission Amount (AED)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            className={inp}
+            placeholder="0.00"
+            value={commission}
+            onChange={(e) => setCommission(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* Notes */}
+      <div>
+        <label className={lbl}>Notes (optional)</label>
+        <textarea
+          rows={2}
+          className={inp + ' resize-none'}
+          placeholder="Any additional notes…"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </div>
+
+      {formError && <p className="text-xs text-red-600">{formError}</p>}
+
+      <button
+        onClick={recordPaymentAndComplete}
+        disabled={saving}
+        className="w-full py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        {saving ? 'Saving…' : '✓ Record Payment & Complete'}
+      </button>
+    </div>
   )
 }
