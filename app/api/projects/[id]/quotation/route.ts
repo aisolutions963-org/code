@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { createProjectItem, createQuotation, generateItemTasksForProject, getProjectById, updateProject } from '@/lib/airtable'
+import { createProjectItem, createQuotation, generateItemTasksForProject, getProjectById, getQuotationsByProject, updateProject } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
 import { CreateQuotationItemsSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const quotations = await getQuotationsByProject(id)
+  return NextResponse.json({ quotations })
+}
 
 export async function POST(
   request: NextRequest,
@@ -73,23 +84,22 @@ export async function POST(
         description: item.description,
         notes: item.notes,
         quotationDate: parsed.data.quotationDate,
+        recordedBy: session.name,
       })
       results.push({ projectItemId: projectItem.id, quotationId: quotation.id })
 
-      // Fire-and-forget: generate per-item tasks and notify departments
-      ;(async () => {
-        try {
-          const { todoTemplates } = await generateItemTasksForProject(id, projectItem.id)
-          if (todoTemplates.length > 0) {
-            notifyTasksReady(
-              todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
-              `New item ready: ${item.itemName}`,
-            )
-          }
-        } catch (err) {
-          console.error('[QUOTATION] Item task generation failed for item', projectItem.id, ':', err)
+      try {
+        const { created: tasksCreated, todoTemplates } = await generateItemTasksForProject(id, projectItem.id, item.actions)
+        console.log(`[QUOTATION] Item ${projectItem.id} (${item.itemName}): generated ${tasksCreated} tasks, ${todoTemplates.length} To Do`)
+        if (todoTemplates.length > 0) {
+          notifyTasksReady(
+            todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
+            `New item ready: ${item.itemName}`,
+          )
         }
-      })()
+      } catch (err) {
+        console.error('[QUOTATION] Item task generation failed for item', projectItem.id, ':', err)
+      }
     }
     return NextResponse.json({ created: results.length, items: results }, { status: 201 })
   } catch (error) {

@@ -72,6 +72,7 @@ export const TASKS = {
   TASK_DOC_LINKS: 'fldz8YzTtdsVwiJ3I',
   HANDOVER_DOC_LINKS: 'fldZeGpG5VlY1Oiip',
   FILLERS_DOC_LINKS: 'fldxgHjnRVSlYlHbM',
+  LAST_MODIFIED: 'fld8PyDkPBIZ0BNO1',
 } as const
 
 export const PROJECTS = {
@@ -137,6 +138,7 @@ export const QUOTATIONS = {
   QUOTATION_STATUS: 'fldJjktB8XgZkoYzr',
   SENT_DATE: 'fldxIMge4UKFxJeHV',
   APPROVED_DATE: 'fldURdaSenYkzkWpn',
+  RECORDED_BY: 'fldTGURGzlBpkKS2G',
 } as const
 
 export const PAYMENTS = {
@@ -157,6 +159,7 @@ export const PAYMENTS = {
   PAYER_TYPE: 'fldPYIgJR10wHyRdK',
   PAYER_NAME: 'fld7lK5GIkQibmLwe',
   COMMISSION_AMOUNT: 'fldqLG1zZiGwBu5XQ',
+  RECORDED_BY: 'fldP53RxatemRSJ28',
 } as const
 
 export const GATE_PASSES = {
@@ -236,6 +239,7 @@ export const PURCHASE_ORDERS = {
   ACTUAL_DELIVERY: 'fld9kXKTi8ysfa0Ta',
   MANAGER_APPROVED: 'fld2M9FkIXzuXa8Pa',
   NOTES: 'fldHpUK9omtuhCtIs',
+  RECORDED_BY: 'fldcpLfIpEt60iuQg',
 } as const
 
 export const INSTALLATION_LOGS = {
@@ -248,6 +252,7 @@ export const INSTALLATION_LOGS = {
   WORK_DESCRIPTION: 'fldfGXe6BFzxg5akb',
   EXPECTED_FINISH_DATE: 'fldlQLfHsSb74wz6g',
   PHOTOS: 'fld7NCGfaED0ICHXw',
+  RECORDED_BY: 'fldmND2IVxD2c0eIr',
 } as const
 
 export const HANDOVER_SHEETS = {
@@ -263,6 +268,7 @@ export const HANDOVER_SHEETS = {
   CUSTOMER_SATISFACTION: 'fldghZv3yUbsAdjDI',
   INSTALLATION_DIFFICULTY: 'fldEmFFjXia931YOe',
   NEWSLETTER_OPT_IN: 'fld38IGwc92IrrYAt',
+  RECORDED_BY: 'fldJnCNmhWS3yMsrH',
 } as const
 
 export const CALENDAR_EVENTS = {
@@ -273,6 +279,28 @@ export const CALENDAR_EVENTS = {
   PROJECT: 'fldvK1majrFSNWVxy',
   CREATED_BY: 'flduWnzsPZeIAmprs',
   CUSTOM_TASK: 'flde3FqwogaB4RDf3',
+} as const
+
+export const PRODUCTION_TIMESHEETS = {
+  TABLE:          'tblEAgsiTCNCQmTZl',
+  ENTRY_LABEL:    'fldvw5Yal2gzlHWeV',
+  WORK_DATE:      'fldgYpSXiYQiUdJHR',
+  WORKER:         'fldEQa6tiu1vTq9Sb',
+  PROJECT:        'fldptqShoVtL3hjbs',
+  REGULAR_HOURS:  'fldPEBPtEqibQF9gG',
+  OVERTIME_HOURS: 'fldMeKDus6J01rkcA',
+  TOTAL_HOURS:    'fldwqP8tDqTXKyF0Q',
+  SUBMITTED_BY:   'fldpCClOzeq2Mfiqp',
+  NOTES:          'fld7nmDRcOiBt9DCM',
+} as const
+
+export const WORKERS = {
+  TABLE:      'tblaelluGouAlw7Xo',
+  NAME:       'fldpgSQBVcF0nA2Kx',
+  FULL_NAME:  'fldykYIjjHcVUU07b',
+  NICKNAME:   'fld0C8rZpHkXI01z8',
+  ROLE:       'fldfoj2jJ0om9sFrr',
+  ACTIVE:     'fldtVRH12qbl8xFQo',
 } as const
 
 export const MATERIALS_NEEDED = {

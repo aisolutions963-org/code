@@ -78,6 +78,19 @@ function CashSvg({ active }: { active: boolean }) {
   )
 }
 
+function FormsSvg({ active }: { active: boolean }) {
+  return active ? (
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+      <path fillRule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a1.875 1.875 0 01-1.875-1.875V5.25A3.75 3.75 0 009 1.5H5.625zM7.5 15a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5A.75.75 0 017.5 15zm.75-6.75a.75.75 0 000 1.5H12a.75.75 0 000-1.5H8.25z" clipRule="evenodd" />
+      <path d="M12.971 1.816A5.23 5.23 0 0114.25 5.25v1.875c0 .207.168.375.375.375H16.5a5.23 5.23 0 013.434 1.279 9.768 9.768 0 00-6.963-6.963z" />
+    </svg>
+  ) : (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  )
+}
+
 function MenuSvg() {
   return (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,7 +110,7 @@ const PRIMARY_NAV: Record<Role, MobileNavItem[]> = {
   sed: [
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
     { label: 'My Tasks', href: '/dashboard/sed', icon: (a) => <TasksSvg active={a} /> },
-    { label: 'Approvals', href: '/dashboard/sed?view=approvals', icon: (a) => <FolderSvg active={a} /> },
+    { label: 'Forms', href: '/dashboard/forms', icon: (a) => <FormsSvg active={a} /> },
     { label: 'Projects', href: '/dashboard/sed?view=projects', icon: (a) => <CalendarSvg active={a} /> },
   ],
   fabrication: [
@@ -158,6 +171,7 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
   sed: [
     { label: 'Home', href: '/home' },
     { label: 'My Tasks', href: '/dashboard/sed' },
+    { label: 'Forms', href: '/dashboard/forms' },
     { label: 'Client Approvals', href: '/dashboard/sed?view=approvals' },
     { label: 'Site Visits', href: '/dashboard/sed?view=site-visits' },
     { label: 'QC Checks', href: '/dashboard/sed?view=qc' },
@@ -173,6 +187,7 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
   manager: [
     { label: 'Home', href: '/home' },
     { label: 'My Tasks', href: '/dashboard/mgr' },
+    { label: 'Forms', href: '/dashboard/forms' },
     { label: 'Pipeline', href: '/dashboard/pipeline' },
     { label: 'Deliveries', href: '/dashboard/mgr?view=deliveries' },
     { label: 'Payments', href: '/dashboard/mgr?view=payments' },
@@ -184,6 +199,7 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
   superadmin: [
     { label: 'Home', href: '/home' },
     { label: 'My Tasks', href: '/dashboard/superadmin?view=tasks' },
+    { label: 'Forms', href: '/dashboard/forms' },
     { label: 'Overview', href: '/dashboard/superadmin' },
     { label: 'Pipeline', href: '/dashboard/pipeline' },
     { label: 'Timeline', href: '/dashboard/superadmin?view=timeline' },

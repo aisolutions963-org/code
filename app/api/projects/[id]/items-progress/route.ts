@@ -12,7 +12,7 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const [tasks, project] = await Promise.all([
-    getAllTasksForProjectAll(id),
+    getAllTasksForProjectAll(id, session.role),
     getProjectById(id),
   ])
 

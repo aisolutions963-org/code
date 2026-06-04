@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WoodWings PMS — دليل قسم التصنيع</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0e8; --white: #ffffff; --navy: #1a1a2e; --gold: #c9a96e; --gold-light: #f0e6d3;
+    --text: #2d2d3a; --muted: #6b6b80; --border: #e2ddd6; --sidebar-w: 270px;
+    --locked: #6b7280; --todo: #3b82f6; --inprogress: #f59e0b; --pending: #8b5cf6; --completed: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { direction: rtl; text-align: right; }
+  body { font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; display: flex; }
+  h1,h2,h3,h4 { font-family: 'Tajawal', sans-serif; color: var(--navy); }
+  a { color: var(--gold); text-decoration: none; } a:hover { text-decoration: underline; }
+
+  /* RTL Sidebar — on the right */
+  #toc {
+    width: var(--sidebar-w);
+    min-height: 100vh;
+    background: var(--navy);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+    order: 2;
+  }
+  .toc-brand { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 8px; }
+  .toc-brand .logo { font-family: 'Tajawal', sans-serif; color: var(--gold); font-size: 1.2rem; font-weight: 700; }
+  .toc-brand .role-label { color: rgba(255,255,255,0.45); font-size: 0.78rem; margin-top: 2px; }
+  #toc a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 20px;
+    color: rgba(255,255,255,0.55);
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-right: 3px solid transparent;
+    transition: all 0.15s;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+  }
+  #toc a:hover, #toc a.active { color: var(--gold); border-right-color: var(--gold); background: rgba(201,169,110,0.08); text-decoration: none; }
+  .toc-section-label { padding: 16px 20px 4px; color: rgba(255,255,255,0.25); font-size: 0.72rem; text-transform: uppercase; font-weight: 600; }
+
+  /* Main — on the left in RTL layout */
+  #main { flex: 1; max-width: calc(100% - var(--sidebar-w)); order: 1; }
+  .page-header { background: var(--navy); color: white; padding: 48px 60px 40px; border-bottom: 4px solid var(--gold); }
+  .page-header .manual-type { color: var(--gold); font-size: 0.82rem; letter-spacing: 0.05em; margin-bottom: 8px; font-weight: 600; }
+  .page-header h1 { font-size: 2.2rem; color: white; margin-bottom: 12px; }
+  .page-header p { color: rgba(255,255,255,0.6); font-size: 1rem; max-width: 560px; }
+  .content { padding: 0 60px 80px; }
+  .section { padding: 52px 0 0; border-bottom: 1px solid var(--border); }
+  .section:last-child { border-bottom: none; }
+  .section-num { color: var(--gold); font-size: 0.78rem; font-weight: 700; margin-bottom: 4px; font-family: 'Cairo', sans-serif; }
+  .section h2 { font-size: 1.75rem; margin-bottom: 6px; }
+  .section-intro { color: var(--muted); font-size: 0.95rem; margin-bottom: 28px; }
+  h3 { font-size: 1.15rem; margin: 28px 0 12px; }
+  h4 { font-size: 1rem; margin: 20px 0 8px; font-family: 'Cairo', sans-serif; font-weight: 600; }
+  p { margin-bottom: 12px; }
+  ul, ol { padding-right: 24px; padding-left: 0; margin-bottom: 14px; }
+  li { margin-bottom: 5px; }
+
+  /* Tables */
+  .tbl-wrap { overflow-x: auto; margin: 16px 0 24px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  table { width: 100%; border-collapse: collapse; background: var(--white); font-size: 0.88rem; }
+  th { background: var(--navy); color: white; padding: 11px 16px; text-align: right; font-weight: 600; font-size: 0.83rem; }
+  td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #faf8f5; }
+
+  /* Callouts */
+  .callout { display: flex; gap: 14px; padding: 16px 18px; border-radius: 10px; margin: 18px 0; font-size: 0.9rem; flex-direction: row-reverse; }
+  .callout-icon { font-size: 1.2rem; flex-shrink: 0; padding-top: 1px; }
+  .callout-body strong { display: block; margin-bottom: 3px; font-weight: 700; }
+  .callout.warning { background: #fffbeb; border-right: 4px solid #f59e0b; border-left: none; }
+  .callout.warning .callout-icon::before { content: "⚠️"; }
+  .callout.tip { background: #eff6ff; border-right: 4px solid #3b82f6; border-left: none; }
+  .callout.tip .callout-icon::before { content: "💡"; }
+  .callout.note { background: #f8fafc; border-right: 4px solid #94a3b8; border-left: none; }
+  .callout.note .callout-icon::before { content: "📌"; }
+
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; white-space: nowrap; flex-direction: row-reverse; }
+  .badge::after { content: "●"; font-size: 0.6rem; }
+  .b-locked { background: #f1f1f1; color: var(--locked); }
+  .b-todo { background: #eff6ff; color: var(--todo); }
+  .b-inprogress { background: #fffbeb; color: #b45309; }
+  .b-pending { background: #f5f3ff; color: #7c3aed; }
+  .b-completed { background: #ecfdf5; color: #059669; }
+  .status-legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+
+  /* Steps */
+  .steps { margin: 16px 0; }
+  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; flex-direction: row-reverse; }
+  .step-num { width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+  .step-body { flex: 1; text-align: right; }
+  .step-body strong { display: block; margin-bottom: 3px; color: var(--navy); }
+
+  /* Flowchart */
+  .flow { display: flex; flex-direction: column; align-items: flex-end; gap: 0; margin: 20px 0; }
+  .flow-box { background: var(--white); border: 2px solid var(--border); border-radius: 10px; padding: 12px 20px; font-size: 0.88rem; font-weight: 500; min-width: 220px; max-width: 400px; }
+  .flow-box.highlight { border-color: var(--gold); background: var(--gold-light); }
+  .flow-arrow { padding: 4px 30px 4px 0; color: var(--muted); font-size: 0.9rem; }
+
+  /* Quick ref */
+  .qrc { background: var(--navy); color: white; border-radius: 14px; padding: 36px; margin-top: 40px; }
+  .qrc h2 { color: var(--gold); font-size: 1.5rem; margin-bottom: 24px; }
+  .qrc h3 { color: var(--gold); font-size: 1rem; margin: 20px 0 10px; font-family: 'Cairo', sans-serif; font-weight: 600; }
+  .qrc table { background: rgba(255,255,255,0.05); }
+  .qrc th { background: rgba(201,169,110,0.2); color: var(--gold); }
+  .qrc td { color: rgba(255,255,255,0.8); border-bottom-color: rgba(255,255,255,0.08); }
+  .qrc tr:nth-child(even) td { background: rgba(255,255,255,0.03); }
+
+  @media print {
+    #toc { display: none !important; }
+    #main { max-width: 100%; order: 1; }
+    .page-header { background: white !important; color: var(--navy) !important; border-bottom: 3px solid var(--gold); padding: 24px 32px; }
+    .page-header h1, .page-header .manual-type { color: var(--navy) !important; }
+    .page-header p { color: var(--muted) !important; }
+    .content { padding: 0 32px 40px; }
+    .qrc { background: white !important; border: 2px solid var(--navy); }
+    .qrc h2, .qrc h3 { color: var(--navy) !important; }
+    .qrc td { color: var(--text) !important; }
+  }
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    #toc { width: 100%; height: auto; position: relative; order: 1; }
+    #main { max-width: 100%; order: 2; }
+    .content { padding: 0 24px 60px; }
+    .page-header { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+<div id="main">
+  <div class="page-header">
+    <div class="manual-type">دليل المستخدم — الإصدار 1.1</div>
+    <h1>دليل قسم التصنيع</h1>
+    <p>كل ما تحتاجه للعمل على مهام التصنيع، وإدارة الطلبات، ومتابعة الجداول الزمنية للإنتاج عبر نظام WoodWings PMS.</p>
+  </div>
+  <div class="content">
+
+    <!-- القسم 1 -->
+    <div class="section" id="s1">
+      <div class="section-num">القسم الأول</div>
+      <h2>مقدمة</h2>
+      <p class="section-intro">مرحباً بك في نظام WoodWings PMS. هذا الدليل مخصص لفريق التصنيع ويشرح كل خطوة من العمل اليومي في النظام.</p>
+
+      <h3>ما هو نظام WoodWings PMS؟</h3>
+      <p>نظام WoodWings PMS هو نظام إدارة المشاريع الداخلي للشركة. يتتبع كل مشروع من أول اتصال مع العميل حتى التسليم النهائي والصيانة. المهام، الموافقات، الوثائق، وتنسيق الفريق — كل ذلك في نظام واحد.</p>
+
+      <h3>دورك في النظام: قسم التصنيع</h3>
+      <p>كموظف في قسم التصنيع، مسؤولياتك في النظام هي:</p>
+      <ul>
+        <li>تنفيذ مهام التصنيع (النجارة، الدهان، التجميع)</li>
+        <li>تحديث حالة المهام أولاً بأول</li>
+        <li>إدخال بيانات بداية الإنتاج ونهايته (نموذج F2)</li>
+        <li>طلب المواد عبر نموذج F3 عند الحاجة</li>
+        <li>مراجعة مواد المشروع قبل التسليم</li>
+        <li>الإبلاغ عن اكتمال التصنيع ليبدأ فريق التركيب بالمراجعة</li>
+      </ul>
+
+      <h3>كيفية تسجيل الدخول</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">١</div><div class="step-body"><strong>افتح النظام</strong>انتقل إلى رابط التطبيق في المتصفح.</div></div>
+        <div class="step"><div class="step-num">٢</div><div class="step-body"><strong>أدخل بيانات الدخول</strong>اكتب بريدك الإلكتروني وكلمة المرور في صفحة تسجيل الدخول.</div></div>
+        <div class="step"><div class="step-num">٣</div><div class="step-body"><strong>سيتم توجيهك تلقائياً</strong>بعد الدخول بنجاح، سيوجهك النظام إلى لوحة تحكم قسم التصنيع.</div></div>
+      </div>
+
+      <h3>كيفية تسجيل الخروج</h3>
+      <p>اضغط على اسمك أو على زر القائمة في أسفل الشريط الجانبي، ثم اختر <strong>تسجيل الخروج</strong>.</p>
+
+      <div class="callout note"><div class="callout-icon"></div><div class="callout-body"><strong>أمان الحساب</strong>لا تشارك كلمة مرورك مع أحد. إذا نسيت كلمة المرور، تواصل مع المسؤول العام (Superadmin).</div></div>
+    </div>
+
+    <!-- القسم 2 -->
+    <div class="section" id="s2">
+      <div class="section-num">القسم الثاني</div>
+      <h2>لوحة التحكم</h2>
+      <p class="section-intro">لوحة تحكم قسم التصنيع تحتوي على أربعة تبويبات رئيسية.</p>
+
+      <div class="tbl-wrap"><table>
+        <tr><th>التبويب</th><th>ماذا يعرض</th><th>متى تستخدمه</th></tr>
+        <tr><td><strong>المهام (My Tasks)</strong></td><td>جميع مهامك النشطة المعيّنة لك، مرتبة حسب الأولوية والترتيب.</td><td>يومياً — ابدأ من هنا لمعرفة ما يجب عمله.</td></tr>
+        <tr><td><strong>مهام الفريق (Team Tasks)</strong></td><td>مهام الفريق بأكمله في قسم التصنيع والتركيب.</td><td>لمتابعة تقدم الفريق وتوزيع العمل.</td></tr>
+        <tr><td><strong>المواد (Materials)</strong></td><td>طلبات المواد المرتبطة بمشاريع التصنيع، مع تواريخ الوصول والحالة.</td><td>لمتابعة طلبات الشراء والمواد المطلوبة.</td></tr>
+        <tr><td><strong>الإنتاج (Production)</strong></td><td>الجدول الزمني للإنتاج — تواريخ البداية والنهاية المخططة لكل مشروع.</td><td>للتخطيط اليومي وإدارة توقيت الإنتاج.</td></tr>
+      </table></div>
+
+      <h3>الصفحة الرئيسية (Home)</h3>
+      <p>من الصفحة الرئيسية يمكنك الاطلاع على الإعلانات الشركة والمستجدات العامة.</p>
+    </div>
+
+    <!-- القسم 3 -->
+    <div class="section" id="s3">
+      <div class="section-num">القسم الثالث</div>
+      <h2>إدارة المهام</h2>
+      <p class="section-intro">المهام هي وحدة العمل الأساسية. فهم تدفق الحالات أمر ضروري.</p>
+
+      <h3>تسلسل حالات المهام</h3>
+      <div class="status-legend">
+        <span class="badge b-locked">مقفل</span>
+        <span style="color:var(--muted);line-height:2">←</span>
+        <span class="badge b-todo">للتنفيذ</span>
+        <span style="color:var(--muted);line-height:2">←</span>
+        <span class="badge b-inprogress">قيد التنفيذ</span>
+        <span style="color:var(--muted);line-height:2">←</span>
+        <span class="badge b-pending">بانتظار الموافقة</span>
+        <span style="color:var(--muted);line-height:2">←</span>
+        <span class="badge b-completed">مكتمل</span>
+      </div>
+
+      <div class="tbl-wrap"><table>
+        <tr><th>الحالة</th><th>المعنى</th><th>ماذا تفعل</th></tr>
+        <tr><td><span class="badge b-locked">مقفل</span></td><td>المهمة موجودة لكن تنتظر اكتمال مهمة سابقة.</td><td>لا شيء — ستُفتح تلقائياً.</td></tr>
+        <tr><td><span class="badge b-todo">للتنفيذ</span></td><td>جاهزة للبدء. كل المتطلبات السابقة منجزة.</td><td>افتح المهمة وغيّر حالتها إلى "قيد التنفيذ".</td></tr>
+        <tr><td><span class="badge b-inprogress">قيد التنفيذ</span></td><td>أنت تعمل عليها حالياً.</td><td>أنهِ العمل المطلوب ثم احتمل الإكمال أو الإرسال للموافقة.</td></tr>
+        <tr><td><span class="badge b-pending">بانتظار الموافقة</span></td><td>أرسلتها — تنتظر موافقة المدير.</td><td>تابع في تبويب الموافقات. إذا رُفضت ستصلك رسالة بريد.</td></tr>
+        <tr><td><span class="badge b-completed">مكتمل</span></td><td>تم الانتهاء. المهام التالية ستُفتح تلقائياً.</td><td>انتقل للمهمة التالية.</td></tr>
+      </table></div>
+
+      <h3>كيفية البدء بمهمة</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">١</div><div class="step-body"><strong>ابحث عنها في تبويب "المهام"</strong>جميع المهام بحالة <span class="badge b-todo">للتنفيذ</span> تظهر في قائمتك.</div></div>
+        <div class="step"><div class="step-num">٢</div><div class="step-body"><strong>افتح بطاقة المهمة</strong>اضغط على عنوان المهمة لتوسيع التفاصيل.</div></div>
+        <div class="step"><div class="step-num">٣</div><div class="step-body"><strong>غيّر الحالة إلى "قيد التنفيذ"</strong>اضغط على زر الحالة واختر قيد التنفيذ.</div></div>
+        <div class="step"><div class="step-num">٤</div><div class="step-body"><strong>أنجز العمل المطلوب</strong>نفّذ المهمة حسب تعليماتها.</div></div>
+        <div class="step"><div class="step-num">٥</div><div class="step-body"><strong>سجّل الاكتمال</strong>اضغط <strong>مكتمل</strong> أو أرسل للموافقة حسب نوع المهمة.</div></div>
+      </div>
+
+      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>لا تترك المهام في "قيد التنفيذ" بدون تحديث</strong>إذا بقيت مهمة في حالة قيد التنفيذ بدون تغيير لأكثر من يومين، سيلاحظها المدير وقد يتواصل معك. احرص على التحديث المستمر.</div></div>
+    </div>
+
+    <!-- القسم 4 -->
+    <div class="section" id="s4">
+      <div class="section-num">القسم الرابع</div>
+      <h2>دليل النماذج</h2>
+      <p class="section-intro">هذه النماذج تظهر ضمن بطاقات المهام أو صفحة المشروع. إليك النماذج التي تستخدمها كموظف تصنيع.</p>
+
+      <h3>نموذج F2 — بداية الإنتاج وجدوله الزمني</h3>
+      <p>يظهر هذا النموذج عند مهمة <strong>بداية التصنيع</strong>. تقوم بإدخال تواريخ الإنتاج.</p>
+      <div class="tbl-wrap"><table>
+        <tr><th>الحقل</th><th>مطلوب؟</th><th>ملاحظات</th></tr>
+        <tr><td>تاريخ بداية الإنتاج المخطط</td><td>نعم</td><td>متى تبدأ أعمال التصنيع الفعلية</td></tr>
+        <tr><td>تاريخ نهاية التصنيع المتوقع</td><td>نعم</td><td>الموعد المتوقع للانتهاء من التصنيع</td></tr>
+        <tr><td>مسار الإنتاج</td><td>يعتمد على المشروع</td><td>اختر مسار التصنيع المناسب</td></tr>
+      </table></div>
+
+      <h3>نموذج F3 — طلب المواد</h3>
+      <p>يُستخدم لطلب المواد اللازمة للمشروع. يظهر على بطاقة مهمة طلب المواد أو من صفحة المشروع.</p>
+      <div class="tbl-wrap"><table>
+        <tr><th>الحقل</th><th>مطلوب؟</th><th>ملاحظات</th></tr>
+        <tr><td>الغرض من الطلب</td><td>نعم</td><td>وصف مختصر لسبب الحاجة للمواد</td></tr>
+        <tr><td>بنود المواد</td><td>نعم (على الأقل بند واحد)</td><td>اسم المادة، المورد، الكمية، الوحدة، تاريخ الحاجة</td></tr>
+      </table></div>
+
+      <div class="callout tip"><div class="callout-icon"></div><div class="callout-body"><strong>كن دقيقاً في كميات المواد</strong>الكميات الخاطئة تؤدي إلى تأخير التوريد أو هدر في الميزانية. راجع مواصفات المشروع قبل تقديم الطلب.</div></div>
+
+      <h3>مهمة "التصنيع منتهي"</h3>
+      <p>عند إكمال هذه المهمة، يُبلّغ النظام تلقائياً فريق SED وفريق التركيب بأن الإنتاج انتهى. لديهم بعدها <strong>يومان</strong> لمراجعة القطع والأدوات قبل موعد التسليم. احرص على ملء جميع الحقول قبل تسجيل الاكتمال.</p>
+    </div>
+
+    <!-- القسم 5 -->
+    <div class="section" id="s5">
+      <div class="section-num">القسم الخامس</div>
+      <h2>سير العمل — دورك في المشروع</h2>
+      <p class="section-intro">يشارك قسم التصنيع بشكل رئيسي في المرحلة الثالثة من المشروع (مرحلة التنفيذ).</p>
+
+      <h3>مرحلة التحضير والفتح (Phase 1 &amp; 2)</h3>
+      <p>في هذه المراحل دورك محدود — ستتلقى إشعاراً عندما يؤكد العميل الموافقة وينتقل المشروع إلى مرحلة الفتح. هذا الإشعار يعني أن عمل التصنيع قادم قريباً.</p>
+
+      <h3>مرحلة التنفيذ — التصنيع (Phase 3)</h3>
+      <div class="flow">
+        <div class="flow-box highlight">إشعار بانتقال المشروع إلى مرحلة التنفيذ</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-box">مهمة: بداية التصنيع — أدخل تواريخ الإنتاج (F2)</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-box">تحقق من المواد: هل متوفرة أم تحتاج طلب (F3)؟</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-box">مهمة: نجارة — نفّذ أعمال النجارة وسجّل الاكتمال</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-box">مهمة: دهان — نفّذ أعمال الدهان وسجّل الاكتمال</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-box highlight">مهمة: التصنيع منتهي — سجّل الاكتمال</div>
+        <div class="flow-arrow">↓ (فور الاكتمال — بدون انتظار)</div>
+        <div class="flow-box">النظام يُبلّغ المدير فوراً بإبلاغ العميل بتاريخ التوريد المتوقع</div>
+        <div class="flow-arrow">↓ (يومان للفحص)</div>
+        <div class="flow-box">فريق SED وفريق التركيب يراجعان القطع والأدوات</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-box">المدير يحدد موعد التسليم الفعلي ويُصدر التصريح (Gate Pass)</div>
+      </div>
+
+      <div class="callout tip"><div class="callout-icon"></div><div class="callout-body"><strong>إبلاغ العميل فوري</strong>بمجرد تسجيل "التصنيع منتهي"، تُفتح مهمة إبلاغ العميل بالتاريخ المتوقع مباشرةً دون انتظار أي مهام موازية. هذا يضمن سرعة التواصل مع العميل.</div></div>
+
+      <div class="callout note"><div class="callout-icon"></div><div class="callout-body"><strong>إذا كانت قطعة ناقصة بعد التركيب الأول</strong>قد تُعاد بعض القطع إلى التصنيع لإكمال ما ينقص. راقب المهام الجديدة التي قد تظهر في قائمتك بعد التركيب الأول.</div></div>
+    </div>
+
+    <!-- القسم 6 -->
+    <div class="section" id="s6">
+      <div class="section-num">القسم السادس</div>
+      <h2>سيناريوهات شائعة</h2>
+
+      <h3>سيناريو 1 — وصلني مشروع جديد للتصنيع. ماذا أفعل؟</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">١</div><div class="step-body">ستجد مهمة <strong>بداية التصنيع</strong> في قائمة "المهام" بحالة <span class="badge b-todo">للتنفيذ</span>.</div></div>
+        <div class="step"><div class="step-num">٢</div><div class="step-body">افتح المهمة واملأ نموذج F2 بتاريخ بداية الإنتاج وتاريخ النهاية المتوقع.</div></div>
+        <div class="step"><div class="step-num">٣</div><div class="step-body">تحقق من توفر المواد. إذا كانت غير متوفرة، اضغط على خيار "طلب المواد" وأكمل نموذج F3.</div></div>
+        <div class="step"><div class="step-num">٤</div><div class="step-body">ابدأ بتنفيذ مهمة النجارة عندما تكون المواد جاهزة.</div></div>
+      </div>
+
+      <h3>سيناريو 2 — المواد غير متوفرة. كيف أطلبها؟</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">١</div><div class="step-body">ابحث عن مهمة طلب المواد (F3) في قائمتك، أو اذهب إلى صفحة المشروع واضغط على زر "طلب المواد".</div></div>
+        <div class="step"><div class="step-num">٢</div><div class="step-body">أدخل الغرض من الطلب وأضف بنود المواد المطلوبة (الاسم، المورد، الكمية، الوحدة، تاريخ الحاجة).</div></div>
+        <div class="step"><div class="step-num">٣</div><div class="step-body">أرسل الطلب. سيصل إلى المدير والفريق المعني لاتخاذ الإجراء.</div></div>
+      </div>
+
+      <h3>سيناريو 3 — أنهيت التصنيع. ماذا أفعل بعد ذلك؟</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">١</div><div class="step-body">افتح مهمة <strong>التصنيع منتهي</strong>.</div></div>
+        <div class="step"><div class="step-num">٢</div><div class="step-body">تأكد من أن النجارة والدهان وجميع مراحل التصنيع مكتملة فعلاً.</div></div>
+        <div class="step"><div class="step-num">٣</div><div class="step-body">سجّل الاكتمال. النظام سيُبلّغ فريق SED وفريق التركيب تلقائياً.</div></div>
+        <div class="step"><div class="step-num">٤</div><div class="step-body">لديهم يومان لمراجعة القطع قبل الجدولة للتسليم.</div></div>
+      </div>
+
+      <h3>سيناريو 4 — مهمتي رُفضت من المدير. ماذا أفعل؟</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">١</div><div class="step-body">ستتلقى إشعاراً بالبريد الإلكتروني يتضمن تعليق المدير.</div></div>
+        <div class="step"><div class="step-num">٢</div><div class="step-body">عودت المهمة إلى حالة <span class="badge b-todo">للتنفيذ</span> في قائمتك.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body">اقرأ تعليق المدير، أجرِ التصحيح المطلوب، ثم أعد الإرسال للموافقة.</div></div>
+      </div>
+
+      <h3>سيناريو 5 — لا أجد المهمة المتوقعة في قائمتي</h3>
+      <p>قد تكون المهمة لا تزال في حالة <span class="badge b-locked">مقفل</span> لأن مهمة سابقة لم تكتمل بعد. افتح تبويب "مهام الفريق" وابحث عن المهمة المعنية لمعرفة وضعها. إذا استمرت المشكلة، تواصل مع مديرك.</p>
+    </div>
+
+    <!-- القسم 7 -->
+    <div class="section" id="s7">
+      <div class="section-num">القسم السابع</div>
+      <h2>مرجع الصلاحيات</h2>
+
+      <h3>ما يمكنك فعله</h3>
+      <ul>
+        <li>عرض وتنفيذ جميع المهام المعيّنة لقسمك</li>
+        <li>تغيير حالة المهام من "للتنفيذ" إلى "قيد التنفيذ" إلى "مكتمل"</li>
+        <li>إدخال تواريخ الإنتاج عبر نموذج F2</li>
+        <li>تقديم طلبات المواد عبر نموذج F3</li>
+        <li>عرض مهام فريق التصنيع والتركيب</li>
+        <li>عرض قائمة المواد وطلبات الشراء</li>
+        <li>عرض الجدول الزمني للإنتاج</li>
+        <li>إرفاق وثائق وصور بالمهام</li>
+      </ul>
+
+      <h3>ما لا يمكنك فعله</h3>
+      <ul>
+        <li>إنشاء مشاريع جديدة أو حذفها</li>
+        <li>الوصول إلى بيانات المدفوعات أو الأسعار</li>
+        <li>الموافقة على المهام أو رفضها (صلاحية المدير فقط)</li>
+        <li>الوصول إلى مهام SED أو التفاصيل المالية</li>
+        <li>إدارة حسابات المستخدمين</li>
+        <li>الوصول إلى لوحة تحكم المدير العام</li>
+        <li>تعديل بيانات المشاريع مباشرة</li>
+      </ul>
+
+      <h3>الحقول التي يمكنك تعديلها في المهمة</h3>
+      <div class="tbl-wrap"><table>
+        <tr><th>الحقل</th><th>ملاحظات</th></tr>
+        <tr><td>الحالة (Status)</td><td>للتنفيذ ← قيد التنفيذ ← مكتمل (أو بانتظار الموافقة للمهام المحمية)</td></tr>
+        <tr><td>تاريخ بداية الإنتاج المخطط</td><td>نموذج F2 — بداية التصنيع</td></tr>
+        <tr><td>تاريخ نهاية التصنيع المتوقع</td><td>نموذج F2</td></tr>
+        <tr><td>مسار التصنيع</td><td>الطريق المختار للإنتاج</td></tr>
+        <tr><td>وثائق المهمة</td><td>إرفاق صور ومستندات</td></tr>
+        <tr><td>تاريخ الاكتمال</td><td>عند إنهاء المهمة</td></tr>
+      </table></div>
+    </div>
+
+    <!-- القسم 8 -->
+    <div class="section" id="s8">
+      <div class="section-num">القسم الثامن</div>
+      <h2>استكشاف الأخطاء</h2>
+
+      <div class="tbl-wrap"><table>
+        <tr><th>المشكلة</th><th>السبب المحتمل</th><th>الحل</th></tr>
+        <tr><td>مهمة أتوقعها غير موجودة في قائمتي</td><td>لا تزال مقفلة لأن مهمة سابقة لم تكتمل</td><td>تحقق من مهام الفريق وابحث عن المهمة المعنية. تواصل مع مديرك إذا استمرت المشكلة.</td></tr>
+        <tr><td>لا أستطيع تغيير حالة مهمة</td><td>المهمة قد تكون مقيدة بموافقة مدير</td><td>أرسل المهمة للموافقة باستخدام الزر المخصص لذلك.</td></tr>
+        <tr><td>نموذج F3 لا يظهر</td><td>مهمة طلب المواد قد لا تكون مفعّلة لهذا المشروع</td><td>تحقق من تبويب المواد أو تواصل مع المدير.</td></tr>
+        <tr><td>تواريخ الإنتاج لم تُحفظ</td><td>ربما لم يتم الضغط على زر الحفظ</td><td>أعد إدخال التواريخ واضغط حفظ. انتظر رسالة التأكيد.</td></tr>
+        <tr><td>النظام لا يستجيب أو يظهر خطأ</td><td>مشكلة في الاتصال أو في الجلسة</td><td>أعد تحميل الصفحة. إذا استمر، أخبر المسؤول العام.</td></tr>
+        <tr><td>لم أتلقَّ إشعاراً بمشروع جديد</td><td>الإشعارات قد لا تصل دائماً فوراً</td><td>راجع تبويب "المهام" يومياً بدلاً من الاعتماد فقط على الإشعارات.</td></tr>
+      </table></div>
+
+      <h3>من تتواصل معه</h3>
+      <div class="tbl-wrap"><table>
+        <tr><th>نوع المشكلة</th><th>الجهة المعنية</th></tr>
+        <tr><td>مهام المشروع والموافقات</td><td>مديرك المباشر</td></tr>
+        <tr><td>الوصول إلى النظام وكلمة المرور</td><td>المسؤول العام (Superadmin)</td></tr>
+        <tr><td>أخطاء تقنية في النظام</td><td>المسؤول العام / تقنية المعلومات</td></tr>
+      </table></div>
+    </div>
+
+    <!-- القسم 9 -->
+    <div class="section" id="s9">
+      <div class="section-num">القسم التاسع</div>
+      <h2>بطاقة المرجع السريع</h2>
+      <div class="qrc">
+        <h2>مرجع سريع — قسم التصنيع</h2>
+
+        <h3>دليل ألوان حالات المهام</h3>
+        <div class="status-legend">
+          <span class="badge b-locked">مقفل</span>
+          <span class="badge b-todo">للتنفيذ</span>
+          <span class="badge b-inprogress">قيد التنفيذ</span>
+          <span class="badge b-pending">بانتظار الموافقة</span>
+          <span class="badge b-completed">مكتمل</span>
+        </div>
+
+        <h3>المهام الرئيسية لقسم التصنيع</h3>
+        <div class="tbl-wrap"><table>
+          <tr><th>المهمة</th><th>ما تفعله</th></tr>
+          <tr><td>بداية التصنيع</td><td>أدخل تاريخ البداية والنهاية عبر نموذج F2</td></tr>
+          <tr><td>طلب المواد (F3)</td><td>أضف بنود المواد المطلوبة وأرسل الطلب</td></tr>
+          <tr><td>نجارة</td><td>نفّذ أعمال النجارة وسجّل الاكتمال</td></tr>
+          <tr><td>دهان</td><td>نفّذ أعمال الدهان وسجّل الاكتمال</td></tr>
+          <tr><td>التصنيع منتهي</td><td>سجّل الاكتمال — سيُبلَّغ الفريق تلقائياً</td></tr>
+        </table></div>
+
+        <h3>قائمة التحقق اليومية</h3>
+        <ul style="color:rgba(255,255,255,0.8);font-size:0.9rem;">
+          <li>راجع تبويب "المهام" وابدأ بالمهام المعلّقة</li>
+          <li>تحقق من توفر المواد لكل مشروع نشط</li>
+          <li>حدّث حالة المهام قيد التنفيذ</li>
+          <li>لا تترك مهمة قيد التنفيذ أكثر من يومين بدون تحديث</li>
+          <li>تأكد من اكتمال جميع مراحل التصنيع قبل تسجيل "التصنيع منتهي"</li>
+        </ul>
+
+        <h3>مراحل المشروع</h3>
+        <div class="tbl-wrap"><table>
+          <tr><th>المرحلة</th><th>وصفها</th></tr>
+          <tr><td>مرحلة التحضير</td><td>أعمال ما قبل البيع — SED يتواصل مع العميل</td></tr>
+          <tr><td>مرحلة الفتح</td><td>العميل وافق — يبدأ التصنيع قريباً</td></tr>
+          <tr><td>مرحلة التنفيذ</td><td>التصنيع والتسليم والتركيب — دورك الرئيسي هنا</td></tr>
+          <tr><td>مرحلة الإغلاق</td><td>التسليم النهائي للعميل</td></tr>
+        </table></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<nav id="toc">
+  <div class="toc-brand">
+    <div class="logo">WoodWings PMS</div>
+    <div class="role-label">دليل قسم التصنيع</div>
+  </div>
+  <div class="toc-section-label">المحتويات</div>
+  <a href="#s1">القسم الأول: المقدمة</a>
+  <a href="#s2">القسم الثاني: لوحة التحكم</a>
+  <a href="#s3">القسم الثالث: المهام</a>
+  <a href="#s4">القسم الرابع: النماذج</a>
+  <a href="#s5">القسم الخامس: سير العمل</a>
+  <a href="#s6">القسم السادس: سيناريوهات</a>
+  <a href="#s7">القسم السابع: الصلاحيات</a>
+  <a href="#s8">القسم الثامن: استكشاف الأخطاء</a>
+  <a href="#s9">القسم التاسع: المرجع السريع</a>
+</nav>
+
+<script>
+  const links = document.querySelectorAll('#toc a');
+  const sections = document.querySelectorAll('.section');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const link = document.querySelector('#toc a[href="#' + e.target.id + '"]');
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

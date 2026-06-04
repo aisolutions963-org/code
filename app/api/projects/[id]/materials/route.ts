@@ -3,7 +3,7 @@ import { requireRole } from '@/lib/apiHandler'
 import { createMaterials, getMaterialsByProject } from '@/lib/airtable'
 import { CreateMaterialsSchema } from '@/lib/validation'
 
-export const GET = requireRole('manager', 'fabrication', 'superadmin')(
+export const GET = requireRole('manager', 'fabrication', 'superadmin', 'sed')(
   async (_req: NextRequest, _session, { params }) => {
     try {
       const materials = await getMaterialsByProject(params.id)

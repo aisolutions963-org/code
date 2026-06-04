@@ -23,6 +23,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/superadmin': 'Overview',
   '/dashboard/pipeline': 'Pipeline',
   '/dashboard/notifications': 'Notifications',
+  '/dashboard/forms': 'Forms',
 }
 
 interface SuperadminMetrics {

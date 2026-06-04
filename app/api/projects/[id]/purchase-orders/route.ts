@@ -3,7 +3,7 @@ import { requireRole } from '@/lib/apiHandler'
 import { getPurchaseOrdersByProject, createPurchaseOrder } from '@/lib/airtable'
 import { CreatePurchaseOrderSchema } from '@/lib/validation'
 
-export const GET = requireRole('manager', 'superadmin')(
+export const GET = requireRole()(
   async (_req: NextRequest, _session, { params }) => {
     try {
       const purchaseOrders = await getPurchaseOrdersByProject(params.id)
@@ -16,7 +16,7 @@ export const GET = requireRole('manager', 'superadmin')(
 )
 
 export const POST = requireRole('manager', 'superadmin')(
-  async (req: NextRequest, _session, { params }) => {
+  async (req: NextRequest, session, { params }) => {
     let rawBody: unknown
     try {
       rawBody = await req.json()
@@ -33,7 +33,7 @@ export const POST = requireRole('manager', 'superadmin')(
     }
 
     try {
-      const purchaseOrder = await createPurchaseOrder(parsed.data)
+      const purchaseOrder = await createPurchaseOrder({ ...parsed.data, recordedBy: session.name })
       return NextResponse.json({ purchaseOrder }, { status: 201 })
     } catch (error) {
       console.error('POST /api/projects/[id]/purchase-orders error:', error)

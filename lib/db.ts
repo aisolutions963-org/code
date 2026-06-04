@@ -51,6 +51,24 @@ db.prepare(
   `INSERT OR IGNORE INTO settings (key, value) VALUES ('accountant_email', 'aisolutions963@gmail.com')`
 ).run()
 
+// Add recipient_user_id column if it doesn't exist yet (idempotent migration)
+try {
+  db.exec('ALTER TABLE notifications ADD COLUMN recipient_user_id INTEGER')
+} catch {
+  // Column already exists
+}
+
+// Maps Airtable project record IDs → SED user IDs (created_by).
+// Used as a fallback when airtable_member_id is not configured.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sed_projects (
+    project_airtable_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (project_airtable_id, user_id)
+  )
+`)
+
 export interface DBUser {
   id: number
   name: string
@@ -83,6 +101,12 @@ export function getAllUsers(): Omit<DBUser, 'hashed_password'>[] {
   return db
     .prepare('SELECT id, name, email, role, active, airtable_member_id, created_at, updated_at FROM users')
     .all() as Omit<DBUser, 'hashed_password'>[]
+}
+
+export function getUsersByRole(role: string): Omit<DBUser, 'hashed_password'>[] {
+  return db
+    .prepare('SELECT id, name, email, role, active, airtable_member_id, created_at, updated_at FROM users WHERE role = ? AND active = 1')
+    .all(role) as Omit<DBUser, 'hashed_password'>[]
 }
 
 export function createUser(user: {
@@ -120,8 +144,25 @@ export function updateUser(
   })
 }
 
+export function getUserByAirtableMemberId(memberId: string): DBUser | undefined {
+  return db.prepare('SELECT * FROM users WHERE airtable_member_id = ? AND active = 1').get(memberId) as DBUser | undefined
+}
+
 export function deleteUser(id: number): void {
   db.prepare(`UPDATE users SET active = 0, updated_at = datetime('now') WHERE id = ?`).run(id)
+}
+
+export function addSedProjectMapping(projectAirtableId: string, userId: number): void {
+  db.prepare(
+    `INSERT OR IGNORE INTO sed_projects (project_airtable_id, user_id) VALUES (?, ?)`
+  ).run(projectAirtableId, userId)
+}
+
+export function getSedProjectIdsByUserId(userId: number): string[] {
+  const rows = db.prepare(
+    `SELECT project_airtable_id FROM sed_projects WHERE user_id = ?`
+  ).all(userId) as { project_airtable_id: string }[]
+  return rows.map((r) => r.project_airtable_id)
 }
 
 export function getSetting(key: string): string | undefined {

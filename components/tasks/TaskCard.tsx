@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput, Role, Attachment, DocLink } from '@/lib/types'
 import { EDITABLE_FIELDS } from '@/lib/permissions'
@@ -12,125 +12,31 @@ import AttachDocsPanel from './panels/AttachDocsPanel'
 import ChooseInstallTeamPanel from './panels/ChooseInstallTeamPanel'
 import FixingTeamNotePanel from './panels/FixingTeamNotePanel'
 import F2DeliveryPanel from './panels/F2DeliveryPanel'
-import HandoverModal from '@/components/projects/HandoverModal'
+import F5QuotationPanel from './panels/F5QuotationPanel'
+import OrderSamplePanel from './panels/OrderSamplePanel'
+import FabricateMissingPanel from './panels/FabricateMissingPanel'
+import F2ProductionPanel from './panels/F2ProductionPanel'
+import CallClientDecisionPanelComponent from './panels/CallClientDecisionPanel'
 
-type CallOutcome = 'approved' | 'review' | 'refused'
-
-const OUTCOME_CONFIG: Record<CallOutcome, {
-  label: string
-  description: string
-  consequence: string
-  color: string
-  confirmColor: string
-}> = {
-  approved: {
-    label: 'Approved',
-    description: 'Client confirmed — project moves forward',
-    consequence: 'Project advances to Phase 2 (Open) and Phase 2 tasks are generated.',
-    color: 'border-green-300 bg-green-50 text-green-800 hover:bg-green-100',
-    confirmColor: 'bg-green-600 hover:bg-green-700 text-white',
-  },
-  review: {
-    label: 'Needs Review',
-    description: 'Client wants changes — repeat action steps',
-    consequence: 'Action tasks (paths, gates) are reset to To Do. SED restarts the action flow.',
-    color: 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100',
-    confirmColor: 'bg-amber-500 hover:bg-amber-600 text-white',
-  },
-  refused: {
-    label: 'Rejected',
-    description: 'Client declined — project rejected',
-    consequence: 'Project is marked Not-Approved. No further tasks will be generated.',
-    color: 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100',
-    confirmColor: 'bg-red-600 hover:bg-red-700 text-white',
-  },
-}
-
-function CallClientDecisionPanel({
-  taskId,
-  onDecided,
-}: {
-  taskId: string
-  onDecided: () => void
-}) {
-  const [pending, setPending] = useState<CallOutcome | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  async function confirm() {
-    if (!pending) return
-    setSaving(true)
-    try {
-      const res = await fetch(`/api/tasks/${taskId}/call-outcome`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome: pending }),
-      })
-      if (!res.ok) {
-        const d = await res.json()
-        throw new Error(d.error ?? 'Failed')
-      }
-      toast.success(`Recorded: ${OUTCOME_CONFIG[pending].label}`)
-      onDecided()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to record outcome')
-      setSaving(false)
-      setPending(null)
-    }
-  }
-
-  if (pending) {
-    const cfg = OUTCOME_CONFIG[pending]
-    return (
-      <div className="mt-4 border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-3">
-        <p className="text-xs font-semibold text-gray-700">Confirm outcome: {cfg.label}</p>
-        <p className="text-xs text-gray-500">{cfg.consequence}</p>
-        <div className="flex gap-2">
-          <button
-            onClick={confirm}
-            disabled={saving}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 ${cfg.confirmColor}`}
-          >
-            {saving ? 'Saving…' : `Confirm ${cfg.label}`}
-          </button>
-          <button
-            onClick={() => setPending(null)}
-            disabled={saving}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-60"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="mt-4 space-y-2">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-        Call Outcome — End of Phase 1
-      </p>
-      <div className="grid grid-cols-1 gap-2">
-        {(Object.entries(OUTCOME_CONFIG) as [CallOutcome, typeof OUTCOME_CONFIG[CallOutcome]][]).map(
-          ([key, cfg]) => (
-            <button
-              key={key}
-              onClick={() => setPending(key)}
-              className={`text-left border rounded-lg px-3 py-2.5 transition-colors ${cfg.color}`}
-            >
-              <p className="text-xs font-bold">{cfg.label}</p>
-              <p className="text-[11px] opacity-80 mt-0.5">{cfg.description}</p>
-            </button>
-          ),
-        )}
-      </div>
-    </div>
-  )
-}
 
 interface TaskCardProps {
   task: Task
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return `${weeks}w ago`
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
 const INSPECTION_KEYWORDS = ['inspect', 'qc check', 'site check', 'handover', 'snagging']
@@ -237,14 +143,35 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Sync local fields when server data changes, but only when card is closed
+  // to avoid overwriting in-progress edits
+  useEffect(() => {
+    if (!isOpen) {
+      setLocalFields(getInitialFieldValues(task, getEditableFieldsForRole(role)))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.lastModified, isOpen])
+
+  // Always sync status from server — the API may route 'Completed' → 'Pending Approval'
+  // (manager review) and the dropdown must reflect the real server state
+  useEffect(() => {
+    setLocalFields((prev) => ({ ...prev, status: task.status }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.status])
+
   const isMakeQuotation =
     task.pathCondition === 'Make Quotation' ||
     task.taskName.toLowerCase().includes('make quotation')
-  const isF4Task = task.taskName.toLowerCase().startsWith('f4 —')
-  const isF3Task = task.taskName.toLowerCase().startsWith('f3 —')
+  const isF4Task = task.taskName.toLowerCase().startsWith('f4 —') || task.taskName.toLowerCase().startsWith('f4 form —')
+  const isF5Task = task.taskName.toLowerCase().startsWith('f5 —')
+  const isF3Task =
+    task.taskName.toLowerCase().startsWith('f3 —') ||
+    task.taskName.toLowerCase().includes('order sample material f3')
   const isOrderSample = task.taskName === 'Order Sample' && !task.projectItem?.length
   const isPerItemOrderSample =
-    !!task.projectItem?.length && task.pathCondition === 'Select Sample (item)'
+    !!task.projectItem?.length &&
+    task.pathCondition === 'Select Sample (item)' &&
+    !task.taskName.toLowerCase().startsWith('sample branch:')
   const isAttachDocsTask = task.taskName.toLowerCase().startsWith('click done: attach 7 items')
   const isChooseInstallTeamTask = task.taskName
     .toLowerCase()
@@ -255,8 +182,6 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     task.taskName.toLowerCase().startsWith('how many days') ||
     task.taskName.toLowerCase().startsWith('installation day')
   const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
-  const isHandoverFormTask = task.taskName.toLowerCase().startsWith('handing over form')
-  const [showHandoverModal, setShowHandoverModal] = useState(false)
 
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
@@ -345,20 +270,50 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   }
 
   function handleChange(key: keyof TaskUpdateInput, value: unknown) {
-    if ((isOrderSample || isPerItemOrderSample) && key === 'status' && value === 'Completed') return
-    if (isAttachDocsTask && key === 'status' && value === 'Completed') return
-    if (isChooseInstallTeamTask && key === 'status' && value === 'Completed') return
-    if (isFixingTeamNoteTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
-    if (isF2ProductionTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
+    if (key === 'status' && value === 'Completed') {
+      if (isOrderSample || isPerItemOrderSample) {
+        toast.error(ar ? 'استخدم خيار الفرع أدناه' : 'Use the branch selector below to complete')
+        return
+      }
+      if (isAttachDocsTask) {
+        toast.error(ar ? 'أرفق المستندات أولاً' : 'Attach all 7 documents first using the panel below')
+        return
+      }
+      if (isChooseInstallTeamTask) {
+        toast.error(ar ? 'اختر الفريق أولاً' : 'Choose the installation team using the panel below')
+        return
+      }
+      if (isFixingTeamNoteTask && task.status !== 'Completed') {
+        toast.error(ar ? 'استخدم زر إتمام المهمة أدناه' : 'Use the "Complete task" button in the panel below')
+        return
+      }
+      if (isF2ProductionTask && task.status !== 'Completed') {
+        toast.error(ar ? 'أدخل التواريخ في اللوحة أدناه' : 'Enter dates in the production panel below')
+        return
+      }
+      if (isF3Task && task.status !== 'Completed') {
+        toast.error(ar ? 'استكمل طلب المواد أدناه' : 'Complete the material order in the panel below')
+        return
+      }
+      if (isF5Task && task.status !== 'Completed') {
+        toast.error(ar ? 'استكمل بنود الميزانية أدناه' : 'Complete the quotation items in the panel below')
+        return
+      }
+      if (isFabricateMissingTask && task.status !== 'Completed') {
+        toast.error(ar ? 'استخدم اللوحة أدناه' : 'Use the panel below to complete or skip')
+        return
+      }
+      if ((isMakeQuotation || isF4Task) && !task.projectQuotationNumber) {
+        toast.error(ar ? 'استكمل بيانات العرض أدناه' : 'Complete the quotation details in the panel below')
+        return
+      }
+    }
     if (isF2ProductionTask && task.status !== 'Completed' && (key === 'plannedProdStartDate' || key === 'expectedFabEndDate')) {
       setLocalFields((prev) => ({ ...prev, [key]: value }))
       return
     }
-    if (isF3Task && task.status !== 'Completed' && key === 'status' && (value === 'Completed' || value === 'In Progress')) return
-    if (isFabricateMissingTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
-    if (isHandoverFormTask && task.status !== 'Completed' && key === 'status' && value === 'Completed') return
+    if (isF3Task && task.status !== 'Completed' && key === 'status' && value === 'In Progress') return
     if (isF4Task && task.status === 'Completed' && key === 'status') return
-    if ((isMakeQuotation || isF4Task) && key === 'status' && value === 'Completed') return
     setLocalFields((prev) => ({ ...prev, [key]: value }))
     scheduleUpdate(key, value)
   }
@@ -410,7 +365,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           )}
         </div>
         <div className="px-4 py-4">
-          <CallClientDecisionPanel
+          <CallClientDecisionPanelComponent
             taskId={task.id}
             onDecided={() => onUpdate(task.id, {})}
           />
@@ -463,6 +418,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <TaskStatusBadge status={task.status} />
             {task.department.length > 0 && (
               <span className="text-xs text-gray-400">{task.department.join(', ')}</span>
+            )}
+            {task.lastModified && (
+              <span className="text-xs text-gray-400" title={new Date(task.lastModified).toLocaleString()}>
+                · {relativeTime(task.lastModified)}
+              </span>
             )}
           </div>
         </div>
@@ -543,31 +503,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           )}
 
           {/* Order Sample — branch selector */}
-          {(isOrderSample || isPerItemOrderSample) && task.status !== 'Completed' && (
-            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 space-y-2">
-              <p className="text-xs font-semibold text-green-800">
-                Sample Branch{' '}
-                <span className="font-normal text-green-700">— does the team have the material?</span>
-              </p>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => completeOrderSampleBranch(true)}
-                  disabled={saving}
-                  className="border border-green-400 bg-green-100 text-green-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-60 text-left"
-                >
-                  <div className="font-bold">✓ We Have It</div>
-                  <div className="font-normal text-green-700 mt-0.5">Send to Fabrication</div>
-                </button>
-                <button
-                  onClick={() => completeOrderSampleBranch(false)}
-                  disabled={saving}
-                  className="border border-orange-300 bg-orange-50 text-orange-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-60 text-left"
-                >
-                  <div className="font-bold">✗ Need to Order</div>
-                  <div className="font-normal text-orange-700 mt-0.5">Request F3 material order</div>
-                </button>
-              </div>
-            </div>
+          {(isOrderSample || isPerItemOrderSample) && (
+            <OrderSamplePanel task={task} onUpdate={onUpdate} />
+          )}
+
+          {/* F5 quotation details panel */}
+          {isF5Task && task.status !== 'Completed' && (
+            <F5QuotationPanel task={task} onUpdate={onUpdate} />
           )}
 
           {/* F3 material order panel */}
@@ -591,112 +533,14 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           )}
 
           {/* Fabricate if any missing item — skip or proceed */}
-          {isFabricateMissingTask && task.status !== 'Completed' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
-              <p className="text-xs font-semibold text-amber-800">
-                Missing Items Check{' '}
-                <span className="font-normal text-amber-700">— are there any items that need fabrication?</span>
-              </p>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={() => onUpdate(task.id, { status: 'In Progress' }).catch(() => null)}
-                  disabled={saving || task.status === 'In Progress'}
-                  className="border border-amber-400 bg-amber-100 text-amber-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-60 text-left"
-                >
-                  <div className="font-bold">✓ Yes — Fabricate</div>
-                  <div className="font-normal text-amber-700 mt-0.5">
-                    {task.status === 'In Progress' ? 'In progress' : 'Start fabrication'}
-                  </div>
-                </button>
-                <button
-                  onClick={skipFabricateMissingTask}
-                  disabled={saving}
-                  className="border border-gray-300 bg-gray-50 text-gray-800 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-60 text-left"
-                >
-                  <div className="font-bold">✗ No — Skip</div>
-                  <div className="font-normal text-gray-600 mt-0.5">No missing items, continue</div>
-                </button>
-              </div>
-            </div>
+          {isFabricateMissingTask && (
+            <FabricateMissingPanel task={task} onUpdate={onUpdate} />
           )}
 
-          {/* Handing Over Form — F6 panel for installation role */}
-          {isHandoverFormTask && task.status !== 'Completed' && (
-            <div className="bg-sky-50 border border-sky-200 rounded-lg px-3 py-3 space-y-2.5">
-              <div>
-                <p className="text-xs font-semibold text-sky-800">F6 — Handing Over Form</p>
-                <p className="text-xs text-sky-600 mt-0.5">
-                  Fill in the handover details. Submitting will notify the team and unlock Phase 4.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowHandoverModal(true)}
-                className="w-full py-2 rounded-lg text-sm font-semibold bg-sky-600 text-white hover:bg-sky-700 transition-colors"
-              >
-                Fill Handover Form
-              </button>
-            </div>
-          )}
-          {isHandoverFormTask && task.status === 'Completed' && (
-            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
-              <p className="text-xs font-semibold text-green-800">✓ Handover form submitted — Phase 4 unlocked</p>
-            </div>
-          )}
-          {showHandoverModal && (
-            <HandoverModal
-              projectId={task.projectRecordId ?? task.project?.[0] ?? ''}
-              projectName={task.projectId ?? 'Project'}
-              onClose={() => setShowHandoverModal(false)}
-              onCreated={async () => {
-                setShowHandoverModal(false)
-                await onUpdate(task.id, { status: 'Completed' })
-              }}
-            />
-          )}
 
           {/* F2 Production List panel — fabrication date range entry (fabrication role only) */}
-          {isF2ProductionTask && ar && task.status === 'Completed' && (
-            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5" dir="rtl">
-              <p className="text-xs font-semibold text-green-800 mb-1">✓ تم تسجيل جدول الإنتاج</p>
-              {task.plannedProdStartDate && (
-                <p className="text-xs text-green-700">بداية التصنيع: {task.plannedProdStartDate}</p>
-              )}
-              {task.expectedFabEndDate && (
-                <p className="text-xs text-green-700">يوم التسليم: {task.expectedFabEndDate}</p>
-              )}
-            </div>
-          )}
-          {isF2ProductionTask && ar && task.status !== 'Completed' && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-3 space-y-3" dir="rtl">
-              <p className="text-xs font-semibold text-orange-800">جدول الإنتاج — حدّد الفترة الزمنية لهذه القطعة</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">بداية التصنيع</label>
-                  <input
-                    type="date"
-                    value={(localFields.plannedProdStartDate as string) ?? ''}
-                    onChange={(e) => handleChange('plannedProdStartDate', e.target.value || undefined)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">يوم التسليم (آخر يوم)</label>
-                  <input
-                    type="date"
-                    value={(localFields.expectedFabEndDate as string) ?? ''}
-                    onChange={(e) => handleChange('expectedFabEndDate', e.target.value || undefined)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={completeF2Task}
-                disabled={!localFields.plannedProdStartDate || !localFields.expectedFabEndDate || saving}
-                className="w-full py-2 rounded-lg text-sm font-semibold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving ? 'جاري الحفظ…' : '✓ حفظ وإكمال'}
-              </button>
-            </div>
+          {isF2ProductionTask && ar && (
+            <F2ProductionPanel task={task} onUpdate={onUpdate} />
           )}
 
           {/* F2 Delivery Date panel — manager/superadmin schedule delivery once fabrication is done */}

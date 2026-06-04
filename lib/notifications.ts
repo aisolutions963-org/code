@@ -21,6 +21,7 @@ export const ROLE_DASHBOARD: Record<string, string> = {
 export interface DBNotification {
   id: number
   recipient_role: string
+  recipient_user_id: number | null
   title: string
   body: string
   link: string
@@ -31,8 +32,8 @@ export interface DBNotification {
 const RETENTION_DAYS = 30
 
 const insertStmt = db.prepare(`
-  INSERT INTO notifications (recipient_role, title, body, link)
-  VALUES (@recipient_role, @title, @body, @link)
+  INSERT INTO notifications (recipient_role, recipient_user_id, title, body, link)
+  VALUES (@recipient_role, @recipient_user_id, @title, @body, @link)
 `)
 
 const pruneStmt = db.prepare(
@@ -41,6 +42,7 @@ const pruneStmt = db.prepare(
 
 export function createNotification(opts: {
   recipientRole: string
+  recipientUserId?: number
   title: string
   body?: string
   link?: string
@@ -48,6 +50,7 @@ export function createNotification(opts: {
   try {
     insertStmt.run({
       recipient_role: opts.recipientRole,
+      recipient_user_id: opts.recipientUserId ?? null,
       title: opts.title,
       body: opts.body ?? '',
       link: opts.link ?? '',
@@ -58,10 +61,39 @@ export function createNotification(opts: {
   }
 }
 
+// Fetch notifications for a user: role-wide (no user target) + user-specific
+export function getNotificationsForUser(role: string, userId: number, limit = 50): DBNotification[] {
+  return db
+    .prepare(
+      `SELECT * FROM notifications
+       WHERE recipient_role = ? AND (recipient_user_id IS NULL OR recipient_user_id = ?)
+       ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(role, userId, limit) as DBNotification[]
+}
+
+export function getUnreadCountForUser(role: string, userId: number): number {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) as cnt FROM notifications
+       WHERE recipient_role = ? AND (recipient_user_id IS NULL OR recipient_user_id = ?) AND read = 0`,
+    )
+    .get(role, userId) as { cnt: number }
+  return row.cnt
+}
+
+export function markAllReadForUser(role: string, userId: number): void {
+  db.prepare(
+    `UPDATE notifications SET read = 1
+     WHERE recipient_role = ? AND (recipient_user_id IS NULL OR recipient_user_id = ?)`,
+  ).run(role, userId)
+}
+
+// Legacy role-only helpers (kept for backwards compatibility with non-SED roles)
 export function getNotificationsForRole(role: string, limit = 50): DBNotification[] {
   return db
     .prepare(
-      `SELECT * FROM notifications WHERE recipient_role = ?
+      `SELECT * FROM notifications WHERE recipient_role = ? AND recipient_user_id IS NULL
        ORDER BY created_at DESC LIMIT ?`,
     )
     .all(role, limit) as DBNotification[]
@@ -69,7 +101,7 @@ export function getNotificationsForRole(role: string, limit = 50): DBNotificatio
 
 export function getUnreadCountForRole(role: string): number {
   const row = db
-    .prepare(`SELECT COUNT(*) as cnt FROM notifications WHERE recipient_role = ? AND read = 0`)
+    .prepare(`SELECT COUNT(*) as cnt FROM notifications WHERE recipient_role = ? AND recipient_user_id IS NULL AND read = 0`)
     .get(role) as { cnt: number }
   return row.cnt
 }
@@ -79,7 +111,7 @@ export function markNotificationRead(id: number): void {
 }
 
 export function markAllReadForRole(role: string): void {
-  db.prepare(`UPDATE notifications SET read = 1 WHERE recipient_role = ?`).run(role)
+  db.prepare(`UPDATE notifications SET read = 1 WHERE recipient_role = ? AND recipient_user_id IS NULL`).run(role)
 }
 
 // Dispatch "task ready" notifications for a list of tasks with their departments and shared body.
