@@ -16,7 +16,14 @@ const TYPE_DOT: Record<string, string> = {
   'payment-received': 'bg-green-400',
 }
 
-export default function EnhancedCalendar({ role }: { role: Role }) {
+interface EnhancedCalendarProps {
+  role: Role
+  filterTypes?: string[]
+  creatorFilter?: string
+  title?: string
+}
+
+export default function EnhancedCalendar({ role, filterTypes, creatorFilter, title }: EnhancedCalendarProps) {
   const today = new Date()
   const todayStr = today.toISOString().slice(0, 10)
 
@@ -30,12 +37,17 @@ export default function EnhancedCalendar({ role }: { role: Role }) {
     refreshInterval: 60000,
     revalidateOnFocus: true,
   })
-  const events = data?.events ?? []
+  const allEvents = data?.events ?? []
+  const events = allEvents.filter(e => {
+    if (filterTypes && !filterTypes.includes(e.type)) return false
+    if (creatorFilter && e.createdBy !== creatorFilter) return false
+    return true
+  })
 
-  const canSeeFab = true
-  const canSeeDeliveries = true
-  const canSeeInstallation = true
-  const canSeeActivities = true
+  const canSeeFab = !filterTypes || filterTypes.includes('fabrication')
+  const canSeeDeliveries = !filterTypes || filterTypes.includes('delivery')
+  const canSeeInstallation = !filterTypes || filterTypes.includes('installation')
+  const canSeeActivities = !filterTypes || filterTypes.includes('activity')
   const canAddActivity = ['sed', 'manager', 'superadmin'].includes(role)
 
   const year = currentMonth.getFullYear()
@@ -72,7 +84,7 @@ export default function EnhancedCalendar({ role }: { role: Role }) {
   return (
     <div className="bg-gray-800/60 rounded-2xl overflow-hidden">
       <div className="px-5 py-3 border-b border-gray-700/50 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Calendar</h2>
+        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">{title ?? 'Calendar'}</h2>
         <span className="text-xs text-gray-400">{selectedLabel}</span>
       </div>
 

@@ -13,6 +13,8 @@ import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import TaskList from '@/components/tasks/TaskList'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
+import EnhancedCalendar from '@/components/calendar/EnhancedCalendar'
+import { useSession } from '@/app/dashboard/layout-client'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 
@@ -1740,14 +1742,62 @@ function AnnouncementsPage() {
 
 // ─── Page 9: Payment Calendar ─────────────────────────────────────────────────
 
+type CalTab = 'activity' | 'payments' | 'personal' | 'installation' | 'materials'
+
+const CAL_TABS: { id: CalTab; label: string; description: string; dot: string }[] = [
+  { id: 'activity',     label: 'Project Activity',   description: 'Tasks and project events',           dot: 'bg-amber-400' },
+  { id: 'payments',     label: 'Payments',            description: 'Payment dates and due dates',        dot: 'bg-green-400' },
+  { id: 'personal',     label: 'My Activities',       description: 'Personal events visible to manager', dot: 'bg-purple-400' },
+  { id: 'installation', label: 'Installation',        description: 'On-site installation schedule',      dot: 'bg-blue-500' },
+  { id: 'materials',    label: 'Material Delivery',   description: 'Gate pass and delivery dates',       dot: 'bg-yellow-400' },
+]
+
 function CalendarPage() {
+  const [calTab, setCalTab] = useState<CalTab>('activity')
+  const { name } = useSession()
+
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Payment Calendar</h2>
-        <p className="text-sm text-gray-500">Monthly view of payments and deliveries</p>
+        <h2 className="text-lg font-semibold text-gray-900">Calendars</h2>
+        <p className="text-sm text-gray-500">All project and operational timelines in one place</p>
       </div>
-      <PaymentCalendar />
+
+      {/* Tab bar */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {CAL_TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setCalTab(t.id)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+              calTab === t.id
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${t.dot}`} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-gray-400">
+        {CAL_TABS.find(t => t.id === calTab)?.description}
+      </p>
+
+      {calTab === 'activity' && (
+        <EnhancedCalendar role="superadmin" filterTypes={['activity', 'fabrication']} title="Project Activity" />
+      )}
+      {calTab === 'payments' && <PaymentCalendar />}
+      {calTab === 'personal' && (
+        <EnhancedCalendar role="superadmin" filterTypes={['activity']} creatorFilter={name} title="My Activities" />
+      )}
+      {calTab === 'installation' && (
+        <EnhancedCalendar role="superadmin" filterTypes={['installation']} title="Installation Schedule" />
+      )}
+      {calTab === 'materials' && (
+        <EnhancedCalendar role="superadmin" filterTypes={['delivery']} title="Material Deliveries" />
+      )}
     </div>
   )
 }
