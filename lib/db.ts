@@ -1,4 +1,4 @@
-import { createClient, Client, ResultSet } from '@libsql/client'
+import { createClient, Client, ResultSet } from '@libsql/client/web'
 import bcrypt from 'bcryptjs'
 
 let _client: Client | null = null
