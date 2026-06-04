@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(ls -la \"c:\\\\Users\\\\Sa7ar\\\\OneDrive\\\\Documents\\\\as\\\\woodwings\\\\code\\\\app\\\\api\\\\projects\\\\[id]\\\\\\\\\")"
-    ]
-  }
-}

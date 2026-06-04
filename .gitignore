@@ -35,3 +35,6 @@ Thumbs.db
 next-env.d.ts
 .vercel
 .env*
+
+# Claude Code settings (may contain sensitive config)
+.claude/
