@@ -177,6 +177,35 @@ F5 submitted
 
 ---
 
+## 12. Branch Strategy — Database Compatibility
+
+The codebase has two active branches with different database setups. **Never merge the db layer from `testing` into `main`.**
+
+| Branch | Database | API style | Purpose |
+|---|---|---|---|
+| `main` | Turso (`@libsql/client`) | Async (`await`) | Production — deployed on Vercel |
+| `testing` | `better-sqlite3` (local file) | Sync | Local development and feature work |
+
+### When merging `testing` → `main`
+
+These files will **always conflict** and you must **keep `main`'s version** every time:
+- `lib/db.ts`
+- `lib/notifications.ts`
+- `lib/metricsSnapshot.ts`
+- `lib/auth.ts`
+- `lib/email.ts`
+- `lib/workflow.ts`
+- `package.json` / `package-lock.json`
+- Any API route that imports from `lib/db` or `lib/notifications`
+
+Everything else (UI components, new pages, new API routes that don't use db functions directly) can be taken from `testing` without conflict.
+
+### When adding new db-dependent features on `testing`
+
+If a new route or function uses db functions (e.g. `getUserById`, `getAllUsers`, `getSetting`), remember that on `main` these are async. When the code reaches `main`, all calls need `await`. Plan for this during the merge.
+
+---
+
 ## 11. SWR Data Fetching Pattern
 
 Every dashboard uses SWR for data fetching with a 30-second refresh interval. After any mutation (task update, form submission), the relevant `mutate()` function must be called explicitly — SWR does not automatically know data changed.
