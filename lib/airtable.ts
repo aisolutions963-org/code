@@ -335,7 +335,8 @@ function transformTask(record: RawRecord): Task {
 
 function transformProject(record: RawRecord): Project {
   const f = record.fields
-  const owner = f[PROJECTS.SALES_OWNER] as { id: string; email: string; name: string } | undefined
+  const rawOwner = f[PROJECTS.SALES_OWNER]
+  const owner = (Array.isArray(rawOwner) ? rawOwner[0] : rawOwner) as { id: string; email: string; name: string } | undefined
   const rawCommun = f[PROJECTS.COMMUN_SEDS]
   const communRaw = Array.isArray(rawCommun)
     ? (rawCommun as Array<{ name?: string; email?: string; id?: string }>)
@@ -505,7 +506,8 @@ export async function getSedProjectIds(opts: {
   const email = opts.sedEmail?.toLowerCase()
   return records
     .filter((r) => {
-      const owner = r.fields[PROJECTS.SALES_OWNER] as { id?: string; email?: string } | undefined
+      const rawOwnerField = r.fields[PROJECTS.SALES_OWNER]
+      const owner = (Array.isArray(rawOwnerField) ? rawOwnerField[0] : rawOwnerField) as { id?: string; email?: string } | undefined
       const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
       const communIds: string[] = Array.isArray(rawCommun)
         ? (rawCommun as Array<{ id?: string }>).map((c) => c.id ?? '').filter(Boolean)

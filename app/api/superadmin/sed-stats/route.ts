@@ -33,7 +33,8 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
       offset?: string
     }
     for (const r of data.records) {
-      const owner = r.fields[PROJECTS.SALES_OWNER] as { id?: string; name?: string; email?: string } | undefined
+      const rawOwner = r.fields[PROJECTS.SALES_OWNER]
+      const owner = (Array.isArray(rawOwner) ? rawOwner[0] : rawOwner) as { id?: string; name?: string; email?: string } | undefined
       results.push({
         stage: (r.fields[PROJECTS.PROJECT_STAGE] as string) ?? '',
         ownerId: owner?.id ?? '',
