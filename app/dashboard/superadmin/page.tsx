@@ -1,19 +1,19 @@
 'use client'
 
-import { useState, useCallback, Fragment } from 'react'
+import { useState, useCallback, Fragment, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate as globalMutate } from 'swr'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { Project, MaintenanceRecord, Announcement, Payment, Task, TaskUpdateInput } from '@/lib/types'
+import { Project, MaintenanceRecord, Announcement, Payment, Task, TaskUpdateInput, Client } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import TaskList from '@/components/tasks/TaskList'
 import PaymentCalendar from '@/components/projects/PaymentCalendar'
-import EnhancedCalendar from '@/components/calendar/EnhancedCalendar'
+import SACalendarView from '@/components/calendar/SACalendarView'
 import { useSession } from '@/app/dashboard/layout-client'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
@@ -90,7 +90,7 @@ interface SedStat {
   notApproved: number
 }
 
-type ReportCategory = 'Sales' | 'Accountant' | 'Material' | 'Calendar'
+type ReportCategory = 'Sales' | 'Accountant' | 'Material' | 'Calendar' | 'Clients'
 
 interface ReportItem {
   name: string
@@ -129,6 +129,11 @@ const REPORT_TABS: { category: ReportCategory; color: string; reports: ReportIte
   {
     category: 'Calendar',
     color: 'text-yellow-700 bg-yellow-50 border-yellow-200',
+    reports: [],
+  },
+  {
+    category: 'Clients',
+    color: 'text-sky-700 bg-sky-50 border-sky-200',
     reports: [],
   },
 ]
@@ -316,6 +321,194 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
   )
 }
 
+// ─── Clients Report View ─────────────────────────────────────────────────────
+
+function ClientsReportView() {
+  const { data: clientsData, isLoading: clientsLoading } = useSWR<{ clients: Client[] }>('/api/clients', fetcher)
+  const { data: projectsData, isLoading: projectsLoading } = useSWR<{ projects: Project[] }>('/api/projects', fetcher)
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState<string | null>(null)
+
+  const clients = clientsData?.clients ?? []
+  const projects = projectsData?.projects ?? []
+
+  const projectsByClient = useMemo(() => {
+    const map = new Map<string, Project[]>()
+    for (const p of projects) {
+      const key = p.clientName.toLowerCase()
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(p)
+    }
+    return map
+  }, [projects])
+
+  const filtered = clients.filter((c) =>
+    !search.trim() || c.clientName.toLowerCase().includes(search.toLowerCase()),
+  )
+
+  async function downloadClient(clientName: string) {
+    setDownloading(clientName)
+    try {
+      const res = await fetch(`/api/reports/download/client-projects?clientName=${encodeURIComponent(clientName)}`)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Client_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      window.alert('Download failed. Please try again.')
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  const isLoading = clientsLoading || projectsLoading
+
+  const STAGE_COLOR: Record<string, string> = {
+    Preparing: 'bg-amber-100 text-amber-700',
+    Open: 'bg-green-100 text-green-700',
+    Fabrication: 'bg-blue-100 text-blue-700',
+    Installation: 'bg-violet-100 text-violet-700',
+    Closed: 'bg-gray-100 text-gray-500',
+    'Not Approved': 'bg-red-100 text-red-600',
+  }
+
+  return (
+    <div className="space-y-3 pb-2">
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
+        </svg>
+        <input
+          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+          placeholder="Search clients…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {isLoading && (
+        <div className="flex justify-center py-8">
+          <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {!isLoading && filtered.length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-6">No clients found</p>
+      )}
+
+      {!isLoading && filtered.map((client) => {
+        const clientProjects = projectsByClient.get(client.clientName.toLowerCase()) ?? []
+        const isOpen = expanded === client.id
+        const totalValue = clientProjects.reduce((s, p) => s + (p.projectTotalCost ?? 0), 0)
+        const totalPaid = clientProjects.reduce((s, p) => s + (p.totalPaid ?? 0), 0)
+
+        return (
+          <div key={client.id} className="border border-gray-200 rounded-xl overflow-hidden">
+            {/* Client header row */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-sky-50 hover:bg-sky-100 transition-colors">
+              <button
+                className="flex-1 flex items-center gap-3 text-left min-w-0"
+                onClick={() => setExpanded(isOpen ? null : client.id)}
+              >
+                <div className="w-8 h-8 rounded-full bg-sky-200 flex items-center justify-center shrink-0 text-sky-700 font-bold text-sm">
+                  {client.clientName.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{client.clientName}</p>
+                  <p className="text-xs text-gray-400">
+                    {client.phone && <span className="mr-3">{client.phone}</span>}
+                    <span>{clientProjects.length} project{clientProjects.length !== 1 ? 's' : ''}</span>
+                    {totalValue > 0 && <span className="ml-3 text-sky-600 font-medium">AED {totalValue.toLocaleString()}</span>}
+                  </p>
+                </div>
+                <svg
+                  className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ml-auto ${isOpen ? 'rotate-180' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <button
+                onClick={() => downloadClient(client.clientName)}
+                disabled={downloading === client.clientName}
+                title="Download Excel report"
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-sky-300 text-sky-700 hover:bg-sky-200 disabled:opacity-50 transition-colors"
+              >
+                {downloading === client.clientName ? (
+                  <div className="w-3 h-3 border border-sky-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )}
+                Excel
+              </button>
+            </div>
+
+            {/* Expanded: project list */}
+            {isOpen && (
+              <div className="divide-y divide-gray-100">
+                {clientProjects.length === 0 ? (
+                  <p className="px-4 py-4 text-sm text-gray-400 italic">No projects found for this client</p>
+                ) : (
+                  <>
+                    {clientProjects.map((p) => (
+                      <div key={p.id} className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-gray-50">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono text-gray-400">{p.projectId}</span>
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STAGE_COLOR[p.projectStage] ?? 'bg-gray-100 text-gray-500'}`}
+                            >
+                              {p.projectStage}
+                            </span>
+                          </div>
+                          <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{p.projectName}</p>
+                          {(p.emirate || p.location) && (
+                            <p className="text-xs text-gray-400 truncate">{[p.emirate, p.location].filter(Boolean).join(' — ')}</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0 text-xs">
+                          {(p.projectTotalCost ?? 0) > 0 && (
+                            <>
+                              <p className="font-semibold text-gray-700">AED {(p.projectTotalCost ?? 0).toLocaleString()}</p>
+                              <p className="text-gray-400">Paid: {(p.totalPaid ?? 0).toLocaleString()}</p>
+                              {(p.remainingBalance ?? 0) > 0 && (
+                                <p className="text-red-500">Due: {(p.remainingBalance ?? 0).toLocaleString()}</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {/* Summary row */}
+                    <div className="px-4 py-2.5 bg-gray-50 flex justify-between text-xs font-semibold text-gray-600">
+                      <span>{clientProjects.length} project{clientProjects.length !== 1 ? 's' : ''} total</span>
+                      <span>
+                        AED {totalValue.toLocaleString()} &nbsp;·&nbsp; Paid {totalPaid.toLocaleString()} &nbsp;·&nbsp;
+                        <span className="text-red-500">Due {(totalValue - totalPaid).toLocaleString()}</span>
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Reports Section ─────────────────────────────────────────────────────────
+
 function ReportsSection() {
   const [activeTab, setActiveTab] = useState<ReportCategory>('Sales')
   const [downloading, setDownloading] = useState<string | null>(null)
@@ -348,6 +541,7 @@ function ReportsSection() {
     Accountant: 'bg-red-600 text-white border-red-600',
     Material: 'bg-purple-600 text-white border-purple-600',
     Calendar: 'bg-yellow-500 text-white border-yellow-500',
+    Clients: 'bg-sky-600 text-white border-sky-600',
   }
 
   return (
@@ -374,6 +568,8 @@ function ReportsSection() {
       <div className={activeTab === 'Calendar' ? '' : 'px-5 pb-4'}>
         {activeTab === 'Calendar' ? (
           <CalendarPage />
+        ) : activeTab === 'Clients' ? (
+          <ClientsReportView />
         ) : currentTab.reports.length === 0 ? (
           <p className="text-sm text-gray-400 py-6 text-center">Coming soon</p>
         ) : (
@@ -1774,23 +1970,23 @@ function CalendarPage() {
         ))}
       </div>
 
-      <p className="text-xs text-gray-400">
-        {CAL_TABS.find(t => t.id === calTab)?.description}
-      </p>
-
-      {calTab === 'activity' && (
-        <EnhancedCalendar role="superadmin" filterTypes={['activity', 'fabrication']} title="Project Activity" />
-      )}
-      {calTab === 'payments' && <PaymentCalendar />}
-      {calTab === 'personal' && (
-        <EnhancedCalendar role="superadmin" filterTypes={['activity']} creatorFilter={name} title="My Activities" />
-      )}
-      {calTab === 'installation' && (
-        <EnhancedCalendar role="superadmin" filterTypes={['installation']} title="Installation Schedule" />
-      )}
-      {calTab === 'materials' && (
-        <EnhancedCalendar role="superadmin" filterTypes={['delivery']} title="Material Deliveries" />
-      )}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
+        {calTab === 'activity' && (
+          <SACalendarView filterTypes={['activity', 'fabrication']} title="Project Activity" />
+        )}
+        {calTab === 'payments' && (
+          <SACalendarView filterTypes={['payment-received', 'payment-due', 'delivery']} title="Payments & Deliveries" />
+        )}
+        {calTab === 'personal' && (
+          <SACalendarView filterTypes={['activity']} creatorFilter={name} canAddEvent title="My Activities" />
+        )}
+        {calTab === 'installation' && (
+          <SACalendarView filterTypes={['installation']} showInstallAssign title="Installation Schedule" />
+        )}
+        {calTab === 'materials' && (
+          <SACalendarView filterTypes={['delivery']} title="Material Deliveries" />
+        )}
+      </div>
     </div>
   )
 }
