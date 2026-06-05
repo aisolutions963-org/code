@@ -238,6 +238,20 @@ function selectName(val: unknown): string | undefined {
   }
   return undefined
 }
+// Extracts the first linked record from a multipleRecordLinks field.
+// Handles both string IDs (["recXXXX"]) and expanded objects ([{id, name, email}]).
+function firstLinkedRecord(val: unknown): { id: string; name: string; email: string } | undefined {
+  const arr = Array.isArray(val) ? val : (val ? [val] : [])
+  if (arr.length === 0) return undefined
+  const entry = arr[0]
+  if (typeof entry === 'string') return { id: entry, name: '', email: '' }
+  if (entry && typeof entry === 'object') {
+    const r = entry as { id?: string; name?: string; email?: string }
+    return { id: r.id ?? '', name: r.name ?? '', email: r.email ?? '' }
+  }
+  return undefined
+}
+
 // Handles multipleLookupValues of a multipleSelects field — each value is {id, name, color}
 function lookupSelectNames(val: unknown): string[] {
   const items: unknown[] = []
@@ -335,8 +349,7 @@ function transformTask(record: RawRecord): Task {
 
 function transformProject(record: RawRecord): Project {
   const f = record.fields
-  const rawOwner = f[PROJECTS.SALES_OWNER]
-  const owner = (Array.isArray(rawOwner) ? rawOwner[0] : rawOwner) as { id: string; email: string; name: string } | undefined
+  const owner = firstLinkedRecord(f[PROJECTS.SALES_OWNER])
   const rawCommun = f[PROJECTS.COMMUN_SEDS]
   const communRaw = Array.isArray(rawCommun)
     ? (rawCommun as Array<{ name?: string; email?: string; id?: string }>)
@@ -506,8 +519,7 @@ export async function getSedProjectIds(opts: {
   const email = opts.sedEmail?.toLowerCase()
   return records
     .filter((r) => {
-      const rawOwnerField = r.fields[PROJECTS.SALES_OWNER]
-      const owner = (Array.isArray(rawOwnerField) ? rawOwnerField[0] : rawOwnerField) as { id?: string; email?: string } | undefined
+      const owner = firstLinkedRecord(r.fields[PROJECTS.SALES_OWNER])
       const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
       const communIds: string[] = Array.isArray(rawCommun)
         ? (rawCommun as Array<{ id?: string }>).map((c) => c.id ?? '').filter(Boolean)
@@ -713,15 +725,26 @@ export async function updateProject(
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
-function transformClient(record: RawRecord): Client {
+function transformClient(record: RawRecord): Client & { projectCount: number } {
   const f = record.fields
+  const projects = f[CLIENTS.PROJECTS]
+  const projectCount = Array.isArray(projects) ? projects.length : 0
   return {
     id: record.id,
     clientId: str(f[CLIENTS.CLIENT_ID]),
     clientName: str(f[CLIENTS.CLIENT_NAME]) ?? '',
     phone: str(f[CLIENTS.PHONE]),
     email: str(f[CLIENTS.EMAIL]),
+    projectCount,
   }
+}
+
+export async function getAllClients(): Promise<(Client & { projectCount: number })[]> {
+  const records = await fetchAll(CLIENTS.TABLE_ID, {
+    fields: [CLIENTS.CLIENT_NAME, CLIENTS.PHONE, CLIENTS.EMAIL, CLIENTS.CLIENT_ID, CLIENTS.PROJECTS],
+    sort: [{ field: CLIENTS.CLIENT_NAME, direction: 'asc' }],
+  })
+  return records.map(transformClient)
 }
 
 async function findClientByName(name: string): Promise<Client | null> {

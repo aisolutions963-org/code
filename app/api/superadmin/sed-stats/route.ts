@@ -34,12 +34,16 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
     }
     for (const r of data.records) {
       const rawOwner = r.fields[PROJECTS.SALES_OWNER]
-      const owner = (Array.isArray(rawOwner) ? rawOwner[0] : rawOwner) as { id?: string; name?: string; email?: string } | undefined
+      const ownerArr = Array.isArray(rawOwner) ? rawOwner : (rawOwner ? [rawOwner] : [])
+      const ownerEntry = ownerArr[0]
+      const ownerId = typeof ownerEntry === 'string' ? ownerEntry : (ownerEntry as { id?: string } | undefined)?.id ?? ''
+      const ownerName = typeof ownerEntry === 'string' ? '' : (ownerEntry as { name?: string } | undefined)?.name ?? ''
+      const ownerEmail = typeof ownerEntry === 'string' ? '' : (ownerEntry as { email?: string } | undefined)?.email?.toLowerCase() ?? ''
       results.push({
         stage: (r.fields[PROJECTS.PROJECT_STAGE] as string) ?? '',
-        ownerId: owner?.id ?? '',
-        ownerEmail: owner?.email?.toLowerCase() ?? '',
-        ownerName: owner?.name ?? owner?.email ?? '',
+        ownerId,
+        ownerEmail,
+        ownerName,
       })
     }
     offset = data.offset

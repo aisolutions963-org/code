@@ -70,7 +70,8 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const rows = projects.map((proj) => {
     const f = proj.fields
     const rawOwner = f[PROJECTS.SALES_OWNER]
-    const owner = (Array.isArray(rawOwner) ? rawOwner[0] : rawOwner) as { name?: string } | undefined
+    const ownerEntry = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner
+    const owner = (!ownerEntry || typeof ownerEntry === 'string') ? undefined : ownerEntry as { name?: string }
     return {
       projectId:    (f[PROJECTS.PROJECT_ID] as string) ?? '',
       projectName:  (f[PROJECTS.PROJECT_NAME] as string) ?? '',

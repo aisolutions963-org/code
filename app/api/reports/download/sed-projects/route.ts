@@ -40,20 +40,22 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   } while (offset)
 
   // Sort by SED name
-  const getOwner = (f: Record<string, unknown>) => {
+  const getOwnerName = (f: Record<string, unknown>): string => {
     const raw = f[PROJECTS.SALES_OWNER]
-    return (Array.isArray(raw) ? raw[0] : raw) as { name?: string } | undefined
+    const entry = Array.isArray(raw) ? raw[0] : raw
+    if (!entry) return ''
+    if (typeof entry === 'string') return ''
+    return (entry as { name?: string }).name ?? ''
   }
 
   records.sort((a, b) =>
-    (getOwner(a.fields)?.name ?? '').localeCompare(getOwner(b.fields)?.name ?? ''),
+    getOwnerName(a.fields).localeCompare(getOwnerName(b.fields)),
   )
 
   const rows = records.map((r) => {
     const f = r.fields
-    const owner = getOwner(f)
     return {
-      sedName: owner?.name ?? '',
+      sedName: getOwnerName(f),
       projectId: (f[PROJECTS.PROJECT_ID] as string) ?? '',
       projectName: (f[PROJECTS.PROJECT_NAME] as string) ?? '',
       client: (f[PROJECTS.CLIENT_NAME] as string) ?? '',

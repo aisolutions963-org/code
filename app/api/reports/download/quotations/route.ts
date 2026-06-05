@@ -63,7 +63,8 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     const projectLinks = Array.isArray(f[QUOTATIONS.PROJECT]) ? (f[QUOTATIONS.PROJECT] as string[]) : []
     const proj = projectLinks[0] ? projectById.get(projectLinks[0]) : undefined
     const rawOwner = proj?.[PROJECTS.SALES_OWNER]
-    const owner = (Array.isArray(rawOwner) ? rawOwner[0] : rawOwner) as { name?: string } | undefined
+    const ownerEntry = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner
+    const owner = (!ownerEntry || typeof ownerEntry === 'string') ? undefined : ownerEntry as { name?: string }
     const qty = (f[QUOTATIONS.QUANTITY] as number) ?? 0
     const price = (f[QUOTATIONS.UNIT_PRICE] as number) ?? 0
     const subtotal = qty * price
