@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import useSWR from 'swr'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
+import { Client } from '@/lib/types'
 
 const UAE_EMIRATES = [
   'Dubai', 'Abu Dabei', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah',
@@ -61,6 +62,40 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     fetcher,
   )
   const sedMembers = sedData?.members ?? []
+
+  // Client autocomplete
+  const { data: clientsData } = useSWR<{ clients: Client[] }>('/api/clients', fetcher)
+  const allClients = clientsData?.clients ?? []
+  const [clientSuggestionsOpen, setClientSuggestionsOpen] = useState(false)
+  const clientInputRef = useRef<HTMLInputElement>(null)
+  const clientDropRef = useRef<HTMLDivElement>(null)
+
+  const clientSuggestions = form.clientName.trim().length >= 1
+    ? allClients.filter((c) =>
+        c.clientName.toLowerCase().includes(form.clientName.toLowerCase()),
+      ).slice(0, 8)
+    : []
+
+  function selectClient(c: Client) {
+    set('clientName', c.clientName)
+    if (c.phone) set('clientPhone', c.phone)
+    setClientSuggestionsOpen(false)
+    clientInputRef.current?.blur()
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (
+        clientInputRef.current && !clientInputRef.current.contains(e.target as Node) &&
+        clientDropRef.current && !clientDropRef.current.contains(e.target as Node)
+      ) {
+        setClientSuggestionsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -180,14 +215,42 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
-          <div>
+          <div className="relative">
             <label className="block text-xs font-medium text-gray-500 mb-1">Client Name *</label>
             <input
+              ref={clientInputRef}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={form.clientName}
-              onChange={(e) => set('clientName', e.target.value)}
-              placeholder="Full name"
+              onChange={(e) => { set('clientName', e.target.value); setClientSuggestionsOpen(true) }}
+              onFocus={() => setClientSuggestionsOpen(true)}
+              placeholder="Type to search or enter new client name"
+              autoComplete="off"
             />
+            {clientSuggestionsOpen && clientSuggestions.length > 0 && (
+              <div
+                ref={clientDropRef}
+                className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+              >
+                {clientSuggestions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); selectClient(c) }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-brand-50 text-left text-sm border-b border-gray-100 last:border-0"
+                  >
+                    <div>
+                      <span className="font-medium text-gray-900">{c.clientName}</span>
+                      {c.phone && <span className="text-xs text-gray-400 ml-2">{c.phone}</span>}
+                    </div>
+                    {(c.projectCount ?? 0) > 0 && (
+                      <span className="text-[11px] text-gray-400 shrink-0 ml-2">
+                        {c.projectCount} project{c.projectCount !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

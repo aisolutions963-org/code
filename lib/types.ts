@@ -128,6 +128,7 @@ export interface Client {
   clientName: string
   phone?: string
   email?: string
+  projectCount?: number
 }
 
 export interface Project {

@@ -18,21 +18,7 @@ interface GatePassItem {
 function genSerial() {
   const d = new Date()
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
-  const rand = String(Math.floor(Math.random() * 9000) + 1000)
-  return `GP-${ymd}-${rand}`
-}
-
-function openPrintWindow(html: string) {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.target = '_blank'
-  a.rel = 'noopener'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 5000)
+  return `GP-${ymd}-${String(Math.floor(Math.random() * 9000) + 1000)}`
 }
 
 function formatDateDisplay(iso: string) {
@@ -41,7 +27,7 @@ function formatDateDisplay(iso: string) {
   return `${day} / ${m} / ${y}`
 }
 
-function printGatePass(data: {
+interface PrintData {
   serial: string
   dateOfIssue: string
   timeOfIssue: string
@@ -60,7 +46,9 @@ function printGatePass(data: {
   customerContact: string
   projectRef: string
   companyName: string
-}) {
+}
+
+function buildGatePassHtml(data: PrintData): string {
   const validityMap: Record<string, string> = {
     'single-entry': 'Single Entry',
     'single-exit': 'Single Exit',
@@ -74,8 +62,8 @@ function printGatePass(data: {
     })
     .join('')
 
-  const itemRows = data.items
-    .filter((it) => it.description.trim())
+  const filledItems = data.items.filter((it) => it.description.trim())
+  const itemRows = filledItems
     .map(
       (item, i) => `
       <tr>
@@ -84,13 +72,13 @@ function printGatePass(data: {
         <td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">${item.quantity}</td>
         <td style="border:1px solid #ccc;padding:6px 8px;text-align:center;">${item.unit}</td>
         <td style="border:1px solid #ccc;padding:6px 8px;color:#555;">${item.condition}</td>
-      </tr>`
+      </tr>`,
     )
     .join('')
 
   const totalItems = data.items.reduce((sum, it) => sum + (parseInt(it.quantity) || 0), 0)
 
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -119,11 +107,7 @@ function printGatePass(data: {
     .sig-sub { font-size:10.5px; color:#777; margin-top:3px; }
     .validity-row { margin-bottom:12px; font-size:12.5px; }
     .footer { text-align:center; margin-top:14px; font-size:10.5px; color:#999; border-top:1px solid #ddd; padding-top:8px; }
-    .print-btn { display:block; margin:18px auto 0; background:#1a56db; color:white; border:none; padding:9px 28px; border-radius:6px; font-size:14px; cursor:pointer; }
-    @media print {
-      body { padding:16px; }
-      .print-btn { display:none !important; }
-    }
+    @media print { body { padding:16px; } }
   </style>
 </head>
 <body>
@@ -133,14 +117,12 @@ function printGatePass(data: {
   </div>
 
   <div class="meta-row">
-    <div class="meta-item"><b>Pass Serial Number:</b>&nbsp; <span class="ul">&nbsp;${data.serial}&nbsp;</span></div>
-    <div class="meta-item"><b>Date of Issue:</b>&nbsp; <span class="ul">&nbsp;${formatDateDisplay(data.dateOfIssue)}&nbsp;</span></div>
-    <div class="meta-item"><b>Time of Entry/Exit:</b>&nbsp; <span class="ul">&nbsp;${data.timeOfIssue ? data.timeOfIssue + ' ' + data.timeAmPm : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}&nbsp;</span></div>
+    <div class="meta-item"><b>Pass Serial Number:</b>&nbsp;<span class="ul">&nbsp;${data.serial}&nbsp;</span></div>
+    <div class="meta-item"><b>Date of Issue:</b>&nbsp;<span class="ul">&nbsp;${formatDateDisplay(data.dateOfIssue)}&nbsp;</span></div>
+    <div class="meta-item"><b>Time of Entry/Exit:</b>&nbsp;<span class="ul">&nbsp;${data.timeOfIssue ? data.timeOfIssue + ' ' + data.timeAmPm : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}&nbsp;</span></div>
   </div>
 
-  <div class="validity-row">
-    <b>Pass Validity:</b>&nbsp;&nbsp;${checkboxes}
-  </div>
+  <div class="validity-row"><b>Pass Validity:</b>&nbsp;&nbsp;${checkboxes}</div>
 
   <div class="section">
     <div class="section-title">1. Transport &amp; Driver Details</div>
@@ -166,7 +148,7 @@ function printGatePass(data: {
           <th style="width:38px;">S.No</th>
           <th>Item Description (Type of Wood / Finish / Furniture Type)</th>
           <th style="width:70px;">Quantity</th>
-          <th style="width:80px;">Unit (Pcs/Sets)</th>
+          <th style="width:80px;">Unit</th>
           <th style="width:130px;">Condition / Remarks</th>
         </tr>
       </thead>
@@ -175,7 +157,7 @@ function printGatePass(data: {
       </tbody>
     </table>
     <div style="margin-top:8px;font-size:12px;">
-      <b>Total Number of Packages / Items:</b>&nbsp; <span class="ul">&nbsp;${totalItems || '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}&nbsp;</span>
+      <b>Total Number of Packages / Items:</b>&nbsp;<span class="ul">&nbsp;${totalItems || '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}&nbsp;</span>
     </div>
   </div>
 
@@ -191,24 +173,18 @@ function printGatePass(data: {
     <div class="sig-row">
       <div class="sig-block">
         <div class="sig-title">Prepared By<br><span style="font-weight:400;text-transform:none;">(Dispatch Officer)</span></div>
-        <div class="sig-line"></div>
-        <div class="sig-sub">Name: ______________________</div>
-        <div class="sig-line" style="margin-top:28px;"></div>
-        <div class="sig-sub">Signature: ___________________</div>
+        <div class="sig-line"></div><div class="sig-sub">Name: ______________________</div>
+        <div class="sig-line" style="margin-top:28px;"></div><div class="sig-sub">Signature: ___________________</div>
       </div>
       <div class="sig-block">
         <div class="sig-title">Verified By<br><span style="font-weight:400;text-transform:none;">(Security Gate Officer)</span></div>
-        <div class="sig-line"></div>
-        <div class="sig-sub">Name: ______________________</div>
-        <div class="sig-line" style="margin-top:28px;"></div>
-        <div class="sig-sub">Signature: ___________________</div>
+        <div class="sig-line"></div><div class="sig-sub">Name: ______________________</div>
+        <div class="sig-line" style="margin-top:28px;"></div><div class="sig-sub">Signature: ___________________</div>
       </div>
       <div class="sig-block">
-        <div class="sig-title">Received By<br><span style="font-weight:400;text-transform:none;">(Driver / Carrier acknowledgment)</span></div>
-        <div class="sig-line"></div>
-        <div class="sig-sub">Name: ______________________</div>
-        <div class="sig-line" style="margin-top:28px;"></div>
-        <div class="sig-sub">Signature: ___________________</div>
+        <div class="sig-title">Received By<br><span style="font-weight:400;text-transform:none;">(Driver / Carrier)</span></div>
+        <div class="sig-line"></div><div class="sig-sub">Name: ______________________</div>
+        <div class="sig-line" style="margin-top:28px;"></div><div class="sig-sub">Signature: ___________________</div>
       </div>
     </div>
   </div>
@@ -216,12 +192,8 @@ function printGatePass(data: {
   <div class="footer">
     ${data.projectRef ? `Project Ref: <b>${data.projectRef}</b>&nbsp;&nbsp;|&nbsp;&nbsp;` : ''}Serial: <b>${data.serial}</b>&nbsp;&nbsp;|&nbsp;&nbsp;Issued: ${new Date().toLocaleString('en-GB')}
   </div>
-
-  <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
 </body>
 </html>`
-
-  openPrintWindow(html)
 }
 
 function SectionHeading({ children }: { children: string }) {
@@ -265,7 +237,7 @@ export default function GatePassModal({
 
   const [customerName, setCustomerName] = useState(initialProject?.clientName ?? '')
   const [deliveryAddress, setDeliveryAddress] = useState(
-    [initialProject?.location, initialProject?.emirate].filter(Boolean).join(', ')
+    [initialProject?.location, initialProject?.emirate].filter(Boolean).join(', '),
   )
   const [customerContact, setCustomerContact] = useState(initialProject?.clientPhone ?? '')
 
@@ -273,6 +245,7 @@ export default function GatePassModal({
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
   const [generatedSerial, setGeneratedSerial] = useState('')
+  const [printing, setPrinting] = useState(false)
 
   useEffect(() => {
     if (initialProject) return
@@ -307,6 +280,29 @@ export default function GatePassModal({
     setItems(items.map((it, idx) => (idx === i ? { ...it, [field]: value } : it)))
   }
 
+  function getPrintData(serial: string): PrintData {
+    return {
+      serial,
+      dateOfIssue,
+      timeOfIssue,
+      timeAmPm,
+      passValidity,
+      driverName,
+      driverIdLicense,
+      driverContact,
+      transportCompany,
+      vehicleModel,
+      vehiclePlate,
+      invoiceDoNumber,
+      items,
+      customerName,
+      deliveryAddress,
+      customerContact,
+      projectRef: project?.projectId ?? '',
+      companyName: process.env.NEXT_PUBLIC_APP_NAME ?? 'WOODWINGS',
+    }
+  }
+
   async function handleSave() {
     if (!project) { setErr('Please select a project'); return }
     if (!driverName.trim()) { setErr('Driver name is required'); return }
@@ -333,8 +329,7 @@ export default function GatePassModal({
         throw new Error(d.error)
       }
       const { gatePass } = await res.json()
-      // Use Airtable's assigned name as the reference; fall back to a local serial
-      const serial = gatePass?.name || genSerial()
+      const serial = (gatePass?.name as string | undefined) || genSerial()
       setGeneratedSerial(serial)
       setDone(true)
       onCreated()
@@ -346,26 +341,48 @@ export default function GatePassModal({
   }
 
   function handlePrint() {
-    printGatePass({
-      serial: generatedSerial,
-      dateOfIssue,
-      timeOfIssue,
-      timeAmPm,
-      passValidity,
-      driverName,
-      driverIdLicense,
-      driverContact,
-      transportCompany,
-      vehicleModel,
-      vehiclePlate,
-      invoiceDoNumber,
-      items,
-      customerName,
-      deliveryAddress,
-      customerContact,
-      projectRef: project?.projectId ?? '',
-      companyName: process.env.NEXT_PUBLIC_APP_NAME ?? 'WOODWINGS',
-    })
+    if (printing) return
+    setPrinting(true)
+
+    const html = buildGatePassHtml(getPrintData(generatedSerial))
+
+    // Parse the generated HTML and inject its content directly into this page's DOM.
+    // A @media print style hides everything else, so only the gate pass prints.
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(html, 'text/html')
+
+    const container = document.createElement('div')
+    container.id = '__gp_print__'
+    container.innerHTML = doc.body.innerHTML
+
+    const gpStyles = document.createElement('style')
+    gpStyles.id = '__gp_styles__'
+    gpStyles.innerHTML = Array.from(doc.head.querySelectorAll('style'))
+      .map((s) => s.innerHTML)
+      .join('\n')
+
+    const printOverride = document.createElement('style')
+    printOverride.id = '__gp_override__'
+    printOverride.innerHTML =
+      '@media print { body > *:not(#__gp_print__) { display:none !important; } #__gp_print__ { display:block !important; } }'
+
+    document.body.appendChild(container)
+    document.head.appendChild(gpStyles)
+    document.head.appendChild(printOverride)
+
+    const cleanup = () => {
+      container.remove()
+      gpStyles.remove()
+      printOverride.remove()
+      setPrinting(false)
+      window.removeEventListener('afterprint', cleanup)
+    }
+
+    window.addEventListener('afterprint', cleanup)
+    // Fallback cleanup if browser doesn't fire afterprint
+    setTimeout(cleanup, 60_000)
+
+    window.print()
   }
 
   if (done) {
@@ -381,7 +398,7 @@ export default function GatePassModal({
           <p className="text-xs text-gray-400 font-mono">{generatedSerial}</p>
           <p className="text-xs text-gray-500">{project?.projectName}</p>
           <div className="flex gap-2 justify-center pt-2">
-            <Button onClick={handlePrint}>
+            <Button onClick={handlePrint} loading={printing}>
               <svg className="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
@@ -444,22 +461,12 @@ export default function GatePassModal({
         <div className="grid grid-cols-3 gap-3 mt-1">
           <div>
             <label className={lbl}>Date of Issue *</label>
-            <input
-              type="date"
-              className={inp}
-              value={dateOfIssue}
-              onChange={(e) => setDateOfIssue(e.target.value)}
-            />
+            <input type="date" className={inp} value={dateOfIssue} onChange={(e) => setDateOfIssue(e.target.value)} />
           </div>
           <div>
             <label className={lbl}>Time of Entry/Exit</label>
             <div className="flex gap-1.5">
-              <input
-                type="time"
-                className={`${inp} flex-1`}
-                value={timeOfIssue}
-                onChange={(e) => setTimeOfIssue(e.target.value)}
-              />
+              <input type="time" className={`${inp} flex-1`} value={timeOfIssue} onChange={(e) => setTimeOfIssue(e.target.value)} />
               <select
                 className="border border-gray-300 rounded-lg px-2 text-sm focus:outline-none"
                 value={timeAmPm}
@@ -472,11 +479,7 @@ export default function GatePassModal({
           </div>
           <div>
             <label className={lbl}>Pass Validity</label>
-            <select
-              className={inp}
-              value={passValidity}
-              onChange={(e) => setPassValidity(e.target.value)}
-            >
+            <select className={inp} value={passValidity} onChange={(e) => setPassValidity(e.target.value)}>
               <option value="single-entry">Single Entry</option>
               <option value="single-exit">Single Exit</option>
               <option value="returnable">Returnable</option>
@@ -489,69 +492,34 @@ export default function GatePassModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={lbl}>Driver Full Name *</label>
-            <input
-              className={inp}
-              value={driverName}
-              onChange={(e) => setDriverName(e.target.value)}
-              placeholder="Full name…"
-            />
+            <input className={inp} value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="Full name…" />
           </div>
           <div>
             <label className={lbl}>Driver ID / License No.</label>
-            <input
-              className={inp}
-              value={driverIdLicense}
-              onChange={(e) => setDriverIdLicense(e.target.value)}
-              placeholder="ID or license number…"
-            />
+            <input className={inp} value={driverIdLicense} onChange={(e) => setDriverIdLicense(e.target.value)} placeholder="ID or license number…" />
           </div>
           <div>
             <label className={lbl}>Driver Contact No.</label>
-            <input
-              className={inp}
-              value={driverContact}
-              onChange={(e) => setDriverContact(e.target.value)}
-              placeholder="+971…"
-            />
+            <input className={inp} value={driverContact} onChange={(e) => setDriverContact(e.target.value)} placeholder="+971…" />
           </div>
           <div>
             <label className={lbl}>Transport Company / Logistics Partner</label>
-            <input
-              className={inp}
-              value={transportCompany}
-              onChange={(e) => setTransportCompany(e.target.value)}
-              placeholder="Company name…"
-            />
+            <input className={inp} value={transportCompany} onChange={(e) => setTransportCompany(e.target.value)} placeholder="Company name…" />
           </div>
           <div>
             <label className={lbl}>Vehicle Model &amp; Color</label>
-            <input
-              className={inp}
-              value={vehicleModel}
-              onChange={(e) => setVehicleModel(e.target.value)}
-              placeholder="e.g. Toyota Hilux White"
-            />
+            <input className={inp} value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} placeholder="e.g. Toyota Hilux White" />
           </div>
           <div>
             <label className={lbl}>Vehicle License Plate</label>
-            <input
-              className={inp}
-              value={vehiclePlate}
-              onChange={(e) => setVehiclePlate(e.target.value)}
-              placeholder="e.g. Dubai A 12345"
-            />
+            <input className={inp} value={vehiclePlate} onChange={(e) => setVehiclePlate(e.target.value)} placeholder="e.g. Dubai A 12345" />
           </div>
         </div>
 
         <SectionHeading>2. Shipment &amp; Item Details</SectionHeading>
         <div>
           <label className={lbl}>Invoice / Delivery Order (DO) Number</label>
-          <input
-            className={inp}
-            value={invoiceDoNumber}
-            onChange={(e) => setInvoiceDoNumber(e.target.value)}
-            placeholder="INV-XXXX or DO-XXXX"
-          />
+          <input className={inp} value={invoiceDoNumber} onChange={(e) => setInvoiceDoNumber(e.target.value)} placeholder="INV-XXXX or DO-XXXX" />
         </div>
         <div className="mt-2">
           <label className={lbl}>Items</label>
@@ -563,7 +531,7 @@ export default function GatePassModal({
                   className={`${inp} flex-[3]`}
                   value={item.description}
                   onChange={(e) => updateItem(i, 'description', e.target.value)}
-                  placeholder="Item description (type, finish, furniture)…"
+                  placeholder="Item description…"
                 />
                 <input
                   className={`${inp} w-16`}
@@ -589,11 +557,7 @@ export default function GatePassModal({
                   placeholder="Condition / Remarks"
                 />
                 {items.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeItem(i)}
-                    className="text-red-400 hover:text-red-600 text-xs shrink-0 px-1"
-                  >
+                  <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600 text-xs shrink-0 px-1">
                     ✕
                   </button>
                 )}
@@ -616,30 +580,15 @@ export default function GatePassModal({
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className={lbl}>Customer / Client Name</label>
-            <input
-              className={inp}
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="Client name…"
-            />
+            <input className={inp} value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Client name…" />
           </div>
           <div className="col-span-2">
             <label className={lbl}>Delivery Address</label>
-            <input
-              className={inp}
-              value={deliveryAddress}
-              onChange={(e) => setDeliveryAddress(e.target.value)}
-              placeholder="Full delivery address…"
-            />
+            <input className={inp} value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Full delivery address…" />
           </div>
           <div>
             <label className={lbl}>Customer Contact No.</label>
-            <input
-              className={inp}
-              value={customerContact}
-              onChange={(e) => setCustomerContact(e.target.value)}
-              placeholder="+971…"
-            />
+            <input className={inp} value={customerContact} onChange={(e) => setCustomerContact(e.target.value)} placeholder="+971…" />
           </div>
         </div>
 
