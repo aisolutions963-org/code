@@ -18,6 +18,7 @@ import CallClientDecisionPanel from '@/components/tasks/panels/CallClientDecisio
 import GatePassModal from '@/components/projects/GatePassModal'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
+import { triggerPrint } from '@/lib/printGatePass'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -151,13 +152,25 @@ function GatePassCard({ gp }: { gp: GatePass }) {
   const deliveryDate = gp.confirmedDeliveryDate ?? gp.estimatedSupplyDate
   const isConfirmed = !!gp.confirmedDeliveryDate
 
+  function handlePrint(e: React.MouseEvent) {
+    e.stopPropagation()
+    triggerPrint({
+      serial: gp.name || gp.id.slice(-8).toUpperCase(),
+      projectRef: gp.projectDisplayId,
+      projectName: gp.projectName ?? gp.name,
+      dateOfIssue: gp.estimatedSupplyDate || new Date().toISOString().slice(0, 10),
+      itemsDescriptionFallback: gp.itemsDescription,
+      companyName: process.env.NEXT_PUBLIC_APP_NAME ?? 'WOODWINGS',
+    })
+  }
+
   return (
     <div className="rounded-xl border border-teal-200 overflow-hidden">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-teal-50 text-left"
-      >
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center bg-teal-50">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="flex-1 flex items-center gap-3 px-4 py-3 text-left min-w-0"
+        >
           <span className="w-2 h-2 rounded-full shrink-0 bg-teal-400" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900 truncate">
@@ -167,21 +180,31 @@ function GatePassCard({ gp }: { gp: GatePass }) {
               <p className="text-xs text-gray-400 font-mono">{gp.projectDisplayId}</p>
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isConfirmed ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-600'}`}>
-            {isConfirmed ? 'Confirmed' : 'Estimated'}
-          </span>
-          <span className="text-xs text-gray-500 tabular-nums">{deliveryDate}</span>
-          <GatePassStatusBadge status={gp.gatePassStatus} />
-          <svg
-            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isConfirmed ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-600'}`}>
+              {isConfirmed ? 'Confirmed' : 'Estimated'}
+            </span>
+            <span className="text-xs text-gray-500 tabular-nums">{deliveryDate}</span>
+            <GatePassStatusBadge status={gp.gatePassStatus} />
+            <svg
+              className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </button>
+        {/* Print button always visible */}
+        <button
+          onClick={handlePrint}
+          title="Print gate pass"
+          className="px-3 py-3 text-teal-600 hover:text-teal-800 hover:bg-teal-100 transition-colors shrink-0 border-l border-teal-200"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
           </svg>
-        </div>
-      </button>
+        </button>
+      </div>
 
       {expanded && (
         <div className="p-4 border-t border-teal-100 bg-white space-y-3">

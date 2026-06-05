@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
+import { triggerPrint } from '@/lib/printGatePass'
 
 const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const lbl = 'block text-xs font-medium text-gray-500 mb-1'
@@ -21,12 +22,7 @@ function genSerial() {
   return `GP-${ymd}-${String(Math.floor(Math.random() * 9000) + 1000)}`
 }
 
-function formatDateDisplay(iso: string) {
-  if (!iso) return ''
-  const [y, m, day] = iso.split('-')
-  return `${day} / ${m} / ${y}`
-}
-
+// kept for reference — actual HTML builder is in lib/printGatePass.ts
 interface PrintData {
   serial: string
   dateOfIssue: string
@@ -343,46 +339,28 @@ export default function GatePassModal({
   function handlePrint() {
     if (printing) return
     setPrinting(true)
-
-    const html = buildGatePassHtml(getPrintData(generatedSerial))
-
-    // Parse the generated HTML and inject its content directly into this page's DOM.
-    // A @media print style hides everything else, so only the gate pass prints.
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(html, 'text/html')
-
-    const container = document.createElement('div')
-    container.id = '__gp_print__'
-    container.innerHTML = doc.body.innerHTML
-
-    const gpStyles = document.createElement('style')
-    gpStyles.id = '__gp_styles__'
-    gpStyles.innerHTML = Array.from(doc.head.querySelectorAll('style'))
-      .map((s) => s.innerHTML)
-      .join('\n')
-
-    const printOverride = document.createElement('style')
-    printOverride.id = '__gp_override__'
-    printOverride.innerHTML =
-      '@media print { body > *:not(#__gp_print__) { display:none !important; } #__gp_print__ { display:block !important; } }'
-
-    document.body.appendChild(container)
-    document.head.appendChild(gpStyles)
-    document.head.appendChild(printOverride)
-
-    const cleanup = () => {
-      container.remove()
-      gpStyles.remove()
-      printOverride.remove()
-      setPrinting(false)
-      window.removeEventListener('afterprint', cleanup)
-    }
-
-    window.addEventListener('afterprint', cleanup)
-    // Fallback cleanup if browser doesn't fire afterprint
-    setTimeout(cleanup, 60_000)
-
-    window.print()
+    const d = getPrintData(generatedSerial)
+    triggerPrint({
+      serial: d.serial,
+      projectRef: d.projectRef,
+      dateOfIssue: d.dateOfIssue,
+      timeOfIssue: d.timeOfIssue,
+      timeAmPm: d.timeAmPm,
+      passValidity: d.passValidity,
+      driverName: d.driverName,
+      driverIdLicense: d.driverIdLicense,
+      driverContact: d.driverContact,
+      transportCompany: d.transportCompany,
+      vehicleModel: d.vehicleModel,
+      vehiclePlate: d.vehiclePlate,
+      invoiceDoNumber: d.invoiceDoNumber,
+      items: d.items,
+      customerName: d.customerName,
+      deliveryAddress: d.deliveryAddress,
+      customerContact: d.customerContact,
+      companyName: d.companyName,
+    })
+    setTimeout(() => setPrinting(false), 2000)
   }
 
   if (done) {
