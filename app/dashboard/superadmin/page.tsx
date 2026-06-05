@@ -90,7 +90,7 @@ interface SedStat {
   notApproved: number
 }
 
-type ReportCategory = 'Sales' | 'Accountant' | 'Material' | 'Calendar'
+type ReportCategory = 'Sales' | 'Accountant' | 'Material'
 
 interface ReportItem {
   name: string
@@ -125,11 +125,6 @@ const REPORT_TABS: { category: ReportCategory; color: string; reports: ReportIte
       { name: 'Material Orders', description: 'All procurement orders and delivery status', route: 'material-orders' },
       { name: 'Production Timesheets', description: 'Weekly worker-hour log per project', route: 'timesheets' },
     ],
-  },
-  {
-    category: 'Calendar',
-    color: 'text-yellow-700 bg-yellow-50 border-yellow-200',
-    reports: [],
   },
 ]
 
@@ -347,7 +342,6 @@ function ReportsSection() {
     Sales: 'bg-green-600 text-white border-green-600',
     Accountant: 'bg-red-600 text-white border-red-600',
     Material: 'bg-purple-600 text-white border-purple-600',
-    Calendar: 'bg-yellow-500 text-white border-yellow-500',
   }
 
   return (
