@@ -550,36 +550,13 @@ function OverviewPage() {
   )
 }
 
-function RequestMeasurementButton({ projectId }: { projectId: string }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error' | 'exists'>('idle')
 
-  async function request() {
-    setState('loading')
-    try {
-      const res = await fetch(`/api/projects/${projectId}/request-measurement`, { method: 'POST' })
-      if (res.status === 409) { setState('exists'); return }
-      if (!res.ok) throw new Error()
-      setState('done')
-    } catch {
-      setState('error')
-    }
-  }
 
-  if (state === 'done') return <span className="text-xs text-green-600 font-medium whitespace-nowrap">✓ Sent</span>
-  if (state === 'exists') return <span className="text-xs text-gray-400 font-medium whitespace-nowrap">Already sent</span>
-  if (state === 'error') return <button onClick={request} className="text-xs text-red-500 underline">Retry</button>
-
-  return (
-    <Button size="sm" variant="secondary" loading={state === 'loading'} onClick={request}>
-      📐 Measure
-    </Button>
-  )
-}
-
-function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onReopen: (id: string) => Promise<void>; onNotesSaved?: () => void }) {
+function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onReopen: (id: string) => Promise<void>; onDisapprove: (id: string) => Promise<void>; onNotesSaved?: () => void }) {
   const [loading, setLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
   const [reopenLoading, setReopenLoading] = useState(false)
+  const [disapproveLoading, setDisapproveLoading] = useState(false)
   const [err, setErr] = useState('')
   const [genMsg, setGenMsg] = useState('')
   const [expanded, setExpanded] = useState(false)
@@ -593,6 +570,12 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }:
   async function reopen() {
     setReopenLoading(true); setErr('')
     try { await onReopen(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setReopenLoading(false) }
+  }
+
+  async function disapprove() {
+    if (!window.confirm(`Mark "${p.projectName}" as Not-Approved? This will notify the SED and manager.`)) return
+    setDisapproveLoading(true); setErr('')
+    try { await onDisapprove(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setDisapproveLoading(false) }
   }
 
   async function generateTasks(force = false) {
@@ -668,8 +651,16 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }:
                 ⚡ Tasks
               </Button>
             )}
-            {(p.projectStage === 'Preparing' || p.projectStage === 'Open') && (
-              <RequestMeasurementButton projectId={p.id} />
+            {p.projectStage !== 'Not-Approved' && p.projectStage !== 'Closed' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={disapproveLoading}
+                onClick={disapprove}
+                className="text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"
+              >
+                ✕ Not Approved
+              </Button>
             )}
             {p.projectStage === 'Not-Approved' && (
               <Button
@@ -2286,6 +2277,15 @@ function ProjectsPage() {
     mutate()
   }
 
+  async function handleDisapprove(id: string) {
+    const res = await fetch(`/api/projects/${id}/disapprove`, { method: 'POST' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error((d as { error?: string }).error ?? 'Failed to disapprove')
+    }
+    mutate()
+  }
+
   const title = stageFilter ? `Projects — ${stageFilter}` : 'All Projects'
 
   return (
@@ -2335,6 +2335,7 @@ function ProjectsPage() {
                     onAdvance={handleAdvance}
                     onDelete={handleDelete}
                     onReopen={handleReopen}
+                    onDisapprove={handleDisapprove}
                     onNotesSaved={() => mutate()}
                   />
                 ))}
