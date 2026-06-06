@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
         : []
       projects = [...airtableProjects, ...extra.filter((p): p is NonNullable<typeof p> => p !== null)]
     } else {
+      // fabrication, installation, manager — get all active projects
+      // (default formula already excludes Closed, Closed & Valid Maintenance,
+      //  Closed & Warranty Done, and Archived)
       projects = await getProjects({ stage })
     }
     return NextResponse.json({ projects })

@@ -645,10 +645,12 @@ async function getFabricationActiveProjectIds(): Promise<Set<string>> {
   return ids
 }
 
-export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string } = {}): Promise<Project[]> {
-  let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Archived"))`
+export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[] } = {}): Promise<Project[]> {
+  let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Closed & Valid Maintenance", {${PROJECTS.PROJECT_STAGE}}="Closed & Warranty Done", {${PROJECTS.PROJECT_STAGE}}="Archived"))`
   if (options.stage) {
     formula = `{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`
+  } else if (options.allowedStages?.length) {
+    formula = `OR(${options.allowedStages.map((s) => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')})`
   }
   const [records, fabActiveIds] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, {
@@ -899,6 +901,32 @@ export async function getAllGatePasses(): Promise<GatePass[]> {
     projectName: gp.project[0] ? (nameMap[gp.project[0]]?.name ?? undefined) : undefined,
     projectDisplayId: gp.project[0] ? (nameMap[gp.project[0]]?.displayId ?? undefined) : undefined,
   }))
+}
+
+export async function updateGatePass(
+  id: string,
+  updates: {
+    gatePassStatus?: string
+    confirmedDeliveryDate?: string
+    siteReady?: boolean
+    clientNotified?: boolean
+  },
+): Promise<void> {
+  const fields: Record<string, unknown> = {}
+  if (updates.gatePassStatus !== undefined) fields[GATE_PASSES.GATE_PASS_STATUS] = updates.gatePassStatus
+  if (updates.confirmedDeliveryDate !== undefined) fields[GATE_PASSES.CONFIRMED_DELIVERY_DATE] = updates.confirmedDeliveryDate
+  if (updates.siteReady !== undefined) fields[GATE_PASSES.SITE_READY] = updates.siteReady
+  if (updates.clientNotified !== undefined) fields[GATE_PASSES.CLIENT_NOTIFIED] = updates.clientNotified
+  if (Object.keys(fields).length === 0) return
+  const res = await fetchWithRetry(recUrl(GATE_PASSES.TABLE_ID, id), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
 }
 
 export async function createGatePass(input: GatePassCreateInput): Promise<GatePass> {
@@ -1808,7 +1836,7 @@ export async function getMaintenanceRecordForProject(projectId: string): Promise
 }
 
 export async function activateMaintenanceRecord(recordId: string): Promise<void> {
-  const res = await fetchWithRetry(`${tblUrl(MAINTENANCE.TABLE_ID)}/${recordId}`, {
+  const res = await fetchWithRetry(recUrl(MAINTENANCE.TABLE_ID, recordId), {
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields: { [MAINTENANCE.STATUS]: 'Active' } }),
@@ -1820,7 +1848,7 @@ export async function activateMaintenanceRecord(recordId: string): Promise<void>
 }
 
 export async function expireMaintenanceRecord(recordId: string): Promise<void> {
-  const res = await fetchWithRetry(`${tblUrl(MAINTENANCE.TABLE_ID)}/${recordId}`, {
+  const res = await fetchWithRetry(recUrl(MAINTENANCE.TABLE_ID, recordId), {
     method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields: { [MAINTENANCE.STATUS]: 'Expired' } }),

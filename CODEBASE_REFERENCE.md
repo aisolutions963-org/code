@@ -53,7 +53,7 @@ The Next.js API routes (`app/api/`) are thin wrappers: validate the request, cal
 ## Project Lifecycle (Stages)
 
 ```
-Preparing → Open → Installation Completed → Closed
+Preparing → Open → Installation Completed → Closed & Valid Maintenance → Closed & Warranty Done
                 ↘ Not-Approved (rejected)
 ```
 
@@ -62,7 +62,11 @@ Preparing → Open → Installation Completed → Closed
 | Preparing (Phase 1) | 1–22 | SED tasks: intake, quotation, sample, call client |
 | Open (Phase 2) | 1–22 project-level, 23+ per-item | Generated after client approves call |
 | Working (Phase 3) | 31–49 | Material ordering, fabrication, delivery |
-| Closing (Phase 4) | 57–63 | Handover, final payment |
+| Closing (Phase 4) | — | Handover form, final payment — triggers when ALL per-item tasks done |
+
+**Phase 4 trigger:** fires when every per-item task across all items is `Completed`. No task-name trigger. On Phase 4 generation, a maintenance record is created with `status = 'Pending'` (warranty clock starts). On final payment, status becomes `Active` and project stage → `Closed & Valid Maintenance`. After 1 year, stage → `Closed & Warranty Done`.
+
+**Valid project stages:** `Preparing`, `Open`, `Not-Approved`, `Installation Completed`, `Closed`, `Closed & Valid Maintenance`, `Closed & Warranty Done`, `Archived`
 
 ---
 
