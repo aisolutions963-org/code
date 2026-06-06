@@ -57,7 +57,12 @@ export function createNotification(opts: {
     })
     pruneStmt.run()
   } catch (err) {
-    console.error('[Notifications] Insert failed:', err)
+    // Fire-and-forget: log with full context so it's traceable in server logs
+    console.error('[Notifications] Insert failed — notification lost:', {
+      role: opts.recipientRole,
+      title: opts.title,
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 }
 

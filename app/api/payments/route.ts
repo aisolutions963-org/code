@@ -41,6 +41,21 @@ export const POST = requireRole('manager', 'superadmin')(
     }
 
     const body = parsed.data
+
+    // Duplicate Final payment guard — prevent double-closure of the same project
+    if (body.paymentType === 'Final') {
+      const existing = await getPaymentsByProject(body.project[0])
+      const alreadyHasFinal = existing.some(
+        (p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled',
+      )
+      if (alreadyHasFinal) {
+        return NextResponse.json(
+          { error: 'A Final payment already exists for this project. Cancel it first if you need to re-record.' },
+          { status: 409 },
+        )
+      }
+    }
+
     const payment = await createPayment({ ...body, recordedBy: session.name })
 
     if (process.env.RESEND_API_KEY) {

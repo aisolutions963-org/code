@@ -329,6 +329,7 @@ function ClientsReportView() {
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [dlError, setDlError] = useState<string | null>(null)
 
   const clients = clientsData?.clients ?? []
   const projects = projectsData?.projects ?? []
@@ -349,6 +350,7 @@ function ClientsReportView() {
 
   async function downloadClient(clientName: string) {
     setDownloading(clientName)
+    setDlError(null)
     try {
       const res = await fetch(`/api/reports/download/client-projects?clientName=${encodeURIComponent(clientName)}`)
       if (!res.ok) throw new Error('Download failed')
@@ -362,7 +364,7 @@ function ClientsReportView() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch {
-      window.alert('Download failed. Please try again.')
+      setDlError('Download failed. Please try again.')
     } finally {
       setDownloading(null)
     }
@@ -381,6 +383,12 @@ function ClientsReportView() {
 
   return (
     <div className="space-y-3 pb-2">
+      {dlError && (
+        <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center justify-between">
+          <span>{dlError}</span>
+          <button onClick={() => setDlError(null)} className="ml-2 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
       <div className="relative">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
@@ -512,9 +520,11 @@ function ClientsReportView() {
 function ReportsSection() {
   const [activeTab, setActiveTab] = useState<ReportCategory>('Sales')
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   async function downloadReport(route: string, name: string) {
     setDownloading(route)
+    setDownloadError(null)
     try {
       const from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
       const res = await fetch(`/api/reports/download/${route}?from=${from}`)
@@ -529,7 +539,7 @@ function ReportsSection() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch {
-      window.alert('Download failed. Please try again.')
+      setDownloadError('Download failed. Please try again.')
     } finally {
       setDownloading(null)
     }
@@ -563,6 +573,14 @@ function ReportsSection() {
           </button>
         ))}
       </div>
+
+      {/* Download error */}
+      {downloadError && (
+        <div className="mx-5 mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center justify-between">
+          <span>{downloadError}</span>
+          <button onClick={() => setDownloadError(null)} className="ml-2 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
 
       {/* Report list */}
       <div className={activeTab === 'Calendar' ? '' : 'px-5 pb-4'}>
@@ -1716,21 +1734,13 @@ function WarrantyPage() {
 // ─── Page 7: User Management ──────────────────────────────────────────────────
 
 function UsersPage() {
+  // Redirect to the dedicated users sub-page which has the full management UI
+  if (typeof window !== 'undefined') {
+    window.location.replace('/dashboard/superadmin/users')
+  }
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
-        <p className="text-sm text-gray-500">Create, edit, and deactivate system users.</p>
-      </div>
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
-        <p className="text-sm text-gray-500 mb-4">Manage users in the dedicated users panel.</p>
-        <Link
-          href="/dashboard/superadmin/users"
-          className="inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors"
-        >
-          Open User Management →
-        </Link>
-      </div>
+    <div className="flex justify-center py-16">
+      <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 }

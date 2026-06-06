@@ -1,6 +1,6 @@
 # Do Not Touch — Stable Finished Parts
 
-These parts of the codebase are complete, tested, and working correctly. Do not refactor, restructure, or modify them unless there is a specific confirmed bug. Each section explains what it does and why it must stay as-is.
+These parts of the codebase are complete, tested, and working correctly. Do not refactor, restructure, or modify them unless there is a specific confirmed bug.
 
 ---
 
@@ -15,60 +15,72 @@ All Airtable table IDs and field IDs live here. Every field ID is a hard-coded s
 
 If a field ID is wrong, every read and write for that field silently fails.
 
+**Important:** When writing record-level PATCH calls in `lib/airtable.ts`, always use `recUrl(TABLE_ID, recordId)` — NOT `tblUrl(TABLE_ID) + '/' + recordId`. `tblUrl()` appends a query string that corrupts the URL when a record ID is appended after it.
+
 ---
 
 ## 2. Phase Configuration — `lib/phases.ts`
 
-Defines the order boundaries for each workflow phase:
-
-```
+```typescript
 PHASE_CONFIG = {
-  Open: {
-    projectLevelOrderMax: 22,   // orders ≤ 22 are project-level Phase 2 tasks
-    perItemOrderMin: 23,         // orders ≥ 23 are per-item tasks
-    phaseLabel: 'Phase 2 — Opening',
-  },
-  Working: { perItemOrderMin: 31, phaseLabel: 'Phase 3 — Working' },
-  Closing: { phaseLabel: 'Phase 4 — Closing' },
+  Preparing: { universalActionOrderMin: 3, universalActionOrderMax: 18 },
+  Open:      { phaseLabel: 'Phase 2 — Opening', projectLevelOrderMax: 22, perItemOrderMin: 23 },
+  Working:   { phaseLabel: 'Phase 3 — Working', triggerOrder: 29, perItemOrderMin: 30 },
+  Closing:   { phaseLabel: 'Phase 4 — Closing' },
+                // Phase 4 triggers when ALL per-item tasks are Completed
+                // (no triggerTaskPrefix — that was removed)
 }
 ```
 
-**Do not change these numbers.** The task generation functions (`generateItemTasksForProject`, `generatePhase3TasksForItem`, `generatePhase4Tasks`) and the ItemBoard display logic all depend on these exact thresholds. Changing them will break which tasks appear where.
+**Do not change these numbers.** The task generation functions and display logic all depend on these exact thresholds.
+
+**Phase 4 trigger (important change):** Phase 4 no longer fires when a task named "handing over form" completes. It now fires when **all per-item tasks across all items are Completed**. `maybeGeneratePhase4()` in `lib/workflow.ts` checks this before calling `generatePhase4Tasks()`. The "Handing Over Form" task is now a **Phase 4 template** (not Phase 3).
 
 ---
 
 ## 3. Core Airtable Layer — `lib/airtable.ts`
 
 ### Transform functions
-`transformTask`, `transformProject`, `transformProjectItem`, `transformQuotation`, etc. — these convert raw Airtable records into typed objects the app uses. They are carefully mapped to the field IDs in `fieldMap.ts`.
+`transformTask`, `transformProject`, `transformProjectItem`, etc. convert raw Airtable records into typed objects. Do not change how `strArr`, `lookupStrArr`, `selectName`, etc. work.
 
-**Do not:**
-- Add or remove fields from these functions without a matching field in Airtable
-- Change how `strArr`, `lookupStrArr`, `lookupNumArr`, `selectName`, `lookupSelectNames` work — these handle Airtable's different return formats (linked records, lookups, selects)
+### URL construction rule
+- **Table-level operations** (POST to create, GET list): use `tblUrl(TABLE_ID)`
+- **Record-level operations** (PATCH, DELETE on a specific record): use `recUrl(TABLE_ID, recordId)`
 
-### Task generation functions — **critical workflow logic**
-These functions create tasks from templates in Airtable. They implement the entire phase-based workflow:
+Mixing these breaks the Airtable API silently.
+
+### Task generation functions — critical workflow logic
 
 | Function | Phase | What it creates |
 |---|---|---|
 | `generateTasksForProject(projectId, stage)` | Phase 1, 2, 3 project-level | Project-level tasks when a project moves stage |
 | `generateItemTasksForProject(projectId, itemId, chosenPaths)` | Phase 2 per-item | Per-item branch tasks after F5 submission |
-| `generatePhase3TasksForItem(projectId, itemId)` | Phase 3 per-item | Production tasks per item |
-| `generatePhase4Tasks(projectId)` | Phase 4 | Closing/handover tasks |
+| `generatePhase3TasksForItem(projectId, itemId)` | Phase 3 per-item | Production tasks per item — **idempotent** |
+| `generatePhase4Tasks(projectId)` | Phase 4 | Closing/handover tasks — **idempotent** |
 
-The `pathMinMap` logic inside these functions ensures only the **first task in each path starts as "To Do"** — everything else starts as "Locked". This is intentional and must stay.
+Both Phase 3 and Phase 4 generation are idempotent: they check which templates already have task records before creating anything.
 
-### `checkAndUnlockCallClientTask`
-Gate-checking logic that unlocks the "Call Client" task only after at least one path task is completed. This prevents users from skipping the entire workflow.
+### Gate pass operations
+
+`updateGatePass(id, updates)` — exported function for record-level PATCH on gate passes. Uses `recUrl()`.
+
+### Maintenance record operations
+
+- `createMaintenanceRecord(projectId, { startDate, endDate, status? })` — status defaults to `'Active'`; pass `'Pending'` at Phase 4 generation
+- `getMaintenanceRecordForProject(projectId)` — fetches the first maintenance record for a project
+- `activateMaintenanceRecord(recordId)` — sets status to `'Active'` on final payment
+- `expireMaintenanceRecord(recordId)` — sets status to `'Expired'` when warranty ends
+
+All use `recUrl()` for PATCH calls.
 
 ### `fetchAll` / `fetchWithRetry` / rate limiting
-The Airtable API has rate limits. `fetchWithRetry` handles retries with backoff. `fetchAll` paginates through large result sets. Do not replace these with bare `fetch()` calls.
+The Airtable API has rate limits. Do not replace with bare `fetch()` calls.
 
 ---
 
 ## 4. Auth System — `lib/auth.ts` + `lib/db.ts`
 
-SQLite-based session auth. Sessions are stored server-side (not in cookies/JWTs). `getSession()` is called at the top of every API route to verify the user.
+JWT-based sessions (24h), stored in httpOnly cookie `ww_session`. `getSession()` is called at the top of every API route.
 
 **Do not:**
 - Bypass `getSession()` checks
@@ -79,15 +91,11 @@ SQLite-based session auth. Sessions are stored server-side (not in cookies/JWTs)
 
 ## 5. Validation Schemas — `lib/validation.ts`
 
-Zod schemas guard every API route's input. They are the single source of truth for what shape data must be.
+Zod schemas guard every API route's input. Every API route that accepts a body must parse it through a schema.
 
-**Rules:**
-- Every API route that accepts a body must parse it through a schema before touching any data
-- When adding a new required field to a schema, update **all** callers (forms, panels, other API routes) at the same time — a required field that a form doesn't send will cause silent 400 errors
-
-Currently stable schemas (do not change their existing fields):
+Currently stable schemas (do not change existing fields without updating all callers):
 - `LoginSchema`, `CreateUserSchema`, `UpdateUserSchema`
-- `UpdateTaskSchema`
+- `UpdateTaskSchema` — includes `superadminNote?: string` (max 2000)
 - `CreatePaymentSchema`
 - `CreateAnnouncementSchema`
 - `AssignInstallationSchema`
@@ -100,118 +108,124 @@ Currently stable schemas (do not change their existing fields):
 
 ## 6. Notification System — `lib/notifications.ts`
 
-Push notifications are sent via SQLite + a server-sent events (SSE) stream. `notifyTasksReady`, `notifyUser`, and `notifyRole` write to SQLite; the SSE endpoint streams them to the browser.
+`createNotification()` is fire-and-forget sync (SQLite). It logs errors with context but never throws — a notification failure must never block the main operation.
 
 **Do not:**
-- Call notification functions in fire-and-forget patterns inside API routes — wrap them in `try/catch` so a notification failure never breaks the main operation
 - Add blocking `await` on notifications in the critical path of a user-facing action
+- Assume a notification was delivered — it may fail silently
 
 ---
 
 ## 7. Established Task Panels — `components/tasks/panels/`
 
-These panels are complete and working. Do not restructure their props interface or submission logic:
-
 | Panel | Task it handles |
 |---|---|
-| `QuotationPanel.tsx` | `variant="makeQuotation"` (Make Quotation R0/R1/R2) and `variant="f4"` (Advance Payment) |
+| `QuotationPanel.tsx` | `variant="makeQuotation"` and `variant="f4"` (Advance Payment) |
 | `F3OrderPanel.tsx` | F3 — Material Order |
 | `F2ProductionPanel.tsx` | F2 — Production Schedule |
 | `F2DeliveryPanel.tsx` | F2 — Schedule Delivery |
-| `AttachDocsPanel.tsx` | Attach 7 documents before fabrication |
+| `AttachDocsPanel.tsx` | Attach 7 documents |
 | `ChooseInstallTeamPanel.tsx` | Choose installation team |
-| `FixingTeamNotePanel.tsx` | Installation day logs |
-| `OrderSamplePanel.tsx` | Order Sample (project-level and per-item) |
+| `FixingTeamNotePanel.tsx` | Installation day logs (Arabic UI) |
+| `OrderSamplePanel.tsx` | Order Sample |
 | `FabricateMissingPanel.tsx` | Fabricate missing items |
 | `CallClientDecisionPanel.tsx` | Call client — outcome decision |
 
-Each panel receives `task` and `onUpdate` props. The `onUpdate` call is what marks the task Completed — it must always be called **after** any data has been saved, never before.
+`onUpdate` must always be called **after** data is saved, never before.
 
 ---
 
 ## 8. TaskCard Detection Logic — `components/tasks/TaskCard.tsx`
 
-The block of `isMakeQuotation`, `isF4Task`, `isF5Task`, `isF3Task`, `isOrderSample`, etc. flags near the top of `TaskCard` controls which panel renders and which completion guards fire. This detection is based on task names and `pathCondition` values that match the actual Airtable templates.
+`isMakeQuotation`, `isF4Task`, `isF5Task`, etc. flags control which panel renders. Based on task names and `pathCondition` that match Airtable templates.
 
-**Do not:**
-- Change the string matching without also renaming the templates in Airtable
-- Remove completion guards (the `toast.error` blocks before status changes) — they exist to prevent tasks being marked Done before their form is filled
+**Superadmin note display:** When `task.superadminNote` is set and `role !== 'superadmin'`, an amber banner shows the note read-only. Superadmin edits it via FieldEditor (amber textarea).
+
+**SED note display:** When `task.sedNote` is set and `role === 'manager' || 'superadmin'`, a blue banner shows it read-only.
 
 ---
 
 ## 9. pathCondition Values
 
-`pathCondition` is a select field in Airtable. The string values used in code must exactly match the option names configured in the Airtable base. The currently active values are:
+String values must exactly match Airtable select option names.
 
-**Phase 1 paths (project-level):**
-`"Visit Site to Gather Details"`, `"Select Material / Order Samples"`, `"Make Quotation"`, `"Assign Installation for Measurement"`, `"Draft Proposal or Photo Ideas"`, `"Client Clarifications & Sketches"`
+**Phase 1 paths:** `"Visit Site to Gather Details"`, `"Select Material / Order Samples"`, `"Make Quotation"`, `"Assign Installation for Measurement"`, `"Draft Proposal or Photo Ideas"`, `"Client Clarifications & Sketches"`
 
-**Phase 2 paths (per-item):**
-`"Site Visit (item)"`, `"Select Sample (item)"`, `"Design (item)"`, `"Measurement (item)"`
-
-If these strings ever need to change, they must be updated simultaneously in: the Airtable base select options, `lib/airtable.ts` (any hardcoded references), `lib/validation.ts` (the `actions` enum in `CreateQuotationItemsSchema`), and `F5QuotationPanel.tsx`.
+**Phase 2 paths:** `"Site Visit (item)"`, `"Select Sample (item)"`, `"Design (item)"`, `"Measurement (item)"`
 
 ---
 
 ## 10. Items-Progress Pipeline
 
-The chain that makes per-item cards appear on the project detail page:
-
 ```
 F5 submitted
-  → POST /api/projects/[id]/quotation
-    → createProjectItem()          — creates the item record in Airtable
-    → createQuotation()            — creates quotation record
-    → generateItemTasksForProject() — creates tasks linked to the item (MUST be awaited)
+  → createProjectItem() → createQuotation() → generateItemTasksForProject()  ← must be awaited
   → onUpdate(task.id, { status: 'Completed' })
-    → handleUpdate() in project page
-      → mutate()                   — re-fetches /api/projects/[id]/items-progress
-        → getAllTasksForProjectAll() — fetches all tasks for the project
-        → filters tasks where projectItem is set
-        → groups by item ID
-        → returns item summaries
-          → ItemBoard renders item cards
+    → mutate() → re-fetches /api/projects/[id]/items-progress
 ```
 
-`generateItemTasksForProject` **must be awaited**, not fire-and-forget. If it runs after the API returns, `mutate()` will fetch before the tasks exist and items won't appear.
-
----
-
-## 12. Branch Strategy — Database Compatibility
-
-The codebase has two active branches with different database setups. **Never merge the db layer from `testing` into `main`.**
-
-| Branch | Database | API style | Purpose |
-|---|---|---|---|
-| `main` | Turso (`@libsql/client`) | Async (`await`) | Production — deployed on Vercel |
-| `testing` | `better-sqlite3` (local file) | Sync | Local development and feature work |
-
-### When merging `testing` → `main`
-
-These files will **always conflict** and you must **keep `main`'s version** every time:
-- `lib/db.ts`
-- `lib/notifications.ts`
-- `lib/metricsSnapshot.ts`
-- `lib/auth.ts`
-- `lib/email.ts`
-- `lib/workflow.ts`
-- `package.json` / `package-lock.json`
-- Any API route that imports from `lib/db` or `lib/notifications`
-
-Everything else (UI components, new pages, new API routes that don't use db functions directly) can be taken from `testing` without conflict.
-
-### When adding new db-dependent features on `testing`
-
-If a new route or function uses db functions (e.g. `getUserById`, `getAllUsers`, `getSetting`), remember that on `main` these are async. When the code reaches `main`, all calls need `await`. Plan for this during the merge.
+`generateItemTasksForProject` **must be awaited**, not fire-and-forget.
 
 ---
 
 ## 11. SWR Data Fetching Pattern
 
-Every dashboard uses SWR for data fetching with a 30-second refresh interval. After any mutation (task update, form submission), the relevant `mutate()` function must be called explicitly — SWR does not automatically know data changed.
+After any mutation, call `mutate()` explicitly. The project detail page has two SWR hooks that must both be mutated after task updates:
+- `mutate()` → refreshes `/api/projects/${id}/items-progress`
+- `mutateTasks()` → refreshes `/api/tasks?projectId=${id}`
 
-The project detail page (`app/dashboard/project/[id]/page.tsx`) has **two** SWR hooks that must both be mutated after task updates:
-- `mutate()` → refreshes `/api/projects/${id}/items-progress` (item cards)
-- `mutateTasks()` → refreshes `/api/tasks?projectId=${id}` (project task list)
+---
 
-The SED and Manager dashboards only mutate their own task list — they have no items-progress SWR. Item cards only exist on the project detail page.
+## 12. Branch Strategy — Database Compatibility
+
+| Branch | Database | API style | Purpose |
+|---|---|---|---|
+| `main` | Turso (`@libsql/client`) | Async (`await`) | Production on Vercel |
+| `testing` | `better-sqlite3` (local file) | Sync | Local development |
+
+When merging `testing` → `main`, **always keep `main`'s version** of:
+- `lib/db.ts`, `lib/notifications.ts`, `lib/metricsSnapshot.ts`, `lib/auth.ts`, `lib/email.ts`, `lib/workflow.ts`
+- `package.json` / `package-lock.json`
+
+New db-dependent features added on `testing` need `await` added to all db calls when reaching `main`.
+
+---
+
+## 13. Warranty / Maintenance Flow
+
+**Do not change the order of these steps:**
+
+1. **Phase 4 generates** (`maybeGeneratePhase4` in `lib/workflow.ts`): creates maintenance record with `status = 'Pending'`, `startDate = today`, `endDate = today + 1 year`. Warranty clock starts here.
+2. **Final payment received** (`closeProjectAfterFinalPayment` in `app/api/payments/route.ts`): finds the pending maintenance record → calls `activateMaintenanceRecord()` → updates project stage to `'Closed & Valid Maintenance'` → notifies accountant.
+3. **1 year later** (`GET /api/maintenance` auto-expire): if `Active` records have `endDate < today`, calls `expireMaintenanceRecord()` + updates project stage to `'Closed & Warranty Done'`.
+
+**Valid project stages (full list):** `Preparing`, `Open`, `Not-Approved`, `Installation Completed`, `Closed`, `Closed & Valid Maintenance`, `Closed & Warranty Done`, `Archived`
+
+Do not use "Fabrication" or "Installation" as project stage values — those are department names, not stages.
+
+---
+
+## 14. Gate Pass Lifecycle
+
+- **Create**: `POST /api/gate-passes` (manager/superadmin only)
+- **Update status**: `PATCH /api/gate-passes/[id]` — allowed fields: `gatePassStatus`, `confirmedDeliveryDate`, `siteReady`, `clientNotified`
+- **Print**: uses `triggerPrint()` from `lib/printGatePass.ts` — injects a full-screen overlay into the current page, calls `window.print()`
+- Valid status values: `Pending`, `Delivered`, `Cancelled`
+
+---
+
+## 15. Payment Guard
+
+A second `Final` payment for the same project is blocked at the API level (HTTP 409). Check for this in UI — if the user tries to record a second Final payment and gets a 409, show them the error message from the response body.
+
+---
+
+## 16. Client Autocomplete in NewProjectModal
+
+`/api/clients` is lazy-loaded — it only fetches when the user focuses/types in the Client Name field. Do not change it to eager load (it would run on every modal open and waste Airtable API quota).
+
+---
+
+## 17. Print Utility — `lib/printGatePass.ts`
+
+`triggerPrint(data: GatePassPrintData)` creates a full-screen white overlay (`position:fixed; inset:0`) with the gate pass document. The overlay has Print and Close buttons. `@media print` hides the buttons so only the document prints. This approach works without any popup windows, blob URLs, or iframes — all of which were blocked in previous attempts.

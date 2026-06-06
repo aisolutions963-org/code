@@ -72,6 +72,7 @@ const ALL_TASK_UPDATE_KEYS: (keyof TaskUpdateInput)[] = [
   'requiresManagerReviewManually',
   'priorityFlag',
   'sedNote',
+  'superadminNote',
   'callCount',
   'followUpOutcome',
   'taskDocLinks',

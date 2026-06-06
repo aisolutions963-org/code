@@ -147,10 +147,25 @@ function GatePassStatusBadge({ status }: { status?: string }) {
   )
 }
 
-function GatePassCard({ gp }: { gp: GatePass }) {
+function GatePassCard({ gp, onStatusChange }: { gp: GatePass; onStatusChange: () => void }) {
   const [expanded, setExpanded] = useState(false)
+  const [updating, setUpdating] = useState(false)
   const deliveryDate = gp.confirmedDeliveryDate ?? gp.estimatedSupplyDate
   const isConfirmed = !!gp.confirmedDeliveryDate
+
+  async function handleStatusChange(status: string) {
+    setUpdating(true)
+    try {
+      await fetch(`/api/gate-passes/${gp.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gatePassStatus: status }),
+      })
+      onStatusChange()
+    } finally {
+      setUpdating(false)
+    }
+  }
 
   function handlePrint(e: React.MouseEvent) {
     e.stopPropagation()
@@ -236,6 +251,26 @@ function GatePassCard({ gp }: { gp: GatePass }) {
                   {gp.clientNotified ? 'Client notified' : 'Client not notified'}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* Status update actions */}
+          {gp.gatePassStatus !== 'Delivered' && gp.gatePassStatus !== 'Cancelled' && (
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => handleStatusChange('Delivered')}
+                disabled={updating}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50 transition-colors"
+              >
+                Mark Delivered
+              </button>
+              <button
+                onClick={() => handleStatusChange('Cancelled')}
+                disabled={updating}
+                className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           )}
         </div>
@@ -382,7 +417,7 @@ export default function FormsPage() {
             )}
 
             {!gpLoading && gatePasses.map((gp) => (
-              <GatePassCard key={gp.id} gp={gp} />
+              <GatePassCard key={gp.id} gp={gp} onStatusChange={() => mutateGp()} />
             ))}
           </div>
         )}
