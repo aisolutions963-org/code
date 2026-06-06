@@ -63,8 +63,12 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
   )
   const sedMembers = sedData?.members ?? []
 
-  // Client autocomplete
-  const { data: clientsData } = useSWR<{ clients: Client[] }>('/api/clients', fetcher)
+  // Client autocomplete — only fetches when user interacts with the field
+  const [clientsNeeded, setClientsNeeded] = useState(false)
+  const { data: clientsData } = useSWR<{ clients: Client[] }>(
+    clientsNeeded ? '/api/clients' : null,
+    fetcher,
+  )
   const allClients = clientsData?.clients ?? []
   const [clientSuggestionsOpen, setClientSuggestionsOpen] = useState(false)
   const clientInputRef = useRef<HTMLInputElement>(null)
@@ -221,8 +225,8 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
               ref={clientInputRef}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={form.clientName}
-              onChange={(e) => { set('clientName', e.target.value); setClientSuggestionsOpen(true) }}
-              onFocus={() => setClientSuggestionsOpen(true)}
+              onChange={(e) => { set('clientName', e.target.value); setClientsNeeded(true); setClientSuggestionsOpen(true) }}
+              onFocus={() => { setClientsNeeded(true); setClientSuggestionsOpen(true) }}
               placeholder="Type to search or enter new client name"
               autoComplete="off"
             />

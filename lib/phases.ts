@@ -20,8 +20,7 @@ export const PHASE_CONFIG = {
   },
   Closing: {
     phaseLabel: 'Phase 4 — Closing',
-    // Task name prefix that triggers Phase 4 generation on completion
-    triggerTaskPrefix: 'handing over form',
+    // Phase 4 generates when all per-item tasks across all items are Completed
   },
 } as const
 

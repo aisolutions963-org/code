@@ -340,6 +340,7 @@ function transformTask(record: RawRecord): Task {
     assignedTo: strArr(f[TASKS.ASSIGNED_TO]),
     callCount: num(f[TASKS.CALL_COUNT]),
     sedNote: str(f[TASKS.SED_NOTE]),
+    superadminNote: str(f[TASKS.SUPERADMIN_NOTE]),
     followUpOutcome: str(f[TASKS.FOLLOW_UP_OUTCOME]),
     pathCondition: selectName(f[TASKS.PATH_CONDITION]),
     taskDocLinks: parseDocLinks(f[TASKS.TASK_DOC_LINKS]),
@@ -473,6 +474,7 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   priorityFlag: TASKS.PRIORITY_FLAG,
   callCount: TASKS.CALL_COUNT,
   sedNote: TASKS.SED_NOTE,
+  superadminNote: TASKS.SUPERADMIN_NOTE,
   followUpOutcome: TASKS.FOLLOW_UP_OUTCOME,
   taskDocLinks: TASKS.TASK_DOC_LINKS,
   fillersDocLinks: TASKS.FILLERS_DOC_LINKS,
@@ -1775,11 +1777,11 @@ export async function getHandoverSheetForProject(projectId: string): Promise<Han
 
 export async function createMaintenanceRecord(
   projectId: string,
-  dates: { startDate: string; endDate: string },
-): Promise<void> {
+  dates: { startDate: string; endDate: string; status?: string },
+): Promise<string> {
   const fields: Record<string, unknown> = {
     [MAINTENANCE.PROJECTS]: [projectId],
-    [MAINTENANCE.STATUS]: 'Active',
+    [MAINTENANCE.STATUS]: dates.status ?? 'Active',
     [MAINTENANCE.START_DATE]: dates.startDate,
     [MAINTENANCE.END_DATE]: dates.endDate,
     [MAINTENANCE.WARRANTY_TYPE]: 'Standard 1-Year',
@@ -1788,6 +1790,40 @@ export async function createMaintenanceRecord(
     method: 'POST',
     headers: airtableHeaders(),
     body: JSON.stringify({ records: [{ fields }] }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const data = await res.json() as { records: RawRecord[] }
+  return data.records[0].id
+}
+
+export async function getMaintenanceRecordForProject(projectId: string): Promise<MaintenanceRecord | null> {
+  const records = await fetchAll(MAINTENANCE.TABLE_ID, {
+    filterByFormula: `FIND("${projectId}", ARRAYJOIN({${MAINTENANCE.PROJECTS}}))`,
+    maxRecords: 1,
+  })
+  return records.length > 0 ? transformMaintenance(records[0]) : null
+}
+
+export async function activateMaintenanceRecord(recordId: string): Promise<void> {
+  const res = await fetchWithRetry(`${tblUrl(MAINTENANCE.TABLE_ID)}/${recordId}`, {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields: { [MAINTENANCE.STATUS]: 'Active' } }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+}
+
+export async function expireMaintenanceRecord(recordId: string): Promise<void> {
+  const res = await fetchWithRetry(`${tblUrl(MAINTENANCE.TABLE_ID)}/${recordId}`, {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields: { [MAINTENANCE.STATUS]: 'Expired' } }),
   })
   if (!res.ok) {
     const body = await res.text()
@@ -2507,10 +2543,23 @@ export async function generatePhase4Tasks(
   )
   if (templates.length === 0) return { created: 0, todoTemplates: [] }
 
-  const minOrder = Math.min(...templates.map((t) => t.templateOrder!))
+  // Idempotency: skip templates already created for this project (same pattern as Phase 3)
+  const existingRaw = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}))`,
+    fields: [TASKS.TASK_TEMPLATES_LINK],
+  })
+  const existingTemplateIds = new Set<string>()
+  for (const r of existingRaw) {
+    const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
+    if (Array.isArray(links)) links.forEach((id) => existingTemplateIds.add(id as string))
+  }
+  const newTemplates = templates.filter((t) => !existingTemplateIds.has(t.id))
+  if (newTemplates.length === 0) return { created: 0, todoTemplates: [] }
+
+  const minOrder = Math.min(...newTemplates.map((t) => t.templateOrder!))
   const todoTemplates: TaskTemplate[] = []
 
-  const records = templates.map((t) => {
+  const records = newTemplates.map((t) => {
     const status: TaskStatus = t.templateOrder === minOrder ? 'To Do' : 'Locked'
     if (status === 'To Do') todoTemplates.push(t)
     return {

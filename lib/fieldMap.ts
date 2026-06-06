@@ -73,6 +73,7 @@ export const TASKS = {
   HANDOVER_DOC_LINKS: 'fldZeGpG5VlY1Oiip',
   FILLERS_DOC_LINKS: 'fldxgHjnRVSlYlHbM',
   LAST_MODIFIED: 'fld8PyDkPBIZ0BNO1',
+  SUPERADMIN_NOTE: 'fldjVNPzFB76Ik0fh',
 } as const
 
 export const PROJECTS = {

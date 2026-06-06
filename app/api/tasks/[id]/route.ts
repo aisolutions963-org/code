@@ -56,12 +56,34 @@ export const PATCH = requireRole()(
       }
     }
 
-    const { status, managerReviewStatus, callCount, followUpOutcome, ...otherFields } = fields as Partial<TaskUpdateInput>
+    const { status, managerReviewStatus, callCount, followUpOutcome, superadminNote, ...otherFields } = fields as Partial<TaskUpdateInput>
 
     if (Object.keys(otherFields).length > 0) {
       const filtered = filterAllowedFields(session.role, otherFields)
       if (Object.keys(filtered).length > 0) {
         await updateTask(params.id, filtered)
+      }
+    }
+
+    // Superadmin follow-up note — notify task departments, allow clearing with empty string
+    if (superadminNote !== undefined && session.role === 'superadmin') {
+      const noteTask = await getTaskById(params.id)
+      await updateTask(params.id, { superadminNote: superadminNote || '' })
+      if (superadminNote.trim()) {
+        const depts = noteTask.department ?? []
+        const roles = depts
+          .map((d) => ({ SED: 'sed', Fabrication: 'fabrication', Installation: 'installation', Manager: 'manager', Management: 'manager', Purchase: 'manager' })[d])
+          .filter((r): r is string => Boolean(r))
+        const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
+        const projectRef = noteTask.projectRef ?? noteTask.project?.[0] ?? ''
+        for (const role of uniqueRoles) {
+          await createNotification({
+            recipientRole: role,
+            title: `📌 Follow-up note — ${noteTask.taskName}`,
+            body: `Superadmin added a note on "${noteTask.taskName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}`,
+            link: `/${role === 'sed' ? 'dashboard/sed' : role === 'fabrication' ? 'dashboard/fab' : role === 'installation' ? 'dashboard/fix' : 'dashboard/mgr'}`,
+          })
+        }
       }
     }
 

@@ -9,6 +9,7 @@ import {
   generateTasksForProject,
   generatePhase3TasksForItem,
   generatePhase4Tasks,
+  createMaintenanceRecord,
   createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
@@ -316,12 +317,30 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
 }
 
 async function maybeGeneratePhase4(task: Task): Promise<void> {
-  if (!task.taskName.toLowerCase().startsWith(PHASE_CONFIG.Closing.triggerTaskPrefix)) return
+  // Phase 4 triggers when ALL per-item (Phase 2/3) tasks across every item are Completed.
+  // Only evaluate on per-item task completions — project-level tasks never trigger this.
+  if (!(task.projectItem?.length)) return
   const projectId = task.project?.[0]
   if (!projectId) return
 
+  const allProjectTasks = await getAllTasksForProjectAll(projectId)
+  const perItemTasks = allProjectTasks.filter((t) => (t.projectItem?.length ?? 0) > 0)
+  if (perItemTasks.length === 0) return
+  if (!perItemTasks.every((t) => t.status === 'Completed')) return
+
   const { todoTemplates } = await generatePhase4Tasks(projectId)
   if (todoTemplates.length === 0) return
+
+  // Warranty clock starts NOW (Phase 4 generation date), even before final payment.
+  // Status is 'Pending' — becomes 'Active' when the client pays the final payment.
+  const warrantyStart = new Date()
+  const warrantyEnd = new Date(warrantyStart)
+  warrantyEnd.setFullYear(warrantyEnd.getFullYear() + 1)
+  createMaintenanceRecord(projectId, {
+    startDate: warrantyStart.toISOString().slice(0, 10),
+    endDate: warrantyEnd.toISOString().slice(0, 10),
+    status: 'Pending',
+  }).catch((err) => console.error('[WARRANTY] Failed to create maintenance record:', err))
 
   const projectLabel = await resolveProjectLabel(task)
   notifyTasksReady(

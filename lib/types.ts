@@ -77,6 +77,7 @@ export interface Task {
   assigneeName?: string
   callCount?: number
   sedNote?: string
+  superadminNote?: string
   followUpOutcome?: string
   pathCondition?: string
   projectRef?: string
@@ -117,6 +118,7 @@ export interface TaskUpdateInput {
   priorityFlag?: boolean
   callCount?: number
   sedNote?: string
+  superadminNote?: string
   followUpOutcome?: string
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]

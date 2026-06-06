@@ -4,11 +4,12 @@ import {
   createPayment,
   getPaymentsByProject,
   getProjectById,
-  getHandoverSheetForProject,
+  getMaintenanceRecordForProject,
+  activateMaintenanceRecord,
   createMaintenanceRecord,
   updateProject,
 } from '@/lib/airtable'
-import { notifyAccountant } from '@/lib/email'
+import { notifyAccountant, notifyAccountantEvent } from '@/lib/email'
 import { CreatePaymentSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
@@ -78,33 +79,49 @@ export const POST = requireRole('manager', 'superadmin')(
 )
 
 async function closeProjectAfterFinalPayment(projectId: string, recordedBy: string) {
-  const [project, sheets] = await Promise.all([
+  const [project, existing] = await Promise.all([
     getProjectById(projectId),
-    getHandoverSheetForProject(projectId),
+    getMaintenanceRecordForProject(projectId),
   ])
 
-  const handoverDate =
-    sheets[0]?.finalInstallationDate ?? new Date().toISOString().slice(0, 10)
+  let warrantyEnd: string
 
-  const endDate = new Date(handoverDate)
-  endDate.setFullYear(endDate.getFullYear() + 1)
-  const endDateStr = endDate.toISOString().slice(0, 10)
+  if (existing) {
+    // Maintenance record was created at Phase 4 generation — just activate it
+    await activateMaintenanceRecord(existing.id)
+    warrantyEnd = existing.endDate
+  } else {
+    // Fallback: no Phase 4 record yet — create one now dated from today
+    const start = new Date()
+    const end = new Date(start)
+    end.setFullYear(end.getFullYear() + 1)
+    warrantyEnd = end.toISOString().slice(0, 10)
+    await createMaintenanceRecord(projectId, {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: warrantyEnd,
+      status: 'Active',
+    })
+  }
 
-  await Promise.all([
-    updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed' }),
-    createMaintenanceRecord(projectId, { startDate: handoverDate, endDate: endDateStr }),
-  ])
+  await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed & Valid Maintenance' })
 
   const projectRef = project.projectId ?? projectId
   const projectLabel = project.projectName
     ? `${projectRef} — ${project.projectName}`
     : projectRef
 
-  for (const role of ['sed', 'superadmin'] as const) {
+  // Notify accountant by email
+  notifyAccountantEvent({
+    eventName: 'Final Payment Received — Project Closed',
+    projectLabel,
+  }).catch(() => {})
+
+  // In-app notifications
+  for (const role of ['sed', 'manager', 'superadmin'] as const) {
     createNotification({
       recipientRole: role,
       title: `Project closed — ${projectRef}`,
-      body: `Final payment received for ${projectLabel}. Project is now Closed. 1-year maintenance active until ${endDateStr}. Recorded by ${recordedBy}.`,
+      body: `Final payment received for ${projectLabel}. Status: Closed & Valid Maintenance. Warranty active until ${warrantyEnd}. Recorded by ${recordedBy}.`,
       link: ROLE_DASHBOARD[role],
     })
   }
