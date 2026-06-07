@@ -15,6 +15,6 @@ export async function PATCH(
   const id = parseInt(rawId)
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
-  markNotificationRead(id)
+  await markNotificationRead(id)
   return NextResponse.json({ ok: true })
 }

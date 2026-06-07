@@ -52,6 +52,13 @@ async function initDB(): Promise<void> {
         value TEXT NOT NULL,
         updated_at TEXT DEFAULT (datetime('now'))
       )`,
+      `CREATE TABLE IF NOT EXISTS sed_projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_airtable_id TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        UNIQUE(project_airtable_id, user_id),
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      )`,
       `INSERT OR IGNORE INTO settings (key, value) VALUES ('accountant_email', 'aisolutions963@gmail.com')`,
     ],
     'write',
