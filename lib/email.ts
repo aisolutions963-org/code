@@ -79,7 +79,7 @@ export async function notifyAccountantEvent(event: {
   eventName: string
   projectLabel: string
 }): Promise<void> {
-  const accountantEmail = getSetting('accountant_email')
+  const accountantEmail = await getSetting('accountant_email')
   if (!accountantEmail) return
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
@@ -128,7 +128,7 @@ export async function notifyAccountant(payment: {
   receivedDate: string
   recordedBy: string
 }): Promise<void> {
-  const accountantEmail = getSetting('accountant_email')
+  const accountantEmail = await getSetting('accountant_email')
   if (!accountantEmail) return
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS } from '@/lib/fieldMap'
-import db from '@/lib/db'
+import { getAllUsers } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,12 +52,12 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
 }
 
 export const GET = requireRole('superadmin')(async () => {
-  const [projects, sedUsers] = await Promise.all([
+  const [projects, allUsers] = await Promise.all([
     fetchProjectsForStats(),
-    Promise.resolve(
-      (db.prepare(`SELECT name, email, airtable_member_id FROM users WHERE role = 'sed' AND active = 1 ORDER BY name`).all() as { name: string; email: string; airtable_member_id: string | null }[]),
-    ),
+    getAllUsers(),
   ])
+
+  const sedUsers = allUsers.filter((u) => u.role === 'sed' && u.active === 1)
 
   // Match by airtable_member_id first (most reliable), fall back to email
   const memberIdToName = new Map<string, string>()

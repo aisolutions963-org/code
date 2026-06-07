@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.3",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.9.0",
     "exceljs": "^4.4.0",

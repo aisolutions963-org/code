@@ -460,7 +460,7 @@ export async function handleManagerRejection(taskId: string): Promise<void> {
       .filter((r): r is string => Boolean(r))
     const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['sed']))
     for (const role of uniqueRoles) {
-      const users = getUsersByRole(role)
+      const users = await getUsersByRole(role)
       for (const user of users) {
         notifyRejection({
           taskName: task.taskName,

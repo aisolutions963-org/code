@@ -21,14 +21,14 @@ export async function GET(request: NextRequest) {
   try {
     let tasks
     if (role === 'sed' && !projectId) {
-      const dbUser = getUserById(session.id)
-      const [airtableIds, sqliteIds] = await Promise.all([
-        getSedProjectIds({
-          sedAirtableMemberId: dbUser?.airtable_member_id ?? undefined,
-          sedEmail: session.email,
-        }),
-        Promise.resolve(getSedProjectIdsByUserId(session.id)),
+      const [dbUser, sqliteIds] = await Promise.all([
+        getUserById(session.id),
+        getSedProjectIdsByUserId(session.id),
       ])
+      const airtableIds = await getSedProjectIds({
+        sedAirtableMemberId: dbUser?.airtable_member_id ?? undefined,
+        sedEmail: session.email,
+      })
       // Union both sources — SQLite covers projects created without airtable_member_id
       const sedProjectIds = [...new Set([...airtableIds, ...sqliteIds])]
       tasks = await getTasksByRole(role, { sedProjectIds })

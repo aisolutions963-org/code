@@ -20,15 +20,15 @@ export async function GET(request: NextRequest) {
     if (all) {
       projects = await getAllProjects()
     } else if (session.role === 'sed') {
-      const dbUser = getUserById(session.id)
-      const [airtableProjects, sqliteIds] = await Promise.all([
-        getProjects({
-          stage,
-          sedAirtableMemberId: dbUser?.airtable_member_id ?? undefined,
-          sedEmail: session.email,
-        }),
-        Promise.resolve(getSedProjectIdsByUserId(session.id)),
+      const [dbUser, sqliteIds] = await Promise.all([
+        getUserById(session.id),
+        getSedProjectIdsByUserId(session.id),
       ])
+      const airtableProjects = await getProjects({
+        stage,
+        sedAirtableMemberId: dbUser?.airtable_member_id ?? undefined,
+        sedEmail: session.email,
+      })
       // Fetch any SQLite-mapped projects not already returned by Airtable filter
       const airtableProjectIds = new Set(airtableProjects.map((p) => p.id))
       const missingIds = sqliteIds.filter((id) => !airtableProjectIds.has(id))
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
   const data = { ...parsed.data }
   if (!data.salesOwnerCollaboratorId) {
-    const dbUser = getUserById(session.id)
+    const dbUser = await getUserById(session.id)
     if (dbUser?.airtable_member_id) {
       data.salesOwnerCollaboratorId = dbUser.airtable_member_id
     }
@@ -91,20 +91,20 @@ export async function POST(request: NextRequest) {
 
     // Map the assigned sales owner so they see the project regardless of who created it
     if (data.salesOwnerCollaboratorId) {
-      const salesOwnerUser = getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
-      if (salesOwnerUser) addSedProjectMapping(project.id, salesOwnerUser.id)
+      const salesOwnerUser = await getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
+      if (salesOwnerUser) await addSedProjectMapping(project.id, salesOwnerUser.id)
     }
     // If creator is SED themselves (may not have airtable_member_id), map by user ID too
     if (session.role === 'sed') {
-      addSedProjectMapping(project.id, session.id)
+      await addSedProjectMapping(project.id, session.id)
     }
 
     // Also map communal SEDs so they see the project and its tasks
     if (data.communSedIds?.length) {
       for (const communMemberId of data.communSedIds) {
-        const communUser = getUserByAirtableMemberId(communMemberId)
+        const communUser = await getUserByAirtableMemberId(communMemberId)
         if (communUser) {
-          addSedProjectMapping(project.id, communUser.id)
+          await addSedProjectMapping(project.id, communUser.id)
         }
       }
     }
@@ -123,11 +123,10 @@ export async function POST(request: NextRequest) {
 
     // Notify the assigned SED
     if (data.salesOwnerCollaboratorId) {
-      const sedUser = getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
+      const sedUser = await getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
       if (sedUser) {
         createNotification({
           recipientRole: 'sed',
-          recipientUserId: sedUser.id,
           title: `New project assigned: ${project.projectName}`,
           body: `Client: ${project.clientName}`,
           link: '/dashboard/sed?view=projects',

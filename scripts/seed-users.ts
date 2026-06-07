@@ -15,13 +15,13 @@ const USERS = [
 
 async function seed() {
   for (const u of USERS) {
-    const existing = getUserByEmail(u.email)
+    const existing = await getUserByEmail(u.email)
     if (existing) {
       console.log(`⚠ Skipped (already exists): ${u.name} <${u.email}>`)
       continue
     }
     const hashed = await hashPassword(u.password)
-    createUser({
+    await createUser({
       name: u.name,
       email: u.email,
       hashed_password: hashed,

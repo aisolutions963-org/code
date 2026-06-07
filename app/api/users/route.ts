@@ -5,7 +5,7 @@ import { createTeamMember, deleteTeamMember } from '@/lib/airtable'
 import { CreateUserSchema } from '@/lib/validation'
 
 export const GET = requireRole('superadmin')(async () => {
-  const users = getAllUsers()
+  const users = await getAllUsers()
   return NextResponse.json({ users })
 })
 
@@ -41,7 +41,7 @@ export const POST = requireRole('superadmin')(async (req: NextRequest) => {
 
   // Step 2: create SQLite user — compensate by deleting Airtable member if this fails
   try {
-    const user = createUser({ name, email, hashed_password: hashed, role, airtable_member_id })
+    const user = await createUser({ name, email, hashed_password: hashed, role, airtable_member_id })
     const { hashed_password: _, ...safeUser } = user
     return NextResponse.json({ user: safeUser }, { status: 201 })
   } catch (error) {

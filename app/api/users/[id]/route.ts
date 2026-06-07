@@ -9,7 +9,7 @@ export const PATCH = requireRole('superadmin')(
     const id = parseInt(params.id, 10)
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
-    const existing = getUserById(id)
+    const existing = await getUserById(id)
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
     let rawBody: unknown
@@ -49,7 +49,7 @@ export const PATCH = requireRole('superadmin')(
     if (password) updates.hashed_password = await hashPassword(password)
 
     try {
-      updateUser(id, updates)
+      await updateUser(id, updates)
     } catch (error) {
       // Compensate: revert Airtable to original values
       if (identityChanged) {
@@ -62,7 +62,7 @@ export const PATCH = requireRole('superadmin')(
       throw error
     }
 
-    const updated = getUserById(id)!
+    const updated = (await getUserById(id))!
     const { hashed_password: _, ...safeUser } = updated
     return NextResponse.json({ user: safeUser })
   },
@@ -73,10 +73,10 @@ export const DELETE = requireRole('superadmin')(
     const id = parseInt(params.id, 10)
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
-    const existing = getUserById(id)
+    const existing = await getUserById(id)
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-    deleteUser(id)
+    await deleteUser(id)
 
     if (existing.airtable_member_id) {
       try {

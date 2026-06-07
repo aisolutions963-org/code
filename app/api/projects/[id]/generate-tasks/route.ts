@@ -69,12 +69,12 @@ export async function POST(
 
     // Sync SQLite SED mappings so the assigned SED can always see this project
     if (project.salesOwner?.id) {
-      const owner = getUserByAirtableMemberId(project.salesOwner.id)
-      if (owner) addSedProjectMapping(id, owner.id)
+      const owner = await getUserByAirtableMemberId(project.salesOwner.id)
+      if (owner) await addSedProjectMapping(id, owner.id)
     }
     for (const communMemberId of project.communSedIds ?? []) {
-      const u = getUserByAirtableMemberId(communMemberId)
-      if (u) addSedProjectMapping(id, u.id)
+      const u = await getUserByAirtableMemberId(communMemberId)
+      if (u) await addSedProjectMapping(id, u.id)
     }
 
     return NextResponse.json({ success: true, ...result })

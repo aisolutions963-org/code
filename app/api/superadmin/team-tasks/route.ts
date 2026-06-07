@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { TASKS } from '@/lib/fieldMap'
-import db from '@/lib/db'
+import { getAllUsers } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,14 +43,12 @@ const ROLE_ORDER: Record<string, number> = {
 }
 
 export const GET = requireRole('superadmin')(async () => {
-  const [tasks, users] = await Promise.all([
+  const [tasks, allUsers] = await Promise.all([
     fetchActiveTasks(),
-    Promise.resolve(
-      (db.prepare(`SELECT id, name, role, airtable_member_id FROM users WHERE active = 1`).all() as {
-        id: number; name: string; role: string; airtable_member_id: string | null
-      }[]),
-    ),
+    getAllUsers(),
   ])
+
+  const users = allUsers.filter((u) => u.active === 1)
 
   // Build map: airtable_member_id → user
   const memberMap = new Map<string, { name: string; role: string; userId: number }>()
