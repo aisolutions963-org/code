@@ -12,7 +12,7 @@ import QuotationModal from '@/components/projects/QuotationModal'
 import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
 import HandoverModal from '@/components/projects/HandoverModal'
 import GatePassModal from '@/components/projects/GatePassModal'
-import PaymentCalendar from '@/components/projects/PaymentCalendar'
+import UnifiedCalendar from '@/components/calendar/UnifiedCalendar'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 import AssignInstallationModal, { TeamMember } from '@/components/projects/AssignInstallationModal'
 import TimesheetsView from '@/components/timesheets/TimesheetsView'
@@ -175,9 +175,9 @@ export default function MgrDashboard() {
 
       {/* Payment Calendar view */}
       {view === 'calendar' && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <PaymentCalendar />
-        </div>
+        <UnifiedCalendar
+          filterTypes={['payment-received', 'payment-due', 'delivery', 'installation']}
+        />
       )}
 
       {/* Installation team view — members with assigned projects */}
