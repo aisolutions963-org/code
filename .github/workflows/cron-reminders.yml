@@ -1,0 +1,50 @@
+name: Scheduled Reminders
+
+on:
+  schedule:
+    # Weekly check — Friday 04:00 UTC = 08:00 UAE
+    - cron: '0 4 * * 5'
+    # Weekly follow-up — Saturday 05:00 UTC = 09:00 UAE
+    - cron: '0 5 * * 6'
+    # Monthly audit — 1st of each month 04:00 UTC = 08:00 UAE
+    - cron: '0 4 1 * *'
+  # Allow manual trigger from the GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      route:
+        description: 'Which cron to trigger'
+        required: true
+        type: choice
+        options:
+          - weekly-reminder
+          - monthly-audit
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine route
+        id: route
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "path=${{ inputs.route }}" >> $GITHUB_OUTPUT
+          else
+            DAY=$(date +%u)   # 1=Mon … 5=Fri 6=Sat
+            DOM=$(date +%d)   # day of month
+            if [ "$DOM" = "01" ]; then
+              echo "path=monthly-audit" >> $GITHUB_OUTPUT
+            else
+              echo "path=weekly-reminder" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Call cron endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/${{ steps.route.outputs.path }}")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Cron endpoint returned $STATUS — treating as failure"
+            exit 1
+          fi
