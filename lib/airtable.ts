@@ -2602,6 +2602,42 @@ export async function generatePhase4Tasks(
   return { created: ids.length, todoTemplates }
 }
 
+export async function upsertReminderEvent(input: {
+  customKey: string
+  title: string
+  date: string
+  notes?: string
+  createdBy?: string
+}): Promise<void> {
+  const existing = await fetchAll(CALENDAR_EVENTS.TABLE_ID, {
+    filterByFormula: `{${CALENDAR_EVENTS.CUSTOM_TASK}}="${input.customKey}"`,
+    fields: [CALENDAR_EVENTS.TITLE],
+  })
+  const fields: Record<string, unknown> = {
+    [CALENDAR_EVENTS.TITLE]: input.title,
+    [CALENDAR_EVENTS.DATE]: input.date,
+    [CALENDAR_EVENTS.CUSTOM_TASK]: input.customKey,
+  }
+  if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
+  if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
+
+  if (existing.length > 0) {
+    const res = await fetchWithRetry(recUrl(CALENDAR_EVENTS.TABLE_ID, existing[0].id), {
+      method: 'PATCH',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ fields }),
+    })
+    if (!res.ok) throw new Error(`Airtable error ${res.status}`)
+  } else {
+    const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ fields }),
+    })
+    if (!res.ok) throw new Error(`Airtable error ${res.status}`)
+  }
+}
+
 // ─── Item Types ───────────────────────────────────────────────────────────────
 
 // ─── Project Items ────────────────────────────────────────────────────────────
