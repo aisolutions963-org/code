@@ -12,8 +12,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import TaskList from '@/components/tasks/TaskList'
-import PaymentCalendar from '@/components/projects/PaymentCalendar'
-import SACalendarView from '@/components/calendar/SACalendarView'
+import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
 import { useSession } from '@/app/dashboard/layout-client'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
@@ -1939,21 +1938,19 @@ function AnnouncementsPage() {
   )
 }
 
-// ─── Page 9: Payment Calendar ─────────────────────────────────────────────────
-
-type CalTab = 'activity' | 'payments' | 'personal' | 'installation' | 'materials'
-
-const CAL_TABS: { id: CalTab; label: string; description: string; dot: string }[] = [
-  { id: 'activity',     label: 'Project Activity',   description: 'Tasks and project events',           dot: 'bg-amber-400' },
-  { id: 'payments',     label: 'Payments',            description: 'Payment dates and due dates',        dot: 'bg-green-400' },
-  { id: 'personal',     label: 'My Activities',       description: 'Personal events visible to manager', dot: 'bg-purple-400' },
-  { id: 'installation', label: 'Installation',        description: 'On-site installation schedule',      dot: 'bg-blue-500' },
-  { id: 'materials',    label: 'Material Delivery',   description: 'Gate pass and delivery dates',       dot: 'bg-yellow-400' },
-]
+// ─── Page 9: Calendar ─────────────────────────────────────────────────────────
 
 function CalendarPage() {
-  const [calTab, setCalTab] = useState<CalTab>('activity')
   const { name } = useSession()
+
+  const tabs: TabDef[] = [
+    { id: 'all',          label: 'All',               dot: 'bg-gray-400',   types: null,                                                  noAdd: true },
+    { id: 'activity',     label: 'Project Activity',  dot: 'bg-amber-400',  types: ['activity', 'fabrication'],                           noAdd: true },
+    { id: 'payments',     label: 'Payments',          dot: 'bg-green-500',  types: ['payment-received', 'payment-due', 'delivery'],        noAdd: true },
+    { id: 'personal',     label: 'My Activities',     dot: 'bg-purple-400', types: ['activity'], creatorFilter: name ?? undefined,         canAddEvent: true },
+    { id: 'installation', label: 'Installation',      dot: 'bg-blue-500',   types: ['installation'],                                      showInstallAssign: true, noAdd: true },
+    { id: 'materials',    label: 'Material Delivery', dot: 'bg-yellow-400', types: ['delivery'],                                          noAdd: true },
+  ]
 
   return (
     <div className="space-y-4">
@@ -1961,42 +1958,7 @@ function CalendarPage() {
         <h2 className="text-lg font-semibold text-gray-900">Calendars</h2>
         <p className="text-sm text-gray-500">All project and operational timelines in one place</p>
       </div>
-
-      {/* Tab bar */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {CAL_TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setCalTab(t.id)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              calTab === t.id
-                ? 'bg-gray-900 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${t.dot}`} />
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm">
-        {calTab === 'activity' && (
-          <SACalendarView filterTypes={['activity', 'fabrication']} title="Project Activity" />
-        )}
-        {calTab === 'payments' && (
-          <SACalendarView filterTypes={['payment-received', 'payment-due', 'delivery']} title="Payments & Deliveries" />
-        )}
-        {calTab === 'personal' && (
-          <SACalendarView filterTypes={['activity']} creatorFilter={name} canAddEvent title="My Activities" />
-        )}
-        {calTab === 'installation' && (
-          <SACalendarView filterTypes={['installation']} showInstallAssign title="Installation Schedule" />
-        )}
-        {calTab === 'materials' && (
-          <SACalendarView filterTypes={['delivery']} title="Material Deliveries" />
-        )}
-      </div>
+      <UnifiedCalendar tabs={tabs} />
     </div>
   )
 }

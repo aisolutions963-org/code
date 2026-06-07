@@ -4,12 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Announcement, Project, Task } from '@/lib/types'
-import type { CalendarEvent } from '@/lib/airtable'
 import { useSession } from '@/app/dashboard/layout-client'
+import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
 
 interface HomeData {
   announcements: Announcement[]
-  events: CalendarEvent[]
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -70,266 +69,34 @@ function AnnouncementCard({ ann }: { ann: Announcement }) {
   )
 }
 
-type CalendarType = 'installation' | 'activity'
-
-function MiniCalendar({
-  type,
-  events,
-  onDayClick,
+function HomeCalendar({
+  canAddActivity,
+  canAddInstallation,
+  onActivityDate,
+  onInstallationDate,
 }: {
-  type: CalendarType
-  events: CalendarEvent[]
-  onDayClick?: (date: string) => void
+  canAddActivity: boolean
+  canAddInstallation: boolean
+  onActivityDate: (date: string) => void
+  onInstallationDate: (date: string) => void
 }) {
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  })
-  const [popoverEvent, setPopoverEvent] = useState<{ ev: CalendarEvent; x: number; y: number } | null>(null)
-
-  const title = type === 'installation' ? 'Installation & Delivery Calendar' : 'Project Activity Calendar'
-  const filtered = events.filter((e) =>
-    type === 'installation'
-      ? e.type === 'installation' || e.type === 'delivery' || e.type === 'fabrication'
-      : e.type === 'activity',
-  )
-
-  const year = currentMonth.getFullYear()
-  const month = currentMonth.getMonth()
-
-  const firstDay = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-
-  const todayStr = new Date().toISOString().slice(0, 10)
-
-  const pointEvents = filtered.filter((e) => e.type !== 'fabrication')
-  const fabRanges = filtered.filter((e) => e.type === 'fabrication')
-
-  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
-
-  const eventsByDate: Record<string, CalendarEvent[]> = {}
-  for (const ev of pointEvents) {
-    const d = ev.date.slice(0, 10)
-    if (d.startsWith(monthPrefix)) {
-      if (!eventsByDate[d]) eventsByDate[d] = []
-      eventsByDate[d].push(ev)
-    }
-  }
-
-  function getFabStatus(dateStr: string): { inRange: boolean; isStart: boolean; isEnd: boolean; titles: string[] } {
-    const titles: string[] = []
-    let inRange = false; let isStart = false; let isEnd = false
-    for (const ev of fabRanges) {
-      const start = ev.date.slice(0, 10)
-      const end = (ev.endDate ?? ev.date).slice(0, 10)
-      if (dateStr >= start && dateStr <= end) {
-        inRange = true
-        if (dateStr === start) isStart = true
-        if (dateStr === end) isEnd = true
-        titles.push(ev.title)
-      }
-    }
-    return { inRange, isStart, isEnd, titles }
-  }
-
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  const tabs: TabDef[] = [
+    { id: 'all',          label: 'All',                   dot: 'bg-gray-400',   types: null,                                          noAdd: true },
+    { id: 'installation', label: 'Installation & Delivery', dot: 'bg-blue-500',   types: ['installation', 'delivery', 'fabrication'],  noAdd: !canAddInstallation },
+    { id: 'activity',     label: 'Activity',              dot: 'bg-amber-400',  types: ['activity'],                                  noAdd: !canAddActivity },
   ]
 
-  const prevMonth = () => { setCurrentMonth(new Date(year, month - 1, 1)); setPopoverEvent(null) }
-  const nextMonth = () => { setCurrentMonth(new Date(year, month + 1, 1)); setPopoverEvent(null) }
-
-  const monthLabel = currentMonth.toLocaleDateString('en-AE', { month: 'long', year: 'numeric' })
-
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
-        <div className="flex items-center gap-1">
-          {onDayClick && (
-            <button
-              onClick={() => onDayClick(todayStr)}
-              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg bg-brand-50 text-brand-600 hover:bg-brand-100 border border-brand-200 mr-1"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add
-            </button>
-          )}
-          <button onClick={prevMonth} className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <span className="text-xs font-medium text-gray-600 min-w-[120px] text-center">{monthLabel}</span>
-          <button onClick={nextMonth} className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="p-3">
-        <div className="grid grid-cols-7 mb-1">
-          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-            <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-y-1">
-          {cells.map((day, i) => {
-            if (!day) return <div key={`empty-${i}`} />
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-            const evs = eventsByDate[dateStr] ?? []
-            const isToday = dateStr === todayStr
-            const fab = getFabStatus(dateStr)
-            const hasTooltip = evs.length > 0 || fab.inRange
-            return (
-              <div
-                key={dateStr}
-                onClick={() => onDayClick?.(dateStr)}
-                className={`relative flex flex-col items-center py-1 rounded-lg group
-                  ${onDayClick ? 'cursor-pointer' : 'cursor-default'}
-                  ${isToday ? 'bg-brand-500' : fab.inRange ? 'bg-emerald-50' : onDayClick ? 'hover:bg-blue-50' : evs.length > 0 ? 'hover:bg-gray-50' : ''}`}
-              >
-                <span className={`text-xs font-medium ${isToday ? 'text-white' : fab.inRange ? 'text-emerald-800' : 'text-gray-700'}`}>
-                  {day}
-                </span>
-                {fab.inRange && !isToday && (
-                  <div className="flex gap-0.5 mt-0.5 justify-center">
-                    {fab.isStart && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-                    {fab.isEnd && !fab.isStart && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
-                    {!fab.isStart && !fab.isEnd && <span className="w-2 h-0.5 bg-emerald-300 rounded-full" />}
-                  </div>
-                )}
-                {evs.length > 0 && (
-                  <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
-                    {evs.slice(0, 3).map((ev) => (
-                      <span
-                        key={ev.id}
-                        onClick={(e) => { e.stopPropagation(); setPopoverEvent({ ev, x: e.clientX, y: e.clientY }) }}
-                        className={`w-2 h-2 rounded-full cursor-pointer hover:scale-125 transition-transform ${
-                          ev.type === 'installation' ? 'bg-blue-500' :
-                          ev.type === 'delivery' ? 'bg-yellow-400' : 'bg-amber-400'
-                        }`}
-                      />
-                    ))}
-                    {evs.length > 3 && (
-                      <span className="text-[9px] text-gray-400">+{evs.length - 3}</span>
-                    )}
-                  </div>
-                )}
-                {hasTooltip && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-10 hidden group-hover:block w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-lg pointer-events-none">
-                    {fab.titles.map((t, idx) => (
-                      <div key={idx} className="truncate text-emerald-300">{t}</div>
-                    ))}
-                    {evs.map((ev) => (
-                      <div key={ev.id} className="truncate">{ev.title}</div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="px-3 pb-3 flex gap-3 flex-wrap">
-        {type === 'installation' ? (
-          <>
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-blue-500" />Installation
-            </span>
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-yellow-400" />Delivery
-            </span>
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <span className="w-4 h-3 rounded bg-emerald-50 border border-emerald-300 inline-block" />Fabrication
-            </span>
-          </>
-        ) : (
-          <span className="flex items-center gap-1 text-xs text-gray-500">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />Activity
-          </span>
-        )}
-      </div>
-
-      {/* Event detail popover */}
-      {popoverEvent && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setPopoverEvent(null)} />
-          <div
-            className="fixed z-50 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 p-4"
-            style={{
-              top: Math.min(popoverEvent.y + 10, window.innerHeight - 240),
-              left: Math.min(Math.max(popoverEvent.x - 128, 8), window.innerWidth - 272),
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div className="min-w-0 flex-1">
-                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-md mb-1.5 ${
-                  popoverEvent.ev.type === 'activity' ? 'bg-amber-100 text-amber-700' :
-                  popoverEvent.ev.type === 'installation' ? 'bg-blue-100 text-blue-700' :
-                  'bg-green-100 text-green-700'
-                }`}>
-                  {popoverEvent.ev.type}
-                </span>
-                <p className="text-sm font-semibold text-gray-900 leading-snug">{popoverEvent.ev.title}</p>
-              </div>
-              <button
-                onClick={() => setPopoverEvent(null)}
-                className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors mt-0.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-400 w-14 shrink-0">Date</span>
-                <span className="text-gray-800 font-medium">
-                  {new Date(popoverEvent.ev.date + 'T00:00:00').toLocaleDateString('en-AE', {
-                    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-                  })}
-                </span>
-              </div>
-              {popoverEvent.ev.createdBy && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-400 w-14 shrink-0">Set by</span>
-                  <span className="text-gray-800 font-medium">{popoverEvent.ev.createdBy}</span>
-                </div>
-              )}
-              {popoverEvent.ev.projectId && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-400 w-14 shrink-0">Project</span>
-                  <span className="font-mono text-gray-700">{popoverEvent.ev.projectId}</span>
-                </div>
-              )}
-              {popoverEvent.ev.customTask && (
-                <div className="text-xs">
-                  <span className="text-gray-400">Task</span>
-                  <p className="text-gray-800 mt-0.5 font-medium">{popoverEvent.ev.customTask}</p>
-                </div>
-              )}
-              {popoverEvent.ev.notes && (
-                <div className="text-xs pt-1 border-t border-gray-100">
-                  <span className="text-gray-400">Notes</span>
-                  <p className="text-gray-700 mt-0.5 whitespace-pre-wrap leading-relaxed">{popoverEvent.ev.notes}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    <UnifiedCalendar
+      tabs={tabs}
+      onDayClick={(date, tabId) => {
+        if (tabId === 'installation' && canAddInstallation) onInstallationDate(date)
+        if (tabId === 'activity'    && canAddActivity)      onActivityDate(date)
+      }}
+    />
   )
 }
+
 
 // ─── Add Activity Modal ───────────────────────────────────────────────────────
 
@@ -961,7 +728,6 @@ export default function HomePage() {
   )
 
   const announcements = data?.announcements ?? []
-  const events = data?.events ?? []
 
   const canAddActivity = ['sed', 'superadmin'].includes(role)
   const canAddInstallation = ['manager', 'superadmin'].includes(role)
@@ -1019,18 +785,12 @@ export default function HomePage() {
         <ProjectPipeline role={role} />
 
         {/* Calendars */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <MiniCalendar
-            type="installation"
-            events={events}
-            onDayClick={canAddInstallation ? setInstallationDate : undefined}
-          />
-          <MiniCalendar
-            type="activity"
-            events={events}
-            onDayClick={canAddActivity ? setActivityDate : undefined}
-          />
-        </div>
+        <HomeCalendar
+          canAddActivity={canAddActivity}
+          canAddInstallation={canAddInstallation}
+          onActivityDate={setActivityDate}
+          onInstallationDate={setInstallationDate}
+        />
       </div>
 
       {activityDate && (
