@@ -187,7 +187,7 @@ export const PATCH = requireRole()(
       const projectName = refreshed.projectName ? ` — ${refreshed.projectName}` : ''
 
       if (followUpOutcome === 'Reject Project' && projectId) {
-        await updateProject(projectId, { [PROJECTS.APPROVAL_STATUS]: 'Not-Approved' })
+        await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Not-Approved' })
         createNotification({
           recipientRole: 'sed',
           title: `Project rejected — ${projectRef}`,
