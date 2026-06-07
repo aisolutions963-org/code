@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: process.env.NEXT_PUBLIC_APP_NAME ?? 'WoodWings',
-  description: 'WoodWings Internal Operations Dashboard',
+  description: 'WoodWings Fitout Services — Internal Operations Dashboard',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

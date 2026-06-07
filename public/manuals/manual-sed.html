@@ -1,616 +1,450 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WoodWings PMS — SED User Manual</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SED User Manual — WoodWings PMS</title>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet" />
 <style>
-  :root {
-    --bg: #f5f0e8;
-    --white: #ffffff;
-    --navy: #1a1a2e;
-    --gold: #c9a96e;
-    --gold-light: #f0e6d3;
-    --text: #2d2d3a;
-    --muted: #6b6b80;
-    --border: #e2ddd6;
-    --sidebar-w: 260px;
-    --locked: #6b7280;
-    --todo: #3b82f6;
-    --inprogress: #f59e0b;
-    --pending: #8b5cf6;
-    --completed: #10b981;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { font-size: 16px; }
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.7;
-    display: flex;
-  }
-  h1,h2,h3,h4 { font-family: 'DM Serif Display', serif; color: var(--navy); }
-  a { color: var(--gold); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Lato',sans-serif;background:#F8F6F1;color:#222;font-size:15px;line-height:1.75}
+a{color:#C9A84C;text-decoration:none}
+a:hover{text-decoration:underline}
 
-  /* Sidebar */
-  #toc {
-    width: var(--sidebar-w);
-    min-height: 100vh;
-    background: var(--navy);
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    overflow-y: auto;
-    flex-shrink: 0;
-    padding: 0 0 40px 0;
-  }
-  .toc-brand {
-    padding: 24px 20px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    margin-bottom: 8px;
-  }
-  .toc-brand .logo { font-family: 'DM Serif Display', serif; color: var(--gold); font-size: 1.2rem; }
-  .toc-brand .role-label { color: rgba(255,255,255,0.45); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
-  #toc a {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 20px;
-    color: rgba(255,255,255,0.55);
-    font-size: 0.82rem;
-    font-weight: 500;
-    border-left: 3px solid transparent;
-    transition: all 0.15s;
-  }
-  #toc a:hover, #toc a.active {
-    color: var(--gold);
-    border-left-color: var(--gold);
-    background: rgba(201,169,110,0.08);
-    text-decoration: none;
-  }
-  .toc-section-label {
-    padding: 16px 20px 4px;
-    color: rgba(255,255,255,0.25);
-    font-size: 0.7rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    font-weight: 600;
-  }
+/* ── TOP NAV ── */
+.topnav{position:sticky;top:0;z-index:100;background:#1A1A2E;color:#fff;padding:0 24px;display:flex;align-items:center;gap:20px;height:52px;box-shadow:0 2px 8px rgba(0,0,0,.35);overflow-x:auto;white-space:nowrap}
+.topnav .brand{font-weight:900;color:#C9A84C;font-size:16px;margin-right:8px;flex-shrink:0}
+.topnav a{color:#bbb;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;transition:color .2s}
+.topnav a:hover{color:#C9A84C;text-decoration:none}
 
-  /* Main */
-  #main {
-    flex: 1;
-    max-width: calc(100% - var(--sidebar-w));
-    padding: 0;
-  }
-  .page-header {
-    background: var(--navy);
-    color: white;
-    padding: 48px 60px 40px;
-    border-bottom: 4px solid var(--gold);
-  }
-  .page-header .manual-type { color: var(--gold); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
-  .page-header h1 { font-size: 2.4rem; color: white; margin-bottom: 12px; }
-  .page-header p { color: rgba(255,255,255,0.6); font-size: 1rem; max-width: 560px; }
-  .content { padding: 0 60px 80px; }
+/* ── PAGE ── */
+.page{max-width:900px;margin:0 auto;padding:32px 24px 100px}
 
-  .section {
-    padding: 52px 0 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 0;
-  }
-  .section:last-child { border-bottom: none; }
-  .section-num { color: var(--gold); font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; font-family: 'DM Sans', sans-serif; }
-  .section h2 { font-size: 1.75rem; margin-bottom: 6px; }
-  .section-intro { color: var(--muted); font-size: 0.95rem; margin-bottom: 28px; }
-  h3 { font-size: 1.2rem; margin: 28px 0 12px; }
-  h4 { font-size: 1rem; margin: 20px 0 8px; font-family: 'DM Sans', sans-serif; font-weight: 600; color: var(--navy); }
-  p { margin-bottom: 12px; }
-  ul, ol { padding-left: 24px; margin-bottom: 14px; }
-  li { margin-bottom: 5px; }
+/* ── COVER ── */
+.cover{background:#1A1A2E;color:#fff;border-radius:16px;padding:52px 40px;margin-bottom:40px;text-align:center}
+.cover .role-pill{display:inline-block;background:#C9A84C;color:#1A1A2E;font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.12em;padding:5px 16px;border-radius:20px;margin-bottom:20px}
+.cover h1{font-size:38px;font-weight:900;line-height:1.1;margin-bottom:10px}
+.cover .sub{color:#aaa;font-size:14px}
 
-  /* Tables */
-  .tbl-wrap { overflow-x: auto; margin: 16px 0 24px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
-  table { width: 100%; border-collapse: collapse; background: var(--white); font-size: 0.88rem; }
-  th { background: var(--navy); color: white; padding: 11px 16px; text-align: left; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.04em; }
-  td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  tr:last-child td { border-bottom: none; }
-  tr:nth-child(even) td { background: #faf8f5; }
+/* ── TOC ── */
+.toc{background:#fff;border:1px solid #e2ddd6;border-radius:12px;padding:28px;margin-bottom:36px}
+.toc-title{font-size:16px;font-weight:900;color:#1A1A2E;margin-bottom:16px}
+.toc ol{padding-left:20px}
+.toc li{margin:7px 0}
+.toc a{color:#1A1A2E;font-weight:700;font-size:14px}
+.toc a:hover{color:#C9A84C}
 
-  /* Callouts */
-  .callout { display: flex; gap: 14px; padding: 16px 18px; border-radius: 10px; margin: 18px 0; font-size: 0.9rem; }
-  .callout-icon { font-size: 1.2rem; flex-shrink: 0; padding-top: 1px; }
-  .callout-body strong { display: block; margin-bottom: 3px; font-weight: 600; }
-  .callout.warning { background: #fffbeb; border-left: 4px solid #f59e0b; }
-  .callout.warning .callout-icon::before { content: "⚠️"; }
-  .callout.tip { background: #eff6ff; border-left: 4px solid #3b82f6; }
-  .callout.tip .callout-icon::before { content: "💡"; }
-  .callout.note { background: #f8fafc; border-left: 4px solid #94a3b8; }
-  .callout.note .callout-icon::before { content: "📌"; }
+/* ── SECTION ── */
+h2{font-size:22px;font-weight:900;color:#1A1A2E;margin:44px 0 16px;padding-left:16px;border-left:4px solid #C9A84C}
+h3{font-size:17px;font-weight:700;color:#1A1A2E;margin:26px 0 10px}
+h4{font-size:13px;font-weight:700;color:#666;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.07em}
+p{margin-bottom:12px}
+ul,ol{padding-left:22px;margin-bottom:12px}
+li{margin:5px 0}
 
-  /* Badges */
-  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
-  .badge::before { content: "●"; font-size: 0.6rem; }
-  .b-locked { background: #f1f1f1; color: var(--locked); }
-  .b-todo { background: #eff6ff; color: var(--todo); }
-  .b-inprogress { background: #fffbeb; color: #b45309; }
-  .b-pending { background: #f5f3ff; color: #7c3aed; }
-  .b-completed { background: #ecfdf5; color: #059669; }
+/* ── CARD ── */
+.card{background:#fff;border:1px solid #e2ddd6;border-radius:12px;padding:24px;margin-bottom:20px}
+.card h3{margin-top:0}
 
-  /* Status legend */
-  .status-legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+/* ── STEPS ── */
+.steps{list-style:none;padding:0;counter-reset:step-c}
+.steps li{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px;counter-increment:step-c}
+.steps li::before{content:counter(step-c);display:flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:50%;background:#C9A84C;color:#1A1A2E;font-weight:900;font-size:13px;flex-shrink:0;margin-top:2px}
 
-  /* Steps */
-  .steps { counter-reset: step; margin: 16px 0; }
-  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; }
-  .step-num { width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
-  .step-body { flex: 1; }
-  .step-body strong { display: block; margin-bottom: 3px; color: var(--navy); }
+/* ── SCREENSHOT SLOT ── */
+.screenshot-slot{border:2px dashed #ccc;border-radius:10px;background:#f5f4f0;display:flex;align-items:center;justify-content:center;min-height:220px;margin:18px 0}
+.screenshot-slot .inner{text-align:center;padding:24px}
+.screenshot-slot .icon{font-size:32px;display:block;margin-bottom:8px}
+.screenshot-slot .label{color:#999;font-size:12px;font-style:italic}
 
-  /* Flowchart */
-  .flow { display: flex; flex-direction: column; align-items: flex-start; gap: 0; margin: 20px 0; }
-  .flow-box { background: var(--white); border: 2px solid var(--border); border-radius: 10px; padding: 12px 20px; font-size: 0.88rem; font-weight: 500; min-width: 220px; max-width: 400px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-  .flow-box.highlight { border-color: var(--gold); background: var(--gold-light); }
-  .flow-box.decision { border-color: #8b5cf6; background: #f5f3ff; border-radius: 6px; }
-  .flow-arrow { padding: 4px 0 4px 30px; color: var(--muted); font-size: 0.9rem; }
-  .flow-cols { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin: 8px 0; }
+/* ── BADGES ── */
+.badge{display:inline-block;padding:2px 11px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap}
+.b-locked{background:#e5e7eb;color:#6b7280}
+.b-todo{background:#dbeafe;color:#1d4ed8}
+.b-inprogress{background:#fef3c7;color:#92400e}
+.b-pending{background:#fed7aa;color:#c2410c}
+.b-completed{background:#dcfce7;color:#15803d}
 
-  /* Quick ref card */
-  .qrc { background: var(--navy); color: white; border-radius: 14px; padding: 36px; margin-top: 40px; }
-  .qrc h2 { color: var(--gold); font-size: 1.5rem; margin-bottom: 24px; }
-  .qrc h3 { color: var(--gold); font-size: 1rem; margin: 20px 0 10px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
-  .qrc table { background: rgba(255,255,255,0.05); }
-  .qrc th { background: rgba(201,169,110,0.2); color: var(--gold); }
-  .qrc td { color: rgba(255,255,255,0.8); border-bottom-color: rgba(255,255,255,0.08); }
-  .qrc tr:nth-child(even) td { background: rgba(255,255,255,0.03); }
-  .qrc .badge { }
+/* ── CALLOUT BOXES ── */
+.tip{border-left:4px solid #16a34a;background:#f0fdf4;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.warn{border-left:4px solid #ea580c;background:#fff7ed;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.danger{border-left:4px solid #dc2626;background:#fef2f2;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
 
-  /* Print */
-  @media print {
-    #toc { display: none !important; }
-    #main { max-width: 100%; }
-    .page-header { background: white !important; color: var(--navy) !important; border-bottom: 3px solid var(--gold); padding: 24px 32px; }
-    .page-header h1, .page-header .manual-type { color: var(--navy) !important; }
-    .page-header p { color: var(--muted) !important; }
-    .content { padding: 0 32px 40px; }
-    .section { page-break-before: auto; }
-    h2 { page-break-after: avoid; }
-    .qrc { background: white !important; border: 2px solid var(--navy); }
-    .qrc h2, .qrc h3 { color: var(--navy) !important; }
-    .qrc td, .qrc table { color: var(--text) !important; }
-    a::after { content: " (" attr(href) ")"; font-size: 0.75em; color: var(--muted); }
-  }
-  @media (max-width: 900px) {
-    body { flex-direction: column; }
-    #toc { width: 100%; height: auto; position: relative; }
-    #main { max-width: 100%; }
-    .content { padding: 0 24px 60px; }
-    .page-header { padding: 32px 24px; }
-  }
+/* ── TABLE ── */
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+th{background:#1A1A2E;color:#fff;padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+td{padding:10px 14px;border-bottom:1px solid #eee;vertical-align:top}
+tr:nth-child(even) td{background:#fafaf7}
+
+/* ── QUICK REF TABLE ── */
+.qrc th{background:#C9A84C;color:#1A1A2E}
+
+/* ── BACK TO TOP ── */
+#btt{position:fixed;bottom:28px;right:28px;background:#1A1A2E;color:#C9A84C;border:none;border-radius:50%;width:46px;height:46px;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;align-items:center;justify-content:center}
+#btt.vis{display:flex}
+
+/* ── PRINT ── */
+@media print{
+  .topnav,#btt{display:none!important}
+  body{background:#fff}
+  .page{padding:0;max-width:100%}
+  .cover{background:#1A1A2E!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  h2{page-break-before:always}
+  .cover,h2:first-of-type{page-break-before:avoid}
+  .screenshot-slot{min-height:180px}
+}
 </style>
 </head>
 <body>
 
-<nav id="toc">
-  <div class="toc-brand">
-    <div class="logo">WoodWings PMS</div>
-    <div class="role-label">SED — Sales Manual</div>
-  </div>
-  <div class="toc-section-label">Contents</div>
-  <a href="#s1">§1 Introduction</a>
-  <a href="#s2">§2 Your Dashboard</a>
-  <a href="#s3">§3 Task Management</a>
-  <a href="#s4">§4 Forms Guide</a>
-  <a href="#s5">§5 Project Workflow</a>
-  <a href="#s6">§6 Common Scenarios</a>
-  <a href="#s7">§7 Permissions</a>
-  <a href="#s8">§8 Troubleshooting</a>
-  <a href="#s9">§9 Quick Reference</a>
+<nav class="topnav">
+  <img src="/logo.png" alt="WoodWings" style="height:32px;width:auto;object-fit:contain;flex-shrink:0;filter:brightness(0)invert(1)" onerror="this.style.display='none';this.nextSibling.style.display='inline'"><span class="brand" style="display:inline">WoodWings</span>
+  <a href="#what-is">System</a>
+  <a href="#login">Login</a>
+  <a href="#dashboard">Dashboard</a>
+  <a href="#tasks">Tasks</a>
+  <a href="#how-to-work">Working Tasks</a>
+  <a href="#special">Special Tasks</a>
+  <a href="#notifications">Notifications</a>
+  <a href="#faq">FAQ</a>
+  <a href="#quick-ref">Quick Ref</a>
 </nav>
 
-<div id="main">
-  <div class="page-header">
-    <div class="manual-type">User Manual — Version 1.1</div>
-    <h1>SED Role Guide</h1>
-    <p>Sales & Engineering Department. Everything you need to manage client interactions, quotations, site visits, and project intake through WoodWings PMS.</p>
+<div class="page">
+
+<!-- COVER -->
+<div class="cover">
+  <div class="role-pill">SED — Sales, Estimating &amp; Design</div>
+  <h1>WoodWings PMS<br>User Manual</h1>
+  <p class="sub">Version June 2026 &nbsp;·&nbsp; English</p>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <ol>
+    <li><a href="#what-is">What Is This System?</a></li>
+    <li><a href="#login">How to Log In</a></li>
+    <li><a href="#dashboard">Your Dashboard</a></li>
+    <li><a href="#tasks">Understanding Tasks</a></li>
+    <li><a href="#how-to-work">How to Work a Task</a></li>
+    <li><a href="#special">Special Task Types</a></li>
+    <li><a href="#notifications">Notifications</a></li>
+    <li><a href="#faq">Frequently Asked Questions</a></li>
+    <li><a href="#quick-ref">Quick Reference Card</a></li>
+  </ol>
+</div>
+
+<!-- 1 -->
+<section id="what-is">
+<h2>1. What Is This System?</h2>
+<div class="card">
+  <p>WoodWings PMS is the company's project management system. It tracks every project from the moment a client enquiry arrives, through design, quotation, production, installation, and final handover.</p>
+  <p>As a member of the <strong>SED team (Sales, Estimating &amp; Design)</strong>, your role is to handle the client-facing side: create projects, manage quotations, follow up with clients, schedule site visits, and hand work over to production once the client says yes.</p>
+  <p>Everything is organised as <strong>tasks</strong>. Each step you need to take is a task card. When you finish one, the system automatically opens the next one in the chain.</p>
+</div>
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: System homepage / login screen — first thing a new user sees]</p></div>
+</div>
+</section>
+
+<!-- 2 -->
+<section id="login">
+<h2>2. How to Log In</h2>
+<ol class="steps">
+  <li>Open your web browser and navigate to the WoodWings app URL given to you by your manager.</li>
+  <li>Enter your <strong>email address</strong> and <strong>password</strong> in the login fields.</li>
+  <li>Click <strong>Sign In</strong>.</li>
+  <li>You are taken directly to the <strong>SED Dashboard</strong>. No role selection needed.</li>
+</ol>
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Login page — email field, password field, Sign In button]</p></div>
+</div>
+<div class="tip"><strong>Forgot your password?</strong> Ask Kanaan (the owner / superadmin) to reset it for you. There is no self-service reset link.</div>
+</section>
+
+<!-- 3 -->
+<section id="dashboard">
+<h2>3. Your Dashboard</h2>
+<p>After login you land on the <strong>SED Dashboard</strong>. Three counter cards at the top give you a snapshot: <strong>Open Tasks</strong>, <strong>Pending Approval</strong>, and <strong>Completed</strong>.</p>
+
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: SED Dashboard — top of page with three stat cards and the five tab bar]</p></div>
+</div>
+
+<h3>Dashboard Tabs</h3>
+
+<h4>Tasks (default)</h4>
+<p>Your main working area. Every task currently assigned to you or your team appears here, sorted by urgency. This is where you spend most of your time.</p>
+
+<h4>Approvals</h4>
+<p>Shows all tasks waiting for a client approval decision — for example, Concept Design Approval, Sample Approval. Two sub-sections: <strong>Waiting for Client</strong> (still open) and <strong>Decisions Recorded</strong> (already settled, shown as coloured pills).</p>
+
+<h4>Site Visits</h4>
+<p>All tasks that involve a site visit. Each card shows the client location, Emirate, address, and a direct link to open it in Google Maps. You can also see whether a visit date has been scheduled yet.</p>
+
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Site Visits tab — project cards with location, Emirate, address, and Google Maps button]</p></div>
+</div>
+
+<h4>QC</h4>
+<p>Shows QC check tasks — items that need a quality inspection before installation can proceed.</p>
+
+<h4>Projects</h4>
+<p>All your active projects as cards. From here you can:</p>
+<ul>
+  <li>See each project's name, client, and current stage</li>
+  <li>Click <strong>F5 — Add Quotation Items</strong> to submit the formal quotation line items</li>
+  <li>Click <strong>F3 — Order Materials</strong> to raise a material order</li>
+  <li>Click <strong>📐 Request Measurements</strong> to request a measurement site visit</li>
+</ul>
+
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Projects tab — project cards with F5, F3, and Request Measurements buttons]</p></div>
+</div>
+
+<h3>+ New Project Button</h3>
+<p>At the top-right of the dashboard is a <strong>+ New Project</strong> button. Click it to create a brand new project for a client enquiry.</p>
+<div class="tip"><strong>Fields required for a new project:</strong> Client name (autocomplete from existing clients), Project name, Emirate, Area/Location, Detailed address, Project description/scope, and Payment mode. All required fields are marked with a red asterisk (*).</div>
+</section>
+
+<!-- 4 -->
+<section id="tasks">
+<h2>4. Understanding Tasks</h2>
+
+<h3>What Is a Task?</h3>
+<p>A task is a single action card for a project. Examples: "Visit Site to Gather Details", "Make Quotation", "Call the Client". Each task has a name, a status, and sometimes a special form to fill in.</p>
+
+<h3>Task Statuses</h3>
+<table>
+  <thead><tr><th>Status</th><th>What It Means</th><th>Action Required?</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge b-locked">Locked</span></td><td>Waiting for another task to finish first. Hidden until it unlocks.</td><td>No — wait</td></tr>
+    <tr><td><span class="badge b-todo">To Do</span></td><td>Ready for you. The task is sitting in your queue.</td><td>Yes — start working</td></tr>
+    <tr><td><span class="badge b-inprogress">In Progress</span></td><td>You have started this task.</td><td>Keep going</td></tr>
+    <tr><td><span class="badge b-pending">Pending Approval</span></td><td>Your part is done. Waiting for the manager to approve.</td><td>No — wait for manager</td></tr>
+    <tr><td><span class="badge b-completed">Completed</span></td><td>Fully done. No further action.</td><td>No</td></tr>
+  </tbody>
+</table>
+
+<h3>Project Stages</h3>
+<p>Every project moves through stages as it progresses:</p>
+<table>
+  <thead><tr><th>Stage</th><th>What It Means for SED</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Preparing</strong></td><td>Just created. You are working on quotation, site visits, and samples.</td></tr>
+    <tr><td><strong>Open</strong></td><td>Client approved. Production is active. You submit F5 quotation items.</td></tr>
+    <tr><td><strong>Installation Completed</strong></td><td>Installation done. Waiting for final payment and formal handover.</td></tr>
+    <tr><td><strong>Closed &amp; Valid Maintenance</strong></td><td>Project closed. 1-year warranty period is running.</td></tr>
+    <tr><td><strong>Not-Approved</strong></td><td>Client declined. No further tasks.</td></tr>
+  </tbody>
+</table>
+
+<h3>Parallel Tasks Are Normal</h3>
+<div class="tip">You will often see several tasks open at the same time for the same project — for example, "Make Quotation", "Order Sample", and "Site Visit" may all be open together. This is completely normal. They are different actions that happen in parallel. Work through each one independently.</div>
+
+<h3>The Amber Banner on a Task</h3>
+<p>If you open a task and see an <strong>amber (yellow/orange) banner</strong> at the top, it is a special note from Kanaan (the owner). Read it carefully — it contains specific instructions for that task. You cannot edit or remove it.</p>
+</section>
+
+<!-- 5 -->
+<section id="how-to-work">
+<h2>5. How to Work a Task</h2>
+<ol class="steps">
+  <li><strong>Find the task</strong> in your <strong>Tasks tab</strong>. Tasks are grouped by project.</li>
+  <li><strong>Click the task card</strong> to open it. You will see the task name, any instructions, and fields to fill.</li>
+  <li><strong>Change the status to "In Progress"</strong> while you are working.</li>
+  <li><strong>Fill in the required fields.</strong> For a site visit, enter the visit date. For a follow-up call, enter the outcome.</li>
+  <li><strong>Mark as "Completed"</strong> when done. The system unlocks the next task automatically.</li>
+</ol>
+
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Task card open — status dropdown, required fields, Complete button]</p></div>
+</div>
+
+<div class="warn"><strong>Tasks that need manager approval:</strong> Some tasks are gated — when you click Complete they move to <span class="badge b-pending">Pending Approval</span> instead of Completed. This is by design. The manager will review and either approve or reject it. You will receive a notification either way.</div>
+</section>
+
+<!-- 6 -->
+<section id="special">
+<h2>6. Special Task Types</h2>
+<p>Some tasks have built-in forms or buttons that replace the normal "fill a field and mark done" approach. Here are the ones you will encounter as a SED.</p>
+
+<div class="card" id="make-quotation">
+  <h3>Make Quotation</h3>
+  <p>When you see a task named <strong>"Make Quotation"</strong>, you need to record the quotation details.</p>
+  <ol class="steps">
+    <li>Click the task card to open it.</li>
+    <li>Fill in <strong>Quotation Number</strong> and <strong>Quotation Reference</strong>.</li>
+    <li>Click <strong>Save &amp; Complete</strong>. The task closes automatically.</li>
+  </ol>
+  <div class="screenshot-slot">
+    <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Make Quotation task panel — two input fields and Save & Complete button]</p></div>
   </div>
+</div>
 
-  <div class="content">
+<div class="card" id="order-sample">
+  <h3>Order Sample</h3>
+  <p>This task asks: does the team already have the material in stock?</p>
+  <ol class="steps">
+    <li>Click the task card to open it.</li>
+    <li>You see two buttons:<br>
+      <strong style="color:#15803d">✓ We Have It — Send to Fabrication</strong> — material is in stock.<br>
+      <strong style="color:#c2410c">✗ Need to Order — Request F3 material order</strong> — need to order it.</li>
+    <li>Click the correct button. The system routes the work automatically based on your answer.</li>
+  </ol>
+  <div class="screenshot-slot">
+    <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Order Sample panel — two large action buttons (green / orange)]</p></div>
+  </div>
+</div>
 
-    <!-- §1 Introduction -->
-    <div class="section" id="s1">
-      <div class="section-num">Section 1</div>
-      <h2>Introduction</h2>
-      <p class="section-intro">Welcome to WoodWings PMS. This manual covers everything a SED user needs to know to operate the system effectively.</p>
+<div class="card" id="call-client">
+  <h3>Call the Client (Decision by Kanaan)</h3>
+  <p>The <strong>"Call the Client"</strong> task is decided by <strong>Kanaan (superadmin)</strong>, not by the SED team. However you will be notified of the outcome. There are three possible decisions:</p>
+  <table>
+    <thead><tr><th>Decision</th><th>What Happens</th></tr></thead>
+    <tbody>
+      <tr><td><strong style="color:#15803d">Approved</strong></td><td>Client agreed. Project advances to Open phase. New tasks are generated for all quotation items.</td></tr>
+      <tr><td><strong style="color:#92400e">Needs Review</strong></td><td>Client wants changes. All action tasks reset to To Do so SED can rework and resubmit.</td></tr>
+      <tr><td><strong style="color:#dc2626">Rejected</strong></td><td>Client declined. Project is marked Not-Approved. No further tasks are created.</td></tr>
+    </tbody>
+  </table>
+  <div class="tip">You will receive a notification when Kanaan records a decision on any Call the Client task.</div>
+</div>
 
-      <h3>What is WoodWings PMS?</h3>
-      <p>WoodWings PMS is the internal project management system for the WoodWings business. It tracks every client project from the first call through to handover and maintenance. Tasks, approvals, documents, payments, and team coordination all live in this single system.</p>
+<div class="card" id="follow-up">
+  <h3>Follow-Up Task</h3>
+  <p>A follow-up task appears when you need to call the client and record what happened.</p>
+  <ol class="steps">
+    <li>Open the task and change status to <strong>In Progress</strong>.</li>
+    <li>Make the call.</li>
+    <li>Select the outcome from the <strong>Follow-Up Outcome</strong> dropdown.</li>
+    <li>Mark the task as <strong>Completed</strong>.</li>
+  </ol>
+  <div class="danger"><strong>⚠ Warning — "Reject Project" outcome:</strong> One of the dropdown choices is <strong>"Reject Project"</strong>. If you select this and save, the project is <em>immediately</em> marked as Not-Approved. Only use this if the client has definitively declined. You cannot undo it yourself — you would need to ask Kanaan to reopen the project.</div>
+</div>
 
-      <h3>Your Role: SED (Sales & Engineering Department)</h3>
-      <p>As a SED user, you are the primary point of contact between clients and the rest of the company. Your responsibilities in the system are:</p>
-      <ul>
-        <li>Recording client intake (F1 form) on first contact</li>
-        <li>Managing quotations, samples, design proposals, and site visits</li>
-        <li>Following up with clients across the project lifecycle</li>
-        <li>Submitting F5 quotation details once a project is confirmed</li>
-        <li>Ordering materials via F3 form when needed</li>
-        <li>Conducting QC checks at the installation site</li>
-        <li>Signing off on handover alongside the client</li>
-      </ul>
+<div class="card" id="site-visit">
+  <h3>Site Visit Task</h3>
+  <ol class="steps">
+    <li>Click the task card to open it.</li>
+    <li>Set the <strong>Task Start Date</strong> to the planned visit date.</li>
+    <li>Go to the site.</li>
+    <li>Return to the task. Enter the <strong>Post-Visit Outcome</strong> — what you found and what was discussed.</li>
+    <li>Attach any photos or documents using the document link fields.</li>
+    <li>Mark the task as <strong>Completed</strong>.</li>
+  </ol>
+  <div class="tip">Use the <strong>Site Visits tab</strong> to see all your upcoming visits with the Google Maps link for each location.</div>
+</div>
 
-      <h3>How to Log In</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Open the system</strong>Navigate to the application URL in your browser.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Enter your credentials</strong>Type your email address and password on the login page (<code>/login</code>).</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><strong>You are redirected</strong>After successful login, the system sends you directly to <code>/dashboard/sed</code> — your SED dashboard.</div></div>
-      </div>
+<div class="card" id="f5">
+  <h3>F5 — Add Quotation Items</h3>
+  <p>Once a project moves to the Open phase, you must submit the formal quotation line items.</p>
+  <ol class="steps">
+    <li>Go to the <strong>Projects tab</strong>.</li>
+    <li>Find the project and click <strong>F5 — Add Quotation Items</strong>.</li>
+    <li>Fill in the form — one row per piece of furniture or scope item (name, quantity, unit price, notes).</li>
+    <li>Click <strong>Submit</strong>. The system automatically creates per-item task chains.</li>
+  </ol>
+  <div class="screenshot-slot">
+    <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: F5 quotation form — table of line items with Submit button]</p></div>
+  </div>
+</div>
+</section>
 
-      <h3>How to Log Out</h3>
-      <p>Click your name or the menu at the bottom of the left sidebar, then select <strong>Log Out</strong>. You will be returned to the login page.</p>
+<!-- 7 -->
+<section id="notifications">
+<h2>7. Notifications</h2>
+<p>The system notifies you when something needs your attention — a task approval, a new task assigned, a client decision recorded by Kanaan, or a weekly project review reminder.</p>
+<p>Click the <strong>bell icon</strong> in the sidebar to open the <strong>Notifications page</strong>.</p>
 
-      <div class="callout note"><div class="callout-icon"></div><div class="callout-body"><strong>Session Security</strong>Your session stays active for a set period. If you close the browser and return, you may need to log in again. Never share your password.</div></div>
-    </div>
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Notifications page — list of unread (blue dot) and read notifications, "Mark all read" button top-right]</p></div>
+</div>
 
-    <!-- §2 Dashboard -->
-    <div class="section" id="s2">
-      <div class="section-num">Section 2</div>
-      <h2>Your Dashboard</h2>
-      <p class="section-intro">The SED dashboard at <code>/dashboard/sed</code> is your command centre. Here is what each tab shows and when to use it.</p>
+<ul>
+  <li>Unread notifications have a <strong>blue dot</strong> and a blue background.</li>
+  <li>Click any notification to mark it as read.</li>
+  <li><strong>Mark all read</strong> button (top right) clears everything at once.</li>
+  <li>Use the <strong>All / Unread</strong> toggle to filter the list.</li>
+  <li>A <strong>weekly reminder</strong> is sent every Friday morning automatically — no action needed unless a specific project is flagged.</li>
+</ul>
+</section>
 
-      <div class="tbl-wrap"><table>
-        <tr><th>Tab</th><th>What it shows</th><th>When to use it</th></tr>
-        <tr><td><strong>My Tasks</strong></td><td>All active tasks assigned to you, sorted by priority flag then template order. Includes tasks in any status except Completed.</td><td>Every day — start here to see what needs action.</td></tr>
-        <tr><td><strong>Client Approvals</strong></td><td>Two sections: <strong>Waiting for Client</strong> — gate tasks and "take approval from client" tasks still pending; <strong>Decisions Recorded</strong> — tasks where a quotation, sample, or concept design decision has already been recorded (shown as coloured pills).</td><td>To track which client decisions are still open and which have been resolved.</td></tr>
-        <tr><td><strong>Site Visits</strong></td><td>Tasks containing site visit work, grouped by project. Each project card shows the emirate, area, detailed address, and an <strong>Open in Maps</strong> button linking to Google Maps. Task rows show item name, scheduled date, outcome, and status.</td><td>Before heading out — confirm locations and visit details.</td></tr>
-        <tr><td><strong>QC</strong></td><td>Quality check tasks at the installation site, nearing completion.</td><td>During Phase 3 / 4 when site work is finishing.</td></tr>
-        <tr><td><strong>My Projects</strong></td><td>All projects you own as SED, with status, stage, and key actions.</td><td>To create a new project, submit F5, view project details, or order materials.</td></tr>
-      </table></div>
+<!-- 8 -->
+<section id="faq">
+<h2>8. Frequently Asked Questions</h2>
 
-      <h3>The Summary Bar</h3>
-      <p>At the top of the dashboard you will see three summary cards: <strong>Open Tasks</strong>, <strong>Awaiting Approval</strong>, and <strong>Active Projects</strong>. These give you a quick daily health check.</p>
+<div class="card">
+  <h3>Why can't I see a task I'm expecting?</h3>
+  <p>Tasks that are <span class="badge b-locked">Locked</span> are not visible until a prerequisite task is completed. You don't need to do anything — the system unlocks them automatically. If you believe a task is missing entirely, check with your manager.</p>
+</div>
 
-      <h3>Notifications Page</h3>
-      <p>Click the bell icon in the left sidebar to open the <strong>Notifications</strong> page (<code>/dashboard/notifications</code>). This shows your full notification history — all/unread filter and mark-as-read. The bell badge count in the sidebar updates automatically.</p>
-    </div>
+<div class="card">
+  <h3>I clicked Complete but the task didn't close — why?</h3>
+  <p>Either a required field is still blank, or the task uses a special form (like Make Quotation or Order Sample) that has its own submit button. You must use that button — the regular status dropdown won't complete these tasks.</p>
+</div>
 
-    <!-- §3 Task Management -->
-    <div class="section" id="s3">
-      <div class="section-num">Section 3</div>
-      <h2>Task Management</h2>
-      <p class="section-intro">Tasks are the core unit of work in WoodWings PMS. Understanding how they flow is essential to keeping projects moving.</p>
+<div class="card">
+  <h3>I accidentally selected "Reject Project" in a follow-up — can I undo it?</h3>
+  <p>No, you cannot undo it yourself. Contact Kanaan immediately and ask him to reopen the project from the admin dashboard. He can do this from the Superadmin Projects page using the Reopen (↩) button.</p>
+</div>
 
-      <h3>Task Status Flow</h3>
-      <div class="status-legend">
-        <span class="badge b-locked">Locked</span>
-        <span style="color:var(--muted);line-height:2">→</span>
-        <span class="badge b-todo">To Do</span>
-        <span style="color:var(--muted);line-height:2">→</span>
-        <span class="badge b-inprogress">In Progress</span>
-        <span style="color:var(--muted);line-height:2">→</span>
-        <span class="badge b-pending">Pending Approval</span>
-        <span style="color:var(--muted);line-height:2">→</span>
-        <span class="badge b-completed">Completed</span>
-      </div>
-      <div class="tbl-wrap"><table>
-        <tr><th>Status</th><th>Meaning</th><th>What you should do</th></tr>
-        <tr><td><span class="badge b-locked">Locked</span></td><td>Task exists but a prerequisite task must complete first.</td><td>Nothing — it will unlock automatically.</td></tr>
-        <tr><td><span class="badge b-todo">To Do</span></td><td>Ready to start. All prerequisites met.</td><td>Open the task and set it to In Progress when you begin.</td></tr>
-        <tr><td><span class="badge b-inprogress">In Progress</span></td><td>You are actively working on it.</td><td>Complete the required action (form, call, etc.) then mark complete or submit for approval.</td></tr>
-        <tr><td><span class="badge b-pending">Pending Approval</span></td><td>You submitted — waiting for manager sign-off.</td><td>Monitor the Approvals tab. If rejected, you will be notified by email.</td></tr>
-        <tr><td><span class="badge b-completed">Completed</span></td><td>Done. Next tasks in the chain will unlock.</td><td>Nothing — move to the next task.</td></tr>
-      </table></div>
+<div class="card">
+  <h3>What is the amber/yellow banner I see on some tasks?</h3>
+  <p>It is a personal note left by Kanaan (the owner) for that specific task. It usually contains a special client instruction, a reminder, or something to be careful about. Read it carefully and follow the instructions. You cannot edit or remove it.</p>
+</div>
 
-      <h3>How to Start a Task</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Find it in My Tasks</strong>All <span class="badge b-todo">To Do</span> tasks appear in your task list.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Open the task card</strong>Click the task title to expand its detail panel.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Set to In Progress</strong>Click the status button and select <strong>In Progress</strong>.</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Complete the work</strong>Fill in required fields, attach documents, or make the client call as the task requires.</div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Mark complete or submit</strong>Click <strong>Complete</strong> or <strong>Submit for Approval</strong> depending on the task type.</div></div>
-      </div>
+<div class="card">
+  <h3>Why are there multiple tasks open for the same project at once?</h3>
+  <p>This is by design. In the Preparing phase, several tasks run in parallel — "Make Quotation", "Order Sample", and "Site Visit" can all be open at the same time because they are independent actions. Work through each one separately.</p>
+</div>
 
-      <h3>Tasks That Require Manager Approval</h3>
-      <p>Some tasks (marked with a shield icon) require a manager to approve before they count as complete. When you submit one of these:</p>
-      <ul>
-        <li>The task moves to <span class="badge b-pending">Pending Approval</span></li>
-        <li>The manager sees it in their approval queue</li>
-        <li>If <strong>Approved</strong>: the task completes and the next task unlocks</li>
-        <li>If <strong>Rejected</strong>: the task returns to <span class="badge b-todo">To Do</span> and you receive an email with the manager's comment</li>
-      </ul>
+<div class="card">
+  <h3>When does the F5 button appear on a project?</h3>
+  <p>The F5 — Add Quotation Items button only appears once the project is in the <strong>Open</strong> stage (i.e., after Kanaan has recorded an "Approved" decision on the Call the Client task). If the project is still in Preparing, the button will not be visible yet.</p>
+</div>
 
-      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>Do not leave tasks in "In Progress" indefinitely</strong>If a task stays In Progress with no action for 3 days, it triggers an escalation to the manager and may cause the project to be marked Not-Approved.</div></div>
-    </div>
+<div class="card">
+  <h3>I received a "Needs Review" outcome on Call the Client — what do I do?</h3>
+  <p>All your action tasks (quotation, design, etc.) have been reset to <span class="badge b-todo">To Do</span>. Review the project, make the necessary changes the client requested, and resubmit your work. Kanaan will then make a new decision.</p>
+</div>
 
-    <!-- §4 Forms Guide -->
-    <div class="section" id="s4">
-      <div class="section-num">Section 4</div>
-      <h2>Forms Guide</h2>
-      <p class="section-intro">Forms are structured data-entry panels that appear on task cards or the project page. Here are the forms you will use as a SED.</p>
+<div class="card">
+  <h3>The page is very slow or showing an error — what do I do?</h3>
+  <p>The app auto-refreshes every 30 seconds. If you see an error banner, click the <strong>Retry</strong> button that appears. If the problem persists for more than a few minutes, contact your administrator (Kanaan or IT support).</p>
+</div>
+</section>
 
-      <h3>F1 — First Call / Client Intake</h3>
-      <p>Triggered when you create a new project or receive first client contact. Found on the project creation form in <strong>My Projects → Create New Project</strong>.</p>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Required?</th><th>Notes</th></tr>
-        <tr><td>Client Name</td><td>Yes</td><td>Full name of the client or company</td></tr>
-        <tr><td>Client Phone</td><td>Yes</td><td>Primary contact number</td></tr>
-        <tr><td>Project Description</td><td>Yes</td><td>Brief description of the work requested</td></tr>
-        <tr><td>Emirate / Location</td><td>Yes</td><td>Where the project will be installed</td></tr>
-        <tr><td>Payment Mode</td><td>Yes</td><td>Select from available options</td></tr>
-        <tr><td>SED Notes</td><td>No</td><td>Internal notes about the client or project</td></tr>
-      </table></div>
-      <p>After submitting F1, the system creates the project in <strong>Preparing</strong> stage and generates the initial task chain for that project.</p>
+<!-- 9 -->
+<section id="quick-ref">
+<h2>9. Quick Reference Card</h2>
+<table class="qrc">
+  <thead><tr><th>I want to…</th><th>What to do</th></tr></thead>
+  <tbody>
+    <tr><td>Create a new project</td><td>Click <strong>+ New Project</strong> (top right) → Fill all fields → Create</td></tr>
+    <tr><td>Start working on a task</td><td>Click task card → Set status to <strong>In Progress</strong> → Fill fields</td></tr>
+    <tr><td>Complete a task</td><td>Fill all required fields → Set status to <strong>Completed</strong></td></tr>
+    <tr><td>Record a quotation number</td><td>Open Make Quotation task → Fill Quotation Number + Reference → <strong>Save &amp; Complete</strong></td></tr>
+    <tr><td>Submit F5 quotation items</td><td>Projects tab → <strong>F5 — Add Quotation Items</strong> → Fill line items → Submit</td></tr>
+    <tr><td>Handle an Order Sample task</td><td>Open task → Click <strong>We Have It</strong> or <strong>Need to Order</strong></td></tr>
+    <tr><td>Log a site visit</td><td>Open site visit task → Set visit date → After visit: enter outcome + attachments → Complete</td></tr>
+    <tr><td>See site visits on a map</td><td>Go to <strong>Site Visits tab</strong> → Click <strong>Open in Maps</strong></td></tr>
+    <tr><td>Order materials for a project</td><td>Projects tab → Click <strong>F3 — Order Materials</strong></td></tr>
+    <tr><td>Request a measurement visit</td><td>Projects tab → Click <strong>📐 Request Measurements</strong></td></tr>
+    <tr><td>See client approval status</td><td>Go to <strong>Approvals tab</strong></td></tr>
+    <tr><td>Read my notifications</td><td>Click bell icon in sidebar → Notifications page</td></tr>
+    <tr><td>Clear all notifications</td><td>Notifications page → <strong>Mark all read</strong> (top right)</td></tr>
+  </tbody>
+</table>
+</section>
 
-      <h3>F5 — Quotation Details</h3>
-      <p>Submitted once the client approves the project and you are ready to define items. Found on the <strong>Project page → F5 Quotation Items</strong> button.</p>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Required?</th><th>Notes</th></tr>
-        <tr><td>Item Type</td><td>Yes</td><td>What is being made for this item</td></tr>
-        <tr><td>Quantity</td><td>Yes</td><td>Number of units</td></tr>
-        <tr><td>Unit Price</td><td>Yes</td><td>Price per unit in AED</td></tr>
-        <tr><td>Description</td><td>No</td><td>Additional item details</td></tr>
-        <tr><td>Notes</td><td>No</td><td>Internal notes</td></tr>
-      </table></div>
-      <p>After F5 is submitted, the project advances to <strong>Open</strong> stage and per-item task chains are generated.</p>
+</div><!-- .page -->
 
-      <h3>F3 — Material Order</h3>
-      <p>Used to order materials for a project item. Found on the <strong>Project page → F3 Order Materials</strong> button, or from within a material task card.</p>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Required?</th><th>Notes</th></tr>
-        <tr><td>Purpose</td><td>Yes</td><td>Brief description of why material is needed</td></tr>
-        <tr><td>Material rows</td><td>Yes (at least 1)</td><td>Material name, supplier, qty, unit, needed-by date</td></tr>
-      </table></div>
-
-      <h3>Follow Up Task — Outcome Fields</h3>
-      <p>On any <em>Follow Up</em> task card, you will see extra fields to record the outcome of client contact:</p>
-      <ul>
-        <li><strong>Follow-Up Outcome</strong> — what the client said (dropdown)</li>
-        <li><strong>SED Note</strong> — free text note about the conversation</li>
-        <li><strong>Call Count</strong> — number of attempts made</li>
-      </ul>
-
-      <div class="callout tip"><div class="callout-icon"></div><div class="callout-body"><strong>Always record outcomes</strong>Even if the client did not answer, update the Follow-Up Outcome field. This creates an audit trail and helps the manager understand project health.</div></div>
-    </div>
-
-    <!-- §5 Workflow -->
-    <div class="section" id="s5">
-      <div class="section-num">Section 5</div>
-      <h2>Project Workflow — Your Slice</h2>
-      <p class="section-intro">SED touches every phase of a project. Here is a step-by-step guide to your role across all stages.</p>
-
-      <h3>Phase 1: Preparing</h3>
-      <p>This entire phase is driven by SED. You move the project forward based on what the client needs.</p>
-      <div class="flow">
-        <div class="flow-box highlight">Receive first client contact</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box">Create project → Fill F1 Form (client intake)</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box">Choose one or more paths:</div>
-        <div class="flow-cols">
-          <div class="flow">
-            <div class="flow-box">Make Quotation</div>
-            <div class="flow-arrow">↓</div>
-            <div class="flow-box">Quotation Approved gate</div>
-          </div>
-          <div class="flow">
-            <div class="flow-box">Order / Select Sample</div>
-            <div class="flow-arrow">↓</div>
-            <div class="flow-box">Sample Approved gate</div>
-          </div>
-          <div class="flow">
-            <div class="flow-box">Concept Design / Proposal</div>
-            <div class="flow-arrow">↓</div>
-            <div class="flow-box">Concept Design Approved gate</div>
-          </div>
-        </div>
-        <div class="flow-arrow">↓ (all chosen gates pass)</div>
-        <div class="flow-box">"Call the Client" task unlocks → Superadmin action</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box decision">Outcome: Approved / Needs Review / Refused</div>
-        <div class="flow-arrow">↓ Approved</div>
-        <div class="flow-box highlight">Phase 2 begins — F4 + F5 submitted</div>
-      </div>
-
-      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>3-Day Inactivity Rule</strong>If no task is moved to In Progress within 3 days of the last action, the project is automatically escalated to the manager and may be marked Not-Approved. Keep tasks moving.</div></div>
-
-      <h3>Phase 2: Open (Per Item)</h3>
-      <p>Once F5 is submitted, each quoted item gets its own task chain. For each item, you may need to:</p>
-      <ul>
-        <li>Conduct a site visit to take measurements</li>
-        <li>Select or order a material sample</li>
-        <li>Submit or review a design for approval</li>
-        <li>Obtain client approval to start fabrication</li>
-      </ul>
-
-      <h3>Phase 3: Working</h3>
-      <p>Your involvement during fabrication and installation:</p>
-      <ul>
-        <li>You receive notification when <strong>Fabrication Done</strong> — you and the fixing team have 2 days to inspect items and tools</li>
-        <li>Add any inspection comments on the task card</li>
-        <li>Conduct the <strong>QC Check at Site</strong> after installation is complete</li>
-      </ul>
-
-      <h3>Phase 4: Closing</h3>
-      <ul>
-        <li>Final QC check at site — mark QC done and attach site photo</li>
-        <li>Notify client to pay the final payment</li>
-        <li>Participate in or witness the <strong>F6 / Handover</strong> signing</li>
-      </ul>
-    </div>
-
-    <!-- §6 Scenarios -->
-    <div class="section" id="s6">
-      <div class="section-num">Section 6</div>
-      <h2>Common Scenarios</h2>
-
-      <h3>Scenario 1 — A new client calls. What do I do?</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>My Projects → Create New Project</strong>.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body">Fill in the F1 intake form with the client's name, phone, location, and project description.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body">Submit. The system creates the project and your task list populates immediately.</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body">Open the <strong>First Call</strong> task, mark it In Progress, then Completed.</div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-body">Choose the next action tasks: Make Quotation, Order Sample, etc. Start working them.</div></div>
-      </div>
-
-      <h3>Scenario 2 — The client approved the quote. What's next?</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body">The <strong>Call the Client</strong> task is handled by the Superadmin who selects "Approved".</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body">You receive a notification. The project moves to <strong>Open</strong> stage.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body">Submit the <strong>F5 Quotation Items</strong> form on the project page with all item details and prices.</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body">Per-item task chains now appear. Work through each item's Phase 2 actions.</div></div>
-      </div>
-
-      <h3>Scenario 3 — My task was rejected by the manager</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body">You receive an email notification with the manager's rejection comment.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body">The task returns to <span class="badge b-todo">To Do</span> in your task list.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body">Read the manager's comment, make the necessary correction, and resubmit.</div></div>
-      </div>
-
-      <h3>Scenario 4 — I need to order materials for a project item</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body">Open the project in <strong>My Projects</strong>.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body">Click <strong>F3 — Order Materials</strong>.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body">Fill in the purpose and add material rows (item name, supplier, quantity, unit, needed-by date).</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body">Submit. The material order is created and visible to the fabrication team.</div></div>
-      </div>
-
-      <h3>Scenario 5 — Fabrication is done. What do I do with the 2-day check?</h3>
-      <p>When fabrication marks the job done, the system creates a task for you (and the installation team) to inspect the items and tools within 2 days. Open that task, review the items, add any comments or concerns in the task notes field, and mark it complete. If something is missing or damaged, note it clearly — the manager will see it before scheduling the delivery.</p>
-    </div>
-
-    <!-- §7 Permissions -->
-    <div class="section" id="s7">
-      <div class="section-num">Section 7</div>
-      <h2>Permissions Reference</h2>
-
-      <h3>What you CAN do</h3>
-      <ul>
-        <li>Create new projects (F1 form)</li>
-        <li>View and action all tasks assigned to you</li>
-        <li>Submit F5 quotation items on your projects</li>
-        <li>Submit F3 material orders</li>
-        <li>Schedule and document site visits</li>
-        <li>Record follow-up outcomes and notes</li>
-        <li>Mark QC checks complete and attach photos</li>
-        <li>View your own project list and task history</li>
-      </ul>
-
-      <h3>What you CANNOT do</h3>
-      <ul>
-        <li>Approve or reject tasks (manager action only)</li>
-        <li>Advance a project stage manually</li>
-        <li>Set the "Call the Client" outcome (Superadmin only)</li>
-        <li>View payment amounts or financial records</li>
-        <li>Create or manage user accounts</li>
-        <li>Access the reports / download section</li>
-        <li>View fabrication or installation task details</li>
-        <li>Access the superadmin dashboard</li>
-      </ul>
-
-      <h3>Fields you can edit on a task</h3>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Notes</th></tr>
-        <tr><td>Status</td><td>You can change To Do → In Progress → Completed (or Pending Approval for gated tasks)</td></tr>
-        <tr><td>Completion Date</td><td>Set when work is done</td></tr>
-        <tr><td>Site Visit Date</td><td>Schedule your visit</td></tr>
-        <tr><td>SED Note</td><td>Free text internal note</td></tr>
-        <tr><td>Follow-Up Outcome</td><td>Dropdown — outcome of client call</td></tr>
-        <tr><td>Call Count</td><td>Number of call attempts</td></tr>
-        <tr><td>Quotation Number / Reference</td><td>On quotation-related tasks</td></tr>
-        <tr><td>QC Check Done</td><td>Checkbox on QC tasks</td></tr>
-        <tr><td>Task Documents</td><td>Attach site photos, documents</td></tr>
-        <tr><td>Post-Visit Outcome</td><td>Notes after a site visit</td></tr>
-      </table></div>
-    </div>
-
-    <!-- §8 Troubleshooting -->
-    <div class="section" id="s8">
-      <div class="section-num">Section 8</div>
-      <h2>Troubleshooting</h2>
-
-      <div class="tbl-wrap"><table>
-        <tr><th>Problem</th><th>Likely Cause</th><th>Solution</th></tr>
-        <tr><td>A task I expect to see is not in my list</td><td>It is still Locked (waiting for a prerequisite), or it is assigned to a different role</td><td>Check the project page — Locked tasks are listed there. If you believe it should be assigned to you, contact the manager.</td></tr>
-        <tr><td>I cannot change a task status</td><td>The task may be manager-gated or Locked</td><td>If gated, submit it for approval. If Locked, wait for the prerequisite to complete.</td></tr>
-        <tr><td>The project is showing "Not-Approved"</td><td>The 3-day inactivity rule triggered, or the client declined via the Call the Client task</td><td>Contact the manager or superadmin to review. They can reassess and potentially re-open the project.</td></tr>
-        <tr><td>F5 form is not appearing on the project</td><td>The project may not yet be in Open stage, or you may not be the assigned SED</td><td>Confirm the project stage. If it is still Preparing, the client approval (Call the Client) has not been set yet.</td></tr>
-        <tr><td>I submitted a task but it shows "Pending Approval" with no action</td><td>The manager has not reviewed it yet</td><td>Normal — wait. If urgent, contact the manager directly. The task will appear in their approval queue.</td></tr>
-        <tr><td>I attached the wrong document to a task</td><td>N/A</td><td>Open the task, remove the incorrect attachment, and upload the correct one before marking complete.</td></tr>
-        <tr><td>A follow-up task keeps resetting</td><td>Follow-up tasks may be part of a recurring check loop</td><td>Complete the task fully (including outcome field) each time. If it keeps re-appearing, contact the superadmin.</td></tr>
-      </table></div>
-
-      <h3>Who to Contact</h3>
-      <div class="tbl-wrap"><table>
-        <tr><th>Issue type</th><th>Contact</th></tr>
-        <tr><td>Task approvals, rejections, project stage questions</td><td>Your Manager</td></tr>
-        <tr><td>System access, user account issues, stage advancement</td><td>Superadmin</td></tr>
-        <tr><td>Technical errors (system not loading, data not saving)</td><td>Superadmin / IT</td></tr>
-      </table></div>
-    </div>
-
-    <!-- §9 Quick Reference -->
-    <div class="section" id="s9">
-      <div class="section-num">Section 9</div>
-      <h2>Quick Reference Card</h2>
-      <div class="qrc">
-        <h2>SED Quick Reference</h2>
-
-        <h3>Status Colour Legend</h3>
-        <div class="status-legend">
-          <span class="badge b-locked">Locked</span>
-          <span class="badge b-todo">To Do</span>
-          <span class="badge b-inprogress">In Progress</span>
-          <span class="badge b-pending">Pending Approval</span>
-          <span class="badge b-completed">Completed</span>
-        </div>
-
-        <h3>Forms at a Glance</h3>
-        <div class="tbl-wrap"><table>
-          <tr><th>Form</th><th>When</th><th>Where</th></tr>
-          <tr><td>F1 — Client Intake</td><td>First client contact</td><td>My Projects → Create New Project</td></tr>
-          <tr><td>F5 — Quotation Items</td><td>Client approves quote</td><td>Project page → F5 button</td></tr>
-          <tr><td>F3 — Material Order</td><td>Need to order materials</td><td>Project page → F3 button</td></tr>
-        </table></div>
-
-        <h3>Project Stages</h3>
-        <div class="tbl-wrap"><table>
-          <tr><th>Stage</th><th>What's happening</th></tr>
-          <tr><td>Preparing</td><td>SED pre-sales: quotes, samples, design, client calls</td></tr>
-          <tr><td>Open</td><td>Client confirmed — per-item work begins</td></tr>
-          <tr><td>Working</td><td>Fabrication, delivery, installation</td></tr>
-          <tr><td>Closed</td><td>Handover complete</td></tr>
-          <tr><td>Not-Approved</td><td>Client declined or 3-day inactivity escalation</td></tr>
-        </table></div>
-
-        <h3>Daily Checklist</h3>
-        <ul style="color:rgba(255,255,255,0.8);font-size:0.9rem;">
-          <li>Check My Tasks — work any To Do items</li>
-          <li>Update Follow-Up outcomes on any calls made</li>
-          <li>Check Approvals tab for rejected tasks needing rework</li>
-          <li>Check Site Visits tab for today's scheduled visits</li>
-          <li>Ensure no task has been In Progress untouched for &gt;2 days</li>
-        </ul>
-      </div>
-    </div>
-
-  </div><!-- /content -->
-</div><!-- /main -->
-
+<button id="btt" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top">↑</button>
 <script>
-  const links = document.querySelectorAll('#toc a');
-  const sections = document.querySelectorAll('.section');
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        links.forEach(l => l.classList.remove('active'));
-        const link = document.querySelector('#toc a[href="#' + e.target.id + '"]');
-        if (link) link.classList.add('active');
-      }
-    });
-  }, { rootMargin: '-20% 0px -70% 0px' });
-  sections.forEach(s => observer.observe(s));
+  const b=document.getElementById('btt');
+  window.addEventListener('scroll',()=>b.classList.toggle('vis',scrollY>400));
 </script>
 </body>
 </html>

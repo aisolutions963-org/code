@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- WoodWings crown mark — warm wood palette -->
+  <defs>
+    <linearGradient id="wg1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E8A060"/>
+      <stop offset="100%" stop-color="#8B3E0F"/>
+    </linearGradient>
+    <linearGradient id="wg2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D4854A"/>
+      <stop offset="100%" stop-color="#7A3510"/>
+    </linearGradient>
+    <linearGradient id="wg3" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F0A870"/>
+      <stop offset="100%" stop-color="#9B4A15"/>
+    </linearGradient>
+  </defs>
+  <!-- Far left wing -->
+  <path d="M4 74 C6 60 10 40 14 22 C18 36 20 54 22 74 Z" fill="url(#wg1)"/>
+  <!-- Left wing -->
+  <path d="M22 74 C25 55 30 30 38 12 C40 32 42 54 44 74 Z" fill="url(#wg2)"/>
+  <!-- Center wing (tallest) -->
+  <path d="M38 74 C42 55 48 22 50 4 C52 22 58 55 62 74 Z" fill="url(#wg3)"/>
+  <!-- Right wing -->
+  <path d="M56 74 C58 54 60 32 62 12 C70 30 75 55 78 74 Z" fill="url(#wg2)"/>
+  <!-- Far right wing -->
+  <path d="M78 74 C80 54 82 36 86 22 C90 40 94 60 96 74 Z" fill="url(#wg1)"/>
+  <!-- Base -->
+  <rect x="4" y="76" width="92" height="9" rx="3" fill="#5C1A0A"/>
+</svg>

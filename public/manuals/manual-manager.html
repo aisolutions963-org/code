@@ -1,482 +1,436 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WoodWings PMS — Manager User Manual</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Manager User Manual — WoodWings PMS</title>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet" />
 <style>
-  :root {
-    --bg: #f5f0e8; --white: #ffffff; --navy: #1a1a2e; --gold: #c9a96e; --gold-light: #f0e6d3;
-    --text: #2d2d3a; --muted: #6b6b80; --border: #e2ddd6; --sidebar-w: 260px;
-    --locked: #6b7280; --todo: #3b82f6; --inprogress: #f59e0b; --pending: #8b5cf6; --completed: #10b981;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; display: flex; }
-  h1,h2,h3,h4 { font-family: 'DM Serif Display', serif; color: var(--navy); }
-  a { color: var(--gold); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  #toc { width: var(--sidebar-w); min-height: 100vh; background: var(--navy); position: sticky; top: 0; height: 100vh; overflow-y: auto; flex-shrink: 0; padding: 0 0 40px 0; }
-  .toc-brand { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 8px; }
-  .toc-brand .logo { font-family: 'DM Serif Display', serif; color: var(--gold); font-size: 1.2rem; }
-  .toc-brand .role-label { color: rgba(255,255,255,0.45); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
-  #toc a { display: flex; align-items: center; gap: 8px; padding: 8px 20px; color: rgba(255,255,255,0.55); font-size: 0.82rem; font-weight: 500; border-left: 3px solid transparent; transition: all 0.15s; }
-  #toc a:hover, #toc a.active { color: var(--gold); border-left-color: var(--gold); background: rgba(201,169,110,0.08); text-decoration: none; }
-  .toc-section-label { padding: 16px 20px 4px; color: rgba(255,255,255,0.25); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
-  #main { flex: 1; max-width: calc(100% - var(--sidebar-w)); padding: 0; }
-  .page-header { background: var(--navy); color: white; padding: 48px 60px 40px; border-bottom: 4px solid var(--gold); }
-  .page-header .manual-type { color: var(--gold); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
-  .page-header h1 { font-size: 2.4rem; color: white; margin-bottom: 12px; }
-  .page-header p { color: rgba(255,255,255,0.6); font-size: 1rem; max-width: 560px; }
-  .content { padding: 0 60px 80px; }
-  .section { padding: 52px 0 0; border-bottom: 1px solid var(--border); }
-  .section:last-child { border-bottom: none; }
-  .section-num { color: var(--gold); font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; font-family: 'DM Sans', sans-serif; }
-  .section h2 { font-size: 1.75rem; margin-bottom: 6px; }
-  .section-intro { color: var(--muted); font-size: 0.95rem; margin-bottom: 28px; }
-  h3 { font-size: 1.2rem; margin: 28px 0 12px; }
-  h4 { font-size: 1rem; margin: 20px 0 8px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
-  p { margin-bottom: 12px; }
-  ul, ol { padding-left: 24px; margin-bottom: 14px; }
-  li { margin-bottom: 5px; }
-  .tbl-wrap { overflow-x: auto; margin: 16px 0 24px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
-  table { width: 100%; border-collapse: collapse; background: var(--white); font-size: 0.88rem; }
-  th { background: var(--navy); color: white; padding: 11px 16px; text-align: left; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.04em; }
-  td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  tr:last-child td { border-bottom: none; }
-  tr:nth-child(even) td { background: #faf8f5; }
-  .callout { display: flex; gap: 14px; padding: 16px 18px; border-radius: 10px; margin: 18px 0; font-size: 0.9rem; }
-  .callout-icon { font-size: 1.2rem; flex-shrink: 0; padding-top: 1px; }
-  .callout-body strong { display: block; margin-bottom: 3px; font-weight: 600; }
-  .callout.warning { background: #fffbeb; border-left: 4px solid #f59e0b; }
-  .callout.warning .callout-icon::before { content: "⚠️"; }
-  .callout.tip { background: #eff6ff; border-left: 4px solid #3b82f6; }
-  .callout.tip .callout-icon::before { content: "💡"; }
-  .callout.note { background: #f8fafc; border-left: 4px solid #94a3b8; }
-  .callout.note .callout-icon::before { content: "📌"; }
-  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
-  .badge::before { content: "●"; font-size: 0.6rem; }
-  .b-locked { background: #f1f1f1; color: var(--locked); }
-  .b-todo { background: #eff6ff; color: var(--todo); }
-  .b-inprogress { background: #fffbeb; color: #b45309; }
-  .b-pending { background: #f5f3ff; color: #7c3aed; }
-  .b-completed { background: #ecfdf5; color: #059669; }
-  .status-legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
-  .steps { counter-reset: step; margin: 16px 0; }
-  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; }
-  .step-num { width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
-  .step-body { flex: 1; }
-  .step-body strong { display: block; margin-bottom: 3px; color: var(--navy); }
-  .approval-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin: 16px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-  .approval-card h4 { margin-top: 0; font-size: 0.95rem; }
-  .btn { display: inline-block; padding: 7px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
-  .btn-approve { background: #dcfce7; color: #15803d; }
-  .btn-reject { background: #fee2e2; color: #dc2626; }
-  .qrc { background: var(--navy); color: white; border-radius: 14px; padding: 36px; margin-top: 40px; }
-  .qrc h2 { color: var(--gold); font-size: 1.5rem; margin-bottom: 24px; }
-  .qrc h3 { color: var(--gold); font-size: 1rem; margin: 20px 0 10px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
-  .qrc table { background: rgba(255,255,255,0.05); }
-  .qrc th { background: rgba(201,169,110,0.2); color: var(--gold); }
-  .qrc td { color: rgba(255,255,255,0.8); border-bottom-color: rgba(255,255,255,0.08); }
-  .qrc tr:nth-child(even) td { background: rgba(255,255,255,0.03); }
-  @media print {
-    #toc { display: none !important; }
-    #main { max-width: 100%; }
-    .page-header { background: white !important; color: var(--navy) !important; border-bottom: 3px solid var(--gold); padding: 24px 32px; }
-    .page-header h1, .page-header .manual-type { color: var(--navy) !important; }
-    .page-header p { color: var(--muted) !important; }
-    .content { padding: 0 32px 40px; }
-    .qrc { background: white !important; border: 2px solid var(--navy); }
-    .qrc h2, .qrc h3 { color: var(--navy) !important; }
-    .qrc td { color: var(--text) !important; }
-  }
-  @media (max-width: 900px) {
-    body { flex-direction: column; }
-    #toc { width: 100%; height: auto; position: relative; }
-    #main { max-width: 100%; }
-    .content { padding: 0 24px 60px; }
-    .page-header { padding: 32px 24px; }
-  }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Lato',sans-serif;background:#F8F6F1;color:#222;font-size:15px;line-height:1.75}
+a{color:#C9A84C;text-decoration:none}
+a:hover{text-decoration:underline}
+
+.topnav{position:sticky;top:0;z-index:100;background:#1A1A2E;color:#fff;padding:0 24px;display:flex;align-items:center;gap:20px;height:52px;box-shadow:0 2px 8px rgba(0,0,0,.35);overflow-x:auto;white-space:nowrap}
+.topnav .brand{font-weight:900;color:#C9A84C;font-size:16px;margin-right:8px;flex-shrink:0}
+.topnav a{color:#bbb;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;transition:color .2s}
+.topnav a:hover{color:#C9A84C;text-decoration:none}
+
+.page{max-width:900px;margin:0 auto;padding:32px 24px 100px}
+
+.cover{background:#1A1A2E;color:#fff;border-radius:16px;padding:52px 40px;margin-bottom:40px;text-align:center}
+.cover .role-pill{display:inline-block;background:#C9A84C;color:#1A1A2E;font-weight:900;font-size:11px;text-transform:uppercase;letter-spacing:.12em;padding:5px 16px;border-radius:20px;margin-bottom:20px}
+.cover h1{font-size:38px;font-weight:900;line-height:1.1;margin-bottom:10px}
+.cover .sub{color:#aaa;font-size:14px}
+
+.toc{background:#fff;border:1px solid #e2ddd6;border-radius:12px;padding:28px;margin-bottom:36px}
+.toc-title{font-size:16px;font-weight:900;color:#1A1A2E;margin-bottom:16px}
+.toc ol{padding-left:20px}
+.toc li{margin:7px 0}
+.toc a{color:#1A1A2E;font-weight:700;font-size:14px}
+.toc a:hover{color:#C9A84C}
+
+h2{font-size:22px;font-weight:900;color:#1A1A2E;margin:44px 0 16px;padding-left:16px;border-left:4px solid #C9A84C}
+h3{font-size:17px;font-weight:700;color:#1A1A2E;margin:26px 0 10px}
+h4{font-size:13px;font-weight:700;color:#666;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.07em}
+p{margin-bottom:12px}
+ul,ol{padding-left:22px;margin-bottom:12px}
+li{margin:5px 0}
+
+.card{background:#fff;border:1px solid #e2ddd6;border-radius:12px;padding:24px;margin-bottom:20px}
+.card h3{margin-top:0}
+
+.steps{list-style:none;padding:0;counter-reset:step-c}
+.steps li{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px;counter-increment:step-c}
+.steps li::before{content:counter(step-c);display:flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:50%;background:#C9A84C;color:#1A1A2E;font-weight:900;font-size:13px;flex-shrink:0;margin-top:2px}
+
+.screenshot-slot{border:2px dashed #ccc;border-radius:10px;background:#f5f4f0;display:flex;align-items:center;justify-content:center;min-height:220px;margin:18px 0}
+.screenshot-slot .inner{text-align:center;padding:24px}
+.screenshot-slot .icon{font-size:32px;display:block;margin-bottom:8px}
+.screenshot-slot .label{color:#999;font-size:12px;font-style:italic}
+
+.badge{display:inline-block;padding:2px 11px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap}
+.b-locked{background:#e5e7eb;color:#6b7280}
+.b-todo{background:#dbeafe;color:#1d4ed8}
+.b-inprogress{background:#fef3c7;color:#92400e}
+.b-pending{background:#fed7aa;color:#c2410c}
+.b-completed{background:#dcfce7;color:#15803d}
+
+.tip{border-left:4px solid #16a34a;background:#f0fdf4;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.warn{border-left:4px solid #ea580c;background:#fff7ed;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+.danger{border-left:4px solid #dc2626;background:#fef2f2;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14px}
+
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+th{background:#1A1A2E;color:#fff;padding:10px 14px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+td{padding:10px 14px;border-bottom:1px solid #eee;vertical-align:top}
+tr:nth-child(even) td{background:#fafaf7}
+
+.qrc th{background:#C9A84C;color:#1A1A2E}
+
+#btt{position:fixed;bottom:28px;right:28px;background:#1A1A2E;color:#C9A84C;border:none;border-radius:50%;width:46px;height:46px;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;align-items:center;justify-content:center}
+#btt.vis{display:flex}
+
+@media print{
+  .topnav,#btt{display:none!important}
+  body{background:#fff}
+  .page{padding:0;max-width:100%}
+  .cover{background:#1A1A2E!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  h2{page-break-before:always}
+  .cover,h2:first-of-type{page-break-before:avoid}
+}
 </style>
 </head>
 <body>
-<nav id="toc">
-  <div class="toc-brand"><div class="logo">WoodWings PMS</div><div class="role-label">Manager Manual</div></div>
-  <div class="toc-section-label">Contents</div>
-  <a href="#s1">§1 Introduction</a>
-  <a href="#s2">§2 Your Dashboard</a>
-  <a href="#s3">§3 Task Management & Approvals</a>
-  <a href="#s4">§4 Forms Guide</a>
-  <a href="#s5">§5 Project Workflow</a>
-  <a href="#s6">§6 Common Scenarios</a>
-  <a href="#s7">§7 Permissions</a>
-  <a href="#s8">§8 Troubleshooting</a>
-  <a href="#s9">§9 Quick Reference</a>
+
+<nav class="topnav">
+  <img src="/logo.png" alt="WoodWings" style="height:32px;width:auto;object-fit:contain;flex-shrink:0;filter:brightness(0)invert(1)" onerror="this.style.display='none';this.nextSibling.style.display='inline'"><span class="brand" style="display:inline">WoodWings</span>
+  <a href="#what-is">System</a>
+  <a href="#login">Login</a>
+  <a href="#dashboard">Dashboard</a>
+  <a href="#tasks">Tasks</a>
+  <a href="#how-to-work">Working Tasks</a>
+  <a href="#special">Special Tasks</a>
+  <a href="#notifications">Notifications</a>
+  <a href="#faq">FAQ</a>
+  <a href="#quick-ref">Quick Ref</a>
 </nav>
-<div id="main">
-  <div class="page-header">
-    <div class="manual-type">User Manual — Version 1.1</div>
-    <h1>Manager Role Guide</h1>
-    <p>Operations management. Approvals, project oversight, payments, installation team coordination, delivery scheduling, and daily worker timesheets — all in one place.</p>
-  </div>
-  <div class="content">
 
-    <div class="section" id="s1">
-      <div class="section-num">Section 1</div>
-      <h2>Introduction</h2>
-      <p class="section-intro">As a Manager in WoodWings PMS, you are the operational backbone of the company. Projects cannot advance through key milestones without your review and approval.</p>
+<div class="page">
 
-      <h3>Your Role: Manager</h3>
-      <p>Your responsibilities in the system:</p>
-      <ul>
-        <li>Reviewing and approving or rejecting tasks submitted for approval by SED, Fabrication, and Installation teams</li>
-        <li>Creating Gate Passes and scheduling delivery dates</li>
-        <li>Assigning installation team members to projects</li>
-        <li>Overseeing payment records and the payment calendar</li>
-        <li>Logging and reviewing daily worker timesheets</li>
-        <li>Submitting F3 material orders, F5 quotation items, and F6 Handover forms when needed</li>
-        <li>Monitoring all active projects, deliveries, and materials</li>
-      </ul>
+<!-- COVER -->
+<div class="cover">
+  <div class="role-pill">Manager</div>
+  <h1>WoodWings PMS<br>User Manual</h1>
+  <p class="sub">Version June 2026 &nbsp;·&nbsp; English</p>
+</div>
 
-      <h3>How to Log In</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Navigate to the login page</strong>Open the application in your browser and go to <code>/login</code>.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Enter your email and password</strong>Use your assigned credentials.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><strong>You are redirected to your dashboard</strong>The system sends you to <code>/dashboard/mgr</code> automatically.</div></div>
-      </div>
-      <p>To log out, click the menu at the bottom of the left sidebar and select <strong>Log Out</strong>.</p>
-    </div>
+<!-- TOC -->
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <ol>
+    <li><a href="#what-is">What Is This System?</a></li>
+    <li><a href="#login">How to Log In</a></li>
+    <li><a href="#dashboard">Your Dashboard</a></li>
+    <li><a href="#tasks">Understanding Tasks</a></li>
+    <li><a href="#how-to-work">How to Work a Task</a></li>
+    <li><a href="#special">Special Task Types</a></li>
+    <li><a href="#notifications">Notifications</a></li>
+    <li><a href="#faq">Frequently Asked Questions</a></li>
+    <li><a href="#quick-ref">Quick Reference Card</a></li>
+  </ol>
+</div>
 
-    <div class="section" id="s2">
-      <div class="section-num">Section 2</div>
-      <h2>Your Dashboard</h2>
-      <p class="section-intro">The manager dashboard at <code>/dashboard/mgr</code> gives you full operational visibility.</p>
+<!-- 1 -->
+<section id="what-is">
+<h2>1. What Is This System?</h2>
+<div class="card">
+  <p>WoodWings PMS is the company's project management system. It tracks every project from client enquiry through design, production, installation, and final handover.</p>
+  <p>As the <strong>Manager</strong>, you have the most operational visibility in the system. Your responsibilities include:</p>
+  <ul>
+    <li>Approving or rejecting tasks submitted by the SED, Fabrication, and Installation teams</li>
+    <li>Coordinating deliveries and production timelines (F2, F3, F6)</li>
+    <li>Assigning installation teams and managing gate passes</li>
+    <li>Tracking payments and monitoring project progress</li>
+    <li>Recording timesheets for workers</li>
+  </ul>
+  <p>You have visibility across all departments and all projects, making you the operational hub of the system.</p>
+</div>
+</section>
 
-      <div class="tbl-wrap"><table>
-        <tr><th>Tab</th><th>What it shows</th><th>When to use it</th></tr>
-        <tr><td><strong>My Tasks</strong></td><td>All active tasks in your department — including tasks submitted for your approval. Sorted by status and priority.</td><td>Every day — your primary working view.</td></tr>
-        <tr><td><strong>Deliveries</strong></td><td>Tasks that have a completion date set — upcoming delivery schedule.</td><td>Daily to track what is being delivered and when.</td></tr>
-        <tr><td><strong>Projects</strong></td><td>All active projects with full detail cards. Buttons to create Gate Pass, submit F5/F3/F6, assign installation team.</td><td>When you need to act on a specific project — gate pass, team assignment, quotation.</td></tr>
-        <tr><td><strong>Payments</strong></td><td>All payment records across all projects. Can view and add payments.</td><td>To track financial status of all projects.</td></tr>
-        <tr><td><strong>Pay Calendar</strong></td><td>Calendar view of payment due dates and installation schedules.</td><td>For planning and client communication around payment dates.</td></tr>
-        <tr><td><strong>Install Teams</strong></td><td>Each installation team member and the projects assigned to them. Unassigned projects are highlighted.</td><td>To assign installation teams to projects or review current assignments.</td></tr>
-        <tr><td><strong>All Projects</strong></td><td>Full project list with notes editor and action buttons.</td><td>For project-level management and adding manager notes.</td></tr>
-        <tr><td><strong>Timesheets</strong></td><td>Daily worker timesheet log and weekly summary.</td><td>To log worker hours daily and review weekly totals.</td></tr>
-      </table></div>
+<!-- 2 -->
+<section id="login">
+<h2>2. How to Log In</h2>
+<ol class="steps">
+  <li>Open your web browser and navigate to the WoodWings app URL.</li>
+  <li>Enter your <strong>email address</strong> and <strong>password</strong>.</li>
+  <li>Click <strong>Sign In</strong>.</li>
+  <li>You are taken to the <strong>Manager Dashboard</strong> automatically.</li>
+</ol>
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Login page — email, password, Sign In button]</p></div>
+</div>
+<div class="tip">Password resets are done by the superadmin (Kanaan). Contact him if you are locked out.</div>
+</section>
 
-      <h3>Dashboard Summary Cards</h3>
-      <p>At the top you see: <strong>Open Tasks</strong>, <strong>Awaiting Approval</strong>, and <strong>Active Projects</strong>. Monitor these daily — if Awaiting Approval is non-zero, action is needed.</p>
-    </div>
+<!-- 3 -->
+<section id="dashboard">
+<h2>3. Your Dashboard</h2>
+<p>The Manager Dashboard has three counter cards at the top: <strong>Open Tasks</strong>, <strong>Awaiting Approval</strong>, and <strong>Active Projects</strong>.</p>
 
-    <div class="section" id="s3">
-      <div class="section-num">Section 3</div>
-      <h2>Task Management &amp; Approvals</h2>
-      <p class="section-intro">The most critical function of the Manager role. When a team member submits a task for approval, only you can unblock it.</p>
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Manager Dashboard — top stat cards and full tab bar with all 8 tabs visible]</p></div>
+</div>
 
-      <h3>Task Status Flow</h3>
-      <div class="status-legend">
-        <span class="badge b-locked">Locked</span>
-        <span style="color:var(--muted);line-height:2">→</span>
-        <span class="badge b-todo">To Do</span>
-        <span style="color:var(--muted);line-height:2">→</span>
-        <span class="badge b-inprogress">In Progress</span>
-        <span style="color:var(--muted);line-height:2">→</span>
-        <span class="badge b-pending">Pending Approval</span>
-        <span style="color:var(--muted);line-height:2">→</span>
-        <span class="badge b-completed">Completed</span>
-      </div>
+<h3>Dashboard Tabs</h3>
 
-      <h3>How to Approve a Task</h3>
-      <div class="approval-card">
-        <h4>Step-by-step approval flow</h4>
-        <div class="steps">
-          <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Find the task</strong>Tasks in <span class="badge b-pending">Pending Approval</span> appear at the top of your My Tasks tab, highlighted.</div></div>
-          <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Open and review</strong>Click the task to expand it. Read all fields, notes, and any attached documents.</div></div>
-          <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Make your decision</strong>Click <span class="btn btn-approve">✓ Approve</span> to complete the task, or <span class="btn btn-reject">✕ Reject</span> to send it back.</div></div>
-          <div class="step"><div class="step-num">4</div><div class="step-body"><strong>If rejecting — add a comment</strong>A comment field appears. Explain clearly what needs to be corrected. This comment is emailed to the assignee.</div></div>
-          <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Submit</strong>The task either completes (approve) or resets to To Do with your comment (reject).</div></div>
-        </div>
-      </div>
+<h4>Tasks (default)</h4>
+<p>Your primary working area. Shows all tasks assigned to the Manager department — your approvals queue and any manager-specific tasks.</p>
 
-      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>Approvals unblock the entire project chain</strong>A task stuck in Pending Approval stops all downstream tasks from unlocking. Review approval tasks daily to avoid project delays.</div></div>
+<h4>Deliveries</h4>
+<p>Lists all projects with upcoming or pending deliveries. Shows planned delivery dates and material order statuses.</p>
 
-      <h3>Your Own Tasks</h3>
-      <p>In addition to approvals, some tasks are directly assigned to you — for example, scheduling delivery, creating Gate Passes, or completing F2 Production List. Work these tasks the same way: set to In Progress, complete the action, mark as Completed.</p>
+<h4>Projects</h4>
+<p>All active projects across all stages. From here you can monitor progress and take administrative actions on any project.</p>
 
-      <h3>Timesheets — Daily Entry</h3>
-      <p>Go to the <strong>Timesheets</strong> tab → <strong>Log Entry</strong> sub-view to record a worker's hours for the day.</p>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Notes</th></tr>
-        <tr><td>Date</td><td>Defaults to today. Change if logging for a previous day.</td></tr>
-        <tr><td>Worker</td><td>Select from the active worker roster.</td></tr>
-        <tr><td>Project</td><td>Which project did they work on today.</td></tr>
-        <tr><td>Regular Hours</td><td>Standard hours worked (0–16).</td></tr>
-        <tr><td>Overtime Hours</td><td>Overtime hours on top of regular (0–24 combined max 16).</td></tr>
-        <tr><td>Notes</td><td>Optional — work description, location, etc.</td></tr>
-      </table></div>
-      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>16-hour hard limit</strong>The system will block submission if Regular + Overtime exceeds 16 hours. A warning is shown at 14 hours — verify before saving.</div></div>
-      <div class="callout note"><div class="callout-icon"></div><div class="callout-body"><strong>Duplicate check</strong>The system prevents two entries for the same worker, project, and date. If you need to correct an entry, edit the existing one rather than creating a new one.</div></div>
-    </div>
+<h4>Payments</h4>
+<p>Payment tracking page. Shows payment installments for each project — amounts, due dates, and whether they have been received. You can record payment receipts here.</p>
 
-    <div class="section" id="s4">
-      <div class="section-num">Section 4</div>
-      <h2>Forms Guide</h2>
-      <p class="section-intro">As Manager you interact with several forms across project phases. Here is what each one does and how to use it.</p>
+<h4>Calendar</h4>
+<p>A weekly calendar showing all scheduled events: installation dates, site visits, delivery deadlines, and any other time-bound tasks.</p>
 
-      <h3>Gate Pass</h3>
-      <p>Issued before delivery to inform the client and logistics team. Found on the <strong>Projects</strong> tab — click a project card and use the <strong>Gate Pass</strong> button.</p>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Required?</th><th>Notes</th></tr>
-        <tr><td>Items Description</td><td>Yes</td><td>What items are being delivered</td></tr>
-        <tr><td>Estimated Supply Date</td><td>Yes</td><td>When you estimate delivery will happen</td></tr>
-        <tr><td>Confirmed Delivery Date</td><td>When known</td><td>Set once date is confirmed with the client</td></tr>
-      </table></div>
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Calendar tab — weekly grid with events for installations, deliveries, and site visits]</p></div>
+</div>
 
-      <h3>F5 — Quotation Items</h3>
-      <p>Used when defining quoted items for a project. Found on <strong>Projects → F5 — Add Quotation Items</strong>.</p>
+<h4>Installation</h4>
+<p>Dedicated view for managing the installation team. Shows active installations, the assignment notes for each team, and gate-pass status.</p>
 
-      <h3>F3 — Material Order</h3>
-      <p>Order materials for any project. Found on <strong>Projects → F3 — Order Materials</strong>.</p>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Required?</th><th>Notes</th></tr>
-        <tr><td>Purpose</td><td>Yes</td><td>Why the materials are needed</td></tr>
-        <tr><td>Material rows</td><td>Min 1</td><td>Name, supplier, quantity, unit, needed-by date per material</td></tr>
-      </table></div>
+<h4>Materials</h4>
+<p>All material orders (F3 requests) from all projects. You can view order status, supplier details, and quantities.</p>
 
-      <h3>F6 — Handover Sheet</h3>
-      <p>Created at the end of a project. Found on <strong>Projects → F6 — Handover Sheet</strong>.</p>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Notes</th></tr>
-        <tr><td>Final Installation Date</td><td>Date work completed on site</td></tr>
-        <tr><td>Customer Satisfaction</td><td>Rating from the client</td></tr>
-        <tr><td>Installation Difficulty</td><td>Note any issues encountered</td></tr>
-        <tr><td>Notes</td><td>Any handover notes</td></tr>
-        <tr><td>Newsletter Opt-In</td><td>Did the client agree to be added to the newsletter</td></tr>
-      </table></div>
+<h4>Timesheets</h4>
+<p>Worker timesheet management. Review daily attendance logs submitted by the installation team and generate summaries.</p>
+</section>
 
-      <h3>F4 — Payment Recording (Three Types)</h3>
-      <p>The system has three F4 payment tasks, each appearing at a different project phase. All three show the same <strong>Record Payment</strong> panel — fill in the amount, method, date, and payer type, then click <strong>Record &amp; Complete</strong>.</p>
-      <div class="tbl-wrap"><table>
-        <tr><th>Task Name</th><th>Phase</th><th>Payment Type (auto-selected)</th></tr>
-        <tr><td>F4 — Record Advance Payment</td><td>Phase 2 (Open)</td><td>Advance — paid when client confirms the project</td></tr>
-        <tr><td>F4 Form — Delivery Payment</td><td>Phase 3 (Working)</td><td>Delivery — paid before or at delivery</td></tr>
-        <tr><td>F4 Form — Final Payment</td><td>Phase 4 (Closing)</td><td>Final — triggers project closure and creates maintenance record</td></tr>
-      </table></div>
-      <div class="callout note"><div class="callout-icon"></div><div class="callout-body"><strong>Payer Type is required</strong>You must select a Payer Type (Broker / Contractor / End User / Designer) before the payment can be recorded. If the payer is a Broker, you can also enter a commission amount.</div></div>
+<!-- 4 -->
+<section id="tasks">
+<h2>4. Understanding Tasks</h2>
 
-      <h3>Assign Installation Team</h3>
-      <p>On any project card in the <strong>Projects</strong> or <strong>Install Teams</strong> tab, click <strong>Assign Team</strong> or <strong>Edit</strong> to open the assignment modal. Select one or more installation team members and save. The notification sent to the team includes the project name and item name.</p>
+<h3>Task Statuses</h3>
+<table>
+  <thead><tr><th>Status</th><th>What It Means</th><th>Your Action</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge b-locked">Locked</span></td><td>Waiting for another task first.</td><td>None — wait</td></tr>
+    <tr><td><span class="badge b-todo">To Do</span></td><td>Ready to work.</td><td>Start working on it</td></tr>
+    <tr><td><span class="badge b-inprogress">In Progress</span></td><td>Currently being worked on.</td><td>Continue</td></tr>
+    <tr><td><span class="badge b-pending">Pending Approval</span></td><td>Team submitted it — waiting for your review.</td><td>Approve or Reject</td></tr>
+    <tr><td><span class="badge b-completed">Completed</span></td><td>Fully done.</td><td>None</td></tr>
+  </tbody>
+</table>
 
-      <h3>Notifications Page</h3>
-      <p>Click the bell icon in the left sidebar to open the <strong>Notifications</strong> page (<code>/dashboard/notifications</code>). Shows your full notification history with all/unread filter and mark-as-read. Note: live-computed alerts (pending approvals, stale projects) shown in the bell badge are not stored here — only system-generated notification records appear.</p>
-    </div>
+<h3>Your Approval Role</h3>
+<p>The most critical part of your role in the system is <strong>approving tasks</strong>. When a team member (SED, Fabrication, or Installation) completes a gated task, it moves to <span class="badge b-pending">Pending Approval</span> and appears in your Tasks tab.</p>
+<ol class="steps">
+  <li>Open the pending task. Review the work — check the attached documents, dates, notes, and any comments.</li>
+  <li>If the work is satisfactory, click <strong>Approve</strong>. The task becomes Completed and the next task in the chain unlocks.</li>
+  <li>If something needs correction, click <strong>Reject</strong>. Add a comment explaining what needs to change. The task is sent back to the team member as <span class="badge b-todo">To Do</span>.</li>
+</ol>
+<div class="warn"><strong>Important:</strong> When you reject a task, always write a clear comment. The team member will only see your comment — they won't know why it was rejected otherwise.</div>
 
-    <div class="section" id="s5">
-      <div class="section-num">Section 5</div>
-      <h2>Project Workflow — Your Slice</h2>
-      <p class="section-intro">The Manager role is a gatekeeper at multiple critical checkpoints. Here is where you appear in each phase.</p>
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Task in Pending Approval state — Approve / Reject buttons and comment field]</p></div>
+</div>
 
-      <h3>Phase 1: Preparing</h3>
-      <ul>
-        <li>Monitor SED activity — if any project has no action for 3 days you are notified automatically</li>
-        <li>Receive notification when Phase 2 begins (client approved the quote)</li>
-      </ul>
+<h3>Project Stages</h3>
+<table>
+  <thead><tr><th>Stage</th><th>What It Means</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Preparing</strong></td><td>SED is working on quotation, site visits, samples.</td></tr>
+    <tr><td><strong>Open</strong></td><td>Client approved. Production and installation are active.</td></tr>
+    <tr><td><strong>Installation Completed</strong></td><td>Installation done. Awaiting final payment and handover.</td></tr>
+    <tr><td><strong>Closed &amp; Valid Maintenance</strong></td><td>Fully closed. 1-year warranty is running.</td></tr>
+    <tr><td><strong>Not-Approved</strong></td><td>Client declined. No further work.</td></tr>
+  </tbody>
+</table>
+</section>
 
-      <h3>Phase 2: Open</h3>
-      <ul>
-        <li>Receive notification when project advances from Preparing → Open</li>
-        <li>Review F5 quotation items submitted by SED</li>
-        <li>Approve per-item tasks that require manager sign-off</li>
-      </ul>
+<!-- 5 -->
+<section id="how-to-work">
+<h2>5. How to Work a Task</h2>
+<ol class="steps">
+  <li>Go to the <strong>Tasks tab</strong> and find the task (or use the Approvals section for pending items).</li>
+  <li>Click the task card to open it.</li>
+  <li>Review the content. For approval tasks: read any attachments, check dates, verify the work is complete.</li>
+  <li>For your own tasks (not approvals): change status to <strong>In Progress</strong>, fill required fields, then set to <strong>Completed</strong>.</li>
+  <li>For approval tasks: click <strong>Approve</strong> or <strong>Reject</strong> (with a comment if rejecting).</li>
+</ol>
 
-      <h3>Phase 3: Working — Material &amp; Fabrication</h3>
-      <ul>
-        <li><strong>F2 Production List</strong> — enter production start and end dates on the relevant task</li>
-        <li>When <strong>Fabrication Done</strong> completes, "Inform Client of Estimated Date of Supply" unlocks immediately (system bypasses sibling tasks at that step)</li>
-        <li>A <strong>Supply</strong> section banner appears automatically — visual separator only, self-completes, no action needed</li>
-        <li>Check site readiness, confirm exact delivery date with the client</li>
-        <li><strong>Schedule Delivery Date (F2)</strong> — set confirmed delivery date on the task</li>
-        <li><strong>Assign Installation Team</strong> — select team members; notification includes project + item name</li>
-        <li>Notify accountant of expected payment timing</li>
-      </ul>
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Manager task card open — showing review content area, Approve/Reject buttons, and comment input]</p></div>
+</div>
+</section>
 
-      <h3>Phase 3: Working — Installation</h3>
-      <ul>
-        <li>Notify client to make delivery payment — the <strong>F4 Form — Delivery Payment</strong> task appears; fill the payment panel to record and complete it</li>
-        <li>Review installation team daily logs on the <strong>Fixing Team Note</strong> task, then give <strong>Approval to Complete Fixing</strong></li>
-      </ul>
+<!-- 6 -->
+<section id="special">
+<h2>6. Special Task Types</h2>
 
-      <h3>Phase 4: Closing</h3>
-      <p>Phase 4 tasks auto-generate when the <strong>Handing Over Form</strong> task appears. No manual trigger needed.</p>
-      <ul>
-        <li>Notify client to pay the final payment — <strong>F4 Form — Final Payment</strong> task appears; recording this payment automatically closes the project and starts the 1-year maintenance period</li>
-        <li>Submit the <strong>F6 Handover Sheet</strong> — advances project stage to "Installation Completed"</li>
-        <li>Project moves to <strong>Closed</strong> status automatically once the Final Payment is recorded</li>
-      </ul>
-    </div>
+<div class="card" id="approval-flow">
+  <h3>Manager Approval Flow</h3>
+  <p>Most gated tasks from SED, Fabrication, and Installation land in your <strong>Pending Approval</strong> queue. The process is always the same:</p>
+  <ol class="steps">
+    <li>Open the task from your Tasks tab (look for <span class="badge b-pending">Pending Approval</span> status).</li>
+    <li>Review all attached documents, dates, and notes provided by the team.</li>
+    <li>Click <strong>Approve</strong> if everything is in order. The next task unlocks automatically.</li>
+    <li>Click <strong>Reject</strong> if changes are needed. Write a clear comment. The task returns to the submitter.</li>
+  </ol>
+</div>
 
-    <div class="section" id="s6">
-      <div class="section-num">Section 6</div>
-      <h2>Common Scenarios</h2>
-
-      <h3>Scenario 1 — I have several Pending Approval tasks. How do I process them?</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body">Open <strong>My Tasks</strong>. Pending Approval tasks appear at the top.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body">Work through them one by one — expand each task, review the details.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body">For each: Approve (green button) if correct, or Reject (red button) with a written comment explaining what to fix.</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body">Approved tasks complete immediately; rejected tasks return to the assignee with your comment via email.</div></div>
-      </div>
-
-      <h3>Scenario 2 — Fabrication is done. How do I issue a Gate Pass and schedule delivery?</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body">You receive a system notification that Fabrication Done is complete.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body">Open the project in the <strong>Projects</strong> tab.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body">Click <strong>Gate Pass</strong>. Fill in the items description and estimated supply date. Submit.</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body">Call the client to confirm site readiness and give the exact delivery date. Update the Gate Pass with the confirmed delivery date.</div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-body">Assign the installation team via the Install Teams tab if not already done.</div></div>
-      </div>
-
-      <h3>Scenario 3 — I need to log a worker's hours for today</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Timesheets</strong> tab → <strong>Log Entry</strong>.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body">Select the date (defaults to today), worker, and project.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body">Enter regular and overtime hours. The total is shown live.</div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body">Click <strong>Log Entry</strong>. The entry appears in Today's Entries below the form.</div></div>
-      </div>
-
-      <h3>Scenario 4 — I need to review the weekly worker hours</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Timesheets</strong> tab → <strong>Weekly Summary</strong>.</div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body">Use the Prev / Next navigation to select the week.</div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body">Expand each worker card to see their daily breakdown, total regular, total overtime, and grand total hours.</div></div>
-      </div>
-
-      <h3>Scenario 5 — An installation team member is not in the dropdown</h3>
-      <p>Contact the Superadmin — they manage the installation team member list in the Users section. Once a user is added and activated with the Installation role, they will appear in the assignment dropdown.</p>
-    </div>
-
-    <div class="section" id="s7">
-      <div class="section-num">Section 7</div>
-      <h2>Permissions Reference</h2>
-
-      <h3>What you CAN do</h3>
-      <ul>
-        <li>Approve or reject any task in Pending Approval status</li>
-        <li>Create Gate Passes on any project</li>
-        <li>Assign installation team members to projects</li>
-        <li>Schedule and confirm delivery dates</li>
-        <li>Add and view payment records</li>
-        <li>Submit F5, F3, and F6 forms</li>
-        <li>Log and edit worker timesheet entries</li>
-        <li>View all projects across all stages</li>
-        <li>Add manager notes on any project</li>
-        <li>View and use the payment calendar</li>
-      </ul>
-
-      <h3>What you CANNOT do</h3>
-      <ul>
-        <li>Advance a project stage manually (Superadmin only)</li>
-        <li>Set the "Call the Client" outcome (Superadmin only)</li>
-        <li>Create or manage user accounts</li>
-        <li>Access the superadmin dashboard, reports, or KPI section</li>
-        <li>Delete timesheet entries (Superadmin only)</li>
-        <li>Manage the worker roster (add/remove workers — Superadmin only)</li>
-      </ul>
-
-      <h3>Fields you can edit on a task</h3>
-      <div class="tbl-wrap"><table>
-        <tr><th>Field</th><th>Notes</th></tr>
-        <tr><td>Status</td><td>Full control — including Approve / Reject</td></tr>
-        <tr><td>Manager Review Status</td><td>Approved / Rejected</td></tr>
-        <tr><td>Manager Comment</td><td>Written when rejecting</td></tr>
-        <tr><td>Completion Date</td><td>Set when scheduling deliveries</td></tr>
-        <tr><td>Team Days Required</td><td>On installation planning tasks</td></tr>
-        <tr><td>No. of Laborers per Day</td><td>On installation planning tasks</td></tr>
-        <tr><td>Planned Production Start Date</td><td>F2 production list</td></tr>
-        <tr><td>Expected Fabrication End Date</td><td>F2 production list</td></tr>
-        <tr><td>Approval to Complete Fixing</td><td>Boolean on fixing approval task</td></tr>
-      </table></div>
-    </div>
-
-    <div class="section" id="s8">
-      <div class="section-num">Section 8</div>
-      <h2>Troubleshooting</h2>
-      <div class="tbl-wrap"><table>
-        <tr><th>Problem</th><th>Likely Cause</th><th>Solution</th></tr>
-        <tr><td>A task is in Pending Approval but I cannot see approve/reject buttons</td><td>The task may require a different approver, or you may be viewing it in read-only mode</td><td>Ensure you are logged in as Manager. Reload the page. If still missing, contact the Superadmin.</td></tr>
-        <tr><td>The installation team dropdown is empty when assigning</td><td>No users with the Installation role are active in the system</td><td>Ask the Superadmin to add or activate installation team members in the Users section.</td></tr>
-        <tr><td>A worker is not in the timesheet dropdown</td><td>The worker has not been added to the Workers roster, or is marked Inactive</td><td>Contact the Superadmin to add or activate the worker in the Workers management page.</td></tr>
-        <tr><td>Timesheet entry rejected — duplicate error</td><td>An entry already exists for that worker + project + date</td><td>Find the existing entry in Today's Entries panel and edit it rather than creating a new one.</td></tr>
-        <tr><td>Gate Pass button is not available on a project</td><td>The project may not be in Working stage, or fabrication is not yet complete</td><td>Check the project stage and confirm that the Fabrication Done task is Completed.</td></tr>
-        <tr><td>Payment calendar shows wrong dates</td><td>Payment due dates were not entered when creating payment records</td><td>Open the payment record and add the Due Date field.</td></tr>
-        <tr><td>A project is stuck with no new tasks unlocking</td><td>A prerequisite task is Pending Approval or In Progress untouched</td><td>Check all tasks in the project chain for any that need approval or action.</td></tr>
-      </table></div>
-
-      <h3>Who to Contact</h3>
-      <div class="tbl-wrap"><table>
-        <tr><th>Issue type</th><th>Contact</th></tr>
-        <tr><td>User accounts, system access, stage advancement</td><td>Superadmin</td></tr>
-        <tr><td>Technical errors, data not saving</td><td>Superadmin / IT</td></tr>
-        <tr><td>Worker or team roster issues</td><td>Superadmin → Workers page</td></tr>
-      </table></div>
-    </div>
-
-    <div class="section" id="s9">
-      <div class="section-num">Section 9</div>
-      <h2>Quick Reference Card</h2>
-      <div class="qrc">
-        <h2>Manager Quick Reference</h2>
-
-        <h3>Status Colour Legend</h3>
-        <div class="status-legend">
-          <span class="badge b-locked">Locked</span>
-          <span class="badge b-todo">To Do</span>
-          <span class="badge b-inprogress">In Progress</span>
-          <span class="badge b-pending">Pending Approval</span>
-          <span class="badge b-completed">Completed</span>
-        </div>
-
-        <h3>Forms at a Glance</h3>
-        <div class="tbl-wrap"><table>
-          <tr><th>Form / Action</th><th>When</th><th>Where</th></tr>
-          <tr><td>Gate Pass</td><td>Items ready for delivery</td><td>Projects tab → project card → Gate Pass button</td></tr>
-          <tr><td>F3 — Material Order</td><td>Need to order materials</td><td>Projects tab → F3 button</td></tr>
-          <tr><td>F4 — Advance Payment</td><td>Client confirms project (Phase 2)</td><td>Task card → Record Payment panel</td></tr>
-          <tr><td>F4 — Delivery Payment</td><td>Before delivery (Phase 3)</td><td>Task card → Record Payment panel</td></tr>
-          <tr><td>F4 — Final Payment</td><td>Project closing (Phase 4)</td><td>Task card → Record Payment panel (closes project)</td></tr>
-          <tr><td>F5 — Quotation Items</td><td>Defining project items</td><td>Projects tab → F5 button</td></tr>
-          <tr><td>F6 — Handover</td><td>Project closing</td><td>Projects tab → F6 button</td></tr>
-          <tr><td>Assign Team</td><td>After delivery date scheduled</td><td>Install Teams tab → project → Assign</td></tr>
-          <tr><td>Log Timesheet</td><td>Daily, per worker</td><td>Timesheets tab → Log Entry</td></tr>
-        </table></div>
-
-        <h3>Daily Checklist</h3>
-        <ul style="color:rgba(255,255,255,0.8);font-size:0.9rem;">
-          <li>Review all Pending Approval tasks — approve or reject each one</li>
-          <li>Check Deliveries tab — confirm today's deliveries are on track</li>
-          <li>Log worker timesheet entries for the day</li>
-          <li>Check for unassigned projects in Install Teams tab</li>
-          <li>Review payment calendar for upcoming due dates</li>
-        </ul>
-      </div>
-    </div>
-
+<div class="card" id="f3-order">
+  <h3>F3 — Material Order</h3>
+  <p>F3 is the material ordering form. It is triggered either by SED (for samples) or by the fabrication team when they need materials to start production.</p>
+  <ol class="steps">
+    <li>A task named <strong>"F3 — Order Materials"</strong> will appear in your task queue.</li>
+    <li>Open it. You will see a form with a material table: each row has Material, Quantity, Unit, Supplier, and Notes.</li>
+    <li>Review the request. You can add rows if needed using the <strong>+ Add Row</strong> button.</li>
+    <li>There are two order types you can select: <strong>Small Order</strong> (quick, local purchase) or <strong>Big Order</strong> (formal supplier PO).</li>
+    <li>Submit the order. The fabrication team can see that materials are on the way.</li>
+  </ol>
+  <div class="screenshot-slot">
+    <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: F3 Order panel — Small/Big order toggle, material table with rows, + Add Row and Submit buttons]</p></div>
   </div>
 </div>
+
+<div class="card" id="f6-handover">
+  <h3>F6 — Handover Sheet</h3>
+  <p>The F6 Handover Sheet is filled when installation is complete and the project is being formally handed over to the client.</p>
+  <ol class="steps">
+    <li>A task named <strong>"F6 — Handover Sheet"</strong> will appear.</li>
+    <li>Open it. Fill in the handover details: completion date, client sign-off notes, outstanding items if any.</li>
+    <li>Attach the signed handover document (photograph or PDF).</li>
+    <li>Submit. The project stage advances toward Closing.</li>
+  </ol>
+</div>
+
+<div class="card" id="gate-pass">
+  <h3>Gate Pass</h3>
+  <p>A gate pass authorises the movement of materials and workers to a project site. You create gate passes for delivery and installation trips.</p>
+  <p>Gate passes have <strong>four sections</strong> to fill:</p>
+  <ol>
+    <li><strong>Vehicle Details</strong> — vehicle type, plate number, driver name</li>
+    <li><strong>Workers</strong> — list of workers going on this trip</li>
+    <li><strong>Materials</strong> — what is being transported (items, quantities)</li>
+    <li><strong>Site Details</strong> — destination address, site contact name</li>
+  </ol>
+  <ol class="steps">
+    <li>Go to the <strong>Forms page</strong> (sidebar) or open it from a relevant task.</li>
+    <li>In the <strong>Gate Passes</strong> section, click <strong>+ New Gate Pass</strong>.</li>
+    <li>Fill in all four sections of the form.</li>
+    <li>Click the <strong>Print</strong> icon (always visible on every gate pass card) to print the physical document for the driver.</li>
+    <li>When the delivery is confirmed, click <strong>Mark Delivered</strong> on the gate pass card.</li>
+    <li>To cancel a gate pass, click <strong>Cancel</strong> on the card.</li>
+  </ol>
+  <div class="screenshot-slot">
+    <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Gate Pass card on the Forms page — showing print icon, Mark Delivered button, and Cancel button]</p></div>
+  </div>
+</div>
+
+<div class="card" id="assign-team">
+  <h3>Assign Installation Team</h3>
+  <p>When a project is ready for installation, you must assign the installation team.</p>
+  <ol class="steps">
+    <li>A task called <strong>"Choose Installation Team"</strong> will appear in your task queue.</li>
+    <li>Open it. Select the team members who will work on this installation from the worker list.</li>
+    <li>Set the planned installation start date.</li>
+    <li>Add any special notes or instructions for the team in the assignment notes field.</li>
+    <li>Submit. The installation team will see the assignment note in their dashboard.</li>
+  </ol>
+</div>
+
+<div class="card" id="f2-production">
+  <h3>F2 — Production Timeline</h3>
+  <p>The F2 form sets the production schedule for a specific project item — when fabrication should start and when it is expected to be complete.</p>
+  <ol class="steps">
+    <li>A task named <strong>"F2 — Production Timeline"</strong> appears when an item is ready to go to fabrication.</li>
+    <li>Open it. Fill in <strong>Planned Production Start Date</strong> and <strong>Expected Fabrication End Date</strong>.</li>
+    <li>Submit. Fabrication can now see their schedule for this item.</li>
+  </ol>
+</div>
+</section>
+
+<!-- 7 -->
+<section id="notifications">
+<h2>7. Notifications</h2>
+<p>You receive notifications when tasks are submitted for your approval, when SED or fabrication teams complete key steps, and for weekly reminders.</p>
+<p>Click the <strong>bell icon</strong> in the sidebar to open the Notifications page.</p>
+
+<div class="screenshot-slot">
+  <div class="inner"><span class="icon">📸</span><p class="label">[SCREENSHOT: Notifications page — unread notifications with blue dot, All/Unread toggle, Mark all read button]</p></div>
+</div>
+
+<ul>
+  <li>Unread notifications show a <strong>blue dot</strong> and blue background highlight.</li>
+  <li>Click any notification to mark it as read and navigate to the relevant task.</li>
+  <li><strong>Mark all read</strong> button (top right) clears all at once.</li>
+  <li>The <strong>Live Alerts</strong> section at the top of the page shows critical items: pending approvals, stale projects, overdue payments.</li>
+  <li>A <strong>weekly reminder</strong> is sent every Friday morning automatically.</li>
+  <li>A <strong>monthly audit reminder</strong> is sent on the 1st of each month.</li>
+</ul>
+</section>
+
+<!-- 8 -->
+<section id="faq">
+<h2>8. Frequently Asked Questions</h2>
+
+<div class="card">
+  <h3>How do I know which tasks need my approval right now?</h3>
+  <p>Go to your <strong>Tasks tab</strong> and look for cards with the <span class="badge b-pending">Pending Approval</span> status. These are submitted by team members and are waiting for your review. The Live Alerts section on the Notifications page also surfaces urgent pending approvals.</p>
+</div>
+
+<div class="card">
+  <h3>I rejected a task — why can't I see it in my queue anymore?</h3>
+  <p>When you reject a task, it is returned to the original submitter as <span class="badge b-todo">To Do</span>. It disappears from your approval queue until they resubmit it. Once they resubmit, it will reappear in your queue as Pending Approval again.</p>
+</div>
+
+<div class="card">
+  <h3>A project seems stuck — how do I find out why?</h3>
+  <p>Go to the <strong>Projects tab</strong> and find the project. Click it to see all its tasks and their statuses. A project usually gets stuck because a task is in <span class="badge b-pending">Pending Approval</span> and hasn't been reviewed yet, or because a task is <span class="badge b-locked">Locked</span> waiting for something else to complete.</p>
+</div>
+
+<div class="card">
+  <h3>How do I print a gate pass?</h3>
+  <p>Go to the <strong>Forms page</strong> from the sidebar. In the Gate Passes section, find the gate pass you want to print. Click the <strong>print icon</strong> (always visible on every gate pass card). Your browser's print dialog will open.</p>
+</div>
+
+<div class="card">
+  <h3>What is the difference between a Small Order and a Big Order in F3?</h3>
+  <p>A <strong>Small Order</strong> is a direct local purchase — the materials are bought immediately from a nearby supplier without a formal purchase order. A <strong>Big Order</strong> is a formal supplier order, usually for larger quantities or specific materials that need to be requested through official channels.</p>
+</div>
+
+<div class="card">
+  <h3>Can I change a task status for someone from another team?</h3>
+  <p>Your role allows you to edit manager-specific fields on any task (like approval status, completion date, priority flag, and start date). You cannot change a fabrication team member's fabrication-specific fields. If you need to override something unusual, ask the superadmin.</p>
+</div>
+
+<div class="card">
+  <h3>I need to track a payment — where do I go?</h3>
+  <p>Go to the <strong>Payments tab</strong> on your dashboard. All projects with active payment schedules are listed here. You can record payment receipts and view the full payment history for each project.</p>
+</div>
+
+<div class="card">
+  <h3>How do I manage worker timesheets?</h3>
+  <p>Go to the <strong>Timesheets tab</strong>. This shows daily attendance logs submitted by the installation team. You can review them, add comments, and generate summaries for payroll purposes.</p>
+</div>
+</section>
+
+<!-- 9 -->
+<section id="quick-ref">
+<h2>9. Quick Reference Card</h2>
+<table class="qrc">
+  <thead><tr><th>I want to…</th><th>What to do</th></tr></thead>
+  <tbody>
+    <tr><td>Approve a task</td><td>Tasks tab → open <span class="badge b-pending">Pending Approval</span> task → click <strong>Approve</strong></td></tr>
+    <tr><td>Reject a task</td><td>Tasks tab → open task → click <strong>Reject</strong> → write a comment → confirm</td></tr>
+    <tr><td>Create a gate pass</td><td>Forms page (sidebar) → Gate Passes section → <strong>+ New Gate Pass</strong> → fill 4 sections</td></tr>
+    <tr><td>Print a gate pass</td><td>Forms page → find gate pass → click <strong>print icon</strong></td></tr>
+    <tr><td>Mark a delivery as done</td><td>Forms page → find gate pass → click <strong>Mark Delivered</strong></td></tr>
+    <tr><td>Submit an F3 material order</td><td>Open F3 task → select Small/Big order → add material rows → Submit</td></tr>
+    <tr><td>Set production schedule (F2)</td><td>Open F2 task → set Planned Start + Expected End dates → Submit</td></tr>
+    <tr><td>Assign installation team</td><td>Open "Choose Installation Team" task → select workers + set date → Submit</td></tr>
+    <tr><td>Record payment received</td><td>Payments tab → find project → record receipt</td></tr>
+    <tr><td>Review worker timesheets</td><td>Timesheets tab → select worker/date range</td></tr>
+    <tr><td>See upcoming deliveries</td><td>Deliveries tab</td></tr>
+    <tr><td>See project calendar</td><td>Calendar tab</td></tr>
+    <tr><td>Read notifications</td><td>Bell icon in sidebar → Notifications page</td></tr>
+  </tbody>
+</table>
+</section>
+
+</div>
+
+<button id="btt" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top">↑</button>
 <script>
-  const links = document.querySelectorAll('#toc a');
-  const sections = document.querySelectorAll('.section');
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        links.forEach(l => l.classList.remove('active'));
-        const link = document.querySelector('#toc a[href="#' + e.target.id + '"]');
-        if (link) link.classList.add('active');
-      }
-    });
-  }, { rootMargin: '-20% 0px -70% 0px' });
-  sections.forEach(s => observer.observe(s));
+  const b=document.getElementById('btt');
+  window.addEventListener('scroll',()=>b.classList.toggle('vis',scrollY>400));
 </script>
 </body>
 </html>
