@@ -5,8 +5,9 @@ import { getSetting, setSetting } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 export const GET = requireRole('superadmin')(async () => {
+  const accountantEmail = await getSetting('accountant_email')
   return NextResponse.json({
-    accountantEmail: getSetting('accountant_email') ?? '',
+    accountantEmail: accountantEmail ?? '',
   })
 })
 
@@ -23,6 +24,6 @@ export const PATCH = requireRole('superadmin')(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
   }
 
-  setSetting('accountant_email', accountantEmail.trim().toLowerCase())
+  await setSetting('accountant_email', accountantEmail.trim().toLowerCase())
   return NextResponse.json({ accountantEmail: accountantEmail.trim().toLowerCase() })
 })
