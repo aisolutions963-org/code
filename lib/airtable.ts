@@ -680,7 +680,6 @@ export async function getProjects(options: { stage?: string; sedEmail?: string; 
       }
       if (email) {
         if (p.salesOwner?.email?.toLowerCase() === email) return true
-        if (p.communSeds?.some(s => s.toLowerCase() === email)) return true
       }
       return false
     })
