@@ -227,6 +227,24 @@ export interface PaymentCreateInput {
   recordedBy?: string
 }
 
+export interface GatePassPrintPayload {
+  _v: 1
+  timeOfIssue?: string
+  timeAmPm?: string
+  passValidity?: string
+  driverName?: string
+  driverIdLicense?: string
+  driverContact?: string
+  transportCompany?: string
+  vehicleModel?: string
+  vehiclePlate?: string
+  invoiceDoNumber?: string
+  items?: { description: string; quantity: string; unit: string; condition: string }[]
+  customerName?: string
+  deliveryAddress?: string
+  customerContact?: string
+}
+
 export interface GatePass {
   id: string
   name: string
@@ -239,6 +257,7 @@ export interface GatePass {
   clientNotified?: boolean
   projectName?: string
   projectDisplayId?: string
+  printData?: GatePassPrintPayload
 }
 
 export interface GatePassCreateInput {

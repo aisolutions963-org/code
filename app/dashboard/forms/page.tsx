@@ -169,12 +169,30 @@ function GatePassCard({ gp, onStatusChange }: { gp: GatePass; onStatusChange: ()
 
   function handlePrint(e: React.MouseEvent) {
     e.stopPropagation()
+    const pd = gp.printData
     triggerPrint({
       serial: gp.name || gp.id.slice(-8).toUpperCase(),
       projectRef: gp.projectDisplayId,
       projectName: gp.projectName ?? gp.name,
       dateOfIssue: gp.estimatedSupplyDate || new Date().toISOString().slice(0, 10),
-      itemsDescriptionFallback: gp.itemsDescription,
+      ...(pd ? {
+        timeOfIssue: pd.timeOfIssue,
+        timeAmPm: pd.timeAmPm as 'AM' | 'PM' | undefined,
+        passValidity: pd.passValidity,
+        driverName: pd.driverName,
+        driverIdLicense: pd.driverIdLicense,
+        driverContact: pd.driverContact,
+        transportCompany: pd.transportCompany,
+        vehicleModel: pd.vehicleModel,
+        vehiclePlate: pd.vehiclePlate,
+        invoiceDoNumber: pd.invoiceDoNumber,
+        items: pd.items,
+        customerName: pd.customerName,
+        deliveryAddress: pd.deliveryAddress,
+        customerContact: pd.customerContact,
+      } : {
+        itemsDescriptionFallback: gp.itemsDescription,
+      }),
       companyName: process.env.NEXT_PUBLIC_APP_NAME ?? 'WOODWINGS',
     })
   }
@@ -223,10 +241,45 @@ function GatePassCard({ gp, onStatusChange }: { gp: GatePass; onStatusChange: ()
 
       {expanded && (
         <div className="p-4 border-t border-teal-100 bg-white space-y-3">
+          {/* Items */}
           <div>
             <p className="text-xs font-medium text-gray-500 mb-1">Items</p>
-            <p className="text-sm text-gray-800 whitespace-pre-line">{gp.itemsDescription}</p>
+            {gp.printData?.items?.filter(i => i.description.trim()).length ? (
+              <div className="space-y-0.5">
+                {gp.printData.items.filter(i => i.description.trim()).map((item, i) => (
+                  <p key={i} className="text-sm text-gray-800">
+                    {i + 1}. {item.description} — {item.quantity} {item.unit}
+                    {item.condition ? <span className="text-gray-400"> ({item.condition})</span> : null}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-800 whitespace-pre-line">{gp.itemsDescription}</p>
+            )}
           </div>
+          {/* Driver / vehicle details */}
+          {gp.printData?.driverName && (
+            <div className="grid grid-cols-2 gap-2 text-xs border-t border-gray-100 pt-3">
+              {gp.printData.driverName && (
+                <div><p className="text-gray-400">Driver</p><p className="font-medium text-gray-700">{gp.printData.driverName}</p></div>
+              )}
+              {gp.printData.vehiclePlate && (
+                <div><p className="text-gray-400">Plate</p><p className="font-medium text-gray-700">{gp.printData.vehiclePlate}</p></div>
+              )}
+              {gp.printData.vehicleModel && (
+                <div><p className="text-gray-400">Vehicle</p><p className="font-medium text-gray-700">{gp.printData.vehicleModel}</p></div>
+              )}
+              {gp.printData.transportCompany && (
+                <div><p className="text-gray-400">Transport Co.</p><p className="font-medium text-gray-700">{gp.printData.transportCompany}</p></div>
+              )}
+              {gp.printData.customerName && (
+                <div><p className="text-gray-400">Customer</p><p className="font-medium text-gray-700">{gp.printData.customerName}</p></div>
+              )}
+              {gp.printData.deliveryAddress && (
+                <div className="col-span-2"><p className="text-gray-400">Delivery Address</p><p className="font-medium text-gray-700">{gp.printData.deliveryAddress}</p></div>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div>
               <p className="text-gray-400">Estimated Supply</p>

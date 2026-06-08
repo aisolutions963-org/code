@@ -421,16 +421,23 @@ function transformPayment(record: RawRecord): Payment {
 
 function transformGatePass(record: RawRecord): GatePass {
   const f = record.fields
+  const rawDesc = str(f[GATE_PASSES.ITEMS_DESCRIPTION]) ?? ''
+  let printData: GatePass['printData']
+  try {
+    const parsed = JSON.parse(rawDesc)
+    if (parsed?._v === 1) printData = parsed as GatePass['printData']
+  } catch {}
   return {
     id: record.id,
     name: str(f[GATE_PASSES.NAME]) ?? '',
     project: strArr(f[GATE_PASSES.PROJECT]),
-    itemsDescription: str(f[GATE_PASSES.ITEMS_DESCRIPTION]) ?? '',
+    itemsDescription: rawDesc,
     estimatedSupplyDate: str(f[GATE_PASSES.ESTIMATED_SUPPLY_DATE]) ?? '',
     confirmedDeliveryDate: str(f[GATE_PASSES.CONFIRMED_DELIVERY_DATE]),
     gatePassStatus: str(f[GATE_PASSES.GATE_PASS_STATUS]),
     siteReady: bool(f[GATE_PASSES.SITE_READY]),
     clientNotified: bool(f[GATE_PASSES.CLIENT_NOTIFIED]),
+    printData,
   }
 }
 

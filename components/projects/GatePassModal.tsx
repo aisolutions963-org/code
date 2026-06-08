@@ -135,10 +135,23 @@ export default function GatePassModal({
     setSaving(true)
     setErr('')
 
-    const itemsText = items
-      .filter((it) => it.description.trim())
-      .map((it, i) => `${i + 1}. ${it.description} — Qty: ${it.quantity} ${it.unit}${it.condition ? ` (${it.condition})` : ''}`)
-      .join('\n')
+    const payload = {
+      _v: 1 as const,
+      timeOfIssue,
+      timeAmPm,
+      passValidity,
+      driverName,
+      driverIdLicense,
+      driverContact,
+      transportCompany,
+      vehicleModel,
+      vehiclePlate,
+      invoiceDoNumber,
+      items,
+      customerName,
+      deliveryAddress,
+      customerContact,
+    }
 
     try {
       const res = await fetch('/api/gate-passes', {
@@ -146,7 +159,7 @@ export default function GatePassModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           project: [project.id],
-          itemsDescription: itemsText || 'See gate pass document',
+          itemsDescription: JSON.stringify(payload),
           estimatedSupplyDate: dateOfIssue,
         }),
       })
