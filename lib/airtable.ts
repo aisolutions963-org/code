@@ -352,11 +352,14 @@ function transformProject(record: RawRecord): Project {
   const f = record.fields
   const owner = firstLinkedRecord(f[PROJECTS.SALES_OWNER])
   const rawCommun = f[PROJECTS.COMMUN_SEDS]
-  const communRaw = Array.isArray(rawCommun)
-    ? (rawCommun as Array<{ name?: string; email?: string; id?: string }>)
-    : []
-  const communSeds = communRaw.map((c) => c.name ?? c.email ?? c.id ?? '').filter(Boolean)
-  const communSedIds = communRaw.map((c) => c.id ?? '').filter(Boolean)
+  const communRaw: Array<string | { name?: string; email?: string; id?: string }> =
+    Array.isArray(rawCommun) ? rawCommun : []
+  const communSeds = communRaw
+    .map((c) => (typeof c === 'string' ? c : (c.name ?? c.email ?? c.id ?? '')))
+    .filter(Boolean)
+  const communSedIds = communRaw
+    .map((c) => (typeof c === 'string' ? c : (c.id ?? '')))
+    .filter(Boolean)
   const quotationNumber = str(f[PROJECTS.QUOTATION_NUMBER])
   return {
     id: record.id,
@@ -524,7 +527,7 @@ export async function getSedProjectIds(opts: {
       const owner = firstLinkedRecord(r.fields[PROJECTS.SALES_OWNER])
       const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
       const communIds: string[] = Array.isArray(rawCommun)
-        ? (rawCommun as Array<{ id?: string }>).map((c) => c.id ?? '').filter(Boolean)
+        ? (rawCommun as Array<string | { id?: string }>).map((c) => typeof c === 'string' ? c : (c.id ?? '')).filter(Boolean)
         : []
       if (memberId) {
         if (owner?.id === memberId) return true
