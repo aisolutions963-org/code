@@ -41,6 +41,7 @@ async function initDB(): Promise<void> {
       `CREATE TABLE IF NOT EXISTS notifications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         recipient_role TEXT NOT NULL,
+        recipient_user_id INTEGER,
         title TEXT NOT NULL,
         body TEXT NOT NULL DEFAULT '',
         link TEXT NOT NULL DEFAULT '',
@@ -63,6 +64,12 @@ async function initDB(): Promise<void> {
     ],
     'write',
   )
+  // Migrate existing notifications table: add recipient_user_id if missing
+  try {
+    await c.execute(`ALTER TABLE notifications ADD COLUMN recipient_user_id INTEGER`)
+  } catch {
+    // Column already exists — expected on fresh DBs or after first migration
+  }
 }
 
 export async function db(): Promise<Client> {

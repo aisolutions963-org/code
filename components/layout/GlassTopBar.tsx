@@ -158,10 +158,13 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
 
       {/* Left — logo (mobile only) + page title */}
       <div className="flex items-center gap-3">
-        {/* Mobile: show W logo since sidebar is hidden */}
-        <div className={`w-7 h-7 rounded-lg ${ROLE_DOT[role]} flex items-center justify-center shrink-0 md:hidden shadow-md`}>
-          <span className="text-white text-xs font-black">W</span>
-        </div>
+        {/* Mobile: logo since sidebar is hidden */}
+        <img
+          src="/logo.png"
+          alt="WoodWings"
+          className="h-7 w-auto shrink-0 object-contain md:hidden"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
         <span className="text-sm font-semibold text-white/90">{pageTitle}</span>
         <span className="hidden sm:flex items-center gap-1.5 text-xs text-white/30">
           <span className={`w-1.5 h-1.5 rounded-full ${ROLE_DOT[role]}`} />

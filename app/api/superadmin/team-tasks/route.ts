@@ -48,7 +48,7 @@ export const GET = requireRole('superadmin')(async () => {
     getAllUsers(),
   ])
 
-  const users = allUsers.filter((u) => u.active === 1)
+  const users = allUsers.filter((u) => Number(u.active) === 1)
 
   // Build map: airtable_member_id → user
   const memberMap = new Map<string, { name: string; role: string; userId: number }>()

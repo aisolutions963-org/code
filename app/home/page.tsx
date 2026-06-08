@@ -743,6 +743,12 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800">
       {/* Hero header with live clock */}
       <div className="px-6 pt-10 pb-8 text-center">
+        <img
+          src="/logo.png"
+          alt="WoodWings"
+          className="h-14 w-auto mx-auto mb-5 object-contain"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
         <p className="text-gray-400 text-sm mb-3">
           Welcome back, <span className="text-white font-medium">{name}</span>
           <span className="ml-2 text-gray-500">({ROLE_LABELS[role] ?? role})</span>

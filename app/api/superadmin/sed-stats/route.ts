@@ -57,7 +57,7 @@ export const GET = requireRole('superadmin')(async () => {
     getAllUsers(),
   ])
 
-  const sedUsers = allUsers.filter((u) => u.role === 'sed' && u.active === 1)
+  const sedUsers = allUsers.filter((u) => u.role === 'sed' && Number(u.active) === 1)
 
   // Match by airtable_member_id first (most reliable), fall back to email
   const memberIdToName = new Map<string, string>()
