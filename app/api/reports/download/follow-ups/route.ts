@@ -1,12 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { TASKS } from '@/lib/fieldMap'
+import { TASKS, TEAM_MEMBERS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
 
 export const dynamic = 'force-dynamic'
 
 const BASE_ID = process.env.AIRTABLE_BASE_ID!
 const API_KEY = process.env.AIRTABLE_API_KEY!
+
+async function fetchMemberNameMap(): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  let offset: string | undefined
+  do {
+    const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
+    params.append('fields[]', TEAM_MEMBERS.NAME)
+    if (offset) params.set('offset', offset)
+    const res = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${TEAM_MEMBERS.TABLE_ID}?${params}`,
+      { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
+    )
+    if (!res.ok) break
+    const data = await res.json() as { records: { id: string; fields: Record<string, unknown> }[]; offset?: string }
+    for (const r of data.records) {
+      const name = r.fields[TEAM_MEMBERS.NAME] as string | undefined
+      if (name) map.set(r.id, name)
+    }
+    offset = data.offset
+  } while (offset)
+  return map
+}
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const sp = new URL(req.url).searchParams
@@ -29,6 +51,8 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   params.append('fields[]', TASKS.ASSIGNED_TO)
   params.append('fields[]', TASKS.PROJECT_ID)
 
+  const memberNameMap = await fetchMemberNameMap()
+
   const records: { id: string; fields: Record<string, unknown> }[] = []
   let offset: string | undefined
   do {
@@ -46,13 +70,14 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
 
   const rows = records.map((r) => {
     const f = r.fields
-    const assignees = Array.isArray(f[TASKS.ASSIGNED_TO]) ? (f[TASKS.ASSIGNED_TO] as string[]) : []
+    const assigneeIds = Array.isArray(f[TASKS.ASSIGNED_TO]) ? (f[TASKS.ASSIGNED_TO] as string[]) : []
+    const doneBy = assigneeIds.map((id) => memberNameMap.get(id) ?? id).join(', ')
     return {
       followUpDate: (f[TASKS.COMPLETION_DATE] as string) ?? '',
       projectRef: (f[TASKS.PROJECT_ID] as string) ?? '',
       outcome: (f[TASKS.FOLLOW_UP_OUTCOME] as string) ?? '',
       status: (f[TASKS.STATUS] as string) ?? '',
-      doneBy: assignees.join(', '),
+      doneBy,
     }
   })
 

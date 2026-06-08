@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { TASKS } from '@/lib/fieldMap'
+import { TASKS, TEAM_MEMBERS } from '@/lib/fieldMap'
 import { getAllUsers } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +11,29 @@ const API_KEY = process.env.AIRTABLE_API_KEY!
 interface RawTask {
   id: string
   fields: Record<string, unknown>
+}
+
+async function fetchTeamMemberEmailMap(): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  let offset: string | undefined
+  do {
+    const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
+    params.append('fields[]', TEAM_MEMBERS.NAME)
+    params.append('fields[]', TEAM_MEMBERS.AIRTABLE_EMAIL)
+    if (offset) params.set('offset', offset)
+    const res = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${TEAM_MEMBERS.TABLE_ID}?${params}`,
+      { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
+    )
+    if (!res.ok) break
+    const data = await res.json() as { records: { id: string; fields: Record<string, unknown> }[]; offset?: string }
+    for (const r of data.records) {
+      const email = (r.fields[TEAM_MEMBERS.AIRTABLE_EMAIL] as string | undefined)?.toLowerCase()
+      if (email) map.set(r.id, email)
+    }
+    offset = data.offset
+  } while (offset)
+  return map
 }
 
 async function fetchActiveTasks(): Promise<RawTask[]> {
@@ -24,7 +47,7 @@ async function fetchActiveTasks(): Promise<RawTask[]> {
     params.append('fields[]', TASKS.DEPARTMENT)
     params.append('fields[]', TASKS.ASSIGNED_TO)
     params.append('fields[]', TASKS.PROJECT_ID)
-    params.append('fields[]', TASKS.PROJECT_RECORD_ID)
+    params.append('fields[]', TASKS.PROJECT)
     if (offset) params.set('offset', offset)
     const res = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${TASKS.TABLE_ID}?${params}`,
@@ -43,17 +66,25 @@ const ROLE_ORDER: Record<string, number> = {
 }
 
 export const GET = requireRole('superadmin')(async () => {
-  const [tasks, allUsers] = await Promise.all([
+  const [tasks, allUsers, teamMemberEmailMap] = await Promise.all([
     fetchActiveTasks(),
     getAllUsers(),
+    fetchTeamMemberEmailMap(),
   ])
 
   const users = allUsers.filter((u) => Number(u.active) === 1)
 
-  // Build map: airtable_member_id → user
-  const memberMap = new Map<string, { name: string; role: string; userId: number }>()
+  // Build map: email → DB user
+  const emailToUser = new Map<string, { name: string; role: string; userId: number }>()
   for (const u of users) {
-    if (u.airtable_member_id) memberMap.set(u.airtable_member_id, { name: u.name, role: u.role, userId: u.id })
+    emailToUser.set(u.email.toLowerCase(), { name: u.name, role: u.role, userId: u.id })
+  }
+
+  // Build map: Team Members record ID → DB user (via email)
+  const memberMap = new Map<string, { name: string; role: string; userId: number }>()
+  for (const [recId, email] of teamMemberEmailMap) {
+    const dbUser = emailToUser.get(email)
+    if (dbUser) memberMap.set(recId, dbUser)
   }
 
   // Group tasks by assignee
@@ -92,7 +123,7 @@ export const GET = requireRole('superadmin')(async () => {
       status: (f[TASKS.STATUS] as string) ?? '',
       department: dept,
       projectRef: (f[TASKS.PROJECT_ID] as string) ?? '',
-      projectRecordId: Array.isArray(f[TASKS.PROJECT_RECORD_ID]) ? (f[TASKS.PROJECT_RECORD_ID] as string[])[0] ?? '' : (f[TASKS.PROJECT_RECORD_ID] as string) ?? '',
+      projectRecordId: Array.isArray(f[TASKS.PROJECT]) ? (f[TASKS.PROJECT] as string[])[0] ?? '' : (f[TASKS.PROJECT] as string) ?? '',
     })
   }
 

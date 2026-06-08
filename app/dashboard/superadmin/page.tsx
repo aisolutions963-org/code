@@ -87,6 +87,8 @@ interface SedStat {
   open: number
   closed: number
   notApproved: number
+  totalPaid: number
+  commission: number
 }
 
 type ReportCategory = 'Sales' | 'Accountant' | 'Material' | 'Calendar' | 'Clients'
@@ -315,6 +317,22 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
             </BarChart>
           )}
         </ResponsiveContainer>
+
+        {/* Commission summary table */}
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Commission (1.5% of paid)</p>
+          <div className="space-y-1">
+            {(selectedSed ? data.filter((d) => d.sedName === selectedSed) : data).map((d) => (
+              <div key={d.sedName} className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-gray-600 font-medium truncate">{d.sedName}</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-gray-400">Paid: AED {d.totalPaid.toLocaleString()}</span>
+                  <span className="font-semibold text-emerald-600">AED {d.commission.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
