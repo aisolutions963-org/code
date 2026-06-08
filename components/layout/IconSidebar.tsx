@@ -447,10 +447,13 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
       style={{ background: 'rgba(14,14,24,0.97)', borderRight: '1px solid rgba(255,255,255,0.07)' }}
     >
       {/* Logo / role header */}
-      <div className="flex items-center gap-3 h-14 px-4 shrink-0 border-b border-white/[0.06]">
-        <div className={`w-7 h-7 rounded-lg ${ROLE_ACCENT[role]} flex items-center justify-center shrink-0 shadow-md`}>
-          <span className="text-white text-xs font-black">W</span>
-        </div>
+      <div className="flex items-center gap-2.5 h-14 px-4 shrink-0 border-b border-white/[0.06]">
+        <img
+          src="/logo.png"
+          alt="WoodWings"
+          className="h-8 w-auto shrink-0 object-contain"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
         <div className="min-w-0">
           <p className="text-white text-xs font-semibold leading-none truncate">WoodWings</p>
           <p className={`text-[11px] leading-none mt-0.5 ${ROLE_TEXT[role]}`}>{ROLE_LABELS[role]}</p>
