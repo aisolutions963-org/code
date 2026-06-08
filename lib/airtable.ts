@@ -2137,11 +2137,16 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const title = str(f[CALENDAR_EVENTS.TITLE])
     if (!date || !title) continue
     const customTask = str(f[CALENDAR_EVENTS.CUSTOM_TASK])
+    let evType: CalendarEvent['type'] = 'activity'
+    if (customTask?.startsWith('f2:')) evType = 'delivery'
+    else if (customTask?.startsWith('type:installation')) evType = 'installation'
+    else if (customTask?.startsWith('type:fabrication'))  evType = 'fabrication'
+    else if (customTask?.startsWith('type:delivery'))     evType = 'delivery'
     events.push({
       id: r.id,
       title,
       date,
-      type: customTask?.startsWith('f2:') ? 'delivery' : 'activity',
+      type: evType,
       notes: str(f[CALENDAR_EVENTS.NOTES]),
       customTask,
       createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
