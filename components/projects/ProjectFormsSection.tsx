@@ -2,12 +2,26 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Quotation, Payment, Material, Role } from '@/lib/types'
+import { Quotation, Payment, Material, PurchaseOrder, GatePass, HandoverSheet, Role } from '@/lib/types'
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
 
 const canSeePayments = (role: Role) => role === 'manager' || role === 'superadmin'
+const canUpdateMaterials = (role: Role) => role === 'manager' || role === 'superadmin' || role === 'fabrication'
+
+const MATERIAL_STATUSES = ['Not ordered', 'Pending approval', 'Ordered', 'Partially received', 'Received', 'Delayed'] as const
+
+function statusStyle(status?: string) {
+  switch (status) {
+    case 'Received': return 'bg-green-100 text-green-700'
+    case 'Ordered': return 'bg-blue-100 text-blue-700'
+    case 'Partially received': return 'bg-orange-100 text-orange-700'
+    case 'Pending approval': return 'bg-amber-100 text-amber-700'
+    case 'Delayed': return 'bg-red-100 text-red-700'
+    default: return 'bg-gray-100 text-gray-500'
+  }
+}
 
 interface Props {
   projectId: string
@@ -16,32 +30,70 @@ interface Props {
 
 export default function ProjectFormsSection({ projectId, role }: Props) {
   const [open, setOpen] = useState(false)
+  const [updating, setUpdating] = useState<Set<string>>(new Set())
   const showPayments = canSeePayments(role)
+  const canEditStatus = canUpdateMaterials(role)
 
   const done = (d: unknown, e: unknown) => d !== undefined || e !== undefined
 
   const { data: quotationsData, error: quotationsError } = useSWR<{ quotations: Quotation[] }>(
     open ? `/api/projects/${projectId}/quotation` : null,
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false },
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
   )
-  const { data: materialsData, error: materialsError } = useSWR<{ materials: Material[] }>(
+  const { data: materialsData, error: materialsError, mutate: mutateMaterials } = useSWR<{ materials: Material[] }>(
     open ? `/api/projects/${projectId}/materials` : null,
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false },
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
   )
+
+  async function updateMaterialStatus(materialId: string, status: string) {
+    setUpdating((prev) => new Set(prev).add(materialId))
+    try {
+      const res = await fetch(`/api/materials/${materialId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderStatus: status }),
+      })
+      if (!res.ok) throw new Error('failed')
+      await mutateMaterials()
+    } catch {
+      // status reverts to server value on next fetch
+    } finally {
+      setUpdating((prev) => { const s = new Set(prev); s.delete(materialId); return s })
+    }
+  }
   const { data: paymentsData, error: paymentsError } = useSWR<{ payments: Payment[] }>(
     open && showPayments ? `/api/payments?projectId=${projectId}` : null,
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false },
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
+  )
+  const { data: purchaseOrdersData, error: purchaseOrdersError } = useSWR<{ purchaseOrders: PurchaseOrder[] }>(
+    open ? `/api/projects/${projectId}/purchase-orders` : null,
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
+  )
+  const { data: gatePassesData, error: gatePassesError } = useSWR<{ gatePasses: GatePass[] }>(
+    open ? `/api/gate-passes?projectId=${projectId}` : null,
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
+  )
+  const { data: handoverData, error: handoverError } = useSWR<{ sheets: HandoverSheet[] }>(
+    open ? `/api/projects/${projectId}/handover` : null,
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
   )
 
   const quotations = quotationsData?.quotations ?? []
   const materials = materialsData?.materials ?? []
   const payments = paymentsData?.payments ?? []
-  const total = quotations.length + materials.length + (showPayments ? payments.length : 0)
+  const purchaseOrders = purchaseOrdersData?.purchaseOrders ?? []
+  const gatePasses = gatePassesData?.gatePasses ?? []
+  const handoverSheets = handoverData?.sheets ?? []
 
-  const allLoaded = done(quotationsData, quotationsError) && done(materialsData, materialsError) &&
+  const total = quotations.length + materials.length + purchaseOrders.length + gatePasses.length + handoverSheets.length
+    + (showPayments ? payments.length : 0)
+
+  const allLoaded =
+    done(quotationsData, quotationsError) &&
+    done(materialsData, materialsError) &&
+    done(purchaseOrdersData, purchaseOrdersError) &&
+    done(gatePassesData, gatePassesError) &&
+    done(handoverData, handoverError) &&
     (!showPayments || done(paymentsData, paymentsError))
 
   return (
@@ -68,6 +120,95 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
 
       {open && (
         <div className="mt-3 space-y-3">
+
+          {/* Handover Sheet */}
+          {handoverSheets.length > 0 && (
+            <div className="border border-gray-100 rounded-xl overflow-hidden">
+              <div className="px-3 py-2 bg-purple-50 border-b border-purple-100">
+                <p className="text-xs font-semibold text-purple-700">Handover ({handoverSheets.length})</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {handoverSheets.map((h) => (
+                  <div key={h.id} className="px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-gray-700">
+                          {h.finalInstallationDate ? `Final install: ${h.finalInstallationDate}` : 'Handover sheet'}
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {h.customerSatisfaction ? `Satisfaction: ${h.customerSatisfaction}` : ''}
+                          {h.installationDifficulty ? ` · Difficulty: ${h.installationDifficulty}` : ''}
+                          {h.recordedBy ? ` · by ${h.recordedBy}` : ''}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
+                        h.status === 'Submitted' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {h.status}
+                      </span>
+                    </div>
+                    {h.notes && <p className="text-[11px] text-gray-400 mt-1 italic">{h.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Gate Passes */}
+          {gatePasses.length > 0 && (
+            <div className="border border-gray-100 rounded-xl overflow-hidden">
+              <div className="px-3 py-2 bg-sky-50 border-b border-sky-100">
+                <p className="text-xs font-semibold text-sky-700">Gate Passes ({gatePasses.length})</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {gatePasses.map((g) => (
+                  <div key={g.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-gray-700 truncate">{g.itemsDescription}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {g.estimatedSupplyDate ? `Est. supply: ${g.estimatedSupplyDate}` : ''}
+                        {g.confirmedDeliveryDate ? ` · Delivered: ${g.confirmedDeliveryDate}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Purchase Orders */}
+          {purchaseOrders.length > 0 && (
+            <div className="border border-gray-100 rounded-xl overflow-hidden">
+              <div className="px-3 py-2 bg-yellow-50 border-b border-yellow-100">
+                <p className="text-xs font-semibold text-yellow-700">Purchase Orders ({purchaseOrders.length})</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {purchaseOrders.map((po) => (
+                  <div key={po.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-gray-700 truncate">{po.supplier ?? po.name}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {po.orderDate ? `Ordered: ${po.orderDate}` : ''}
+                        {po.expectedDelivery ? ` · Expected: ${po.expectedDelivery}` : ''}
+                        {po.recordedBy ? ` · by ${po.recordedBy}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {po.totalAmount != null && (
+                        <span className="text-xs text-gray-500">AED {po.totalAmount.toLocaleString()}</span>
+                      )}
+                      {po.poStatus && (
+                        <span className="text-[10px] font-semibold bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full">
+                          {po.poStatus}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Payments — manager & superadmin only */}
           {showPayments && payments.length > 0 && (
             <div className="border border-gray-100 rounded-xl overflow-hidden">
@@ -153,14 +294,31 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
                         {m.requestedBy ? `${m.requestDate ? ' · ' : ''}by ${m.requestedBy}` : ''}
                         {m.supplier ? ` · ${m.supplier}` : ''}
                       </p>
+                      {(m.expectedArrivalDate || m.actualArrivalDate) && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {m.expectedArrivalDate ? `Expected: ${m.expectedArrivalDate}` : ''}
+                          {m.actualArrivalDate ? `${m.expectedArrivalDate ? ' · ' : ''}Arrived: ${m.actualArrivalDate}` : ''}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {m.quantity != null && m.unit && (
                         <span className="text-xs text-gray-500">{m.quantity} {m.unit}</span>
                       )}
-                      {m.orderStatus && (
-                        <span className="text-[10px] font-semibold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
-                          {m.orderStatus}
+                      {canEditStatus ? (
+                        <select
+                          value={m.orderStatus ?? 'Not ordered'}
+                          disabled={updating.has(m.id)}
+                          onChange={(e) => updateMaterialStatus(m.id, e.target.value)}
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border-0 cursor-pointer appearance-none text-center ${statusStyle(m.orderStatus)} ${updating.has(m.id) ? 'opacity-50' : ''}`}
+                        >
+                          {MATERIAL_STATUSES.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusStyle(m.orderStatus)}`}>
+                          {m.orderStatus ?? 'Not ordered'}
                         </span>
                       )}
                     </div>

@@ -2200,6 +2200,7 @@ export async function createCalendarEvent(input: {
   projectId?: string
   createdBy?: string
   customTask?: string
+  eventType?: string
 }): Promise<void> {
   const fields: Record<string, unknown> = {
     [CALENDAR_EVENTS.TITLE]: input.title,
@@ -2208,7 +2209,10 @@ export async function createCalendarEvent(input: {
   if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
   if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
   if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
-  if (input.customTask) fields[CALENDAR_EVENTS.CUSTOM_TASK] = input.customTask
+  // Encode event type in customTask unless a specific task key was provided
+  const taskKey = input.customTask
+    ?? (input.eventType && input.eventType !== 'activity' ? `type:${input.eventType}` : undefined)
+  if (taskKey) fields[CALENDAR_EVENTS.CUSTOM_TASK] = taskKey
   const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
