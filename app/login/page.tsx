@@ -59,7 +59,7 @@ export default function LoginPage() {
           <img
             src="/logo.png"
             alt="WoodWings"
-            className="h-28 w-auto mx-auto mb-8 object-contain drop-shadow-2xl"
+            className="h-44 w-auto mx-auto mb-8 object-contain drop-shadow-2xl"
             onError={(e) => {
               const el = e.currentTarget
               el.style.display = 'none'
@@ -68,30 +68,14 @@ export default function LoginPage() {
             }}
           />
           <div
-            className="hidden w-24 h-24 rounded-2xl mx-auto mb-8 items-center justify-center shadow-2xl"
+            className="hidden w-32 h-32 rounded-2xl mx-auto mb-8 items-center justify-center shadow-2xl"
             style={{ background: 'linear-gradient(135deg, #C8773A, #8B3E0F)' }}
           >
-            <span className="text-white text-4xl font-black">W</span>
+            <span className="text-white text-5xl font-black">W</span>
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">WoodWings</h1>
-          <p className="text-white/40 text-sm tracking-[0.15em] uppercase mb-10">Fitout Services</p>
-          <div className="space-y-3 text-left">
-            {[
-              'Project lifecycle management',
-              'Multi-department workflow',
-              'Real-time task tracking',
-            ].map((f) => (
-              <div key={f} className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: 'rgba(217,94,26,0.3)', border: '1px solid rgba(217,94,26,0.5)' }}>
-                  <svg className="w-3 h-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <span className="text-white/60 text-sm">{f}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-white/40 text-sm tracking-[0.15em] uppercase mb-3">Fitout Services</p>
+          <p className="text-white/25 text-xs tracking-[0.25em] uppercase">Project Management System</p>
         </div>
 
         <p className="absolute bottom-6 text-white/20 text-[11px] tracking-wide">
