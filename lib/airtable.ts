@@ -59,6 +59,7 @@ import { ROLE_TO_DEPARTMENT } from './permissions'
 import { validateEnv } from './env'
 import { recordAirtableFailure } from './metrics'
 import { notifyTasksReady, createNotification, ROLE_DASHBOARD } from './notifications'
+import { todayUAE } from './dateUtils'
 
 validateEnv()
 
@@ -1518,7 +1519,7 @@ const ROLE_TO_AUDIENCE: Record<string, string> = {
 }
 
 export async function getAnnouncements(role?: string): Promise<Announcement[]> {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const expiryFilter = `OR(IS_AFTER({${ANNOUNCEMENTS.EXPIRES_AT}}, "${today}"), {${ANNOUNCEMENTS.EXPIRES_AT}}=BLANK())`
 
   let visibilityFilter: string

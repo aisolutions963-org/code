@@ -175,7 +175,7 @@ function buildHtml(data: GatePassPrintData): string {
       <div style="text-align:center;margin-top:12px;font-size:10px;color:#aaa;border-top:1px solid #ddd;padding-top:7px;">
         ${data.projectRef ? `Project Ref: <b>${data.projectRef}</b>&nbsp;|&nbsp;` : ''}
         ${data.projectName ? `${data.projectName}&nbsp;|&nbsp;` : ''}
-        Serial: <b>${data.serial}</b>&nbsp;|&nbsp;Issued: ${new Date().toLocaleString('en-GB')}
+        Serial: <b>${data.serial}</b>&nbsp;|&nbsp;Issued: ${new Date().toLocaleString('en-GB', { timeZone: 'Asia/Dubai' })}
       </div>
     </div>`
 }

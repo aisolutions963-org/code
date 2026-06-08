@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getAllProjects, getPendingApprovalsCount, getCallClientPendingTasks } from '@/lib/airtable'
 import { PAYMENTS } from '@/lib/fieldMap'
+import { todayUAE } from '@/lib/dateUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,7 @@ async function getOverduePaymentsCount(): Promise<number> {
   const key = process.env.AIRTABLE_API_KEY
   const base = process.env.AIRTABLE_BASE_ID
   if (!key || !base) return 0
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const formula = `AND({${PAYMENTS.PAYMENT_STATUS}}="Pending", NOT({${PAYMENTS.DUE_DATE}}=BLANK()), IS_BEFORE({${PAYMENTS.DUE_DATE}}, "${today}"))`
   let count = 0
   let offset: string | undefined

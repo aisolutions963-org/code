@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { TimesheetEntry, WorkerOption } from '@/lib/types'
+import { todayUAE } from '@/lib/dateUtils'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -120,11 +121,11 @@ function EditModal({
 }
 
 export default function SuperadminTimesheetsPage() {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const [from, setFrom] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
-    return d.toISOString().slice(0, 10)
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
   })
   const [to, setTo] = useState(today)
   const [workerId, setWorkerId] = useState('')

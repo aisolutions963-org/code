@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import toast from 'react-hot-toast'
+import { todayUAE } from '@/lib/dateUtils'
 import { Task, TaskUpdateInput, Payment } from '@/lib/types'
 
 interface QuotationPanelProps {
@@ -12,7 +13,7 @@ interface QuotationPanelProps {
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-const today = new Date().toISOString().slice(0, 10)
+const today = todayUAE()
 
 const inp = 'w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'
 const sel = 'w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'

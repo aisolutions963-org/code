@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
+import { todayUAE } from '@/lib/dateUtils'
 import { Project } from '@/lib/types'
 
 interface QuotationRow {
@@ -25,7 +26,7 @@ interface Props {
 }
 
 export default function QuotationModal({ project, onClose, onCreated }: Props) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const quotationNumber = project.quotationNumber ?? ''
   const hasExistingRef = !!project.quotationReference
   const [quotationDate, setQuotationDate] = useState(today)

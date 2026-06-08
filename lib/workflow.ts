@@ -1,4 +1,5 @@
 import { TASKS, PROJECTS } from './fieldMap'
+import { todayUAE } from './dateUtils'
 import {
   getTaskById,
   updateTaskRaw,
@@ -680,7 +681,7 @@ export async function handleF3Order(input: {
       const projectId = task.project?.[0]
       if (!projectId) throw new Error('Task has no linked project')
 
-      const today = new Date().toISOString().slice(0, 10)
+      const today = todayUAE()
       const projectRef = await resolveProjectLabel(task)
 
       const materials = await createMaterialOrder({

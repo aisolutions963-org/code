@@ -96,6 +96,7 @@ function ServiceDot({ status }: { status: string }) {
 function formatTs(ts: string) {
   try {
     return new Date(ts).toLocaleString('en-GB', {
+      timeZone: 'Asia/Dubai',
       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit',
     })
   } catch {

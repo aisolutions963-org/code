@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { TimesheetEntry, WorkerOption } from '@/lib/types'
+import { todayUAE } from '@/lib/dateUtils'
 import { Project } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -33,7 +34,7 @@ function LogEntryForm({
   projects: Project[]
   onCreated: () => void
 }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const [workDate, setWorkDate] = useState(today)
   const [workerId, setWorkerId] = useState('')
   const [projectId, setProjectId] = useState('')
@@ -396,7 +397,7 @@ function WeeklySummaryView() {
 export default function TimesheetsView({ projects }: { projects: Project[] }) {
   const [subView, setSubView] = useState<'log' | 'summary'>('log')
   const [refreshKey, setRefreshKey] = useState(0)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
 
   const { data: workersData } = useSWR<{ workers: WorkerOption[] }>(
     '/api/timesheets/workers',

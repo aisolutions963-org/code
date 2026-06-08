@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput } from '@/lib/types'
+import { todayUAE } from '@/lib/dateUtils'
 
 type ActionPath = 'Site Visit (item)' | 'Select Sample (item)' | 'Design (item)' | 'Measurement (item)'
 
@@ -38,7 +39,7 @@ interface Props {
 
 export default function F5QuotationPanel({ task, onUpdate }: Props) {
   const [rows, setRows] = useState<QuotationRow[]>([emptyRow()])
-  const [quotationDate, setQuotationDate] = useState(new Date().toISOString().slice(0, 10))
+  const [quotationDate, setQuotationDate] = useState(todayUAE())
   const [totalOverride, setTotalOverride] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')

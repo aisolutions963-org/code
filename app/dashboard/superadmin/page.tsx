@@ -4,6 +4,7 @@ import { useState, useCallback, Fragment, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate as globalMutate } from 'swr'
+import { todayUAE } from '@/lib/dateUtils'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
@@ -375,7 +376,7 @@ function ClientsReportView() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `Client_${clientName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `Client_${clientName.replace(/\s+/g, '_')}_${todayUAE()}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -1532,7 +1533,7 @@ function PaymentDetail({
   )
   const payments = data?.project?.payments ?? []
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const [form, setForm] = useState({
     amount: '',
     paymentType: 'Advance',

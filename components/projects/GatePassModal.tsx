@@ -5,6 +5,7 @@ import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
 import { triggerPrint } from '@/lib/printGatePass'
+import { todayUAE } from '@/lib/dateUtils'
 
 const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const lbl = 'block text-xs font-medium text-gray-500 mb-1'
@@ -44,7 +45,7 @@ export default function GatePassModal({
   const [projectsLoading, setProjectsLoading] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState('')
 
-  const [dateOfIssue, setDateOfIssue] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dateOfIssue, setDateOfIssue] = useState(() => todayUAE())
   const [timeOfIssue, setTimeOfIssue] = useState('')
   const [timeAmPm, setTimeAmPm] = useState<'AM' | 'PM'>('AM')
   const [passValidity, setPassValidity] = useState('single-entry')

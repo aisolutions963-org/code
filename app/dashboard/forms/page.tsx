@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, GatePass, Project } from '@/lib/types'
+import { todayUAE } from '@/lib/dateUtils'
 import { useSession } from '@/app/dashboard/layout-client'
 import F3OrderPanel from '@/components/tasks/panels/F3OrderPanel'
 import F5QuotationPanel from '@/components/tasks/panels/F5QuotationPanel'
@@ -174,7 +175,7 @@ function GatePassCard({ gp, onStatusChange }: { gp: GatePass; onStatusChange: ()
       serial: gp.name || gp.id.slice(-8).toUpperCase(),
       projectRef: gp.projectDisplayId,
       projectName: gp.projectName ?? gp.name,
-      dateOfIssue: gp.estimatedSupplyDate || new Date().toISOString().slice(0, 10),
+      dateOfIssue: gp.estimatedSupplyDate || todayUAE(),
       ...(pd ? {
         timeOfIssue: pd.timeOfIssue,
         timeAmPm: pd.timeAmPm as 'AM' | 'PM' | undefined,
