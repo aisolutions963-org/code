@@ -28,7 +28,11 @@ export const PATCH = requireRole('superadmin')(
     }
 
     const { name, email, password, role, active } = parsed.data
-    const identityChanged = existing.airtable_member_id && (name !== undefined || email !== undefined || role !== undefined)
+    const identityChanged = existing.airtable_member_id && (
+      (name  !== undefined && name  !== existing.name)  ||
+      (email !== undefined && email !== existing.email) ||
+      (role  !== undefined && role  !== existing.role)
+    )
 
     // Step 1: update Airtable first if identity fields are changing
     if (identityChanged) {
