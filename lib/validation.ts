@@ -193,6 +193,7 @@ export const CreateCalendarEventSchema = z.object({
   projectId: z.string().optional(),
   customTask: z.string().max(500).optional(),
   eventType: z.enum(['activity', 'installation', 'fabrication', 'delivery']).optional(),
+  teamMemberIds: z.array(z.string()).optional(),
 })
 
 export const CreateProjectSchema = z.object({

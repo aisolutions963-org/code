@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getCalendarEvents, createCalendarEvent } from '@/lib/airtable'
 import { CreateCalendarEventSchema } from '@/lib/validation'
+import { getUserByAirtableMemberId } from '@/lib/db'
+import { createNotification } from '@/lib/notifications'
 
 export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async () => {
   try {
@@ -20,7 +22,26 @@ export const POST = requireRole('manager', 'superadmin', 'sed', 'installation', 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
     }
-    await createCalendarEvent({ ...parsed.data, createdBy: session.name })
+    const { teamMemberIds, ...eventData } = parsed.data
+    await createCalendarEvent({ ...eventData, createdBy: session.name })
+
+    if (teamMemberIds && teamMemberIds.length > 0 && parsed.data.eventType === 'fabrication') {
+      const notifTitle = `Factory work assigned — ${parsed.data.title}`
+      const notifBody  = `Assigned by ${session.name} on ${parsed.data.date}`
+      await Promise.all(
+        teamMemberIds.map(async (airtableId) => {
+          const user = await getUserByAirtableMemberId(airtableId)
+          await createNotification({
+            recipientRole: 'installation',
+            recipientUserId: user?.id,
+            title: notifTitle,
+            body: notifBody,
+            link: '/dashboard/fix?view=calendar',
+          })
+        }),
+      )
+    }
+
     return NextResponse.json({ ok: true }, { status: 201 })
   } catch (error) {
     console.error('POST /api/calendar error:', error)

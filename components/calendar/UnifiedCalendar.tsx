@@ -152,6 +152,7 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }:
         notes: finalNotes || undefined,
         projectId: isFactory ? undefined : (projectId || undefined),
         eventType,
+        teamMemberIds: isFactory && selectedMembers.length > 0 ? selectedMembers : undefined,
       }),
     })
     setSaving(false)
