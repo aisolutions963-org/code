@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo } from 'react'
 import useSWR from 'swr'
@@ -282,7 +282,7 @@ export default function UnifiedCalendar({
   const [showAddForm, setShowAddForm] = useState(false)
 
   const { data, mutate } = useSWR<{ events: CalendarEvent[] }>('/api/calendar', fetcher, {
-    refreshInterval: 60000,
+    refreshInterval: 300_000,
   })
 
   const activeTab = tabs?.find(t => t.id === activeTabId)

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -99,19 +99,19 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
   const { data: pendingData } = useSWR<{ count: number }>(
     showPendingBell ? '/api/tasks/pending-approvals' : null,
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true, onSuccess: () => setLastUpdated(new Date()) },
+    { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
 
   const { data: metricsData } = useSWR<SuperadminMetrics>(
     role === 'superadmin' ? '/api/superadmin/metrics' : null,
     fetcher,
-    { refreshInterval: 60000, revalidateOnFocus: true, onSuccess: () => setLastUpdated(new Date()) },
+    { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
 
   const { data: notifData, mutate: mutateNotifs } = useSWR<NotificationsResponse>(
     '/api/notifications',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true, onSuccess: () => setLastUpdated(new Date()) },
+    { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
 
   const pendingCount = pendingData?.count ?? 0

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -53,20 +53,20 @@ export default function NotificationsPage() {
   const { data, mutate, isLoading } = useSWR<NotificationsResponse>(
     '/api/notifications?all=true',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   // These endpoints return 403 for roles without access — SWR catches the error and data stays undefined
   const { data: pendingData } = useSWR<PendingApprovalsResponse>(
     '/api/tasks/pending-approvals',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true, shouldRetryOnError: false },
+    { refreshInterval: 300_000, shouldRetryOnError: false },
   )
 
   const { data: metricsData } = useSWR<SuperadminMetrics>(
     '/api/superadmin/metrics',
     fetcher,
-    { refreshInterval: 60000, revalidateOnFocus: true, shouldRetryOnError: false },
+    { refreshInterval: 300_000, shouldRetryOnError: false },
   )
 
   const all = data?.notifications ?? []

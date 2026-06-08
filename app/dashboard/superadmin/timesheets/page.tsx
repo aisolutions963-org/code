@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -139,7 +139,7 @@ export default function SuperadminTimesheetsPage() {
   const { data, isLoading, error, mutate } = useSWR<{ entries: TimesheetEntry[] }>(
     `/api/timesheets?${params.toString()}`,
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const { data: workersData } = useSWR<{ workers: WorkerOption[] }>(

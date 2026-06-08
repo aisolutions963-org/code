@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -124,7 +124,7 @@ export default function UsersPage() {
   const { data, error, isLoading, mutate } = useSWR<{ users: User[] }>(
     '/api/users',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const [modalOpen, setModalOpen] = useState(false)

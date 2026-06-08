@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -30,19 +30,19 @@ export default function MgrDashboard() {
   const [gatePassProject, setGatePassProject] = useState<Project | null>(null)
 
   const { data: taskData, error: taskError, isLoading: taskLoading, mutate: mutateTasks } =
-    useSWR<{ tasks: Task[] }>('/api/tasks?role=manager', fetcher, { refreshInterval: 30000, revalidateOnFocus: true })
+    useSWR<{ tasks: Task[] }>('/api/tasks?role=manager', fetcher, { refreshInterval: 300_000 })
 
   const { data: projectData, error: projectError, isLoading: projectLoading, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
       view === 'projects' || view === 'payments' || view === 'installation' || view === 'materials' || view === 'timesheets' ? '/api/projects' : null,
       fetcher,
-      { refreshInterval: 30000, revalidateOnFocus: true },
+      { refreshInterval: 300_000 },
     )
 
   const { data: teamData, isLoading: teamLoading } = useSWR<{ members: TeamMember[] }>(
     view === 'installation' ? '/api/team/installation' : null,
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const tasks = taskData?.tasks ?? []

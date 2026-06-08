@@ -47,13 +47,11 @@ export const POST = requireRole('superadmin')(async (req: NextRequest) => {
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to create user'
     if (msg.includes('UNIQUE constraint')) {
-      // Compensate: remove the Airtable record we just created
       if (airtable_member_id && !providedMemberId) {
         await deleteTeamMember(airtable_member_id).catch(() => {})
       }
       return NextResponse.json({ error: 'Email already exists' }, { status: 409 })
     }
-    // Compensate on any other SQLite error
     if (airtable_member_id && !providedMemberId) {
       await deleteTeamMember(airtable_member_id).catch(() => {})
     }

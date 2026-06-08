@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
@@ -23,7 +23,7 @@ export default function PipelineClient() {
   const { data, isLoading } = useSWR<{ projects: Project[] }>(
     '/api/projects?all=true',
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const projects = useMemo(() => {

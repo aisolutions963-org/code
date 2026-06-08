@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -111,7 +111,7 @@ function formatUptime(s: number) {
 
 export default function AdminHealthPage() {
   const { data, error, mutate } = useSWR<HealthData>('/api/admin/health', fetcher, {
-    refreshInterval: 20000,
+    refreshInterval: 300_000,
   })
   const [expandedError, setExpandedError] = useState<string | null>(null)
   const [traceId, setTraceId] = useState('')

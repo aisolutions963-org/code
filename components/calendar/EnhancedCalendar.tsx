@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -34,8 +34,8 @@ export default function EnhancedCalendar({ role, filterTypes, creatorFilter, tit
   const [addingActivity, setAddingActivity] = useState(false)
 
   const { data, mutate } = useSWR<{ events: CalendarEvent[] }>('/api/calendar', fetcher, {
-    refreshInterval: 60000,
-    revalidateOnFocus: true,
+    refreshInterval: 300_000,
+    
   })
   const allEvents = data?.events ?? []
   const events = allEvents.filter(e => {

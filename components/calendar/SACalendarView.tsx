@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo } from 'react'
 import useSWR from 'swr'
@@ -154,7 +154,7 @@ export default function SACalendarView({ filterTypes, creatorFilter, canAddEvent
   const [showAddForm, setShowAddForm] = useState(false)
 
   const { data, mutate } = useSWR<{ events: CalendarEvent[] }>('/api/calendar', fetcher, {
-    refreshInterval: 60000,
+    refreshInterval: 300_000,
   })
 
   const allEvents = useMemo(() => {

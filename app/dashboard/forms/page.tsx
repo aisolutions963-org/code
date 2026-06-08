@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -336,7 +336,7 @@ export default function FormsPage() {
   const { role } = useSession()
 
   const { data, isLoading, error, mutate } = useSWR<{ tasks: Task[] }>('/api/tasks', fetcher, {
-    refreshInterval: 30000,
+    refreshInterval: 300_000,
   })
 
   const showGatePasses = (GATE_PASS_ROLES as readonly string[]).includes(role)
@@ -345,7 +345,7 @@ export default function FormsPage() {
   const { data: gpData, isLoading: gpLoading, mutate: mutateGp } = useSWR<{ gatePasses: GatePass[] }>(
     showGatePasses ? '/api/gate-passes' : null,
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
   const gatePasses = gpData?.gatePasses ?? []
 

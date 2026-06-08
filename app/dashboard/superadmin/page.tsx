@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useCallback, Fragment, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -684,10 +684,10 @@ function OverviewPage() {
     '/api/superadmin/kpi-counts', fetcher,
   )
   const { data: sedData, isLoading: sedLoading } = useSWR<{ seds: string[]; data: SedStat[] }>(
-    '/api/superadmin/sed-stats', fetcher, { refreshInterval: 30000 },
+    '/api/superadmin/sed-stats', fetcher, { refreshInterval: 300_000 },
   )
   const { data: tasksData, isLoading: tasksLoading, mutate: mutateTasks } = useSWR<{ tasks: Task[] }>(
-    '/api/tasks', fetcher, { refreshInterval: 30000 },
+    '/api/tasks', fetcher, { refreshInterval: 300_000 },
   )
   const [showNewProject, setShowNewProject] = useState(false)
 
@@ -1052,7 +1052,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 function TimelinePage() {
   const { data, isLoading } = useSWR<{ projects: TimelineProject[] }>(
-    '/api/superadmin/timeline', fetcher, { refreshInterval: 60000 },
+    '/api/superadmin/timeline', fetcher, { refreshInterval: 300_000 },
   )
 
   if (isLoading) return <Spinner />
@@ -1168,7 +1168,7 @@ function TimelinePage() {
 
 function PhasesPage() {
   const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
   const projects = (data?.projects ?? []).filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
 
@@ -1276,7 +1276,7 @@ const DEPTS: Dept[] = ['All', 'SED', 'Fabrication', 'Installation', 'Management'
 function ActivityPage() {
   const [dept, setDept] = useState<Dept>('All')
   const { data, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
-    '/api/tasks', fetcher, { refreshInterval: 60000 },
+    '/api/tasks', fetcher, { refreshInterval: 300_000 },
   )
   const tasks = data?.tasks ?? []
 
@@ -1416,7 +1416,7 @@ function TaskStatusBadge({ status }: { status: string }) {
 
 function PaymentsPage() {
   const { data, isLoading } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -1722,7 +1722,7 @@ function PaymentDetail({
 
 function WarrantyPage() {
   const { data, isLoading } = useSWR<{ records: MaintenanceWithExtra[] }>(
-    '/api/maintenance', fetcher, { refreshInterval: 60000 },
+    '/api/maintenance', fetcher, { refreshInterval: 300_000 },
   )
   const records = data?.records ?? []
 
@@ -1823,7 +1823,7 @@ const EMPTY_FORM: AnnouncementForm = {
 
 function AnnouncementsPage() {
   const { data, isLoading, mutate } = useSWR<{ announcements: Announcement[] }>(
-    '/api/announcements', fetcher, { refreshInterval: 60000 },
+    '/api/announcements', fetcher, { refreshInterval: 300_000 },
   )
   const announcements = data?.announcements ?? []
   const [editing, setEditing] = useState<string | null>(null)
@@ -2354,7 +2354,7 @@ function MyTasksPage() {
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
   const allTasks = data?.tasks ?? []
 
@@ -2452,7 +2452,7 @@ function MyTasksPage() {
 
 function MaterialsPage() {
   const { data, isLoading } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
   const projects = data?.projects ?? []
   if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>
@@ -2467,7 +2467,7 @@ function ProjectsPage() {
   const unpaidFilter = searchParams.get('unpaid') === 'true'
 
   const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
 
   const allProjects = data?.projects ?? []

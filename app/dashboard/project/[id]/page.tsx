@@ -30,13 +30,13 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
   const { data, error, isLoading, mutate } = useSWR<ItemsProgressResponse>(
     `/api/projects/${id}/items-progress`,
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const { data: tasksData, isLoading: tasksLoading, mutate: mutateTasks } = useSWR<{ tasks: Task[] }>(
     `/api/tasks?projectId=${id}`,
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const handleUpdate = async (taskId: string, fields: Partial<TaskUpdateInput>) => {

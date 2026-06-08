@@ -70,7 +70,6 @@ export const PATCH = requireRole('superadmin')(
     try {
       await updateUser(id, updates)
     } catch (error) {
-      // Compensate: revert Airtable if possible
       if (identityChanged && !newAirtableId) {
         await updateTeamMember(existing.airtable_member_id!, {
           name: existing.name,

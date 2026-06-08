@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
@@ -14,13 +14,13 @@ export default function FabDashboard() {
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks?role=fabrication',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const { data: projectData } = useSWR<{ projects: Project[] }>(
     view === 'materials' ? '/api/projects' : null,
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const tasks = data?.tasks ?? []

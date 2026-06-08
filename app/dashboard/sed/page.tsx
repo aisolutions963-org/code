@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -23,14 +23,14 @@ export default function SedDashboard() {
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks?role=sed',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const { data: projectData, isLoading: projectLoading, error: projectError, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
       (view === 'projects' || view === 'site-visits') ? '/api/projects' : null,
       fetcher,
-      { refreshInterval: 30000, revalidateOnFocus: true },
+      { refreshInterval: 300_000 },
     )
 
   const tasks = data?.tasks ?? []

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -522,12 +522,12 @@ function ProjectPipeline({ role }: { role: string }) {
   const { data: projectData, isLoading } = useSWR<{ projects: Project[] }>(
     isWideRole ? '/api/projects?all=true' : '/api/projects',
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
   const { data: taskData } = useSWR<{ tasks: Task[] }>(
     '/api/tasks',
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const allProjects = projectData?.projects ?? []
@@ -724,7 +724,7 @@ export default function HomePage() {
   const { data, isLoading, mutate } = useSWR<HomeData>(
     '/api/home',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const announcements = data?.announcements ?? []

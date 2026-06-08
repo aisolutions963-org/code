@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -21,19 +21,19 @@ export default function FixDashboard() {
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks?role=installation',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const { data: projectData, mutate: mutateProjects } = useSWR<{ projects: Project[] }>(
     '/api/projects',
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const { data: notifData, mutate: mutateNotifs } = useSWR<{ notifications: AssignmentNote[] }>(
     '/api/notifications',
     fetcher,
-    { refreshInterval: 60000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const assignmentNotes = (notifData?.notifications ?? []).filter(
@@ -196,7 +196,7 @@ function LogsView({ projects, onNewLog }: { projects: Project[]; onNewLog: (p: P
   const { data, isLoading, mutate } = useSWR<{ logs: InstallationLog[] }>(
     selectedProjectId ? `/api/projects/${selectedProjectId}/installation-logs` : null,
     fetcher,
-    { refreshInterval: 30000 },
+    { refreshInterval: 300_000 },
   )
 
   const logs = data?.logs ?? []
@@ -287,7 +287,7 @@ function GatePassesView({ projects }: { projects: Project[] }) {
   const { data, isLoading, mutate } = useSWR<{ gatePasses: GatePass[] }>(
     selectedProjectId ? `/api/gate-passes?projectId=${selectedProjectId}` : null,
     fetcher,
-    { refreshInterval: 30000 },
+    { refreshInterval: 300_000 },
   )
 
   const gatePasses = data?.gatePasses ?? []

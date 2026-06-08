@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -132,7 +132,7 @@ export default function TeamActivityPage() {
   const { data, isLoading, error } = useSWR<{ groups: TeamGroup[] }>(
     '/api/superadmin/team-tasks',
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const groups = data?.groups ?? []

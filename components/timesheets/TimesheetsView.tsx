@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -267,7 +267,7 @@ function WeeklySummaryView() {
   const { data, isLoading } = useSWR(
     `/api/timesheets/summary?weekStart=${weekStart}`,
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const summary = data?.summary
