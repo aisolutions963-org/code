@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { hashPassword, getUserById, updateUser, deleteUser } from '@/lib/db'
-import { updateTeamMember } from '@/lib/airtable'
+import { updateTeamMember, createTeamMember } from '@/lib/airtable'
 import { UpdateUserSchema } from '@/lib/validation'
 
 export const PATCH = requireRole('superadmin')(
@@ -34,29 +34,44 @@ export const PATCH = requireRole('superadmin')(
       (role  !== undefined && role  !== existing.role)
     )
 
-    // Step 1: update Airtable first if identity fields are changing
+    // Step 1: sync identity changes to Airtable
+    let newAirtableId: string | undefined
     if (identityChanged) {
+      const syncName  = name  ?? existing.name
+      const syncEmail = email ?? existing.email
+      const syncRole  = role  ?? existing.role
       try {
-        await updateTeamMember(existing.airtable_member_id!, { name, email, role })
+        await updateTeamMember(existing.airtable_member_id!, { name: syncName, email: syncEmail, role: syncRole })
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Airtable error'
-        return NextResponse.json({ error: `Failed to sync team member: ${msg}` }, { status: 502 })
+        const msg = err instanceof Error ? err.message : String(err)
+        // 403 means the stored record ID is stale (deleted in Airtable) — recreate it
+        if (msg.includes('403')) {
+          try {
+            newAirtableId = await createTeamMember({ name: syncName, email: syncEmail, role: syncRole })
+          } catch (createErr) {
+            const createMsg = createErr instanceof Error ? createErr.message : 'Airtable error'
+            return NextResponse.json({ error: `Failed to sync team member: ${createMsg}` }, { status: 502 })
+          }
+        } else {
+          return NextResponse.json({ error: `Failed to sync team member: ${msg}` }, { status: 502 })
+        }
       }
     }
 
-    // Step 2: update SQLite — compensate by reverting Airtable if this fails
+    // Step 2: update DB
     const updates: Parameters<typeof updateUser>[1] = {}
     if (name !== undefined) updates.name = name
     if (email !== undefined) updates.email = email
     if (role !== undefined) updates.role = role
     if (active !== undefined) updates.active = active
     if (password) updates.hashed_password = await hashPassword(password)
+    if (newAirtableId) updates.airtable_member_id = newAirtableId
 
     try {
       await updateUser(id, updates)
     } catch (error) {
-      // Compensate: revert Airtable to original values
-      if (identityChanged) {
+      // Compensate: revert Airtable if possible
+      if (identityChanged && !newAirtableId) {
         await updateTeamMember(existing.airtable_member_id!, {
           name: existing.name,
           email: existing.email,
