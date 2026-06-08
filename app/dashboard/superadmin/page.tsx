@@ -2005,7 +2005,7 @@ function CalendarPage() {
 
   const tabs: TabDef[] = [
     { id: 'all',          label: 'All',               dot: 'bg-gray-400',   types: null,                                                  noAdd: true },
-    { id: 'activity',     label: 'Project Activity',  dot: 'bg-amber-400',  types: ['activity', 'fabrication'],                           noAdd: true },
+    { id: 'activity',     label: 'Project Activity',  dot: 'bg-amber-400',  types: ['activity', 'fabrication'],                           canAddEvent: true },
     { id: 'payments',     label: 'Payments',          dot: 'bg-green-500',  types: ['payment-received', 'payment-due', 'delivery'],        noAdd: true },
     { id: 'personal',     label: 'My Activities',     dot: 'bg-purple-400', types: ['activity'], creatorFilter: name ?? undefined,         canAddEvent: true },
     { id: 'installation', label: 'Installation',      dot: 'bg-blue-500',   types: ['installation', 'fabrication', 'delivery'],            showInstallAssign: true, canAddEvent: true },

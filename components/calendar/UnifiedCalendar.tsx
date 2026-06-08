@@ -95,42 +95,62 @@ type CalendarEventType = 'activity' | 'installation' | 'fabrication' | 'delivery
 const EVENT_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
   { value: 'activity',     label: 'Activity'     },
   { value: 'installation', label: 'Installation' },
-  { value: 'fabrication',  label: 'Factory'      },
   { value: 'delivery',     label: 'Delivery'     },
 ]
 
 interface CalendarProject { id: string; name: string; projectRef: string }
 
 // ─── Inline Add Form ──────────────────────────────────────────────────────────
-function AddEventForm({ defaultDate, defaultType, onDone, mutate }: {
+function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }: {
   defaultDate: string
   defaultType?: CalendarEventType
   onDone: () => void
   mutate: () => void
+  showFactory?: boolean
 }) {
-  const [title, setTitle]       = useState('')
-  const [date, setDate]         = useState(defaultDate)
-  const [notes, setNotes]       = useState('')
-  const [projectId, setProject] = useState('')
-  const [eventType, setType]    = useState<CalendarEventType>(defaultType ?? 'activity')
-  const [saving, setSaving]     = useState(false)
+  const [title, setTitle]             = useState('')
+  const [date, setDate]               = useState(defaultDate)
+  const [notes, setNotes]             = useState('')
+  const [projectId, setProject]       = useState('')
+  const [eventType, setType]          = useState<CalendarEventType>(defaultType ?? 'activity')
+  const [saving, setSaving]           = useState(false)
+  const [selectedMembers, setMembers] = useState<string[]>([])
+
+  const isFactory = eventType === 'fabrication'
 
   const { data: projData } = useSWR<{ projects: CalendarProject[] }>('/api/calendar/projects', fetcher, {
     revalidateOnFocus: false,
   })
-  const projects = projData?.projects ?? []
+  const { data: teamData } = useSWR<{ members: { id: string; name: string }[] }>(
+    isFactory ? '/api/team/installation' : null,
+    fetcher,
+  )
+  const projects    = projData?.projects ?? []
+  const teamMembers = teamData?.members  ?? []
+
+  const allTypeOpts = showFactory
+    ? [...EVENT_TYPE_OPTS, { value: 'fabrication' as CalendarEventType, label: 'Factory' }]
+    : EVENT_TYPE_OPTS
 
   async function save() {
     if (!title.trim() || !date) return
     setSaving(true)
+
+    let finalNotes = notes.trim()
+    if (isFactory && selectedMembers.length > 0) {
+      const names = teamMembers.filter(m => selectedMembers.includes(m.id)).map(m => m.name)
+      const prefix = `Assigned: ${names.join(', ')}`
+      finalNotes = finalNotes ? `${prefix}\n${finalNotes}` : prefix
+    }
+
     await fetch('/api/calendar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: title.trim(),
         date,
-        notes: notes.trim() || undefined,
-        projectId: projectId || undefined,
+        notes: finalNotes || undefined,
+        projectId: isFactory ? undefined : (projectId || undefined),
         eventType,
       }),
     })
@@ -145,11 +165,11 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate }: {
 
       {/* Type selector */}
       <div className="flex gap-1.5 flex-wrap">
-        {EVENT_TYPE_OPTS.map(opt => (
+        {allTypeOpts.map(opt => (
           <button
             key={opt.value}
             type="button"
-            onClick={() => setType(opt.value)}
+            onClick={() => { setType(opt.value); setMembers([]) }}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
               eventType === opt.value
                 ? 'bg-gray-800 text-white border-gray-800'
@@ -164,7 +184,7 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate }: {
       <input
         autoFocus
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-        placeholder="Activity title…"
+        placeholder={isFactory ? 'Factory work description…' : 'Activity title…'}
         value={title}
         onChange={e => setTitle(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') save() }}
@@ -176,19 +196,45 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate }: {
         onChange={e => setDate(e.target.value)}
       />
 
-      {/* Project picker */}
-      <select
-        value={projectId}
-        onChange={e => setProject(e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-      >
-        <option value="">— No project —</option>
-        {projects.map(p => (
-          <option key={p.id} value={p.id}>
-            {p.projectRef ? `${p.projectRef} — ` : ''}{p.name}
-          </option>
-        ))}
-      </select>
+      {/* Project picker (not for factory) */}
+      {!isFactory && (
+        <select
+          value={projectId}
+          onChange={e => setProject(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="">— No project —</option>
+          {projects.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.projectRef ? `${p.projectRef} — ` : ''}{p.name}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {/* Team member selection (factory only) */}
+      {isFactory && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-gray-600">Assign Team Members</p>
+          {teamMembers.length === 0 ? (
+            <p className="text-xs text-gray-400">Loading team…</p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {teamMembers.map(m => (
+                <label key={m.id} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={selectedMembers.includes(m.id)}
+                    onChange={e => setMembers(s => e.target.checked ? [...s, m.id] : s.filter(x => x !== m.id))}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-gray-700">{m.name}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <textarea rows={2}
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -438,6 +484,7 @@ export default function UnifiedCalendar({
             defaultType={(effectiveTypes?.[0] as CalendarEventType | undefined) ?? 'activity'}
             onDone={() => setShowAddForm(false)}
             mutate={mutate}
+            showFactory={effectiveAssign}
           />
         </div>
       )}

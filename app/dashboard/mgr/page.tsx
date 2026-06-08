@@ -12,13 +12,18 @@ import QuotationModal from '@/components/projects/QuotationModal'
 import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
 import HandoverModal from '@/components/projects/HandoverModal'
 import GatePassModal from '@/components/projects/GatePassModal'
-import UnifiedCalendar from '@/components/calendar/UnifiedCalendar'
+import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 import AssignInstallationModal, { TeamMember } from '@/components/projects/AssignInstallationModal'
 import TimesheetsView from '@/components/timesheets/TimesheetsView'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+const MGR_CALENDAR_TABS: TabDef[] = [
+  { id: 'activity',     label: 'Activity',     dot: 'bg-amber-400',  types: ['activity', 'fabrication'],                    canAddEvent: true },
+  { id: 'payments',     label: 'Payments',     dot: 'bg-green-500',  types: ['payment-received', 'payment-due', 'delivery'], noAdd: true },
+  { id: 'installation', label: 'Installation', dot: 'bg-blue-500',   types: ['installation', 'fabrication', 'delivery'],    showInstallAssign: true, canAddEvent: true },
+]
 
 export default function MgrDashboard() {
   const searchParams = useSearchParams()
@@ -175,9 +180,7 @@ export default function MgrDashboard() {
 
       {/* Payment Calendar view */}
       {view === 'calendar' && (
-        <UnifiedCalendar
-          filterTypes={['payment-received', 'payment-due', 'delivery', 'installation']}
-        />
+        <UnifiedCalendar tabs={MGR_CALENDAR_TABS} />
       )}
 
       {/* Installation team view — members with assigned projects */}
