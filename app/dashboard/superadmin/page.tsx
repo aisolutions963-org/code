@@ -516,23 +516,40 @@ function ClientsReportView() {
 
 // ─── Reports Section ─────────────────────────────────────────────────────────
 
+function quarterBounds(year: number, q: number): { from: string; to: string; label: string } {
+  const startMonth = (q - 1) * 3
+  const from = new Date(year, startMonth, 1)
+  const to   = new Date(year, startMonth + 3, 0) // last day of last month
+  const fmt  = (d: Date) => d.toISOString().slice(0, 10)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const label = `${months[startMonth]} – ${months[startMonth + 2]} ${year}`
+  return { from: fmt(from), to: fmt(to), label }
+}
+
 function ReportsSection() {
+  const now = new Date()
+  const curYear = now.getFullYear()
+  const curQ    = Math.ceil((now.getMonth() + 1) / 3)
+
   const [activeTab, setActiveTab] = useState<ReportCategory>('Sales')
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [year, setYear] = useState(curYear)
+  const [q, setQ] = useState(curQ)
+
+  const { from, to, label } = quarterBounds(year, q)
 
   async function downloadReport(route: string, name: string) {
     setDownloading(route)
     setDownloadError(null)
     try {
-      const from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      const res = await fetch(`/api/reports/download/${route}?from=${from}`)
+      const res = await fetch(`/api/reports/download/${route}?from=${from}&to=${to}`)
       if (!res.ok) throw new Error('Download failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `${name.replace(/\s+/g, '_')}_Q${q}_${year}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -555,8 +572,32 @@ function ReportsSection() {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-4 flex-wrap">
         <p className="text-sm font-semibold text-gray-700">Reports</p>
+        {/* Quarter selector */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Year */}
+          <div className="flex items-center gap-1">
+            <button onClick={() => setYear(y => y - 1)} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xs">‹</button>
+            <span className="text-xs font-semibold text-gray-700 w-10 text-center">{year}</span>
+            <button onClick={() => setYear(y => y + 1)} disabled={year >= curYear} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xs disabled:opacity-30">›</button>
+          </div>
+          {/* Quarter buttons */}
+          <div className="flex gap-1">
+            {[1, 2, 3, 4].map((n) => (
+              <button
+                key={n}
+                onClick={() => setQ(n)}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md border transition-colors ${
+                  q === n ? 'bg-gray-800 text-white border-gray-800' : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700'
+                }`}
+              >
+                Q{n}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-gray-400">{label}</span>
+        </div>
       </div>
       {/* Tabs */}
       <div className="flex gap-2 px-5 pt-4 pb-2">

@@ -9,10 +9,13 @@ const BASE_ID = process.env.AIRTABLE_BASE_ID!
 const API_KEY = process.env.AIRTABLE_API_KEY!
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
-  const from = new URL(req.url).searchParams.get('from') ?? ''
+  const sp = new URL(req.url).searchParams
+  const from = sp.get('from') ?? ''
+  const to   = sp.get('to')   ?? ''
 
   const filterParts = [`{${TASKS.TASK_NAME}}="Follow Up"`]
   if (from) filterParts.push(`IS_AFTER({${TASKS.COMPLETION_DATE}}, "${from}")`)
+  if (to)   filterParts.push(`IS_BEFORE({${TASKS.COMPLETION_DATE}}, "${to}")`)
   const formula = filterParts.length > 1 ? `AND(${filterParts.join(',')})` : filterParts[0]
 
   const params = new URLSearchParams({

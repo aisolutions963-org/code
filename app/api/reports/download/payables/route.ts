@@ -9,7 +9,9 @@ const BASE_ID = process.env.AIRTABLE_BASE_ID!
 const API_KEY = process.env.AIRTABLE_API_KEY!
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
-  const from = new URL(req.url).searchParams.get('from') ?? ''
+  const sp = new URL(req.url).searchParams
+  const from = sp.get('from') ?? ''
+  const to   = sp.get('to')   ?? ''
 
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   params.append('fields[]', PURCHASE_ORDERS.NAME)
@@ -20,9 +22,12 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   params.append('fields[]', PURCHASE_ORDERS.EXPECTED_DELIVERY)
   params.append('fields[]', PURCHASE_ORDERS.NOTES)
   params.append('fields[]', PURCHASE_ORDERS.RECORDED_BY)
-  if (from) {
-    params.set('filterByFormula', encodeURIComponent(`IS_AFTER({${PURCHASE_ORDERS.ORDER_DATE}}, "${from}")`))
-  }
+  const dateParts: string[] = []
+  if (from) dateParts.push(`IS_AFTER({${PURCHASE_ORDERS.ORDER_DATE}}, "${from}")`)
+  if (to)   dateParts.push(`IS_BEFORE({${PURCHASE_ORDERS.ORDER_DATE}}, "${to}")`)
+  if (dateParts.length === 1) params.set('filterByFormula', encodeURIComponent(dateParts[0]))
+  if (dateParts.length === 2) params.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
+
 
   const records: { id: string; fields: Record<string, unknown> }[] = []
   let offset: string | undefined

@@ -27,11 +27,14 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
 }
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
-  const from = new URL(req.url).searchParams.get('from') ?? ''
+  const sp = new URL(req.url).searchParams
+  const from = sp.get('from') ?? ''
+  const to   = sp.get('to')   ?? ''
 
   // Receivables = Pending or Overdue payments
   const filterParts = [`OR({${PAYMENTS.PAYMENT_STATUS}}="Pending",{${PAYMENTS.PAYMENT_STATUS}}="Overdue")`]
   if (from) filterParts.push(`IS_AFTER({${PAYMENTS.DUE_DATE}}, "${from}")`)
+  if (to)   filterParts.push(`IS_BEFORE({${PAYMENTS.DUE_DATE}}, "${to}")`)
   const formula = filterParts.length > 1 ? `AND(${filterParts.join(',')})` : filterParts[0]
 
   const payParams = new URLSearchParams({
