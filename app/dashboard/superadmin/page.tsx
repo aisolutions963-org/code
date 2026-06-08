@@ -225,7 +225,7 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
 
   const chartData = selectedSed
     ? [
-        { name: 'Preparing', value: data.find((d) => d.sedName === selectedSed)?.preparing ?? 0, fill: '#92400E' },
+        { name: 'Preparing', value: data.find((d) => d.sedName === selectedSed)?.preparing ?? 0, fill: '#3b82f6' },
         { name: 'Open', value: data.find((d) => d.sedName === selectedSed)?.open ?? 0, fill: '#16a34a' },
         { name: 'Closed', value: data.find((d) => d.sedName === selectedSed)?.closed ?? 0, fill: '#f9a8d4' },
         { name: 'Not Approved', value: data.find((d) => d.sedName === selectedSed)?.notApproved ?? 0, fill: '#dc2626' },
@@ -269,7 +269,7 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
         {/* Legend */}
         <div className="flex gap-4 text-xs text-gray-500 mb-3">
           {[
-            { label: 'Preparing', color: '#92400E' },
+            { label: 'Preparing', color: '#3b82f6' },
             { label: 'Open', color: '#16a34a' },
             { label: 'Closed', color: '#f9a8d4' },
             { label: 'Not Approved', color: '#dc2626' },
@@ -308,7 +308,7 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
               <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Bar dataKey="preparing" fill="#92400E" radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
+              <Bar dataKey="preparing" fill="#3b82f6" radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
               <Bar dataKey="open" fill="#16a34a" radius={[0, 0, 0, 0]} name="Open" stackId="a" />
               <Bar dataKey="closed" fill="#f9a8d4" radius={[0, 0, 0, 0]} name="Closed" stackId="a" />
               <Bar dataKey="notApproved" fill="#dc2626" radius={[0, 3, 3, 0]} name="Not Approved" stackId="a" />

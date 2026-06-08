@@ -17,7 +17,7 @@ export const POST = requireRole('superadmin')(
     if (!wasLocked) return NextResponse.json({ unlocked: false })
 
     const projectRef = project.projectId ?? params.id
-    createNotification({
+    await createNotification({
       recipientRole: 'superadmin',
       title: `Inactivity alert — ${projectRef}`,
       body: `Project "${project.projectName}" has had no activity for ${Math.floor(daysSince)} days. A Follow Up task has been created for your decision.`,

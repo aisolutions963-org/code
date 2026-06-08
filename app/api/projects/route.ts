@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     if (data.salesOwnerCollaboratorId) {
       const sedUser = await getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
       if (sedUser) {
-        createNotification({
+        await createNotification({
           recipientRole: 'sed',
           title: `New project assigned: ${project.projectName}`,
           body: `Client: ${project.clientName}`,

@@ -1098,7 +1098,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
       : []
     const taskName = str(r.fields[TASKS.TASK_NAME]) ?? 'Call the Client'
     const projRef = str(r.fields[TASKS.PROJECT_ID]) ?? projectId
-    notifyTasksReady(
+    await notifyTasksReady(
       [{ taskName, departments: depts.length > 0 ? depts : ['Manager'] }],
       `All approval gates cleared for project ${projRef} — ready to call the client`,
     )
@@ -1241,7 +1241,7 @@ export async function assignInstallationTeam(
   })
   const projectRef = project.nickname ?? project.projectName ?? project.projectId
   const body = opts?.itemName ? `${projectRef} — ${opts.itemName}` : projectRef
-  createNotification({
+  await createNotification({
     recipientRole: 'installation',
     title: 'Installation team assigned',
     body,

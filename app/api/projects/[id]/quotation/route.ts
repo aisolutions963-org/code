@@ -92,7 +92,7 @@ export async function POST(
         const { created: tasksCreated, todoTemplates } = await generateItemTasksForProject(id, projectItem.id, item.actions)
         console.log(`[QUOTATION] Item ${projectItem.id} (${item.itemName}): generated ${tasksCreated} tasks, ${todoTemplates.length} To Do`)
         if (todoTemplates.length > 0) {
-          notifyTasksReady(
+          await notifyTasksReady(
             todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
             `New item ready: ${item.itemName}`,
           )

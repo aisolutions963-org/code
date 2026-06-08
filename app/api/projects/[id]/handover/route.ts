@@ -47,7 +47,7 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
       : projectRef
 
     for (const role of ['manager', 'sed', 'superadmin'] as const) {
-      createNotification({
+      await createNotification({
         recipientRole: role,
         title: `Handover submitted — final payment pending`,
         body: `Handover recorded for ${projectLabel}. Final installation: ${parsed.data.finalInstallationDate}. Please request final payment from client to close project. Submitted by ${session.name}.`,

@@ -30,7 +30,7 @@ export async function POST(
       departments: ['Installation'],
     })
 
-    createNotification({
+    await createNotification({
       recipientRole: 'installation',
       title: `Measurement requested: ${project.projectName}`,
       body: `${session.name} has asked the installation team to take measurements. Please choose a date.`,
