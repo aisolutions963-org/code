@@ -323,7 +323,7 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                             <p className="text-xs font-semibold text-white/80 leading-snug">{n.title}</p>
                             {n.body && <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2 whitespace-pre-wrap">{n.body}</p>}
                             <p className="text-[10px] text-white/25 mt-0.5">
-                              {new Date(n.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              {new Date(n.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}
                             </p>
                           </div>
                         </div>

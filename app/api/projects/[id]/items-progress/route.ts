@@ -1,22 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { requireRole } from '@/lib/apiHandler'
 import { getAllTasksForProjectAll, getProjectById, getProjectItemNameMap } from '@/lib/airtable'
 import { Task } from '@/lib/types'
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params
-  const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = requireRole()(async (_req, session, { params }) => {
+  const { id } = params
 
   const [tasks, project] = await Promise.all([
     getAllTasksForProjectAll(id, session.role),
     getProjectById(id),
   ])
 
-  // Enrich tasks with item names
   const itemIds = Array.from(new Set(tasks.flatMap((t) => t.projectItem ?? [])))
   const nameMap = await getProjectItemNameMap(itemIds)
   const enriched: Task[] = tasks.map((t) => {
@@ -25,10 +19,8 @@ export async function GET(
     return t
   })
 
-  // Filter to per-item tasks only
   const itemTasks = enriched.filter((t) => t.projectItem && t.projectItem.length > 0)
 
-  // Group by item ID
   const groups = new Map<string, { name: string; tasks: Task[] }>()
   for (const t of itemTasks) {
     const itemId = t.projectItem![0]
@@ -36,13 +28,12 @@ export async function GET(
     groups.get(itemId)!.tasks.push(t)
   }
 
-  const items = Array.from(groups.entries()).map(([id, { name, tasks: grp }]) => {
+  const items = Array.from(groups.entries()).map(([itemId, { name, tasks: grp }]) => {
     const activeTasks = grp.filter((t) => t.status === 'To Do' || t.status === 'In Progress')
     const completedCount = grp.filter((t) => t.status === 'Completed').length
     const totalCount = grp.length
     const isComplete = totalCount > 0 && grp.every((t) => t.status === 'Completed')
-    const allTasks = grp
-    return { id, name, activeTasks, allTasks, completedCount, totalCount, isComplete }
+    return { id: itemId, name, activeTasks, allTasks: grp, completedCount, totalCount, isComplete }
   })
 
   return NextResponse.json({
@@ -53,4 +44,4 @@ export async function GET(
     projectStage: project.projectStage,
     items,
   })
-}
+})

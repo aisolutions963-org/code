@@ -15,9 +15,10 @@ export async function GET(req: NextRequest) {
   try {
     const projects = await getProjects({ stage: 'Preparing' })
     const now = new Date()
-    const isFriday = now.getDay() === 5
-    const isSaturday = now.getDay() === 6
-    const day = now.toLocaleDateString('en-AE', { weekday: 'long' })
+    const uaeWeekday = now.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Dubai' })
+    const isFriday = uaeWeekday === 'Fri'
+    const isSaturday = uaeWeekday === 'Sat'
+    const day = now.toLocaleDateString('en-AE', { weekday: 'long', timeZone: 'Asia/Dubai' })
     const urgency = isSaturday ? '⚠️ Follow-up reminder' : '📋 Weekly check-in'
 
     const projectList = projects

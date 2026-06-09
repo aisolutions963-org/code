@@ -786,6 +786,7 @@ async function createClientRecord(name: string, phone?: string): Promise<Client>
     throw new Error(`Airtable error creating client ${res.status}: ${body}`)
   }
   const data = (await res.json()) as { records: RawRecord[] }
+  if (!data.records[0]) throw new Error('Airtable returned empty records for client creation')
   return transformClient(data.records[0])
 }
 
@@ -1802,6 +1803,7 @@ export async function createHandoverSheet(
     throw new Error(`Airtable error ${res.status}: ${body}`)
   }
   const data2 = (await res.json()) as { records: RawRecord[] }
+  if (!data2.records[0]) throw new Error('Airtable returned empty records for handover sheet creation')
   return transformHandoverSheet(data2.records[0])
 }
 
@@ -1834,6 +1836,7 @@ export async function createMaintenanceRecord(
     throw new Error(`Airtable error ${res.status}: ${body}`)
   }
   const data = await res.json() as { records: RawRecord[] }
+  if (!data.records[0]) throw new Error('Airtable returned empty records for maintenance record creation')
   return data.records[0].id
 }
 

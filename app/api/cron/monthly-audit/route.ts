@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const now = new Date()
     const dateStr = todayUAE()
     const monthKey = `monthly-audit:${dateStr.slice(0, 7)}` // e.g. "monthly-audit:2026-06"
-    const monthLabel = now.toLocaleDateString('en-AE', { month: 'long', year: 'numeric' })
+    const monthLabel = now.toLocaleDateString('en-AE', { month: 'long', year: 'numeric', timeZone: 'Asia/Dubai' })
 
     // Fetch all projects for summary counts
     const allProjects = await getAllProjects()
