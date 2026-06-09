@@ -118,7 +118,7 @@ async function closeProjectAfterFinalPayment(projectId: string, recordedBy: stri
     })
   }
 
-  await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed & Valid Maintenance' })
+  await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed and active warranty' })
 
   const projectRef = project.projectId ?? projectId
   const projectLabel = project.projectName
@@ -136,7 +136,7 @@ async function closeProjectAfterFinalPayment(projectId: string, recordedBy: stri
     createNotification({
       recipientRole: role,
       title: `Project closed — ${projectRef}`,
-      body: `Final payment received for ${projectLabel}. Status: Closed & Valid Maintenance. Warranty active until ${warrantyEnd}. Recorded by ${recordedBy}.`,
+      body: `Final payment received for ${projectLabel}. Status: Closed and active warranty. Warranty active until ${warrantyEnd}. Recorded by ${recordedBy}.`,
       link: ROLE_DASHBOARD[role],
     })
   }

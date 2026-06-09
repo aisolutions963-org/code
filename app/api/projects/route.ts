@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       // Fetch any SQLite-mapped projects not already returned by Airtable filter
       const airtableProjectIds = new Set(airtableProjects.map((p) => p.id))
       const missingIds = sqliteIds.filter((id) => !airtableProjectIds.has(id))
-      const CLOSED_STAGES = new Set(['Closed', 'Closed & Valid Maintenance', 'Closed & Warranty Done', 'Archived'])
+      const CLOSED_STAGES = new Set(['Closed', 'Closed and active warranty', 'Warranty expired'])
       const extra = missingIds.length > 0
         ? await Promise.all(missingIds.map((id) => getProjectById(id).catch(() => null)))
         : []
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
       ]
     } else {
       // fabrication, installation, manager — get all active projects
-      // (default formula already excludes Closed, Closed & Valid Maintenance,
-      //  Closed & Warranty Done, and Archived)
+      // (default formula already excludes Closed, Closed and active warranty,
+      //  and Warranty expired)
       projects = await getProjects({ stage })
     }
     return NextResponse.json({ projects })

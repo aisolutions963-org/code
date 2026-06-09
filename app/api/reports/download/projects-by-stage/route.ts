@@ -29,10 +29,11 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
 const STAGE_LABELS: Record<string, string> = {
   Preparing:               'Preparing',
   Open:                    'Open',
+  Production:              'Production',
   Closed:                  'Finished',
   'Not-Approved':          'Not Approved',
-  'Closed & Valid Maintenance': 'Maintenance Active',
-  'Closed & Warranty Done': 'Maintenance Expired',
+  'Closed and active warranty': 'Active Warranty',
+  'Warranty expired':      'Warranty Expired',
 }
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {

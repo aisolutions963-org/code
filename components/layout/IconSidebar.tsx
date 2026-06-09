@@ -258,7 +258,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
     {
       label: 'Team',
       items: [
-        { label: 'Team Activity', href: '/dashboard/superadmin/team-activity', icon: <TeamIcon /> },
+        { label: 'Team Activity', href: '/dashboard/superadmin?view=activity', icon: <TeamIcon /> },
         { label: 'Users', href: '/dashboard/superadmin?view=users', icon: <UsersIcon /> },
         { label: 'Workers', href: '/dashboard/superadmin/workers', icon: <WorkerIcon /> },
         { label: 'Timesheets', href: '/dashboard/superadmin/timesheets', icon: <ClockIcon /> },

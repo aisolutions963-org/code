@@ -93,7 +93,7 @@ export const GET = requireRole('superadmin')(async () => {
     const entry = map[displayName]
     if (p.stage === 'Preparing') entry.preparing++
     else if (p.stage === 'Open') entry.open++
-    else if (p.stage === 'Closed' || p.stage === 'Closed & Valid Maintenance' || p.stage === 'Closed & Warranty Done') entry.closed++
+    else if (p.stage === 'Closed' || p.stage === 'Closed and active warranty' || p.stage === 'Warranty expired') entry.closed++
     else if (p.stage === 'Not-Approved') entry.notApproved++
     entry.totalPaid += p.totalPaid
   }

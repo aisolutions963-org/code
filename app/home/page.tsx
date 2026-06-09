@@ -533,7 +533,7 @@ function ProjectPipeline({ role }: { role: string }) {
   )
 
   const allProjects = projectData?.projects ?? []
-  const active = allProjects.filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
+  const active = allProjects.filter((p) => !['Closed', 'Closed and active warranty', 'Warranty expired'].includes(p.projectStage))
   const tasks = taskData?.tasks ?? []
 
   const tasksByProject = new Map<string, Task[]>()

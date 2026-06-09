@@ -393,10 +393,11 @@ function ClientsReportView() {
   const STAGE_COLOR: Record<string, string> = {
     Preparing: 'bg-amber-100 text-amber-700',
     Open: 'bg-green-100 text-green-700',
-    Fabrication: 'bg-blue-100 text-blue-700',
-    Installation: 'bg-violet-100 text-violet-700',
+    Production: 'bg-blue-100 text-blue-700',
     Closed: 'bg-gray-100 text-gray-500',
-    'Not Approved': 'bg-red-100 text-red-600',
+    'Not-Approved': 'bg-red-100 text-red-600',
+    'Closed and active warranty': 'bg-teal-100 text-teal-700',
+    'Warranty expired': 'bg-gray-100 text-gray-400',
   }
 
   return (
@@ -741,9 +742,9 @@ function OverviewPage() {
         <KpiCard label="Open" value={kpi?.open ?? 0} href={`${BASE_PROJECTS_URL}&stage=Open`} downloadHref="/api/reports/download/projects-by-stage?stage=Open" loading={kpiLoading} />
         <KpiCard label="Not Approved" value={kpi?.notApproved ?? 0} href={`${BASE_PROJECTS_URL}&stage=Not-Approved`} downloadHref="/api/reports/download/projects-by-stage?stage=Not-Approved" loading={kpiLoading} />
         <KpiCard label="Finished" value={kpi?.finished ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed" loading={kpiLoading} />
-        <KpiCard label="Maintenance Active" value={kpi?.maintenanceActive ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Valid+Maintenance`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+%26+Valid+Maintenance" loading={kpiLoading} />
+        <KpiCard label="Active Warranty" value={kpi?.maintenanceActive ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+and+active+warranty`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+and+active+warranty" loading={kpiLoading} />
         <KpiCard label="Finished — Not Paid" value={kpi?.finishedUnpaid ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed&unpaid=true`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed&unpaid=true" loading={kpiLoading} />
-        <KpiCard label="Maintenance Expired" value={kpi?.maintenanceExpired ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Warranty+Done`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+%26+Warranty+Done" loading={kpiLoading} />
+        <KpiCard label="Warranty Expired" value={kpi?.maintenanceExpired ?? 0} href={`${BASE_PROJECTS_URL}&stage=Warranty+expired`} downloadHref="/api/reports/download/projects-by-stage?stage=Warranty+expired" loading={kpiLoading} />
       </div>
 
       {/* ── Section 2: SED Performance Chart ───────────────── */}
@@ -878,7 +879,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
     }
   }
 
-  const canGenerate = p.projectStage === 'Preparing' || p.projectStage === 'Open'
+  const canGenerate = p.projectStage === 'Preparing' || p.projectStage === 'Open' || p.projectStage === 'Production'
 
   const address = [p.detailedLocation, p.location, p.emirate].filter(Boolean).join(', ')
 
@@ -911,7 +912,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
         </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">
-          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : 'gray'}>
+          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : p.projectStage === 'Production' ? 'green' : 'gray'}>
             {p.projectStage}
           </Badge>
         </td>
@@ -926,7 +927,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
                 ⚡ Tasks
               </Button>
             )}
-            {p.projectStage !== 'Not-Approved' && p.projectStage !== 'Closed' && (
+            {p.projectStage !== 'Not-Approved' && p.projectStage !== 'Closed' && p.projectStage !== 'Closed and active warranty' && p.projectStage !== 'Warranty expired' && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -948,7 +949,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
                 ↩ Reopen
               </Button>
             )}
-            {p.projectStage !== 'Closed' && p.projectStage !== 'Not-Approved' && (
+            {p.projectStage !== 'Closed' && p.projectStage !== 'Not-Approved' && p.projectStage !== 'Closed and active warranty' && p.projectStage !== 'Warranty expired' && (
               <Button size="sm" variant="secondary" loading={loading} onClick={advance}>Advance →</Button>
             )}
             <Button
@@ -1269,18 +1270,90 @@ function PhaseGateCard({ project: p, onAdvance }: { project: Project; onAdvance:
   )
 }
 
-// ─── Page 4: All Team Activity ────────────────────────────────────────────────
+// ─── Page 4: Team Activity ────────────────────────────────────────────────────
 
 type Dept = 'All' | 'SED' | 'Fabrication' | 'Installation' | 'Management'
 const DEPTS: Dept[] = ['All', 'SED', 'Fabrication', 'Installation', 'Management']
 
+interface TeamTask { id: string; taskName: string; status: string; department: string[]; projectRef: string; projectRecordId: string }
+interface TeamGroup { name: string; role: string; userId: number; tasks: TeamTask[] }
+
+const ROLE_LABELS: Record<string, string> = { superadmin: 'Superadmin', manager: 'Manager', sed: 'SED', fabrication: 'Fabrication', installation: 'Installation' }
+const ROLE_COLORS: Record<string, string> = { superadmin: 'bg-brand-100 text-brand-700', manager: 'bg-green-100 text-green-700', sed: 'bg-purple-100 text-purple-700', fabrication: 'bg-amber-100 text-amber-700', installation: 'bg-blue-100 text-blue-700' }
+
+function PersonSection({ group }: { group: TeamGroup }) {
+  const [expanded, setExpanded] = useState(false)
+  const roleLabel = ROLE_LABELS[group.role] ?? group.role
+  const roleColor = ROLE_COLORS[group.role] ?? 'bg-gray-100 text-gray-600'
+  const activeTasks = group.tasks.filter((t) => t.status !== 'Locked' && t.status !== 'Completed')
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-gray-500">{group.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}</span>
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-gray-900">{group.name}</p>
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${roleColor}`}>{roleLabel}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {activeTasks.length > 0 && (
+            <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full">{activeTasks.length} active</span>
+          )}
+          <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-t border-gray-100">
+          {activeTasks.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-gray-400">No active tasks.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Task</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {activeTasks.map((t) => (
+                  <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef || '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-800 max-w-xs truncate">{t.taskName}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') || '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <Badge variant={({ 'In Progress': 'blue', 'Completed': 'green', 'Pending Approval': 'orange', 'To Do': 'gray', 'Locked': 'gray' } as Record<string, 'blue'|'green'|'orange'|'gray'|'red'>)[t.status] ?? 'gray'} size="sm">{t.status}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ActivityPage() {
+  const [viewMode, setViewMode] = useState<'task' | 'person'>('task')
   const [dept, setDept] = useState<Dept>('All')
+
   const { data, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks', fetcher, { refreshInterval: 300_000 },
   )
-  const tasks = data?.tasks ?? []
+  const { data: teamData, isLoading: teamLoading } = useSWR<{ groups: TeamGroup[] }>(
+    viewMode === 'person' ? '/api/superadmin/team-tasks' : null,
+    fetcher, { refreshInterval: 300_000 },
+  )
 
+  const tasks = data?.tasks ?? []
   const filtered = dept === 'All' ? tasks : tasks.filter((t) => t.department?.includes(dept))
 
   async function toggleFlag(task: Task) {
@@ -1292,7 +1365,6 @@ function ActivityPage() {
     mutate()
   }
 
-  // Monthly completions chart data
   const monthlyData = (() => {
     const map: Record<string, number> = {}
     for (const t of tasks) {
@@ -1311,93 +1383,100 @@ function ActivityPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">All Team Activity</h2>
-        <p className="text-sm text-gray-500">{tasks.length} tasks across all departments</p>
-      </div>
-
-      {/* Monthly chart */}
-      {monthlyData.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Monthly Completions (last 6 months)</p>
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart data={monthlyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Bar dataKey="count" fill="#6366f1" radius={[3, 3, 0, 0]} name="Completed" />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Team Activity</h2>
+          <p className="text-sm text-gray-500">{tasks.length} tasks across all departments</p>
         </div>
-      )}
-
-      {/* Dept tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
-        {DEPTS.map((d) => (
-          <button
-            key={d}
-            onClick={() => setDept(d)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${dept === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            {d}
-          </button>
-        ))}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg shrink-0">
+          <button onClick={() => setViewMode('task')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'task' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>By Task</button>
+          <button onClick={() => setViewMode('person')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'person' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>By Person</button>
+        </div>
       </div>
 
-      {/* Task table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="w-8 px-3 py-2.5" />
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Task</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((t) => {
-                const isCallClient = t.taskName.toLowerCase().includes('call the client') && t.status === 'To Do'
-                return (
-                  <tr key={t.id} className={isCallClient ? 'bg-teal-50 border-l-4 border-l-teal-400' : 'hover:bg-gray-50'}>
-                    <td className="px-3 py-2.5 text-center">
-                      <button onClick={() => toggleFlag(t)} title="Toggle priority">
-                        <span className={`text-sm ${t.priorityFlag ? 'text-red-500' : 'text-gray-200 hover:text-gray-400'}`}>⚑</span>
-                      </button>
-                    </td>
-                    <td className="px-4 py-2.5 max-w-xs truncate">
-                      {isCallClient ? (
-                        <span className="flex items-center gap-1.5">
-                          <svg className="w-3.5 h-3.5 text-teal-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                          <span className="font-semibold text-teal-800">{t.taskName}</span>
-                        </span>
-                      ) : (
-                        <span className="text-gray-800">{t.taskName}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') ?? '—'}</td>
-                    <td className="px-4 py-2.5">
-                      <TaskStatusBadge status={t.status} />
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef ?? t.project?.[0] ?? '—'}</td>
+      {viewMode === 'task' ? (
+        <>
+          {monthlyData.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Monthly Completions (last 6 months)</p>
+              <ResponsiveContainer width="100%" height={140}>
+                <BarChart data={monthlyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Bar dataKey="count" fill="#6366f1" radius={[3, 3, 0, 0]} name="Completed" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+            {DEPTS.map((d) => (
+              <button key={d} onClick={() => setDept(d)} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${dept === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{d}</button>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="w-8 px-3 py-2.5" />
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Task</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
                   </tr>
-                )
-              })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-sm text-gray-400">No tasks.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map((t) => {
+                    const isCallClient = t.taskName.toLowerCase().includes('call the client') && t.status === 'To Do'
+                    return (
+                      <tr key={t.id} className={isCallClient ? 'bg-teal-50 border-l-4 border-l-teal-400' : 'hover:bg-gray-50'}>
+                        <td className="px-3 py-2.5 text-center">
+                          <button onClick={() => toggleFlag(t)} title="Toggle priority">
+                            <span className={`text-sm ${t.priorityFlag ? 'text-red-500' : 'text-gray-200 hover:text-gray-400'}`}>⚑</span>
+                          </button>
+                        </td>
+                        <td className="px-4 py-2.5 max-w-xs truncate">
+                          {isCallClient ? (
+                            <span className="flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 text-teal-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                              <span className="font-semibold text-teal-800">{t.taskName}</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-800">{t.taskName}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') ?? '—'}</td>
+                        <td className="px-4 py-2.5"><TaskStatusBadge status={t.status} /></td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef ?? t.project?.[0] ?? '—'}</td>
+                      </tr>
+                    )
+                  })}
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={5} className="text-center py-8 text-sm text-gray-400">No tasks.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {teamLoading ? <Spinner /> : (teamData?.groups ?? []).length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <p className="text-sm text-gray-400">No active tasks found across the team.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(teamData?.groups ?? []).map((g) => <PersonSection key={`${g.name}-${g.role}`} group={g} />)}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

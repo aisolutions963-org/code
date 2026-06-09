@@ -42,7 +42,7 @@ export const GET = requireRole('superadmin')(async () => {
 
   const totalProjects = projects.length
   const activeProjects = projects.filter(
-    (p) => !['Closed', 'Archived'].includes(p.projectStage),
+    (p) => !['Closed', 'Closed and active warranty', 'Warranty expired'].includes(p.projectStage),
   ).length
   const staleProjects = projects.filter((p) => {
     if (!p.lastModifiedTasks || ['Closed', 'Archived'].includes(p.projectStage)) return false

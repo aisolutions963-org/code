@@ -48,8 +48,8 @@ export const GET = requireRole('superadmin')(async () => {
     else if (p.stage === 'Closed') {
       finished++
       if (p.remaining > 0) finishedUnpaid++
-    } else if (p.stage === 'Closed & Valid Maintenance') maintenanceActive++
-    else if (p.stage === 'Closed & Warranty Done') maintenanceExpired++
+    } else if (p.stage === 'Closed and active warranty') maintenanceActive++
+    else if (p.stage === 'Warranty expired') maintenanceExpired++
   }
 
   return NextResponse.json({

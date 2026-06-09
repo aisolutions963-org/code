@@ -9,13 +9,11 @@ import TimelineStrip from '@/components/pipeline/TimelineStrip'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const COLUMNS: { title: string; stages: string[] }[] = [
-  { title: 'Inquiry',  stages: ['Inquiry'] },
-  { title: 'Quotation', stages: ['Quotation Sent', 'Quotation Approved', 'Quotation Rejected', 'On Hold'] },
-  { title: 'Phase 1',  stages: ['Preparing'] },
-  { title: 'Phase 2',  stages: ['Open'] },
-  { title: 'Phase 3',  stages: ['Working'] },
-  { title: 'Handover', stages: ['Handover', 'Handing Over'] },
-  { title: 'Done',     stages: ['Closed', 'Cancelled'] },
+  { title: 'Preparing',  stages: ['Preparing'] },
+  { title: 'Open',       stages: ['Open'] },
+  { title: 'Production', stages: ['Production'] },
+  { title: 'Done',       stages: ['Closed'] },
+  { title: 'Warranty',   stages: ['Closed and active warranty', 'Warranty expired'] },
 ]
 
 export default function PipelineClient() {

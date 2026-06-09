@@ -657,7 +657,7 @@ async function getFabricationActiveProjectIds(): Promise<Set<string>> {
 }
 
 export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[] } = {}): Promise<Project[]> {
-  let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Closed & Valid Maintenance", {${PROJECTS.PROJECT_STAGE}}="Closed & Warranty Done", {${PROJECTS.PROJECT_STAGE}}="Archived"))`
+  let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Closed and active warranty", {${PROJECTS.PROJECT_STAGE}}="Warranty expired"))`
   if (options.stage) {
     formula = `{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`
   } else if (options.allowedStages?.length) {

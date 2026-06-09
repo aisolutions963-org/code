@@ -21,7 +21,7 @@ export const GET = requireRole('superadmin')(async () => {
       toExpire.flatMap((r) => [
         expireMaintenanceRecord(r.id),
         ...(r.projects ?? []).map((pid) =>
-          updateProject(pid, { [PROJECTS.PROJECT_STAGE]: 'Closed & Warranty Done' }),
+          updateProject(pid, { [PROJECTS.PROJECT_STAGE]: 'Warranty expired' }),
         ),
       ]),
     )
@@ -76,7 +76,7 @@ export const PATCH = requireRole('superadmin')(async (req: NextRequest) => {
   await expireMaintenanceRecord(recordId)
   await Promise.all(
     (record.projects ?? []).map((pid) =>
-      updateProject(pid, { [PROJECTS.PROJECT_STAGE]: 'Closed & Warranty Done' }),
+      updateProject(pid, { [PROJECTS.PROJECT_STAGE]: 'Warranty expired' }),
     ),
   )
 
