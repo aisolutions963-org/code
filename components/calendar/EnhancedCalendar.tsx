@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import type { CalendarEvent } from '@/lib/airtable'
+import { todayUAE } from '@/lib/dateUtils'
 import { Role } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -25,7 +26,7 @@ interface EnhancedCalendarProps {
 
 export default function EnhancedCalendar({ role, filterTypes, creatorFilter, title }: EnhancedCalendarProps) {
   const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
+  const todayStr = todayUAE()
 
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [currentMonth, setCurrentMonth] = useState(
@@ -71,9 +72,9 @@ export default function EnhancedCalendar({ role, filterTypes, creatorFilter, tit
   const activityEvents = canSeeActivities ? dayEvents.filter(e => e.type === 'activity') : []
 
   const sevenDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    return d.toISOString().slice(0, 10)
+    const [y, m, d] = todayStr.split('-').map(Number)
+    const dt = new Date(y, m - 1, d + i)
+    return dt.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
   })
 
   const monthLabel = currentMonth.toLocaleDateString('en-AE', { month: 'long', year: 'numeric' })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { createMaterialOrder } from '@/lib/airtable'
 import { CreateMaterialOrderSchema } from '@/lib/validation'
+import { todayUAE } from '@/lib/dateUtils'
 
 export const POST = requireRole('sed', 'manager', 'fabrication', 'superadmin')(
   async (req: NextRequest, session) => {
@@ -20,7 +21,7 @@ export const POST = requireRole('sed', 'manager', 'fabrication', 'superadmin')(
       )
     }
 
-    const today = new Date().toISOString().slice(0, 10)
+    const today = todayUAE()
 
     try {
       const materials = await createMaterialOrder({

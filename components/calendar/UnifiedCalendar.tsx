@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import type { CalendarEvent } from '@/lib/airtable'
+import { todayUAE } from '@/lib/dateUtils'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -320,7 +321,7 @@ export default function UnifiedCalendar({
   onDayClick,
 }: Props) {
   const now = new Date()
-  const todayStr = now.toISOString().slice(0, 10)
+  const todayStr = todayUAE()
 
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -372,7 +373,7 @@ export default function UnifiedCalendar({
   const upcomingEvents = useMemo(() => {
     const cutoffDate = new Date(now)
     cutoffDate.setDate(cutoffDate.getDate() + 14)
-    const cutoff = cutoffDate.toISOString().slice(0, 10)
+    const cutoff = cutoffDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
     return allEvents
       .filter(e => e.date.slice(0, 10) >= todayStr && e.date.slice(0, 10) <= cutoff)
       .sort((a, b) => a.date.localeCompare(b.date))

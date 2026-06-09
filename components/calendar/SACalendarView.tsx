@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import type { CalendarEvent } from '@/lib/airtable'
+import { todayUAE } from '@/lib/dateUtils'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -87,7 +88,7 @@ function AssignTeamInline({ projectId, currentTeam, onDone }: {
 }
 
 function AddEventForm({ onDone, mutate }: { onDone: () => void; mutate: () => void }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const [title, setTitle] = useState('')
   const [date, setDate] = useState(today)
   const [notes, setNotes] = useState('')
@@ -146,7 +147,7 @@ function AddEventForm({ onDone, mutate }: { onDone: () => void; mutate: () => vo
 
 export default function SACalendarView({ filterTypes, creatorFilter, canAddEvent, showInstallAssign, title }: Props) {
   const now = new Date()
-  const todayStr = now.toISOString().slice(0, 10)
+  const todayStr = todayUAE()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)

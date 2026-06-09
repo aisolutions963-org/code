@@ -539,7 +539,7 @@ function quarterBounds(year: number, q: number): { from: string; to: string; lab
   const startMonth = (q - 1) * 3
   const from = new Date(year, startMonth, 1)
   const to   = new Date(year, startMonth + 3, 0) // last day of last month
-  const fmt  = (d: Date) => d.toISOString().slice(0, 10)
+  const fmt  = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const label = `${months[startMonth]} – ${months[startMonth + 2]} ${year}`
   return { from: fmt(from), to: fmt(to), label }

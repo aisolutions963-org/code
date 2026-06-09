@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProjects, upsertReminderEvent } from '@/lib/airtable'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
+import { todayUAE } from '@/lib/dateUtils'
 
 // Called by Vercel Cron every Friday and Saturday morning (UTC).
 // Sends in-app reminders to manager and superadmin to review Preparing-stage projects.
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     // On Friday: upsert a calendar event for this week's review
     if (isFriday) {
-      const dateStr = now.toISOString().slice(0, 10)
+      const dateStr = todayUAE()
       // ISO week key so Saturday re-run doesn't duplicate the event
       const weekKey = `weekly-review:${dateStr}`
       await upsertReminderEvent({

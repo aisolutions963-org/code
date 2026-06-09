@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS, MAINTENANCE } from '@/lib/fieldMap'
+import { todayUAE } from '@/lib/dateUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ async function fetchAll(tableId: string, params: Record<string, string | string[
 }
 
 export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async () => {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
 
   const [projects, expiredMaint] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, {

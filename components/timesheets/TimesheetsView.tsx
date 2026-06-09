@@ -9,12 +9,14 @@ import { Project } from '@/lib/types'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 function getWeekStart(offset = 0): string {
-  const d = new Date()
+  // Use UAE today to avoid UTC midnight crossing into wrong day
+  const [y, m, d] = todayUAE().split('-').map(Number)
+  const date = new Date(y, m - 1, d)
   // Start week on Saturday (day 6)
-  const day = d.getDay()
+  const day = date.getDay()
   const diff = (day >= 6 ? day - 6 : day + 1)
-  d.setDate(d.getDate() - diff + offset * 7)
-  return d.toISOString().slice(0, 10)
+  date.setDate(date.getDate() - diff + offset * 7)
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
 }
 
 function formatDate(iso: string): string {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAllProjects, upsertReminderEvent } from '@/lib/airtable'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
+import { todayUAE } from '@/lib/dateUtils'
 
 // Called by Vercel Cron on the 1st of every month.
 // Sends a monthly audit reminder to manager and superadmin,
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const now = new Date()
-    const dateStr = now.toISOString().slice(0, 10)
+    const dateStr = todayUAE()
     const monthKey = `monthly-audit:${dateStr.slice(0, 7)}` // e.g. "monthly-audit:2026-06"
     const monthLabel = now.toLocaleDateString('en-AE', { month: 'long', year: 'numeric' })
 

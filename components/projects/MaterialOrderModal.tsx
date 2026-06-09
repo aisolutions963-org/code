@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
+import { todayUAE } from '@/lib/dateUtils'
 
 const PURPOSE_OPTIONS = ['Project', 'Office', 'Factory', 'Cars', 'Other'] as const
 const UNIT_OPTIONS = ['pcs', 'm', 'm²', 'kg', 'set', 'box', 'roll'] as const
@@ -33,7 +34,7 @@ export default function MaterialOrderModal({
   onClose: () => void
   onCreated: () => void
 }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const [purpose, setPurpose] = useState<string>('')
   const [projectId, setProjectId] = useState<string>('')
   const [rows, setRows] = useState<Row[]>([emptyRow()])
