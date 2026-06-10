@@ -5,7 +5,6 @@ import {
   PROJECTS,
   PROJECT_ITEMS,
   PAYMENTS,
-  GATE_PASSES,
   MAINTENANCE,
   TEAM_MEMBERS,
   ANNOUNCEMENTS,
@@ -31,8 +30,6 @@ import {
   ProjectCreateInput,
   Payment,
   PaymentCreateInput,
-  GatePass,
-  GatePassCreateInput,
   MaintenanceRecord,
   Announcement,
   AnnouncementCreateInput,
@@ -382,7 +379,6 @@ function transformProject(record: RawRecord): Project {
     taskIds: strArr(f[PROJECTS.TASKS]),
     projectItemIds: strArr(f[PROJECTS.PROJECT_ITEMS]),
     paymentIds: strArr(f[PROJECTS.PAYMENTS]),
-    gatePassIds: strArr(f[PROJECTS.GATE_PASSES]),
     managerNotes: str(f[PROJECTS.MANAGER_NOTES]),
     sedNotes: str(f[PROJECTS.SED_NOTES]),
     projectCreatedAt: str(f[PROJECTS.PROJECT_CREATED_AT]),
@@ -420,27 +416,7 @@ function transformPayment(record: RawRecord): Payment {
   }
 }
 
-function transformGatePass(record: RawRecord): GatePass {
-  const f = record.fields
-  const rawDesc = str(f[GATE_PASSES.ITEMS_DESCRIPTION]) ?? ''
-  let printData: GatePass['printData']
-  try {
-    const parsed = JSON.parse(rawDesc)
-    if (parsed?._v === 1) printData = parsed as GatePass['printData']
-  } catch {}
-  return {
-    id: record.id,
-    name: str(f[GATE_PASSES.NAME]) ?? '',
-    project: strArr(f[GATE_PASSES.PROJECT]),
-    itemsDescription: rawDesc,
-    estimatedSupplyDate: str(f[GATE_PASSES.ESTIMATED_SUPPLY_DATE]) ?? '',
-    confirmedDeliveryDate: str(f[GATE_PASSES.CONFIRMED_DELIVERY_DATE]),
-    gatePassStatus: str(f[GATE_PASSES.GATE_PASS_STATUS]),
-    siteReady: bool(f[GATE_PASSES.SITE_READY]),
-    clientNotified: bool(f[GATE_PASSES.CLIENT_NOTIFIED]),
-    printData,
-  }
-}
+
 
 function transformMaintenance(record: RawRecord): MaintenanceRecord {
   const f = record.fields
@@ -875,93 +851,6 @@ export async function createPayment(input: PaymentCreateInput): Promise<Payment>
   return transformPayment(record)
 }
 
-export async function getGatePassesByProject(projectId: string): Promise<GatePass[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${GATE_PASSES.PROJECT}}, ","))`
-  const records = await fetchAll(GATE_PASSES.TABLE_ID, { filterByFormula: formula })
-  return records.map(transformGatePass)
-}
-
-export async function getAllGatePasses(): Promise<GatePass[]> {
-  const records = await fetchAll(GATE_PASSES.TABLE_ID, {
-    sort: [{ field: GATE_PASSES.ESTIMATED_SUPPLY_DATE, direction: 'desc' }],
-  })
-  const gatePasses = records.map(transformGatePass)
-  if (gatePasses.length === 0) return gatePasses
-
-  const projectRecordIds = Array.from(new Set(gatePasses.flatMap((gp) => gp.project)))
-  const nameMap: Record<string, { name: string; displayId: string }> = {}
-  const chunks: string[][] = []
-  for (let i = 0; i < projectRecordIds.length; i += 10) chunks.push(projectRecordIds.slice(i, i + 10))
-
-  await Promise.all(chunks.map(async (chunk) => {
-    const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
-    const recs = await fetchAll(PROJECTS.TABLE_ID, {
-      filterByFormula: formula,
-      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID],
-    })
-    for (const r of recs) {
-      nameMap[r.id] = {
-        name: str(r.fields[PROJECTS.PROJECT_NAME]) ?? '',
-        displayId: str(r.fields[PROJECTS.PROJECT_ID]) ?? '',
-      }
-    }
-  }))
-
-  return gatePasses.map((gp) => ({
-    ...gp,
-    projectName: gp.project[0] ? (nameMap[gp.project[0]]?.name ?? undefined) : undefined,
-    projectDisplayId: gp.project[0] ? (nameMap[gp.project[0]]?.displayId ?? undefined) : undefined,
-  }))
-}
-
-export async function updateGatePass(
-  id: string,
-  updates: {
-    gatePassStatus?: string
-    confirmedDeliveryDate?: string
-    siteReady?: boolean
-    clientNotified?: boolean
-  },
-): Promise<void> {
-  const fields: Record<string, unknown> = {}
-  if (updates.gatePassStatus !== undefined) fields[GATE_PASSES.GATE_PASS_STATUS] = updates.gatePassStatus
-  if (updates.confirmedDeliveryDate !== undefined) fields[GATE_PASSES.CONFIRMED_DELIVERY_DATE] = updates.confirmedDeliveryDate
-  if (updates.siteReady !== undefined) fields[GATE_PASSES.SITE_READY] = updates.siteReady
-  if (updates.clientNotified !== undefined) fields[GATE_PASSES.CLIENT_NOTIFIED] = updates.clientNotified
-  if (Object.keys(fields).length === 0) return
-  const res = await fetchWithRetry(recUrl(GATE_PASSES.TABLE_ID, id), {
-    method: 'PATCH',
-    headers: airtableHeaders(),
-    body: JSON.stringify({ fields }),
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Airtable error ${res.status}: ${body}`)
-  }
-}
-
-export async function createGatePass(input: GatePassCreateInput): Promise<GatePass> {
-  const fields: Record<string, unknown> = {
-    [GATE_PASSES.PROJECT]: input.project,
-    [GATE_PASSES.ITEMS_DESCRIPTION]: input.itemsDescription,
-    [GATE_PASSES.ESTIMATED_SUPPLY_DATE]: input.estimatedSupplyDate,
-  }
-  if (input.confirmedDeliveryDate) {
-    fields[GATE_PASSES.CONFIRMED_DELIVERY_DATE] = input.confirmedDeliveryDate
-  }
-  const res = await fetchWithRetry(tblUrl(GATE_PASSES.TABLE_ID), {
-    method: 'POST',
-    headers: airtableHeaders(),
-    body: JSON.stringify({ fields }),
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Airtable error ${res.status}: ${body}`)
-  }
-  const record: RawRecord = await res.json()
-  return transformGatePass(record)
-}
-
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
   const records = await fetchAll(MAINTENANCE.TABLE_ID, {
     sort: [{ field: MAINTENANCE.START_DATE, direction: 'desc' }],
@@ -1349,7 +1238,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
   const projectIds = Array.from(new Set(tasks.flatMap((t) => t.project ?? [])))
   if (projectIds.length === 0) return tasks
 
-  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null }> = {}
+  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null; salesOwnerName: string | null; communSeds: string[] }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) {
     chunks.push(projectIds.slice(i, i + 10))
@@ -1360,7 +1249,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
       const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const records = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE],
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS],
       })
       for (const r of records) {
         const ref = str(r.fields[PROJECTS.PROJECT_ID])
@@ -1368,7 +1257,11 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
         const nickname = str(r.fields[PROJECTS.NICKNAME]) ?? null
         const quotationNumber = str(r.fields[PROJECTS.QUOTATION_NUMBER]) ?? null
         const quotationReference = str(r.fields[PROJECTS.QUOTATION_REFERENCE]) ?? null
-        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference }
+        const owner = firstLinkedRecord(r.fields[PROJECTS.SALES_OWNER])
+        const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
+        const communRaw: Array<string | { name?: string; id?: string }> = Array.isArray(rawCommun) ? rawCommun : []
+        const communSeds = communRaw.map((c) => (typeof c === 'string' ? '' : (c.name ?? ''))).filter(Boolean)
+        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference, salesOwnerName: owner?.name ?? null, communSeds }
       }
     }),
   )
@@ -1387,6 +1280,8 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
             projectNickname: info.nickname ?? undefined,
             projectQuotationNumber: info.quotationNumber ?? undefined,
             projectQuotationReference: info.quotationReference ?? undefined,
+            projectSalesOwner: info.salesOwnerName ?? undefined,
+            projectCommunSeds: info.communSeds.length > 0 ? info.communSeds : undefined,
           }
         : {}),
     }
@@ -2017,12 +1912,7 @@ export interface CalendarEvent {
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
-  const [gatePasses, tasks, fabTasks, payments, customEvents, installationLogs, allProjects] = await Promise.all([
-    fetchAll(GATE_PASSES.TABLE_ID, {
-      filterByFormula: `NOT({${GATE_PASSES.ESTIMATED_SUPPLY_DATE}}=BLANK())`,
-      fields: [GATE_PASSES.NAME, GATE_PASSES.ESTIMATED_SUPPLY_DATE, GATE_PASSES.CONFIRMED_DELIVERY_DATE, GATE_PASSES.PROJECT],
-      sort: [{ field: GATE_PASSES.ESTIMATED_SUPPLY_DATE, direction: 'asc' }],
-    }),
+  const [tasks, fabTasks, payments, customEvents, installationLogs, allProjects] = await Promise.all([
     fetchAll(TASKS.TABLE_ID, {
       filterByFormula: `AND(NOT({${TASKS.TASK_START_DATE}}=BLANK()), OR({${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="To Do"))`,
       fields: [TASKS.TASK_NAME, TASKS.TASK_START_DATE, TASKS.COMPLETION_DATE, TASKS.DEPARTMENT, TASKS.PROJECT_ID, TASKS.PROJECT],
@@ -2064,21 +1954,6 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
   }
 
   const events: CalendarEvent[] = []
-
-  for (const r of gatePasses) {
-    const f = r.fields
-    const date = str(f[GATE_PASSES.CONFIRMED_DELIVERY_DATE]) ?? str(f[GATE_PASSES.ESTIMATED_SUPPLY_DATE])
-    if (date) {
-      events.push({
-        id: r.id,
-        title: str(f[GATE_PASSES.NAME]) ?? 'Delivery',
-        date,
-        type: 'delivery',
-        projectName: getProjectName(f[GATE_PASSES.PROJECT]),
-        createdAt: r.createdTime,
-      })
-    }
-  }
 
   for (const r of tasks) {
     const f = r.fields
@@ -2471,9 +2346,18 @@ export async function generateItemTasksForProject(
 
   // Idempotency: fetch existing tasks for this item and skip paths/templates already created.
   // This allows safely adding new actions to an item after initial submission.
-  const existingRaw = await fetchAll(TASKS.TABLE_ID, {
-    filterByFormula: `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}})), FIND("${itemId}", ARRAYJOIN({${TASKS.PROJECT_ITEM}})))`,
-    fields: [TASKS.PATH_CONDITION, TASKS.TASK_TEMPLATES_LINK],
+  // Note: ARRAYJOIN on a linked record field joins primary-field names, not record IDs,
+  // so we filter by project only then post-filter by itemId in JS (same pattern as line ~618).
+  const allProjectItemTasks = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: `{${TASKS.PROJECT}} = "${projectId}"`,
+    fields: [TASKS.PATH_CONDITION, TASKS.TASK_TEMPLATES_LINK, TASKS.PROJECT_ITEM],
+  })
+  const existingRaw = allProjectItemTasks.filter((r) => {
+    const pi = r.fields[TASKS.PROJECT_ITEM]
+    const ids: string[] = Array.isArray(pi)
+      ? (pi as Array<string | { id?: string }>).map((v) => (typeof v === 'string' ? v : (v.id ?? '')))
+      : []
+    return ids.includes(itemId)
   })
   const existingPaths = new Set<string>()
   const existingTemplateIds = new Set<string>()

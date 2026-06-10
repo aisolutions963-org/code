@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, Project, InstallationLog, GatePass } from '@/lib/types'
+import { Task, TaskUpdateInput, Project, InstallationLog } from '@/lib/types'
 import TaskList from '@/components/tasks/TaskList'
 import HandoverModal from '@/components/projects/HandoverModal'
 import InstallationLogModal from '@/components/projects/InstallationLogModal'
@@ -94,12 +94,7 @@ export default function FixDashboard() {
         <LogsView projects={projects} onNewLog={(p) => setLogProject(p)} />
       )}
 
-      {/* Gate Passes view */}
-      {view === 'gate-passes' && (
-        <GatePassesView projects={projects} />
-      )}
-
-      {view !== 'logs' && view !== 'gate-passes' && (
+      {view !== 'logs' && (
         <>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
@@ -274,84 +269,3 @@ function LogsView({ projects, onNewLog }: { projects: Project[]; onNewLog: (p: P
   )
 }
 
-const GP_STATUS_COLORS: Record<string, string> = {
-  Pending: 'bg-gray-100 text-gray-600',
-  Ready: 'bg-green-100 text-green-700',
-  Delivered: 'bg-blue-100 text-blue-700',
-  Cancelled: 'bg-red-100 text-red-600',
-}
-
-function GatePassesView({ projects }: { projects: Project[] }) {
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-
-  const { data, isLoading, mutate } = useSWR<{ gatePasses: GatePass[] }>(
-    selectedProjectId ? `/api/gate-passes?projectId=${selectedProjectId}` : null,
-    fetcher,
-    { refreshInterval: 300_000 },
-  )
-
-  const gatePasses = data?.gatePasses ?? []
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-3">
-        <p className="text-sm font-semibold text-gray-700">تصاريح البوابة</p>
-        <div className="flex flex-wrap gap-2">
-          {projects.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedProjectId(p.id)}
-              className={`text-xs border rounded-lg px-3 py-1.5 font-medium transition-colors ${
-                selectedProjectId === p.id
-                  ? 'bg-orange-600 border-orange-600 text-white'
-                  : 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
-              }`}
-            >
-              {p.projectId} — {p.projectName}
-            </button>
-          ))}
-          {projects.length === 0 && <p className="text-xs text-gray-400">لا توجد مشاريع.</p>}
-        </div>
-      </div>
-
-      {isLoading && <div className="flex justify-center py-8"><div className="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
-
-      {!isLoading && selectedProjectId && gatePasses.length === 0 && (
-        <p className="text-center py-8 text-sm text-gray-400">لا توجد تصاريح بوابة لهذا المشروع بعد.</p>
-      )}
-
-      {gatePasses.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          <div className="divide-y divide-gray-50">
-            {gatePasses.map((gp) => (
-              <div key={gp.id} className="px-4 py-3 space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-900">{gp.name || gp.itemsDescription.slice(0, 40)}</p>
-                  {gp.gatePassStatus && (
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${GP_STATUS_COLORS[gp.gatePassStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {gp.gatePassStatus}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-600 whitespace-pre-line">{gp.itemsDescription}</p>
-                <div className="flex flex-wrap gap-3 text-xs text-gray-400">
-                  <span>التوريد المتوقع: {gp.estimatedSupplyDate}</span>
-                  {gp.confirmedDeliveryDate && <span>مؤكد: {gp.confirmedDeliveryDate}</span>}
-                  {gp.siteReady && <span className="text-green-600">الموقع جاهز</span>}
-                  {gp.clientNotified && <span className="text-blue-600">تم إبلاغ العميل</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="px-4 py-2 border-t border-gray-100 flex justify-end">
-            <button onClick={() => mutate()} className="text-xs text-gray-400 hover:text-gray-600">تحديث</button>
-          </div>
-        </div>
-      )}
-
-      {!selectedProjectId && (
-        <p className="text-center py-10 text-sm text-gray-400">اختر مشروعًا لعرض تصاريحه.</p>
-      )}
-    </div>
-  )
-}

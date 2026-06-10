@@ -30,6 +30,10 @@ function rowTotal(r: QuotationRow): number {
   return (parseInt(r.quantity) || 0) * (parseFloat(r.unitPrice) || 0)
 }
 
+function fmt(n: number): string {
+  return n.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 const inp = 'w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400'
 
 interface Props {
@@ -40,13 +44,13 @@ interface Props {
 export default function F5QuotationPanel({ task, onUpdate }: Props) {
   const [rows, setRows] = useState<QuotationRow[]>([emptyRow()])
   const [quotationDate, setQuotationDate] = useState(todayUAE())
-  const [totalOverride, setTotalOverride] = useState('')
+  const [quotationRef, setQuotationRef] = useState(task.projectQuotationReference ?? '')
+  const [discount, setDiscount] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
   const projectId = task.projectRecordId ?? task.project?.[0]
   const quotationNumber = task.projectQuotationNumber ?? ''
-  const quotationReference = task.projectQuotationReference
 
   function updateRow(i: number, patch: Partial<QuotationRow>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
@@ -61,12 +65,19 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
     }))
   }
 
-  const grandTotal = rows.reduce((s, r) => s + rowTotal(r), 0)
+  const subtotal = rows.reduce((s, r) => s + rowTotal(r), 0)
+  const discountAmount = parseFloat(discount) || 0
+  const afterDiscount = Math.max(0, subtotal - discountAmount)
+  const vatAmount = afterDiscount * 0.05
+  const total = parseFloat((afterDiscount * 1.05).toFixed(2))
+
+  const sedOwners = [task.projectSalesOwner, ...(task.projectCommunSeds ?? [])].filter(Boolean)
 
   async function handleSubmit() {
     setErr('')
     if (!projectId) { setErr('No project linked to this task'); return }
     if (!quotationNumber) { setErr('Quotation number not set — complete the Make Quotation task first'); return }
+    if (!quotationRef.trim()) { setErr('Quotation reference is required'); return }
     if (!quotationDate) { setErr('Quotation date is required'); return }
 
     for (let i = 0; i < rows.length; i++) {
@@ -80,13 +91,11 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
 
     setSaving(true)
     try {
-      const parsedOverride = totalOverride !== '' ? parseFloat(totalOverride) : undefined
-      const totalAmountToPay = parsedOverride !== undefined && !isNaN(parsedOverride) ? parsedOverride : grandTotal
-
       const body: Record<string, unknown> = {
         quotationNumber: quotationNumber.trim(),
+        quotationReference: quotationRef.trim(),
         quotationDate,
-        totalAmountToPay,
+        totalAmountToPay: total,
         items: rows.map((r) => ({
           itemName: r.itemName.trim(),
           description: r.description.trim(),
@@ -95,7 +104,6 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
           actions: r.actions,
         })),
       }
-      if (quotationReference) body.quotationReference = quotationReference
 
       const res = await fetch(`/api/projects/${projectId}/quotation`, {
         method: 'POST',
@@ -106,7 +114,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
       if (!res.ok) throw new Error(data.error ?? 'Failed to save')
 
       await onUpdate(task.id, { status: 'Completed' })
-      toast.success(`F5 submitted — ${rows.length} item${rows.length !== 1 ? 's' : ''} added`)
+      toast.success(`F5 submitted — ${rows.length} item${rows.length !== 1 ? 's' : ''}`)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed')
       toast.error('Failed to submit F5')
@@ -124,7 +132,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
         <span className="font-normal text-blue-700">— add items, then submit</span>
       </p>
 
-      {/* Quotation header info */}
+      {/* Quotation header */}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <p className="text-xs text-gray-400 mb-0.5">Quotation Number</p>
@@ -141,12 +149,29 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
             onChange={(e) => setQuotationDate(e.target.value)}
           />
         </div>
+        <div className="col-span-2">
+          <label className="block text-xs text-gray-400 mb-0.5">Quotation Reference *</label>
+          <input
+            className={inp}
+            value={quotationRef}
+            onChange={(e) => setQuotationRef(e.target.value)}
+            placeholder="e.g. REF-2024-001"
+          />
+        </div>
       </div>
 
       {!quotationNumber && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
           Complete the Make Quotation task first to set the quotation number.
         </p>
+      )}
+
+      {/* SED owners */}
+      {sedOwners.length > 0 && (
+        <div className="bg-white border border-blue-100 rounded px-2 py-1.5">
+          <span className="text-xs text-gray-400">SED Owners: </span>
+          <span className="text-xs text-gray-700 font-medium">{sedOwners.join(', ')}</span>
+        </div>
       )}
 
       {/* Item rows */}
@@ -165,7 +190,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
           </thead>
           <tbody className="divide-y divide-blue-100">
             {rows.map((row, i) => {
-              const total = rowTotal(row)
+              const rowTot = rowTotal(row)
               return (
                 <tr key={i}>
                   <td className="py-1 pr-2">
@@ -206,7 +231,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
                     />
                   </td>
                   <td className="py-1 pr-2 tabular-nums text-gray-600 font-mono">
-                    {total > 0 ? total.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                    {rowTot > 0 ? fmt(rowTot) : '—'}
                   </td>
                   <td className="py-1 pr-2">
                     <div className="flex flex-col gap-0.5">
@@ -239,18 +264,39 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
         + Add item
       </button>
 
-      {/* Total */}
-      <div className="flex items-center gap-3 pt-1 border-t border-blue-200">
-        <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">Total to Pay (AED)</span>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          className={`${inp} text-right font-semibold`}
-          value={totalOverride !== '' ? totalOverride : grandTotal > 0 ? grandTotal.toFixed(2) : ''}
-          onChange={(e) => setTotalOverride(e.target.value)}
-          placeholder="0.00"
-        />
+      {/* Pricing summary */}
+      <div className="border-t border-blue-200 pt-2 space-y-1">
+        <div className="flex justify-between text-xs text-gray-600">
+          <span>Subtotal</span>
+          <span className="font-mono tabular-nums">AED {fmt(subtotal)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 text-xs text-gray-600">
+          <label htmlFor="f5-discount">Discount (AED)</label>
+          <input
+            id="f5-discount"
+            type="number"
+            min="0"
+            step="0.01"
+            className="w-32 border border-gray-200 rounded px-2 py-0.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
+            value={discount}
+            onChange={(e) => setDiscount(e.target.value)}
+            placeholder="0.00"
+          />
+        </div>
+        {discountAmount > 0 && (
+          <div className="flex justify-between text-xs text-gray-600">
+            <span>After discount</span>
+            <span className="font-mono tabular-nums">AED {fmt(afterDiscount)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>VAT (5%)</span>
+          <span className="font-mono tabular-nums">AED {fmt(vatAmount)}</span>
+        </div>
+        <div className="flex justify-between text-xs font-semibold text-gray-800 border-t border-blue-200 pt-1">
+          <span>Total (incl. VAT)</span>
+          <span className="font-mono tabular-nums">AED {fmt(total)}</span>
+        </div>
       </div>
 
       {err && <p className="text-xs text-red-600">{err}</p>}

@@ -256,9 +256,7 @@ function AddActivityModal({
   )
 }
 
-// ─── Add Installation / Delivery Modal ───────────────────────────────────────
-
-type InstallMode = 'task' | 'delivery'
+// ─── Add Installation Modal ───────────────────────────────────────────────────
 
 function AddInstallationModal({
   date,
@@ -270,12 +268,10 @@ function AddInstallationModal({
   onSuccess: () => void
 }) {
   const { data: projectData } = useSWR<{ projects: Project[] }>('/api/projects?all=true', fetcher)
-  const [mode, setMode] = useState<InstallMode>('task')
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [projectTasks, setProjectTasks] = useState<Task[]>([])
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState('')
-  const [itemsDescription, setItemsDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -285,7 +281,7 @@ function AddInstallationModal({
     setSelectedProjectId(projectRecordId)
     setSelectedTaskId('')
     setProjectTasks([])
-    if (!projectRecordId || mode !== 'task') return
+    if (!projectRecordId) return
     setLoadingTasks(true)
     try {
       const res = await fetch(`/api/tasks?projectId=${projectRecordId}&all=true`)
@@ -302,50 +298,20 @@ function AddInstallationModal({
     }
   }
 
-  function handleModeChange(m: InstallMode) {
-    setMode(m)
-    setSelectedProjectId('')
-    setSelectedTaskId('')
-    setProjectTasks([])
-    setItemsDescription('')
-    setError(null)
-  }
-
   async function handleSubmit() {
+    if (!selectedTaskId) { setError('Select a task'); return }
     setSaving(true)
     setError(null)
     try {
-      if (mode === 'task') {
-        if (!selectedTaskId) { setError('Select a task'); setSaving(false); return }
-        const res = await fetch(`/api/tasks/${selectedTaskId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fields: { taskStartDate: date } }),
-        })
-        if (!res.ok) {
-          const d = await res.json()
-          setError(d.error ?? 'Failed to save')
-          return
-        }
-      } else {
-        if (!selectedProjectId) { setError('Select a project'); setSaving(false); return }
-        if (!itemsDescription.trim()) { setError('Enter items description'); setSaving(false); return }
-        const proj = projects.find((p) => p.id === selectedProjectId)
-        if (!proj) { setError('Project not found'); setSaving(false); return }
-        const res = await fetch('/api/gate-passes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: [selectedProjectId],
-            itemsDescription: itemsDescription.trim(),
-            estimatedSupplyDate: date,
-          }),
-        })
-        if (!res.ok) {
-          const d = await res.json()
-          setError(d.error ?? 'Failed to save')
-          return
-        }
+      const res = await fetch(`/api/tasks/${selectedTaskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { taskStartDate: date } }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setError(d.error ?? 'Failed to save')
+        return
       }
       onSuccess()
       onClose()
@@ -375,26 +341,6 @@ function AddInstallationModal({
           </button>
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex rounded-lg border border-gray-200 p-0.5 mb-4">
-          <button
-            onClick={() => handleModeChange('task')}
-            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              mode === 'task' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Installation Task
-          </button>
-          <button
-            onClick={() => handleModeChange('delivery')}
-            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              mode === 'delivery' ? 'bg-green-500 text-white' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Delivery
-          </button>
-        </div>
-
         {error && (
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
             {error}
@@ -418,7 +364,7 @@ function AddInstallationModal({
             </select>
           </div>
 
-          {mode === 'task' && selectedProjectId && (
+          {selectedProjectId && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Installation Task</label>
               {loadingTasks ? (
@@ -437,19 +383,6 @@ function AddInstallationModal({
                   ))}
                 </select>
               )}
-            </div>
-          )}
-
-          {mode === 'delivery' && selectedProjectId && (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Items Description</label>
-              <input
-                type="text"
-                value={itemsDescription}
-                onChange={(e) => setItemsDescription(e.target.value)}
-                placeholder="e.g. Kitchen cabinets batch 1"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
             </div>
           )}
         </div>

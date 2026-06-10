@@ -11,7 +11,6 @@ import PaymentTrackerView from '@/components/projects/PaymentTrackerView'
 import QuotationModal from '@/components/projects/QuotationModal'
 import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
 import HandoverModal from '@/components/projects/HandoverModal'
-import GatePassModal from '@/components/projects/GatePassModal'
 import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
 import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
 import AssignInstallationModal, { TeamMember } from '@/components/projects/AssignInstallationModal'
@@ -32,7 +31,7 @@ export default function MgrDashboard() {
   const [quotationProject, setQuotationProject] = useState<Project | null>(null)
   const [showMaterialModal, setShowMaterialModal] = useState(false)
   const [handoverProject, setHandoverProject] = useState<Project | null>(null)
-  const [gatePassProject, setGatePassProject] = useState<Project | null>(null)
+
 
   const { data: taskData, error: taskError, isLoading: taskLoading, mutate: mutateTasks } =
     useSWR<{ tasks: Task[] }>('/api/tasks?role=manager', fetcher, { refreshInterval: 300_000 })
@@ -152,9 +151,6 @@ export default function MgrDashboard() {
                     </button>
                     <button onClick={() => setHandoverProject(p)} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
                       F6 — Handover Sheet
-                    </button>
-                    <button onClick={() => setGatePassProject(p)} className="text-xs text-orange-600 hover:text-orange-700 font-medium">
-                      Gate Pass
                     </button>
                     <RequestMeasurementButton projectId={p.id} />
                   </div>
@@ -322,13 +318,6 @@ export default function MgrDashboard() {
         />
       )}
 
-      {gatePassProject && (
-        <GatePassModal
-          project={gatePassProject}
-          onClose={() => setGatePassProject(null)}
-          onCreated={() => mutateProjects()}
-        />
-      )}
 
     </div>
   )

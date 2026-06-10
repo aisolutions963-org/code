@@ -92,8 +92,8 @@ export const MaterialDecisionSchema = z.object({
 })
 
 export const CreateQuotationItemsSchema = z.object({
-  quotationNumber: z.string().min(1, 'Quotation number is required').max(100).transform((v) => v.trim()),
-  quotationReference: z.string().max(100).optional().transform((v) => v?.trim() || undefined),
+  quotationNumber: z.string().min(1, 'Quotation number is required').regex(/^\d{4,}$/, 'Quotation number must be at least 4 digits').max(100).transform((v) => v.trim()),
+  quotationReference: z.string().min(1, 'Quotation reference is required').max(100).transform((v) => v.trim()),
   quotationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid quotation date'),
   items: z
     .array(

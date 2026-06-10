@@ -31,21 +31,9 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     )
   }
 
-  const project = await getProjectById(id)
-  const currentRef = project.quotationReference
-
-  let nextRef: string
-  if (parsed.data.quotationReference) {
-    nextRef = parsed.data.quotationReference
-  } else if (!currentRef) {
-    nextRef = 'R0'
-  } else {
-    nextRef = currentRef
-  }
-
   const projectUpdate: Record<string, unknown> = {
     [PROJECTS.QUOTATION_NUMBER]: parsed.data.quotationNumber,
-    [PROJECTS.QUOTATION_REFERENCE]: nextRef,
+    [PROJECTS.QUOTATION_REFERENCE]: parsed.data.quotationReference,
   }
   if (parsed.data.totalAmountToPay !== undefined) {
     projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = parsed.data.totalAmountToPay

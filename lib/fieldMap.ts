@@ -95,7 +95,6 @@ export const PROJECTS = {
   TASKS: 'fldCezGrdho4OveCs',
   PROJECT_ITEMS: 'fldYcgC7XmHzZk9A1',
   PAYMENTS: 'fldtHlJddB54ZHeNZ',
-  GATE_PASSES: 'fld7iklMx1CKLXZiw',
   PROJECT_CREATED_AT: 'fldj9TQDO0WZEZBCR',
   MANAGER_NOTES: 'fldr3TvHVibp8QBtg',
   SED_NOTES: 'fldxFwBQKWytFdrBp',
@@ -161,18 +160,6 @@ export const PAYMENTS = {
   PAYER_NAME: 'fld7lK5GIkQibmLwe',
   COMMISSION_AMOUNT: 'fldqLG1zZiGwBu5XQ',
   RECORDED_BY: 'fldP53RxatemRSJ28',
-} as const
-
-export const GATE_PASSES = {
-  TABLE_ID: 'tblLu66NWdfPva9Mp',
-  NAME: 'fld2s422gcSf2ch4e',
-  PROJECT: 'fldLNjM9Z0ujfSmxc',
-  ITEMS_DESCRIPTION: 'fldiFsHMgMfCo7xUl',
-  ESTIMATED_SUPPLY_DATE: 'fldApKYRSn6boaOTR',
-  CONFIRMED_DELIVERY_DATE: 'fldbNn9XqApu67fXu',
-  GATE_PASS_STATUS: 'flddMUpnVZevM5y8X',
-  SITE_READY: 'fldMfo0s6OPcWXLpp',
-  CLIENT_NOTIFIED: 'fld1GxEYGezNjNgcp',
 } as const
 
 export const TEAM_MEMBERS = {

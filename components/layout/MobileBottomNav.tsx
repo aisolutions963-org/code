@@ -166,7 +166,6 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries' },
     { label: 'Inspections', href: '/dashboard/fix?view=inspections' },
     { label: 'Install Logs', href: '/dashboard/fix?view=logs' },
-    { label: 'Gate Passes', href: '/dashboard/fix?view=gate-passes' },
   ],
   sed: [
     { label: 'Home', href: '/home' },

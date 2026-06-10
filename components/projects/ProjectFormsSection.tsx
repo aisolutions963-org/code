@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Quotation, Payment, Material, PurchaseOrder, GatePass, HandoverSheet, Role } from '@/lib/types'
+import { Quotation, Payment, Material, PurchaseOrder, HandoverSheet, Role } from '@/lib/types'
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
@@ -69,10 +69,6 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
     open ? `/api/projects/${projectId}/purchase-orders` : null,
     fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
   )
-  const { data: gatePassesData, error: gatePassesError } = useSWR<{ gatePasses: GatePass[] }>(
-    open ? `/api/gate-passes?projectId=${projectId}` : null,
-    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
-  )
   const { data: handoverData, error: handoverError } = useSWR<{ sheets: HandoverSheet[] }>(
     open ? `/api/projects/${projectId}/handover` : null,
     fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
@@ -82,17 +78,15 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
   const materials = materialsData?.materials ?? []
   const payments = paymentsData?.payments ?? []
   const purchaseOrders = purchaseOrdersData?.purchaseOrders ?? []
-  const gatePasses = gatePassesData?.gatePasses ?? []
   const handoverSheets = handoverData?.sheets ?? []
 
-  const total = quotations.length + materials.length + purchaseOrders.length + gatePasses.length + handoverSheets.length
+  const total = quotations.length + materials.length + purchaseOrders.length + handoverSheets.length
     + (showPayments ? payments.length : 0)
 
   const allLoaded =
     done(quotationsData, quotationsError) &&
     done(materialsData, materialsError) &&
     done(purchaseOrdersData, purchaseOrdersError) &&
-    done(gatePassesData, gatePassesError) &&
     done(handoverData, handoverError) &&
     (!showPayments || done(paymentsData, paymentsError))
 
@@ -148,28 +142,6 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
                       </span>
                     </div>
                     {h.notes && <p className="text-[11px] text-gray-400 mt-1 italic">{h.notes}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Gate Passes */}
-          {gatePasses.length > 0 && (
-            <div className="border border-gray-100 rounded-xl overflow-hidden">
-              <div className="px-3 py-2 bg-sky-50 border-b border-sky-100">
-                <p className="text-xs font-semibold text-sky-700">Gate Passes ({gatePasses.length})</p>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {gatePasses.map((g) => (
-                  <div key={g.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-gray-700 truncate">{g.itemsDescription}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        {g.estimatedSupplyDate ? `Est. supply: ${g.estimatedSupplyDate}` : ''}
-                        {g.confirmedDeliveryDate ? ` · Delivered: ${g.confirmedDeliveryDate}` : ''}
-                      </p>
-                    </div>
                   </div>
                 ))}
               </div>

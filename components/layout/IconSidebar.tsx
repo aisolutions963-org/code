@@ -192,14 +192,6 @@ function InspectIcon() {
   )
 }
 
-function GatePassIcon() {
-  return (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-    </svg>
-  )
-}
-
 function ClipboardIcon() {
   return (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -372,7 +364,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Inspections', href: '/dashboard/fix?view=inspections', icon: <InspectIcon /> },
         { label: 'Install Logs', href: '/dashboard/fix?view=logs', icon: <ClipboardIcon /> },
-        { label: 'Gate Passes', href: '/dashboard/fix?view=gate-passes', icon: <GatePassIcon /> },
       ],
     },
   ],

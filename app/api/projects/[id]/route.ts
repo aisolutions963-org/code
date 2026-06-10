@@ -5,7 +5,6 @@ import {
   getTasksForProject,
   getAllTasksForProject,
   getPaymentsByProject,
-  getGatePassesByProject,
   deleteTasksByProjectId,
   deleteProjectById,
   updateProject,
@@ -25,16 +24,15 @@ export async function GET(
   const canSeePayments = session.role === 'manager' || session.role === 'superadmin'
 
   try {
-    const [project, tasks, payments, gatePasses] = await Promise.all([
+    const [project, tasks, payments] = await Promise.all([
       getProjectById(id),
       session.role === 'superadmin' || session.role === 'manager'
         ? getAllTasksForProject(id)
         : getTasksForProject(id, session.role),
       canSeePayments ? getPaymentsByProject(id) : Promise.resolve([]),
-      getGatePassesByProject(id),
     ])
 
-    return NextResponse.json({ project: { ...project, tasks, payments, gatePasses } })
+    return NextResponse.json({ project: { ...project, tasks, payments } })
   } catch (error) {
     console.error('GET /api/projects/[id] error:', error)
     return NextResponse.json({ error: 'Failed to fetch project' }, { status: 500 })

@@ -86,6 +86,8 @@ export interface Task {
   projectNickname?: string
   projectQuotationNumber?: string
   projectQuotationReference?: string
+  projectSalesOwner?: string
+  projectCommunSeds?: string[]
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
 }
@@ -153,7 +155,6 @@ export interface Project {
   taskIds?: string[]
   projectItemIds?: string[]
   paymentIds?: string[]
-  gatePassIds?: string[]
   managerNotes?: string
   sedNotes?: string
   projectCreatedAt?: string
@@ -187,7 +188,6 @@ export interface ProjectCreateInput {
 export interface ProjectWithDetails extends Project {
   tasks?: Task[]
   payments?: Payment[]
-  gatePasses?: GatePass[]
 }
 
 export interface Payment {
@@ -225,46 +225,6 @@ export interface PaymentCreateInput {
   commissionAmount?: number
   notes?: string
   recordedBy?: string
-}
-
-export interface GatePassPrintPayload {
-  _v: 1
-  timeOfIssue?: string
-  timeAmPm?: string
-  passValidity?: string
-  driverName?: string
-  driverIdLicense?: string
-  driverContact?: string
-  transportCompany?: string
-  vehicleModel?: string
-  vehiclePlate?: string
-  invoiceDoNumber?: string
-  items?: { description: string; quantity: string; unit: string; condition: string }[]
-  customerName?: string
-  deliveryAddress?: string
-  customerContact?: string
-}
-
-export interface GatePass {
-  id: string
-  name: string
-  project: string[]
-  itemsDescription: string
-  estimatedSupplyDate: string
-  confirmedDeliveryDate?: string
-  gatePassStatus?: string
-  siteReady?: boolean
-  clientNotified?: boolean
-  projectName?: string
-  projectDisplayId?: string
-  printData?: GatePassPrintPayload
-}
-
-export interface GatePassCreateInput {
-  project: string[]
-  itemsDescription: string
-  estimatedSupplyDate: string
-  confirmedDeliveryDate?: string
 }
 
 export interface MaintenanceRecord {
