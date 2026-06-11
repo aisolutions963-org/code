@@ -26,9 +26,19 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/forms': 'Forms',
 }
 
+interface OverduePayment {
+  id: string
+  projectId: string
+  projectName: string
+  projectRef?: string
+  amount: number
+  dueDate: string
+  paymentType: string
+}
+
 interface SuperadminMetrics {
   staleProjects: number
-  overduePayments: number
+  overduePayments: OverduePayment[]
   pendingApprovals: number
   callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 }
@@ -116,7 +126,8 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
 
   const pendingCount = pendingData?.count ?? 0
   const staleCount = metricsData?.staleProjects ?? 0
-  const overdueCount = metricsData?.overduePayments ?? 0
+  const overduePayments = metricsData?.overduePayments ?? []
+  const overdueCount = overduePayments.length
   const callClientTasks = metricsData?.callClientTasks ?? []
   const appNotifications = notifData?.notifications ?? []
   const appUnread = notifData?.unreadCount ?? 0
@@ -286,13 +297,23 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                         </span>
                       </div>
                     )}
-                    {overdueCount > 0 && (
-                      <div className="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.04] transition-colors border-t border-white/[0.04]">
-                        <span className="text-sm text-white/60">
-                          <strong className="text-white/90">{overdueCount}</strong> overdue payment{overdueCount !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    )}
+                    {overduePayments.map((p) => (
+                      <Link
+                        key={p.id}
+                        href={`/dashboard/projects/${p.projectId}`}
+                        onClick={() => setBellOpen(false)}
+                        className="px-4 py-3 flex items-start gap-3 hover:bg-white/[0.06] transition-colors border-t border-white/[0.04] block"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-white/80 font-medium truncate">{p.projectName}</p>
+                          <p className="text-xs text-white/40 mt-0.5">
+                            {p.projectRef ? `${p.projectRef} · ` : ''}{p.paymentType || 'Payment'} · AED {p.amount.toLocaleString()}
+                          </p>
+                          <p className="text-[11px] text-red-400 mt-0.5">Due {p.dueDate}</p>
+                        </div>
+                        <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded shrink-0 mt-0.5">Overdue</span>
+                      </Link>
+                    ))}
                   </div>
                 )}
 

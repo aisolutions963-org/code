@@ -6,18 +6,29 @@ import { todayUAE } from '@/lib/dateUtils'
 
 export const dynamic = 'force-dynamic'
 
-async function getOverduePaymentsCount(): Promise<number> {
+interface RawOverduePayment {
+  id: string
+  amount: number
+  dueDate: string
+  paymentType: string
+  projectRecordId: string
+}
+
+async function getOverduePaymentsList(): Promise<RawOverduePayment[]> {
   const key = process.env.AIRTABLE_API_KEY
   const base = process.env.AIRTABLE_BASE_ID
-  if (!key || !base) return 0
+  if (!key || !base) return []
   const today = todayUAE()
   const formula = `AND({${PAYMENTS.PAYMENT_STATUS}}="Pending", NOT({${PAYMENTS.DUE_DATE}}=BLANK()), IS_BEFORE({${PAYMENTS.DUE_DATE}}, "${today}"))`
-  let count = 0
+  const results: RawOverduePayment[] = []
   let offset: string | undefined
   do {
     const parts = [
       `filterByFormula=${encodeURIComponent(formula)}`,
-      `fields[]=${PAYMENTS.PAYMENT_STATUS}`,
+      `fields[]=${PAYMENTS.AMOUNT}`,
+      `fields[]=${PAYMENTS.DUE_DATE}`,
+      `fields[]=${PAYMENTS.PAYMENT_TYPE}`,
+      `fields[]=${PAYMENTS.PROJECT}`,
     ]
     if (offset) parts.push(`offset=${encodeURIComponent(offset)}`)
     const res = await fetch(
@@ -25,20 +36,45 @@ async function getOverduePaymentsCount(): Promise<number> {
       { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' },
     )
     if (!res.ok) break
-    const data = await res.json() as { records: unknown[]; offset?: string }
-    count += data.records.length
+    const data = await res.json() as { records: { id: string; fields: Record<string, unknown> }[]; offset?: string }
+    for (const rec of data.records) {
+      const f = rec.fields
+      const projectIds = (f[PAYMENTS.PROJECT] as string[] | undefined) ?? []
+      results.push({
+        id: rec.id,
+        amount: (f[PAYMENTS.AMOUNT] as number | undefined) ?? 0,
+        dueDate: (f[PAYMENTS.DUE_DATE] as string | undefined) ?? '',
+        paymentType: (f[PAYMENTS.PAYMENT_TYPE] as string | undefined) ?? '',
+        projectRecordId: projectIds[0] ?? '',
+      })
+    }
     offset = data.offset
   } while (offset)
-  return count
+  return results
 }
 
 export const GET = requireRole('superadmin')(async () => {
-  const [projects, pendingApprovals, overduePayments, callClientTasks] = await Promise.all([
+  const [projects, pendingApprovals, rawOverduePayments, callClientTasks] = await Promise.all([
     getAllProjects(),
     getPendingApprovalsCount(),
-    getOverduePaymentsCount(),
+    getOverduePaymentsList(),
     getCallClientPendingTasks(),
   ])
+
+  const projectById = Object.fromEntries(projects.map((p) => [p.id, p]))
+
+  const overduePayments = rawOverduePayments.map((p) => {
+    const proj = projectById[p.projectRecordId]
+    return {
+      id: p.id,
+      projectId: p.projectRecordId,
+      projectName: proj?.projectName ?? 'Unknown Project',
+      projectRef: proj?.projectId ?? undefined,
+      amount: p.amount,
+      dueDate: p.dueDate,
+      paymentType: p.paymentType,
+    }
+  })
 
   const totalProjects = projects.length
   const activeProjects = projects.filter(

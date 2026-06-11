@@ -31,6 +31,7 @@ export default function MgrDashboard() {
   const [quotationProject, setQuotationProject] = useState<Project | null>(null)
   const [showMaterialModal, setShowMaterialModal] = useState(false)
   const [handoverProject, setHandoverProject] = useState<Project | null>(null)
+  const [projectSearch, setProjectSearch] = useState('')
 
 
   const { data: taskData, error: taskError, isLoading: taskLoading, mutate: mutateTasks } =
@@ -118,51 +119,84 @@ export default function MgrDashboard() {
       )}
 
       {/* Projects view */}
-      {view === 'projects' && (
-        <>
-          {projectLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
-          {(projectError || projectsApiError) && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-              Failed to load projects: {projectsApiError ?? 'network error'}.
-              Visit <a href="/api/debug/projects" target="_blank" className="underline font-medium">/api/debug/projects</a> to diagnose.
-            </div>
-          )}
-          {!projectLoading && !projectError && !projectsApiError && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {projects.map((p) => (
-                <div key={p.id} className="space-y-2">
-                  <ProjectCard project={p} showPayments>
-                    <div className="pt-2 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-400 mb-1">Notes</p>
-                      <ProjectNotesEditor
-                        projectId={p.id}
-                        initialNotes={p.managerNotes}
-                        editable
-                        onSaved={() => mutateProjects()}
-                      />
-                    </div>
-                  </ProjectCard>
-                  <div className="flex flex-wrap gap-3 px-1">
-                    <button onClick={() => setQuotationProject(p)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
-                      F5 — Add Quotation Items
-                    </button>
-                    <button onClick={() => setShowMaterialModal(true)} className="text-xs text-green-600 hover:text-green-700 font-medium">
-                      F3 — Order Materials
-                    </button>
-                    <button onClick={() => setHandoverProject(p)} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
-                      F6 — Handover Sheet
-                    </button>
-                    <RequestMeasurementButton projectId={p.id} />
-                  </div>
+      {view === 'projects' && (() => {
+        const q = projectSearch.trim().toLowerCase()
+        const visibleProjects = q
+          ? projects.filter((p) =>
+              p.projectName.toLowerCase().includes(q) ||
+              p.clientName.toLowerCase().includes(q) ||
+              (p.quotationNumber ?? '').toLowerCase().includes(q) ||
+              (p.quotationReference ?? '').toLowerCase().includes(q) ||
+              (p.projectId ?? '').toLowerCase().includes(q) ||
+              (p.nickname ?? '').toLowerCase().includes(q),
+            )
+          : projects
+        return (
+          <>
+            {projectLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
+            {(projectError || projectsApiError) && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                Failed to load projects: {projectsApiError ?? 'network error'}.
+                Visit <a href="/api/debug/projects" target="_blank" className="underline font-medium">/api/debug/projects</a> to diagnose.
+              </div>
+            )}
+            {!projectLoading && !projectError && !projectsApiError && (
+              <>
+                <div className="relative mb-4">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={projectSearch}
+                    onChange={(e) => setProjectSearch(e.target.value)}
+                    placeholder="Search by project name, client, quotation number…"
+                    className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
+                  />
+                  {projectSearch && (
+                    <button onClick={() => setProjectSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+                  )}
                 </div>
-              ))}
-              {projects.length === 0 && (
-                <p className="col-span-2 text-center py-10 text-sm text-gray-400">No active projects found.</p>
-              )}
-            </div>
-          )}
-        </>
-      )}
+                {visibleProjects.length === 0 ? (
+                  <p className="text-center py-10 text-sm text-gray-400">
+                    {q ? `No projects match "${projectSearch}"` : 'No active projects found.'}
+                  </p>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {visibleProjects.map((p) => (
+                      <div key={p.id} className="space-y-2">
+                        <ProjectCard project={p} showPayments>
+                          <div className="pt-2 border-t border-gray-100">
+                            <p className="text-xs font-medium text-gray-400 mb-1">Notes</p>
+                            <ProjectNotesEditor
+                              projectId={p.id}
+                              initialNotes={p.managerNotes}
+                              editable
+                              onSaved={() => mutateProjects()}
+                            />
+                          </div>
+                        </ProjectCard>
+                        <div className="flex flex-wrap gap-3 px-1">
+                          <button onClick={() => setQuotationProject(p)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                            F5 — Add Quotation Items
+                          </button>
+                          <button onClick={() => setShowMaterialModal(true)} className="text-xs text-green-600 hover:text-green-700 font-medium">
+                            F3 — Order Materials
+                          </button>
+                          <button onClick={() => setHandoverProject(p)} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
+                            F6 — Handover Sheet
+                          </button>
+                          <RequestMeasurementButton projectId={p.id} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )
+      })()}
 
       {/* Payments view */}
       {view === 'payments' && (

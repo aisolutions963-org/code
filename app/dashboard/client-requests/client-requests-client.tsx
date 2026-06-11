@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import toast from 'react-hot-toast'
 import { ClientRequest, Project, Role } from '@/lib/types'
@@ -10,7 +10,6 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 interface SedMember {
   id: string
   name: string
-  email: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,7 +59,7 @@ function RequestCard({ req }: { req: ClientRequest }) {
         </span>
       </div>
 
-      {isTrade && (req.parentProjectName || req.tradeReference) && (
+      {(req.parentProjectName || req.tradeReference) && (
         <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3">
           {req.parentProjectName && (
             <span>Project: <span className="font-medium text-gray-700">{req.parentProjectName}</span></span>
@@ -107,16 +106,22 @@ function CreateModal({
   showSedPicker: boolean
 }) {
   const [requestType, setRequestType] = useState<'Trade' | 'Maintenance'>('Trade')
+  const [parentProjectId, setParentProjectId] = useState('')
   const [clientName, setClientName] = useState('')
   const [clientPhone, setClientPhone] = useState('')
   const [description, setDescription] = useState('')
-  const [parentProjectId, setParentProjectId] = useState('')
+  const [tradeReference, setTradeReference] = useState('')
   const [selectedSedId, setSelectedSedId] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
-  const { data: projectsData } = useSWR<{ projects: Project[] }>('/api/projects', fetcher)
-  const allProjects = projectsData?.projects ?? []
+  // Maintenance needs warranty-stage projects; Trade needs all active projects
+  const projectsUrl = requestType === 'Maintenance'
+    ? '/api/projects?stage=Closed+and+active+warranty'
+    : '/api/projects'
+
+  const { data: projectsData } = useSWR<{ projects: Project[] }>(projectsUrl, fetcher)
+  const filteredProjects = projectsData?.projects ?? []
 
   const { data: sedData } = useSWR<{ members: SedMember[] }>(
     showSedPicker ? '/api/team/sed' : null,
@@ -124,23 +129,59 @@ function CreateModal({
   )
   const sedMembers = sedData?.members ?? []
 
+  const selectedProject = filteredProjects.find((p) => p.id === parentProjectId)
+
+  // Auto-populate SED when a project is selected
+  useEffect(() => {
+    if (!parentProjectId || !showSedPicker) return
+    const proj = filteredProjects.find((p) => p.id === parentProjectId)
+    if (proj?.salesOwner?.id) {
+      setSelectedSedId(proj.salesOwner.id)
+    }
+  }, [parentProjectId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build full trade reference: {quotationNumber}{tradeInput}r{quotationReference}
+  const quotNum = selectedProject?.quotationNumber ?? ''
+  const quotRef = selectedProject?.quotationReference ?? ''
+  const tradeInputClean = tradeReference.trim()
+  const fullTradeRef = tradeInputClean
+    ? quotNum
+      ? `${quotNum}${tradeInputClean}${quotRef ? `r${quotRef}` : ''}`
+      : tradeInputClean
+    : ''
+
+  // Reset project selection when type changes
+  function handleTypeChange(t: 'Trade' | 'Maintenance') {
+    setRequestType(t)
+    setParentProjectId('')
+    setSelectedSedId('')
+  }
+
   const inp =
     'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400'
 
   async function handleSubmit() {
     setErr('')
-    if (!clientName.trim()) { setErr('Client name is required'); return }
-    if (requestType === 'Trade' && !parentProjectId) {
-      setErr('Select the parent project for this trade')
+    if (!parentProjectId) {
+      setErr(
+        requestType === 'Trade'
+          ? 'Select the parent project for this trade'
+          : 'Select the project under warranty for this maintenance request',
+      )
       return
     }
+    if (!clientName.trim()) { setErr('Client name is required'); return }
 
     setSaving(true)
     try {
-      const body: Record<string, unknown> = { requestType, clientName: clientName.trim() }
+      const body: Record<string, unknown> = {
+        requestType,
+        clientName: clientName.trim(),
+        parentProjectId,
+      }
       if (clientPhone.trim()) body.clientPhone = clientPhone.trim()
       if (description.trim()) body.description = description.trim()
-      if (requestType === 'Trade') body.parentProjectId = parentProjectId
+      if (requestType === 'Trade' && fullTradeRef) body.tradeReference = fullTradeRef
       if (showSedPicker && selectedSedId) body.salesOwnerCollaboratorId = selectedSedId
 
       const res = await fetch('/api/client-requests', {
@@ -155,7 +196,8 @@ function CreateModal({
       onCreated()
       onClose()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed')
+      const msg = e instanceof Error ? e.message : 'Failed'
+      setErr(msg)
       toast.error('Failed to create request')
     } finally {
       setSaving(false)
@@ -181,7 +223,7 @@ function CreateModal({
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setRequestType(t)}
+                  onClick={() => handleTypeChange(t)}
                   className={`flex-1 py-2 text-sm font-medium transition-colors ${
                     requestType === t
                       ? t === 'Trade'
@@ -196,23 +238,47 @@ function CreateModal({
             </div>
           </div>
 
-          {/* Parent Project (Trade only) */}
+          {/* Project selection — required for both types */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1 font-medium">
+              {requestType === 'Trade' ? 'Parent Project *' : 'Project Under Warranty *'}
+            </label>
+            <select
+              className={inp}
+              value={parentProjectId}
+              onChange={(e) => setParentProjectId(e.target.value)}
+            >
+              <option value="">Select project…</option>
+              {filteredProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.projectName}
+                  {p.projectId ? ` (${p.projectId})` : ''}
+                </option>
+              ))}
+            </select>
+            {requestType === 'Maintenance' && filteredProjects.length === 0 && (
+              <p className="text-[11px] text-orange-500 mt-1">No projects in active warranty found</p>
+            )}
+          </div>
+
+          {/* Trade Number — Trade only */}
           {requestType === 'Trade' && (
             <div>
-              <label className="block text-xs text-gray-500 mb-1 font-medium">Parent Project *</label>
-              <select
+              <label className="block text-xs text-gray-500 mb-1 font-medium">Trade Number</label>
+              <input
                 className={inp}
-                value={parentProjectId}
-                onChange={(e) => setParentProjectId(e.target.value)}
-              >
-                <option value="">Select project…</option>
-                {allProjects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.projectName}
-                    {p.quotationNumber ? ` (${p.quotationNumber})` : ''}
-                  </option>
-                ))}
-              </select>
+                value={tradeReference}
+                onChange={(e) => setTradeReference(e.target.value)}
+                placeholder="e.g. tr1"
+              />
+              {fullTradeRef && (
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Full reference: <span className="font-mono font-semibold text-blue-700">{fullTradeRef}</span>
+                </p>
+              )}
+              {tradeInputClean && !quotNum && (
+                <p className="text-[11px] text-orange-500 mt-1">Select a project to auto-generate the full reference</p>
+              )}
             </div>
           )}
 
@@ -240,20 +306,22 @@ function CreateModal({
 
           {/* Description */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1 font-medium">Description</label>
+            <label className="block text-xs text-gray-500 mb-1 font-medium">
+              {requestType === 'Trade' ? 'Trade Description' : 'Description'}
+            </label>
             <textarea
               className={`${inp} resize-none`}
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does the client need?"
+              placeholder={requestType === 'Trade' ? 'Describe the trade work needed…' : 'What maintenance does the client need?'}
             />
           </div>
 
           {/* SED picker — manager/superadmin only */}
           {showSedPicker && (
             <div>
-              <label className="block text-xs text-gray-500 mb-1 font-medium">Assign to SED</label>
+              <label className="block text-xs text-gray-500 mb-1 font-medium">SED Responsible</label>
               <select
                 className={inp}
                 value={selectedSedId}

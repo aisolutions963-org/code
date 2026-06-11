@@ -23,9 +23,19 @@ interface PendingApprovalsResponse {
   count: number
 }
 
+interface OverduePayment {
+  id: string
+  projectId: string
+  projectName: string
+  projectRef?: string
+  amount: number
+  dueDate: string
+  paymentType: string
+}
+
 interface SuperadminMetrics {
   staleProjects: number
-  overduePayments: number
+  overduePayments: OverduePayment[]
   callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 }
 
@@ -75,7 +85,8 @@ export default function NotificationsPage() {
 
   const pendingCount = pendingData?.count ?? 0
   const staleCount = metricsData?.staleProjects ?? 0
-  const overdueCount = metricsData?.overduePayments ?? 0
+  const overduePayments = metricsData?.overduePayments ?? []
+  const overdueCount = overduePayments.length
   const callClientTasks = metricsData?.callClientTasks ?? []
 
   const hasAlerts = pendingCount > 0 || staleCount > 0 || overdueCount > 0 || callClientTasks.length > 0
@@ -183,18 +194,23 @@ export default function NotificationsPage() {
           )}
 
           {/* Overdue payments */}
-          {overdueCount > 0 && (
-            <div className="px-4 py-3.5 flex items-start gap-3 last:border-0">
-              <div className="w-2 h-2 rounded-full bg-yellow-400 mt-1.5 shrink-0" />
+          {overduePayments.map((p) => (
+            <Link
+              key={p.id}
+              href={`/dashboard/projects/${p.projectId}`}
+              className="px-4 py-3.5 flex items-start gap-3 border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-0 block"
+            >
+              <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  <span className="font-semibold">{overdueCount}</span> overdue payment{overdueCount !== 1 ? 's' : ''}
+                <p className="text-sm font-semibold text-gray-900 truncate">{p.projectName}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {p.projectRef ? `${p.projectRef} · ` : ''}{p.paymentType || 'Payment'} · AED {p.amount.toLocaleString()}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">Past due date, still pending</p>
+                <p className="text-[11px] text-red-500 mt-0.5">Due {p.dueDate}</p>
               </div>
-              <span className="text-[10px] font-semibold text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded shrink-0">Attention</span>
-            </div>
-          )}
+              <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded shrink-0">Overdue</span>
+            </Link>
+          ))}
         </div>
       )}
 

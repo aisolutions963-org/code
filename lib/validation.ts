@@ -198,11 +198,11 @@ export const CreateCalendarEventSchema = z.object({
 
 export const CreateProjectSchema = z.object({
   projectName: z.string().min(1).max(200).transform((v) => v.trim()),
-  nickname: z.string().min(1).max(100).transform((v) => v.trim()),
-  clientName: z.string().min(1).max(200).transform((v) => v.trim()),
   projectDescription: z.string().min(1).max(5000),
-  detailedLocation: z.string().min(1).max(1000),
-  paymentMode: z.enum(['Standard', 'Progressive']),
+
+  nickname: z.string().max(100).transform((v) => v.trim()).optional(),
+  clientName: z.string().max(200).transform((v) => v.trim()).optional(),
+  detailedLocation: z.string().max(1000).optional(),
 
   clientPhone: z.string().max(30).optional(),
   emirate: z.string().max(100).optional(),
@@ -218,15 +218,18 @@ export const CreateClientRequestSchema = z
     clientName: z.string().min(1, 'Client name is required').max(200).transform((v) => v.trim()),
     clientPhone: z.string().max(30).optional(),
     description: z.string().max(1000).optional(),
+    tradeReference: z.string().max(50).optional(),
     salesOwnerCollaboratorId: z.string().optional(),
     parentProjectId: z.string().optional(),
   })
   .superRefine((d, ctx) => {
-    if (d.requestType === 'Trade' && !d.parentProjectId) {
+    if (!d.parentProjectId) {
       ctx.addIssue({
         code: 'custom',
         path: ['parentProjectId'],
-        message: 'Parent project is required for Trade requests',
+        message: d.requestType === 'Trade'
+          ? 'Parent project is required for Trade requests'
+          : 'Select the project under warranty for this maintenance request',
       })
     }
   })

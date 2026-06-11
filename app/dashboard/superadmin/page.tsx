@@ -2545,6 +2545,7 @@ function ProjectsPage() {
   const searchParams = useSearchParams()
   const stageFilter = searchParams.get('stage') ?? null
   const unpaidFilter = searchParams.get('unpaid') === 'true'
+  const [search, setSearch] = useState('')
 
   const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
     '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
@@ -2553,6 +2554,17 @@ function ProjectsPage() {
   const allProjects = data?.projects ?? []
   let filtered = stageFilter ? allProjects.filter((p) => p.projectStage === stageFilter) : allProjects
   if (unpaidFilter) filtered = filtered.filter((p) => (p.remainingBalance ?? 0) > 0)
+  if (search.trim()) {
+    const q = search.toLowerCase()
+    filtered = filtered.filter((p) =>
+      p.projectName.toLowerCase().includes(q) ||
+      p.clientName.toLowerCase().includes(q) ||
+      (p.quotationNumber ?? '').toLowerCase().includes(q) ||
+      (p.quotationReference ?? '').toLowerCase().includes(q) ||
+      (p.projectId ?? '').toLowerCase().includes(q) ||
+      (p.nickname ?? '').toLowerCase().includes(q),
+    )
+  }
 
   async function handleAdvance(id: string) {
     const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
@@ -2614,11 +2626,33 @@ function ProjectsPage() {
         </Link>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by project name, client, quotation number…"
+          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+          >
+            ×
+          </button>
+        )}
+      </div>
+
       {isLoading && <Spinner />}
 
       {!isLoading && filtered.length === 0 && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center">
-          <p className="text-sm text-gray-400">No projects found.</p>
+          <p className="text-sm text-gray-400">{search ? `No projects match "${search}"` : 'No projects found.'}</p>
         </div>
       )}
 

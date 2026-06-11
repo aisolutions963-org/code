@@ -40,14 +40,13 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     clientName: '',
     projectDescription: '',
     detailedLocation: '',
-    paymentMode: '' as '' | 'Standard' | 'Progressive',
-
     clientPhone: '',
     emirate: '',
     location: '',
     sedNotes: '',
     isCommunal: false,
   })
+  const [selectedSedId, setSelectedSedId] = useState('')
   const [selectedCommunSeds, setSelectedCommunSeds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -57,10 +56,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     warning?: string
   } | null>(null)
 
-  const { data: sedData } = useSWR<{ members: SedMember[] }>(
-    form.isCommunal ? '/api/team/sed' : null,
-    fetcher,
-  )
+  const { data: sedData } = useSWR<{ members: SedMember[] }>('/api/team/sed', fetcher)
   const sedMembers = sedData?.members ?? []
 
   // Client autocomplete — only fetches when user interacts with the field
@@ -87,7 +83,6 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     clientInputRef.current?.blur()
   }
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (
@@ -114,28 +109,24 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
   async function handleSave() {
     const missing: string[] = []
     if (!form.projectName.trim()) missing.push('Project Name')
-    if (!form.nickname.trim()) missing.push('Nickname')
-    if (!form.clientName.trim()) missing.push('Client Name')
     if (!form.projectDescription.trim()) missing.push('Project Scope')
-    if (!form.detailedLocation.trim()) missing.push('Exact Location')
-    if (!form.paymentMode) missing.push('Payment Mode')
     if (missing.length > 0) { setErr(`Required: ${missing.join(', ')}`); return }
 
     setSaving(true); setErr('')
     try {
       const body: Record<string, unknown> = {
         projectName: form.projectName.trim(),
-        nickname: form.nickname.trim(),
-        clientName: form.clientName.trim(),
         projectDescription: form.projectDescription,
-        detailedLocation: form.detailedLocation,
-        paymentMode: form.paymentMode,
       }
 
+      if (form.nickname.trim()) body.nickname = form.nickname.trim()
+      if (form.clientName.trim()) body.clientName = form.clientName.trim()
+      if (form.detailedLocation.trim()) body.detailedLocation = form.detailedLocation.trim()
       if (form.clientPhone) body.clientPhone = form.clientPhone
       if (form.emirate) body.emirate = form.emirate
       if (form.location) body.location = form.location
       if (form.sedNotes) body.sedNotes = form.sedNotes
+      if (selectedSedId) body.salesOwnerCollaboratorId = selectedSedId
       if (form.isCommunal && selectedCommunSeds.length > 0) body.communSedIds = selectedCommunSeds
 
       const res = await fetch('/api/projects', {
@@ -193,12 +184,13 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
       }
     >
       <div className="space-y-4 text-sm">
-      
+
         {err && (
           <p className="text-red-600 text-xs bg-red-50 border border-red-200 rounded px-3 py-2">{err}</p>
         )}
 
         <div className="grid grid-cols-2 gap-4">
+          {/* Project Name — required */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Project Name *</label>
             <input
@@ -209,8 +201,9 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Nickname — optional */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Nickname *</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Nickname</label>
             <input
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={form.nickname}
@@ -219,8 +212,36 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Project Scope — required, full width */}
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Project Scope *</label>
+            <textarea
+              rows={2}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              value={form.projectDescription}
+              onChange={(e) => set('projectDescription', e.target.value)}
+              placeholder="What is being fabricated / installed?"
+            />
+          </div>
+
+          {/* Assigned SED — manual, optional */}
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Assigned SED</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              value={selectedSedId}
+              onChange={(e) => setSelectedSedId(e.target.value)}
+            >
+              <option value="">— select SED —</option>
+              {sedMembers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Client Name — optional with autocomplete */}
           <div className="relative">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Client Name *</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Client Name</label>
             <input
               ref={clientInputRef}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -257,6 +278,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             )}
           </div>
 
+          {/* Client Phone — optional */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Client Phone</label>
             <input
@@ -267,19 +289,9 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Exact Location — optional */}
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Project Scope *</label>
-            <textarea
-              rows={2}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
-              value={form.projectDescription}
-              onChange={(e) => set('projectDescription', e.target.value)}
-              placeholder="What is being fabricated / installed?"
-            />
-          </div>
-
-          <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Exact Location *</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Exact Location</label>
             <input
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={form.detailedLocation}
@@ -288,6 +300,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Emirate */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Emirate</label>
             <select
@@ -300,6 +313,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             </select>
           </div>
 
+          {/* Area (Dubai only) */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">
               Area {!showLocation && <span className="text-gray-400 font-normal">(Dubai only)</span>}
@@ -322,19 +336,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             )}
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Payment Mode *</label>
-            <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-              value={form.paymentMode}
-              onChange={(e) => set('paymentMode', e.target.value as '' | 'Standard' | 'Progressive')}
-            >
-              <option value="">— select —</option>
-              <option>Standard</option>
-              <option>Progressive</option>
-            </select>
-          </div>
-
+          {/* Notes */}
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
             <textarea
@@ -346,6 +348,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Communal project */}
           <div className="col-span-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -367,17 +370,19 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
                     No other SED members found with Airtable IDs configured.
                   </p>
                 )}
-                {sedMembers.map((m) => (
-                  <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedCommunSeds.includes(m.id)}
-                      onChange={() => toggleCommunSed(m.id)}
-                      className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
-                    />
-                    <span className="text-gray-700">{m.name}</span>
-                  </label>
-                ))}
+                {sedMembers
+                  .filter((m) => m.id !== selectedSedId)
+                  .map((m) => (
+                    <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedCommunSeds.includes(m.id)}
+                        onChange={() => toggleCommunSed(m.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                      />
+                      <span className="text-gray-700">{m.name}</span>
+                    </label>
+                  ))}
               </div>
             )}
           </div>

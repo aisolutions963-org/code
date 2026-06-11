@@ -75,12 +75,6 @@ export async function POST(request: NextRequest) {
   }
 
   const data = { ...parsed.data }
-  if (!data.salesOwnerCollaboratorId) {
-    const dbUser = await getUserById(session.id)
-    if (dbUser?.airtable_member_id) {
-      data.salesOwnerCollaboratorId = dbUser.airtable_member_id
-    }
-  }
 
   try {
     const duplicate = await projectNameExists(data.projectName)

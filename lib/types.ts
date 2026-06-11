@@ -193,17 +193,18 @@ export interface ClientRequestCreateInput {
   clientName: string
   clientPhone?: string
   description?: string
+  tradeReference?: string
   salesOwnerCollaboratorId?: string
   parentProjectId?: string
 }
 
 export interface ProjectCreateInput {
   projectName: string
-  clientName: string
-  nickname: string
   projectDescription: string
-  detailedLocation: string
-  paymentMode: string
+
+  nickname?: string
+  clientName?: string
+  detailedLocation?: string
 
   clientPhone?: string
   emirate?: string

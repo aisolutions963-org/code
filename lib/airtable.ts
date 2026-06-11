@@ -784,32 +784,26 @@ async function getOrCreateClient(name: string, phone?: string): Promise<Client> 
 }
 
 export async function createProject(input: ProjectCreateInput): Promise<Project> {
-  // Find or create the client record, then link it to the project
-  const client = await getOrCreateClient(
-    input.clientName,
-    input.clientPhone || undefined,
-  )
-
   const fields: Record<string, unknown> = {
     [PROJECTS.PROJECT_NAME]: input.projectName,
-    [PROJECTS.NICKNAME]: input.nickname,
-    [PROJECTS.CLIENT_NAME]: input.clientName,
-    [PROJECTS.CLIENT]: [client.id],
     [PROJECTS.PROJECT_DESCRIPTION]: input.projectDescription,
-    [PROJECTS.DETAILED_LOCATION]: input.detailedLocation,
-    [PROJECTS.PAYMENT_MODE]: input.paymentMode,
-
     [PROJECTS.PROJECT_STAGE]: 'Preparing',
   }
+
+  // Optional fields — only set when provided
+  if (input.nickname) fields[PROJECTS.NICKNAME] = input.nickname
+  if (input.detailedLocation) fields[PROJECTS.DETAILED_LOCATION] = input.detailedLocation
   if (input.clientPhone) fields[PROJECTS.CLIENT_PHONE] = input.clientPhone
   if (input.emirate) fields[PROJECTS.EMIRATE] = input.emirate
   if (input.location) fields[PROJECTS.LOCATION] = input.location
   if (input.sedNotes) fields[PROJECTS.SED_NOTES] = input.sedNotes
-  if (input.salesOwnerCollaboratorId) {
-    fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
-  }
-  if (input.communSedIds?.length) {
-    fields[PROJECTS.COMMUN_SEDS] = input.communSedIds
+  if (input.salesOwnerCollaboratorId) fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
+  if (input.communSedIds?.length) fields[PROJECTS.COMMUN_SEDS] = input.communSedIds
+
+  if (input.clientName) {
+    const client = await getOrCreateClient(input.clientName, input.clientPhone || undefined)
+    fields[PROJECTS.CLIENT_NAME] = input.clientName
+    fields[PROJECTS.CLIENT] = [client.id]
   }
 
   const res = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
@@ -3002,7 +2996,7 @@ export async function createClientRequest(
   const isTrade = input.requestType === 'Trade'
   let parentProjectName: string | undefined
 
-  if (isTrade && input.parentProjectId) {
+  if (input.parentProjectId) {
     try {
       const parent = await getProjectById(input.parentProjectId)
       parentProjectName = parent.projectName
@@ -3013,7 +3007,7 @@ export async function createClientRequest(
 
   const projectName = isTrade
     ? `[Trade] ${parentProjectName ?? input.clientName}`
-    : `[Maintenance] ${input.clientName}`
+    : `[Maintenance] ${parentProjectName ?? input.clientName}`
 
   const fields: Record<string, unknown> = {
     [PROJECTS.PROJECT_NAME]: projectName,
@@ -3024,7 +3018,8 @@ export async function createClientRequest(
   if (input.clientPhone) fields[PROJECTS.CLIENT_PHONE] = input.clientPhone
   if (input.description) fields[PROJECTS.PROJECT_DESCRIPTION] = input.description
   if (input.salesOwnerCollaboratorId) fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
-  if (isTrade && input.parentProjectId) fields[PROJECTS.PARENT_PROJECT] = [input.parentProjectId]
+  if (input.parentProjectId) fields[PROJECTS.PARENT_PROJECT] = [input.parentProjectId]
+  if (isTrade && input.tradeReference) fields[PROJECTS.TRADE_REFERENCE] = input.tradeReference
 
   const projRes = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
     method: 'POST',

@@ -41,7 +41,16 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     }
   }
 
-  const { project, tasks } = await createClientRequest(data)
+  let project: Awaited<ReturnType<typeof createClientRequest>>['project']
+  let tasks: Awaited<ReturnType<typeof createClientRequest>>['tasks']
+  try {
+    const result = await createClientRequest(data)
+    project = result.project
+    tasks = result.tasks
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to create request'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 
   if (session.role === 'sed') {
     await addSedProjectMapping(project.id, session.id)
