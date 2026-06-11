@@ -7,9 +7,13 @@ import { WorkerOption } from '@/lib/types'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const ROLE_OPTIONS = [
-  'Fabrication',
-  'Installation',
-  'Fabrication & Installation',
+  'Manager',
+  'Foreman',
+  'Engineer',
+  'Carpenter',
+  'Painter',
+  'Helper',
+  'Assistant',
   'Driver / Logistics',
 ]
 
@@ -132,13 +136,13 @@ function WorkerModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Trade / Job Title</label>
               <select
                 value={form.role}
                 onChange={(e) => set('role', e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white"
               >
-                <option value="">— select role —</option>
+                <option value="">— select trade —</option>
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r} value={r}>{r}</option>
                 ))}
@@ -257,7 +261,7 @@ export default function WorkersPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Workers</h2>
-          <p className="text-sm text-gray-500">Manage daily worker roster for timesheets</p>
+          <p className="text-sm text-gray-500">Site workers & supervisors for timesheet tracking — separate from app users</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
@@ -292,7 +296,7 @@ export default function WorkersPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, nickname, role…"
+          placeholder="Search name, nickname, trade…"
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none w-56"
         />
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
@@ -337,7 +341,7 @@ export default function WorkersPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Full Name</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Nickname</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Trade</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">AED/hr</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3" />
