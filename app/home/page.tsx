@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import { Announcement, Project, Task } from '@/lib/types'
 import { useSession } from '@/app/dashboard/layout-client'
 import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
+import CommissionCard from '@/components/sed/CommissionCard'
 
 interface HomeData {
   announcements: Announcement[]
@@ -721,6 +722,9 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+
+        {/* Commission card — SED only */}
+        {role === 'sed' && <CommissionCard />}
 
         {/* Project pipeline schematic */}
         <ProjectPipeline role={role} />

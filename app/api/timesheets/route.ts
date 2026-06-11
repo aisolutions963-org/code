@@ -11,8 +11,10 @@ export const dynamic = 'force-dynamic'
 
 const CreateSchema = z.object({
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'workDate must be YYYY-MM-DD'),
-  workerIds: z.array(z.string().min(1)).min(1, 'At least one worker required'),
-  projectIds: z.array(z.string().min(1)).min(1, 'At least one project required'),
+  supervisorId: z.string().min(1, 'Supervisor is required'),
+  workerIds: z.array(z.string().min(1)).default([]),
+  projectIds: z.array(z.string().min(1)).default([]),
+  locationType: z.enum(['Project', 'Factory']),
   regularHours: z.number().min(0).max(24),
   overtimeHours: z.number().min(0).max(24).optional().default(0),
   notes: z.string().optional(),
@@ -44,14 +46,20 @@ export const POST = requireRole('manager', 'superadmin')(async (req) => {
     )
   }
 
+  if (input.locationType === 'Project' && input.projectIds.length === 0) {
+    return NextResponse.json(
+      { error: 'A project must be selected when location type is Project.' },
+      { status: 400 },
+    )
+  }
+
   const isDuplicate = await checkTimesheetDuplicate(
-    input.workerIds[0],
-    input.projectIds[0],
+    input.supervisorId,
     input.workDate,
   )
   if (isDuplicate) {
     return NextResponse.json(
-      { error: 'A timesheet entry already exists for this worker, project, and date.' },
+      { error: 'A timesheet entry already exists for this supervisor on this date.' },
       { status: 409 },
     )
   }

@@ -27,9 +27,10 @@ interface WorkerFormData {
   nickname: string
   role: string
   active: boolean
+  hourlyRate: string
 }
 
-const EMPTY_FORM: WorkerFormData = { name: '', fullName: '', nickname: '', role: '', active: true }
+const EMPTY_FORM: WorkerFormData = { name: '', fullName: '', nickname: '', role: '', active: true, hourlyRate: '' }
 
 function WorkerModal({
   worker,
@@ -49,6 +50,7 @@ function WorkerModal({
           nickname: worker.nickname ?? '',
           role: worker.role ?? '',
           active: worker.active ?? true,
+          hourlyRate: worker.hourlyRate != null ? String(worker.hourlyRate) : '',
         }
       : EMPTY_FORM,
   )
@@ -71,6 +73,7 @@ function WorkerModal({
         nickname: form.nickname.trim() || undefined,
         role: form.role || undefined,
         active: form.active,
+        hourlyRate: form.hourlyRate !== '' ? Number(form.hourlyRate) : undefined,
       }
       const res = await fetch(isEdit ? `/api/workers/${worker!.id}` : '/api/workers', {
         method: isEdit ? 'PATCH' : 'POST',
@@ -140,6 +143,21 @@ function WorkerModal({
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Hourly Rate (AED)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={10000}
+                step={0.5}
+                value={form.hourlyRate}
+                onChange={(e) => set('hourlyRate', e.target.value)}
+                placeholder="e.g. 25"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+              />
             </div>
             <div className="flex items-end">
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -320,6 +338,7 @@ export default function WorkersPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Full Name</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Nickname</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">AED/hr</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -336,6 +355,9 @@ export default function WorkersPage() {
                     ) : (
                       <span className="text-gray-300">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm font-medium text-gray-700 hidden lg:table-cell">
+                    {w.hourlyRate != null ? `AED ${w.hourlyRate}` : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button

@@ -211,3 +211,22 @@ export const CreateProjectSchema = z.object({
   salesOwnerCollaboratorId: z.string().optional(),
   communSedIds: z.array(z.string().min(1)).max(10).optional(),
 })
+
+export const CreateClientRequestSchema = z
+  .object({
+    requestType: z.enum(['Trade', 'Maintenance']),
+    clientName: z.string().min(1, 'Client name is required').max(200).transform((v) => v.trim()),
+    clientPhone: z.string().max(30).optional(),
+    description: z.string().max(1000).optional(),
+    salesOwnerCollaboratorId: z.string().optional(),
+    parentProjectId: z.string().optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.requestType === 'Trade' && !d.parentProjectId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['parentProjectId'],
+        message: 'Parent project is required for Trade requests',
+      })
+    }
+  })

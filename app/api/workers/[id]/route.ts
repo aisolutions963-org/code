@@ -11,6 +11,7 @@ const UpdateSchema = z.object({
   nickname: z.string().max(50).optional(),
   role: z.string().max(50).optional(),
   active: z.boolean().optional(),
+  hourlyRate: z.number().min(0).max(10000).optional(),
 })
 
 type Context = { params: { id: string } }

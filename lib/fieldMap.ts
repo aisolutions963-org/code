@@ -109,6 +109,9 @@ export const PROJECTS = {
   DETAILED_LOCATION: 'fldoRWDUaeNKEtrbi',
   PROJECT_DESCRIPTION: 'fldhpCCy7ZIrh7pax',
   REQUIRED_INTAKE_PATHS: 'fld5jHSFxBU9euELy',
+  REQUEST_TYPE:    'fldDlEFv0as7eOxuS',  // single select: Trade | Maintenance
+  PARENT_PROJECT:  'flds3nCf54kT4Ss3s',  // linked record → PROJECTS
+  TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
 } as const
 
 export const PROJECT_ITEMS = {
@@ -274,6 +277,8 @@ export const PRODUCTION_TIMESHEETS = {
   ENTRY_LABEL:    'fldvw5Yal2gzlHWeV',
   WORK_DATE:      'fldgYpSXiYQiUdJHR',
   WORKER:         'fldEQa6tiu1vTq9Sb',
+  SUPERVISOR:     'fldIz0C1nWJ4nAoxH',
+  LOCATION_TYPE:  'flddkAJk2apbR4yml',
   PROJECT:        'fldptqShoVtL3hjbs',
   REGULAR_HOURS:  'fldPEBPtEqibQF9gG',
   OVERTIME_HOURS: 'fldMeKDus6J01rkcA',
@@ -283,12 +288,13 @@ export const PRODUCTION_TIMESHEETS = {
 } as const
 
 export const WORKERS = {
-  TABLE:      'tblaelluGouAlw7Xo',
-  NAME:       'fldpgSQBVcF0nA2Kx',
-  FULL_NAME:  'fldykYIjjHcVUU07b',
-  NICKNAME:   'fld0C8rZpHkXI01z8',
-  ROLE:       'fldfoj2jJ0om9sFrr',
-  ACTIVE:     'fldtVRH12qbl8xFQo',
+  TABLE:        'tblaelluGouAlw7Xo',
+  NAME:         'fldpgSQBVcF0nA2Kx',
+  FULL_NAME:    'fldykYIjjHcVUU07b',
+  NICKNAME:     'fld0C8rZpHkXI01z8',
+  ROLE:         'fldfoj2jJ0om9sFrr',
+  ACTIVE:       'fldtVRH12qbl8xFQo',
+  HOURLY_RATE:  'fldWdzVfmq7DUM29W',
 } as const
 
 export const MATERIALS_NEEDED = {

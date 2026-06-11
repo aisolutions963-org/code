@@ -1,0 +1,377 @@
+'use client'
+
+import { useState } from 'react'
+import useSWR from 'swr'
+import toast from 'react-hot-toast'
+import { ClientRequest, Project, Role } from '@/lib/types'
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+interface SedMember {
+  id: string
+  name: string
+  email: string
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function taskProgress(req: ClientRequest): { done: number; total: number } {
+  const tasks = req.tasks ?? []
+  return {
+    done: tasks.filter((t) => t.status === 'Completed').length,
+    total: tasks.length,
+  }
+}
+
+function isCompleted(req: ClientRequest): boolean {
+  const { done, total } = taskProgress(req)
+  return total > 0 && done === total
+}
+
+// ─── Request Card ─────────────────────────────────────────────────────────────
+
+function RequestCard({ req }: { req: ClientRequest }) {
+  const { done, total } = taskProgress(req)
+  const completed = isCompleted(req)
+  const isTrade = req.requestType === 'Trade'
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow transition-shadow">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+              isTrade ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
+            }`}
+          >
+            {req.requestType}
+          </span>
+          <span className="text-sm font-semibold text-gray-800">{req.clientName}</span>
+          {req.clientPhone && (
+            <span className="text-xs text-gray-400">{req.clientPhone}</span>
+          )}
+        </div>
+        <span
+          className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+            completed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+          }`}
+        >
+          {completed ? 'Completed' : 'Active'}
+        </span>
+      </div>
+
+      {isTrade && (req.parentProjectName || req.tradeReference) && (
+        <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3">
+          {req.parentProjectName && (
+            <span>Project: <span className="font-medium text-gray-700">{req.parentProjectName}</span></span>
+          )}
+          {req.tradeReference && (
+            <span>Ref: <span className="font-mono font-semibold text-blue-700">{req.tradeReference}</span></span>
+          )}
+        </div>
+      )}
+
+      {req.description && (
+        <p className="text-xs text-gray-500 mb-2 line-clamp-2">{req.description}</p>
+      )}
+
+      <div className="flex items-center justify-between mt-1">
+        <div className="flex items-center gap-2 flex-1">
+          <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[120px]">
+            <div
+              className={`h-1.5 rounded-full transition-all ${completed ? 'bg-green-500' : 'bg-blue-500'}`}
+              style={{ width: total > 0 ? `${(done / total) * 100}%` : '0%' }}
+            />
+          </div>
+          <span className="text-xs text-gray-400">{done} / {total} tasks</span>
+        </div>
+        {req.createdAt && (
+          <span className="text-xs text-gray-400">
+            {new Date(req.createdAt).toLocaleDateString('en-AE')}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Create Modal ─────────────────────────────────────────────────────────────
+
+function CreateModal({
+  onClose,
+  onCreated,
+  showSedPicker,
+}: {
+  onClose: () => void
+  onCreated: () => void
+  showSedPicker: boolean
+}) {
+  const [requestType, setRequestType] = useState<'Trade' | 'Maintenance'>('Trade')
+  const [clientName, setClientName] = useState('')
+  const [clientPhone, setClientPhone] = useState('')
+  const [description, setDescription] = useState('')
+  const [parentProjectId, setParentProjectId] = useState('')
+  const [selectedSedId, setSelectedSedId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const { data: projectsData } = useSWR<{ projects: Project[] }>('/api/projects', fetcher)
+  const allProjects = projectsData?.projects ?? []
+
+  const { data: sedData } = useSWR<{ members: SedMember[] }>(
+    showSedPicker ? '/api/team/sed' : null,
+    fetcher,
+  )
+  const sedMembers = sedData?.members ?? []
+
+  const inp =
+    'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400'
+
+  async function handleSubmit() {
+    setErr('')
+    if (!clientName.trim()) { setErr('Client name is required'); return }
+    if (requestType === 'Trade' && !parentProjectId) {
+      setErr('Select the parent project for this trade')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const body: Record<string, unknown> = { requestType, clientName: clientName.trim() }
+      if (clientPhone.trim()) body.clientPhone = clientPhone.trim()
+      if (description.trim()) body.description = description.trim()
+      if (requestType === 'Trade') body.parentProjectId = parentProjectId
+      if (showSedPicker && selectedSedId) body.salesOwnerCollaboratorId = selectedSedId
+
+      const res = await fetch('/api/client-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to create')
+
+      toast.success(`${requestType} request created — ${data.tasksCreated} tasks ready`)
+      onCreated()
+      onClose()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed')
+      toast.error('Failed to create request')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800">New Client Request</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">
+            ×
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Request Type */}
+          <div>
+            <p className="text-xs text-gray-500 mb-1.5 font-medium">Request Type</p>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200">
+              {(['Trade', 'Maintenance'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setRequestType(t)}
+                  className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                    requestType === t
+                      ? t === 'Trade'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-orange-500 text-white'
+                      : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Parent Project (Trade only) */}
+          {requestType === 'Trade' && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1 font-medium">Parent Project *</label>
+              <select
+                className={inp}
+                value={parentProjectId}
+                onChange={(e) => setParentProjectId(e.target.value)}
+              >
+                <option value="">Select project…</option>
+                {allProjects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.projectName}
+                    {p.quotationNumber ? ` (${p.quotationNumber})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Client Name */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1 font-medium">Client Name *</label>
+            <input
+              className={inp}
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              placeholder="e.g. Ahmed Al Mansoori"
+            />
+          </div>
+
+          {/* Client Phone */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1 font-medium">Client Phone</label>
+            <input
+              className={inp}
+              value={clientPhone}
+              onChange={(e) => setClientPhone(e.target.value)}
+              placeholder="+971 50 000 0000"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1 font-medium">Description</label>
+            <textarea
+              className={`${inp} resize-none`}
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What does the client need?"
+            />
+          </div>
+
+          {/* SED picker — manager/superadmin only */}
+          {showSedPicker && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1 font-medium">Assign to SED</label>
+              <select
+                className={inp}
+                value={selectedSedId}
+                onChange={(e) => setSelectedSedId(e.target.value)}
+              >
+                <option value="">Unassigned</option>
+                {sedMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {err && <p className="text-xs text-red-600">{err}</p>}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Creating…' : 'Create Request'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Client Component ────────────────────────────────────────────────────
+
+export default function ClientRequestsClient({ role }: { role: Role }) {
+  const [showCreate, setShowCreate] = useState(false)
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'Trade' | 'Maintenance'>('all')
+
+  const { data, isLoading, mutate } = useSWR<{ requests: ClientRequest[] }>(
+    '/api/client-requests',
+    fetcher,
+    { refreshInterval: 300_000 },
+  )
+
+  const showSedPicker = role === 'manager' || role === 'superadmin'
+  const requests = data?.requests ?? []
+
+  const filtered = requests.filter((r) => {
+    if (typeFilter !== 'all' && r.requestType !== typeFilter) return false
+    const done = isCompleted(r)
+    if (filter === 'active' && done) return false
+    if (filter === 'completed' && !done) return false
+    return true
+  })
+
+  const chipCls = (active: boolean) =>
+    `px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer select-none ${
+      active ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+    }`
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">Client Requests</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Trade &amp; Maintenance requests from clients</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCreate(true)}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+        >
+          + New Request
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button className={chipCls(typeFilter === 'all')} onClick={() => setTypeFilter('all')}>All types</button>
+        <button className={chipCls(typeFilter === 'Trade')} onClick={() => setTypeFilter('Trade')}>Trade</button>
+        <button className={chipCls(typeFilter === 'Maintenance')} onClick={() => setTypeFilter('Maintenance')}>Maintenance</button>
+        <span className="w-px bg-gray-200 mx-1 self-stretch" />
+        <button className={chipCls(filter === 'all')} onClick={() => setFilter('all')}>All</button>
+        <button className={chipCls(filter === 'active')} onClick={() => setFilter('active')}>Active</button>
+        <button className={chipCls(filter === 'completed')} onClick={() => setFilter('completed')}>Completed</button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-sm text-gray-400 py-8 text-center">
+          {requests.length === 0
+            ? 'No client requests yet. Create one to get started.'
+            : 'No requests match the current filters.'}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((req) => (
+            <RequestCard key={req.id} req={req} />
+          ))}
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateModal
+          onClose={() => setShowCreate(false)}
+          onCreated={() => mutate()}
+          showSedPicker={showSedPicker}
+        />
+      )}
+    </div>
+  )
+}

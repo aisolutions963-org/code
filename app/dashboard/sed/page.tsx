@@ -10,6 +10,7 @@ import QuotationModal from '@/components/projects/QuotationModal'
 import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import NewProjectModal from '@/components/projects/NewProjectModal'
+import CommissionCard from '@/components/sed/CommissionCard'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -89,6 +90,7 @@ export default function SedDashboard() {
           <p className="text-2xl font-bold text-green-600">{completed.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">Completed</p>
         </div>
+        <CommissionCard className="col-span-3" />
       </div>
 
       {/* Task views */}

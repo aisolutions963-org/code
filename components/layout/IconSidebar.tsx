@@ -167,6 +167,14 @@ function TruckIcon() {
   )
 }
 
+function RequestsIcon() {
+  return (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4m4-5h8" />
+    </svg>
+  )
+}
+
 function HammerIcon() {
   return (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -237,6 +245,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Timeline', href: '/dashboard/superadmin?view=timeline', icon: <TimelineIcon /> },
         { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases', icon: <PhaseGateIcon /> },
         { label: 'Activity', href: '/dashboard/superadmin?view=activity', icon: <ActivityIcon /> },
+        { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
       ],
     },
     {
@@ -285,6 +294,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Materials', href: '/dashboard/mgr?view=materials', icon: <HammerIcon /> },
         { label: 'Deliveries', href: '/dashboard/mgr?view=deliveries', icon: <TruckIcon /> },
         { label: 'Install Teams', href: '/dashboard/mgr?view=installation', icon: <TeamIcon /> },
+        { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
       ],
     },
     {
@@ -316,6 +326,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Client Approvals', href: '/dashboard/sed?view=approvals', icon: <ApprovalIcon /> },
         { label: 'Site Visits', href: '/dashboard/sed?view=site-visits', icon: <LocationIcon /> },
         { label: 'QC Checks', href: '/dashboard/sed?view=qc', icon: <InspectIcon /> },
+        { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
       ],
     },
     {

@@ -167,6 +167,34 @@ export interface Project {
   communSeds?: string[]
   communSedIds?: string[]
   fabricationActive?: boolean
+  requestType?: 'Trade' | 'Maintenance'
+  parentProjectId?: string
+  parentProjectName?: string
+  tradeReference?: string
+}
+
+export interface ClientRequest {
+  id: string
+  projectName: string
+  clientName: string
+  clientPhone?: string
+  requestType: 'Trade' | 'Maintenance'
+  projectStage: string
+  createdAt?: string
+  description?: string
+  parentProjectId?: string
+  parentProjectName?: string
+  tradeReference?: string
+  tasks?: Task[]
+}
+
+export interface ClientRequestCreateInput {
+  requestType: 'Trade' | 'Maintenance'
+  clientName: string
+  clientPhone?: string
+  description?: string
+  salesOwnerCollaboratorId?: string
+  parentProjectId?: string
 }
 
 export interface ProjectCreateInput {
@@ -399,6 +427,7 @@ export interface WorkerCreateInput {
   nickname?: string
   role?: string
   active?: boolean
+  hourlyRate?: number
 }
 
 export interface WorkerUpdateInput {
@@ -407,27 +436,35 @@ export interface WorkerUpdateInput {
   nickname?: string
   role?: string
   active?: boolean
+  hourlyRate?: number
 }
 
 export interface TimesheetEntry {
   id: string
   entryLabel?: string
   workDate: string
+  supervisorId?: string
+  supervisorName?: string
   workerIds: string[]
   workerName?: string
+  workerNames?: string[]
   projectIds: string[]
   projectRef?: string
   projectName?: string
+  locationType?: 'Project' | 'Factory'
   regularHours: number
   overtimeHours: number
   totalHours: number
   notes?: string
+  estimatedCost?: number
 }
 
 export interface CreateTimesheetInput {
   workDate: string
+  supervisorId: string
   workerIds: string[]
   projectIds: string[]
+  locationType: 'Project' | 'Factory'
   regularHours: number
   overtimeHours?: number
   notes?: string
@@ -453,6 +490,7 @@ export interface WorkerOption {
   nickname?: string
   role?: string
   active?: boolean
+  hourlyRate?: number
 }
 
 export interface WeeklySummary {
