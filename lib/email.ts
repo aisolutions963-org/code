@@ -93,6 +93,28 @@ export async function notifyAccountantEvent(params: {
   })
 }
 
+export async function notifyRejection(params: {
+  taskName: string
+  projectId?: string
+  managerComment?: string
+  recipientEmail: string
+}): Promise<void> {
+  await getResend().emails.send({
+    from: 'WoodWings <notifications@woodwings.ae>',
+    to: params.recipientEmail,
+    subject: `Task rejected — ${params.projectId ?? 'WoodWings'}`,
+    html: `
+      <h2>Task was not approved</h2>
+      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+        <tr><td><strong>Task</strong></td><td>${params.taskName}</td></tr>
+        ${params.projectId ? `<tr><td><strong>Project</strong></td><td>${params.projectId}</td></tr>` : ''}
+        ${params.managerComment ? `<tr><td><strong>Comment</strong></td><td>${params.managerComment}</td></tr>` : ''}
+      </table>
+      <p>Log in to the WoodWings dashboard to review and resubmit.</p>
+    `,
+  })
+}
+
 export async function notifyAccountant(payment: {
   projectName: string
   projectId: string
