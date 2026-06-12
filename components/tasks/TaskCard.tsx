@@ -142,7 +142,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showHint, setShowHint] = useState(false)
   const [localFields, setLocalFields] = useState<Partial<TaskUpdateInput>>(
-    () => getInitialFieldValues(task, getEditableFieldsForRole(role)),
+    () => ({
+      ...getInitialFieldValues(task, getEditableFieldsForRole(role)),
+      ...(role === 'superadmin' ? { superadminNote: task.superadminNote ?? '' } : {}),
+    }),
   )
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
