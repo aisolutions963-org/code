@@ -36,79 +36,117 @@ const TYPE_BADGE: Record<RequestType, string> = {
   Variance:    'bg-purple-100 text-purple-700',
 }
 
+const TASK_STATUS_STYLE: Record<string, string> = {
+  'Completed':         'bg-green-100 text-green-700',
+  'In Progress':       'bg-blue-100 text-blue-700',
+  'To Do':             'bg-amber-100 text-amber-700',
+  'Pending Approval':  'bg-purple-100 text-purple-700',
+  'Locked':            'bg-gray-100 text-gray-400',
+}
+
 // ─── Request Card ─────────────────────────────────────────────────────────────
 
 function RequestCard({ req }: { req: ClientRequest }) {
   const { done, total } = taskProgress(req)
   const completed = isCompleted(req)
+  const [expanded, setExpanded] = useState(false)
+  const tasks = req.tasks ?? []
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow transition-shadow">
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-            TYPE_BADGE[req.requestType as RequestType] ?? 'bg-gray-100 text-gray-600'
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow transition-shadow">
+      <div
+        className="p-4 cursor-pointer"
+        onClick={() => tasks.length > 0 && setExpanded((e) => !e)}
+      >
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+              TYPE_BADGE[req.requestType as RequestType] ?? 'bg-gray-100 text-gray-600'
+            }`}>
+              {req.requestType}
+            </span>
+            <span className="text-sm font-semibold text-gray-800">{req.clientName}</span>
+            {req.clientPhone && (
+              <span className="text-xs text-gray-400">{req.clientPhone}</span>
+            )}
+          </div>
+          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
+            completed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
           }`}>
-            {req.requestType}
+            {completed ? 'Completed' : 'Active'}
           </span>
-          <span className="text-sm font-semibold text-gray-800">{req.clientName}</span>
-          {req.clientPhone && (
-            <span className="text-xs text-gray-400">{req.clientPhone}</span>
-          )}
         </div>
-        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${
-          completed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-        }`}>
-          {completed ? 'Completed' : 'Active'}
-        </span>
-      </div>
 
-      {(req.parentProjectName || req.tradeReference) && (
-        <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3">
-          {req.parentProjectName && (
-            <span>Project: <span className="font-medium text-gray-700">{req.parentProjectName}</span></span>
-          )}
-          {req.tradeReference && (
-            <span>
-              Ref:{' '}
-              <span className={`font-mono font-semibold ${
-                req.requestType === 'Variance' ? 'text-purple-700' : 'text-blue-700'
-              }`}>
-                {req.tradeReference}
+        {(req.parentProjectName || req.tradeReference) && (
+          <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3">
+            {req.parentProjectName && (
+              <span>Project: <span className="font-medium text-gray-700">{req.parentProjectName}</span></span>
+            )}
+            {req.tradeReference && (
+              <span>
+                Ref:{' '}
+                <span className={`font-mono font-semibold ${
+                  req.requestType === 'Variance' ? 'text-purple-700' : 'text-blue-700'
+                }`}>
+                  {req.tradeReference}
+                </span>
               </span>
+            )}
+          </div>
+        )}
+
+        {req.description && (
+          <p className="text-xs text-gray-500 mb-2 line-clamp-2">{req.description}</p>
+        )}
+
+        <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[120px]">
+              <div
+                className={`h-1.5 rounded-full transition-all ${completed ? 'bg-green-500' : 'bg-blue-500'}`}
+                style={{ width: total > 0 ? `${(done / total) * 100}%` : '0%' }}
+              />
+            </div>
+            <span className="text-xs text-gray-400">{done} / {total} tasks</span>
+            {tasks.length > 0 && (
+              <svg
+                className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            )}
+          </div>
+          {req.createdAt && (
+            <span className="text-xs text-gray-400">
+              {new Date(req.createdAt).toLocaleDateString('en-AE')}
             </span>
           )}
         </div>
-      )}
 
-      {req.description && (
-        <p className="text-xs text-gray-500 mb-2 line-clamp-2">{req.description}</p>
-      )}
-
-      <div className="flex items-center justify-between mt-1">
-        <div className="flex items-center gap-2 flex-1">
-          <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[120px]">
-            <div
-              className={`h-1.5 rounded-full transition-all ${completed ? 'bg-green-500' : 'bg-blue-500'}`}
-              style={{ width: total > 0 ? `${(done / total) * 100}%` : '0%' }}
-            />
-          </div>
-          <span className="text-xs text-gray-400">{done} / {total} tasks</span>
-        </div>
-        {req.createdAt && (
-          <span className="text-xs text-gray-400">
-            {new Date(req.createdAt).toLocaleDateString('en-AE')}
-          </span>
-        )}
+        <Link
+          href={`/dashboard/project/${req.id}`}
+          className="inline-block mt-2 text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Open project →
+        </Link>
       </div>
 
-      <Link
-        href={`/dashboard/project/${req.id}`}
-        className="inline-block mt-2 text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline"
-        onClick={(e) => e.stopPropagation()}
-      >
-        Open project →
-      </Link>
+      {expanded && tasks.length > 0 && (
+        <div className="border-t border-gray-100 divide-y divide-gray-50">
+          {tasks.map((t) => (
+            <div key={t.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <span className="text-xs text-gray-700 flex-1 truncate">{t.taskName}</span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
+                TASK_STATUS_STYLE[t.status] ?? 'bg-gray-100 text-gray-500'
+              }`}>
+                {t.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

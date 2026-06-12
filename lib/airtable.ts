@@ -3098,7 +3098,6 @@ export async function createClientRequest(
     [TASKS.TASK_NAME]: t.name,
     [TASKS.PROJECT]: project.id,
     [TASKS.STATUS]: i === 0 ? 'To Do' : 'Locked',
-    [TASKS.TASK_ORDER]: t.order,
     [TASKS.TASK_TEMPLATES_LINK]: [t.templateId],
   }))
 

@@ -184,7 +184,7 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
             </p>
             <input
               className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-              placeholder="e.g. WW-2024-001"
+              placeholder="e.g. 2341"
               value={quotationInput}
               onChange={(e) => { setQuotationInput(e.target.value); setQuotationError('') }}
             />
@@ -302,7 +302,7 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
           <div className="grid grid-cols-2 gap-2">
             <input
               className={inp}
-              placeholder="e.g. WW-2024-001 *"
+              placeholder="e.g. 2341 *"
               value={quotationInput}
               onChange={(e) => setQuotationInput(e.target.value)}
             />
