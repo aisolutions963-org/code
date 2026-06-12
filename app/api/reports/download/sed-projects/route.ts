@@ -9,7 +9,9 @@ const BASE_ID = process.env.AIRTABLE_BASE_ID!
 const API_KEY = process.env.AIRTABLE_API_KEY!
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
-  const from = new URL(req.url).searchParams.get('from') ?? ''
+  const sp = new URL(req.url).searchParams
+  const from = sp.get('from') ?? ''
+  const to   = sp.get('to')   ?? ''
 
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   params.append('fields[]', PROJECTS.PROJECT_ID)
@@ -20,9 +22,12 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   params.append('fields[]', PROJECTS.PROJECT_TOTAL_COST)
   params.append('fields[]', PROJECTS.PROJECT_CREATED_AT)
   params.append('fields[]', PROJECTS.MANAGER_NOTES)
-  if (from) {
-    params.set('filterByFormula', encodeURIComponent(`IS_AFTER({${PROJECTS.PROJECT_CREATED_AT}}, "${from}")`))
-  }
+  const dateParts: string[] = []
+  if (from) dateParts.push(`IS_AFTER({${PROJECTS.PROJECT_CREATED_AT}}, "${from}")`)
+  if (to)   dateParts.push(`IS_BEFORE({${PROJECTS.PROJECT_CREATED_AT}}, "${to}")`)
+  if (dateParts.length === 1) params.set('filterByFormula', encodeURIComponent(dateParts[0]))
+  if (dateParts.length === 2) params.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
+
 
   const records: { id: string; fields: Record<string, unknown> }[] = []
   let offset: string | undefined
@@ -40,17 +45,22 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   } while (offset)
 
   // Sort by SED name
-  records.sort((a, b) => {
-    const oa = a.fields[PROJECTS.SALES_OWNER] as { name?: string } | undefined
-    const ob = b.fields[PROJECTS.SALES_OWNER] as { name?: string } | undefined
-    return (oa?.name ?? '').localeCompare(ob?.name ?? '')
-  })
+  const getOwnerName = (f: Record<string, unknown>): string => {
+    const raw = f[PROJECTS.SALES_OWNER]
+    const entry = Array.isArray(raw) ? raw[0] : raw
+    if (!entry) return ''
+    if (typeof entry === 'string') return ''
+    return (entry as { name?: string }).name ?? ''
+  }
+
+  records.sort((a, b) =>
+    getOwnerName(a.fields).localeCompare(getOwnerName(b.fields)),
+  )
 
   const rows = records.map((r) => {
     const f = r.fields
-    const owner = f[PROJECTS.SALES_OWNER] as { name?: string } | undefined
     return {
-      sedName: owner?.name ?? '',
+      sedName: getOwnerName(f),
       projectId: (f[PROJECTS.PROJECT_ID] as string) ?? '',
       projectName: (f[PROJECTS.PROJECT_NAME] as string) ?? '',
       client: (f[PROJECTS.CLIENT_NAME] as string) ?? '',

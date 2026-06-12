@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -96,6 +96,7 @@ function ServiceDot({ status }: { status: string }) {
 function formatTs(ts: string) {
   try {
     return new Date(ts).toLocaleString('en-GB', {
+      timeZone: 'Asia/Dubai',
       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit',
     })
   } catch {
@@ -111,7 +112,7 @@ function formatUptime(s: number) {
 
 export default function AdminHealthPage() {
   const { data, error, mutate } = useSWR<HealthData>('/api/admin/health', fetcher, {
-    refreshInterval: 20000,
+    refreshInterval: 300_000,
   })
   const [expandedError, setExpandedError] = useState<string | null>(null)
   const [traceId, setTraceId] = useState('')

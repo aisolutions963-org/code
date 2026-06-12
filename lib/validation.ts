@@ -47,6 +47,7 @@ export const UpdateTaskSchema = z.object({
   requiresManagerReviewManually: z.boolean().optional(),
   callCount: z.number().int().min(0).max(10).optional(),
   sedNote: z.string().max(2000).optional(),
+  superadminNote: z.string().max(2000).optional(),
   followUpOutcome: z.enum(['Reject Project', 'SED to Follow Up', 'Manager to Follow Up']).optional(),
   taskDocuments: z.array(z.object({ url: z.string().url().optional(), filename: z.string().max(255) })).optional(),
   fillersAndMissingList: z.array(z.object({ url: z.string().url().optional(), filename: z.string().max(255) })).optional(),
@@ -70,6 +71,20 @@ export const CreatePaymentSchema = z.object({
   notes: z.string().max(2000).optional(),
 })
 
+export const UpdatePaymentSchema = z.object({
+  amount: z.number().positive().max(10_000_000).optional(),
+  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment']).optional(),
+  paymentStatus: z.enum(['Received', 'Pending', 'Overdue', 'Cancelled']).optional(),
+  paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Cheque']).optional(),
+  referenceNo: z.string().max(100).optional(),
+  receivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  payerType: z.enum(['Broker', 'Contractor', 'End User', 'Designer']).optional(),
+  payerName: z.string().max(200).optional(),
+  commissionAmount: z.number().min(0).max(10_000_000).optional(),
+  notes: z.string().max(2000).optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: 'At least one field must be provided' })
+
 export const CreateAnnouncementSchema = z.object({
   title: z.string().min(1).max(200).transform((v) => v.trim()),
   message: z.string().max(5000).optional(),
@@ -91,8 +106,8 @@ export const MaterialDecisionSchema = z.object({
 })
 
 export const CreateQuotationItemsSchema = z.object({
-  quotationNumber: z.string().min(1, 'Quotation number is required').max(100).transform((v) => v.trim()),
-  quotationReference: z.string().max(100).optional().transform((v) => v?.trim() || undefined),
+  quotationNumber: z.string().min(1, 'Quotation number is required').regex(/^\d{4,}$/, 'Quotation number must be at least 4 digits').max(100).transform((v) => v.trim()),
+  quotationReference: z.string().min(1, 'Quotation reference is required').max(100).transform((v) => v.trim()),
   quotationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid quotation date'),
   items: z
     .array(
@@ -191,15 +206,17 @@ export const CreateCalendarEventSchema = z.object({
   notes: z.string().max(2000).optional(),
   projectId: z.string().optional(),
   customTask: z.string().max(500).optional(),
+  eventType: z.enum(['activity', 'installation', 'fabrication', 'delivery']).optional(),
+  teamMemberIds: z.array(z.string()).optional(),
 })
 
 export const CreateProjectSchema = z.object({
   projectName: z.string().min(1).max(200).transform((v) => v.trim()),
-  nickname: z.string().min(1).max(100).transform((v) => v.trim()),
-  clientName: z.string().min(1).max(200).transform((v) => v.trim()),
   projectDescription: z.string().min(1).max(5000),
-  detailedLocation: z.string().min(1).max(1000),
-  paymentMode: z.enum(['Standard', 'Progressive']),
+
+  nickname: z.string().max(100).transform((v) => v.trim()).optional(),
+  clientName: z.string().max(200).transform((v) => v.trim()).optional(),
+  detailedLocation: z.string().max(1000).optional(),
 
   clientPhone: z.string().max(30).optional(),
   emirate: z.string().max(100).optional(),
@@ -208,3 +225,27 @@ export const CreateProjectSchema = z.object({
   salesOwnerCollaboratorId: z.string().optional(),
   communSedIds: z.array(z.string().min(1)).max(10).optional(),
 })
+
+export const CreateClientRequestSchema = z
+  .object({
+    requestType: z.enum(['Trade', 'Maintenance', 'Variance']),
+    clientName: z.string().min(1, 'Client name is required').max(200).transform((v) => v.trim()),
+    clientPhone: z.string().max(30).optional(),
+    description: z.string().max(1000).optional(),
+    tradeReference: z.string().max(50).optional(),
+    salesOwnerCollaboratorId: z.string().optional(),
+    parentProjectId: z.string().optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (!d.parentProjectId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['parentProjectId'],
+        message: d.requestType === 'Trade'
+          ? 'Parent project is required for Trade requests'
+          : d.requestType === 'Variance'
+          ? 'Parent project is required for Variance requests'
+          : 'Select the project under warranty for this maintenance request',
+      })
+    }
+  })

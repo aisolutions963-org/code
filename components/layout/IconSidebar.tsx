@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
+import useSWR from 'swr'
 import { Role } from '@/lib/types'
 
 interface NavItem {
@@ -167,6 +168,14 @@ function TruckIcon() {
   )
 }
 
+function RequestsIcon() {
+  return (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4m4-5h8" />
+    </svg>
+  )
+}
+
 function HammerIcon() {
   return (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,14 +197,6 @@ function InspectIcon() {
   return (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-    </svg>
-  )
-}
-
-function GatePassIcon() {
-  return (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
     </svg>
   )
 }
@@ -245,6 +246,13 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Timeline', href: '/dashboard/superadmin?view=timeline', icon: <TimelineIcon /> },
         { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases', icon: <PhaseGateIcon /> },
         { label: 'Activity', href: '/dashboard/superadmin?view=activity', icon: <ActivityIcon /> },
+        { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
+      ],
+    },
+    {
+      label: 'Operations',
+      items: [
+        { label: 'Materials', href: '/dashboard/superadmin?view=materials', icon: <HammerIcon /> },
       ],
     },
     {
@@ -258,7 +266,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
     {
       label: 'Team',
       items: [
-        { label: 'Team Activity', href: '/dashboard/superadmin/team-activity', icon: <TeamIcon /> },
+        { label: 'Team Activity', href: '/dashboard/superadmin?view=activity', icon: <TeamIcon /> },
         { label: 'Users', href: '/dashboard/superadmin?view=users', icon: <UsersIcon /> },
         { label: 'Workers', href: '/dashboard/superadmin/workers', icon: <WorkerIcon /> },
         { label: 'Timesheets', href: '/dashboard/superadmin/timesheets', icon: <ClockIcon /> },
@@ -293,6 +301,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Materials', href: '/dashboard/mgr?view=materials', icon: <HammerIcon /> },
         { label: 'Deliveries', href: '/dashboard/mgr?view=deliveries', icon: <TruckIcon /> },
         { label: 'Install Teams', href: '/dashboard/mgr?view=installation', icon: <TeamIcon /> },
+        { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
       ],
     },
     {
@@ -324,6 +333,8 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Client Approvals', href: '/dashboard/sed?view=approvals', icon: <ApprovalIcon /> },
         { label: 'Site Visits', href: '/dashboard/sed?view=site-visits', icon: <LocationIcon /> },
         { label: 'QC Checks', href: '/dashboard/sed?view=qc', icon: <InspectIcon /> },
+        { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
+        { label: 'Materials', href: '/dashboard/sed?view=materials', icon: <HammerIcon /> },
       ],
     },
     {
@@ -372,7 +383,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Inspections', href: '/dashboard/fix?view=inspections', icon: <InspectIcon /> },
         { label: 'Install Logs', href: '/dashboard/fix?view=logs', icon: <ClipboardIcon /> },
-        { label: 'Gate Passes', href: '/dashboard/fix?view=gate-passes', icon: <GatePassIcon /> },
+        { label: 'Materials', href: '/dashboard/fix?view=materials', icon: <HammerIcon /> },
       ],
     },
   ],
@@ -419,11 +430,20 @@ const ROLE_RING: Record<Role, string> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const sidebarFetcher = (url: string) => fetch(url).then((r) => r.json())
+
 export default function IconSidebar({ role, name }: { role: Role; name: string }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [viewAsOpen, setViewAsOpen] = useState(false)
+
+  const { data: materialsData } = useSWR<{ pendingCount: number }>(
+    '/api/materials',
+    sidebarFetcher,
+    { refreshInterval: 120_000 },
+  )
+  const pendingMaterials = materialsData?.pendingCount ?? 0
 
   const groups = NAV_GROUPS[role] ?? []
   const currentHref = pathname + (searchParams.toString() ? '?' + searchParams.toString() : '')
@@ -447,10 +467,13 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
       style={{ background: 'rgba(14,14,24,0.97)', borderRight: '1px solid rgba(255,255,255,0.07)' }}
     >
       {/* Logo / role header */}
-      <div className="flex items-center gap-3 h-14 px-4 shrink-0 border-b border-white/[0.06]">
-        <div className={`w-7 h-7 rounded-lg ${ROLE_ACCENT[role]} flex items-center justify-center shrink-0 shadow-md`}>
-          <span className="text-white text-xs font-black">W</span>
-        </div>
+      <div className="flex items-center gap-2.5 h-14 px-4 shrink-0 border-b border-white/[0.06]">
+        <img
+          src="/logo.png"
+          alt="WoodWings"
+          className="h-8 w-auto shrink-0 object-contain"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
         <div className="min-w-0">
           <p className="text-white text-xs font-semibold leading-none truncate">WoodWings</p>
           <p className={`text-[11px] leading-none mt-0.5 ${ROLE_TEXT[role]}`}>{ROLE_LABELS[role]}</p>
@@ -484,6 +507,12 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
                     )}
                     <span className={`transition-colors ${active ? ROLE_TEXT[role] : ''}`}>{item.icon}</span>
                     <span className="truncate">{item.label}</span>
+                    {item.href.includes('view=materials') && pendingMaterials > 0 && (
+                      <span className="ml-auto shrink-0 min-w-[18px] h-[18px] flex items-center justify-center
+                        text-[10px] font-bold bg-amber-500 text-white rounded-full px-1 leading-none">
+                        {pendingMaterials}
+                      </span>
+                    )}
                   </Link>
                 )
               })}

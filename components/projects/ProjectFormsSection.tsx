@@ -2,12 +2,25 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Quotation, Payment, Material, Role } from '@/lib/types'
+import { Quotation, Material, HandoverSheet, Role } from '@/lib/types'
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
 
-const canSeePayments = (role: Role) => role === 'manager' || role === 'superadmin'
+const canUpdateMaterials = (role: Role) => role === 'manager' || role === 'superadmin' || role === 'fabrication'
+
+const MATERIAL_STATUSES = ['Not ordered', 'Pending approval', 'Ordered', 'Partially received', 'Received', 'Delayed'] as const
+
+function statusStyle(status?: string) {
+  switch (status) {
+    case 'Received':          return 'bg-green-100 text-green-700'
+    case 'Ordered':           return 'bg-blue-100 text-blue-700'
+    case 'Partially received': return 'bg-orange-100 text-orange-700'
+    case 'Pending approval':  return 'bg-amber-100 text-amber-700'
+    case 'Delayed':           return 'bg-red-100 text-red-700'
+    default:                  return 'bg-gray-100 text-gray-500'
+  }
+}
 
 interface Props {
   projectId: string
@@ -16,33 +29,47 @@ interface Props {
 
 export default function ProjectFormsSection({ projectId, role }: Props) {
   const [open, setOpen] = useState(false)
-  const showPayments = canSeePayments(role)
-
-  const done = (d: unknown, e: unknown) => d !== undefined || e !== undefined
+  const [updating, setUpdating] = useState<Set<string>>(new Set())
+  const canEditStatus = canUpdateMaterials(role)
 
   const { data: quotationsData, error: quotationsError } = useSWR<{ quotations: Quotation[] }>(
     open ? `/api/projects/${projectId}/quotation` : null,
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false },
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
   )
-  const { data: materialsData, error: materialsError } = useSWR<{ materials: Material[] }>(
+  const { data: materialsData, error: materialsError, mutate: mutateMaterials } = useSWR<{ materials: Material[] }>(
     open ? `/api/projects/${projectId}/materials` : null,
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false },
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
   )
-  const { data: paymentsData, error: paymentsError } = useSWR<{ payments: Payment[] }>(
-    open && showPayments ? `/api/payments?projectId=${projectId}` : null,
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false },
+  const { data: handoverData, error: handoverError } = useSWR<{ sheets: HandoverSheet[] }>(
+    open ? `/api/projects/${projectId}/handover` : null,
+    fetcher, { revalidateOnFocus: false, shouldRetryOnError: false },
   )
+
+  async function updateMaterialStatus(materialId: string, status: string) {
+    setUpdating((prev) => new Set(prev).add(materialId))
+    try {
+      const res = await fetch(`/api/materials/${materialId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderStatus: status }),
+      })
+      if (!res.ok) throw new Error('failed')
+      await mutateMaterials()
+    } catch {
+      // status reverts to server value on next fetch
+    } finally {
+      setUpdating((prev) => { const s = new Set(prev); s.delete(materialId); return s })
+    }
+  }
 
   const quotations = quotationsData?.quotations ?? []
   const materials = materialsData?.materials ?? []
-  const payments = paymentsData?.payments ?? []
-  const total = quotations.length + materials.length + (showPayments ? payments.length : 0)
-
-  const allLoaded = done(quotationsData, quotationsError) && done(materialsData, materialsError) &&
-    (!showPayments || done(paymentsData, paymentsError))
+  const handoverSheets = handoverData?.sheets ?? []
+  const total = quotations.length + materials.length + handoverSheets.length
+  const allLoaded =
+    (quotationsData !== undefined || quotationsError !== undefined) &&
+    (materialsData !== undefined || materialsError !== undefined) &&
+    (handoverData !== undefined || handoverError !== undefined)
 
   return (
     <div>
@@ -68,40 +95,6 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
 
       {open && (
         <div className="mt-3 space-y-3">
-          {/* Payments — manager & superadmin only */}
-          {showPayments && payments.length > 0 && (
-            <div className="border border-gray-100 rounded-xl overflow-hidden">
-              <div className="px-3 py-2 bg-green-50 border-b border-green-100">
-                <p className="text-xs font-semibold text-green-700">Payments ({payments.length})</p>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {payments.map((p) => (
-                  <div key={p.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-gray-700">{p.paymentType}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        {p.paymentMethod}{p.receivedDate ? ` · ${p.receivedDate}` : p.dueDate ? ` · Due ${p.dueDate}` : ''}
-                        {p.referenceNo ? ` · Ref: ${p.referenceNo}` : ''}
-                        {p.recordedBy ? ` · by ${p.recordedBy}` : ''}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs font-semibold text-gray-700">AED {p.amount.toLocaleString()}</span>
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                        p.paymentStatus === 'Received'
-                          ? 'bg-green-100 text-green-700'
-                          : p.paymentStatus === 'Pending'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {p.paymentStatus}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* F5 — Quotation */}
           {quotations.length > 0 && (
@@ -153,15 +146,68 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
                         {m.requestedBy ? `${m.requestDate ? ' · ' : ''}by ${m.requestedBy}` : ''}
                         {m.supplier ? ` · ${m.supplier}` : ''}
                       </p>
+                      {(m.expectedArrivalDate || m.actualArrivalDate) && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {m.expectedArrivalDate ? `Expected: ${m.expectedArrivalDate}` : ''}
+                          {m.actualArrivalDate ? `${m.expectedArrivalDate ? ' · ' : ''}Arrived: ${m.actualArrivalDate}` : ''}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {m.quantity != null && m.unit && (
                         <span className="text-xs text-gray-500">{m.quantity} {m.unit}</span>
                       )}
-                      {m.orderStatus && (
-                        <span className="text-[10px] font-semibold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
-                          {m.orderStatus}
+                      {canEditStatus ? (
+                        <select
+                          value={m.orderStatus ?? 'Not ordered'}
+                          disabled={updating.has(m.id)}
+                          onChange={(e) => updateMaterialStatus(m.id, e.target.value)}
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border-0 cursor-pointer appearance-none text-center ${statusStyle(m.orderStatus)} ${updating.has(m.id) ? 'opacity-50' : ''}`}
+                        >
+                          {MATERIAL_STATUSES.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusStyle(m.orderStatus)}`}>
+                          {m.orderStatus ?? 'Not ordered'}
                         </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Handover Sheet */}
+          {handoverSheets.length > 0 && (
+            <div className="border border-gray-100 rounded-xl overflow-hidden">
+              <div className="px-3 py-2 bg-purple-50 border-b border-purple-100">
+                <p className="text-xs font-semibold text-purple-700">Handover ({handoverSheets.length})</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {handoverSheets.map((s) => (
+                  <div key={s.id} className="px-3 py-2.5 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-gray-700">
+                        {s.finalInstallationDate ? `Final installation: ${s.finalInstallationDate}` : 'Handover submitted'}
+                      </p>
+                      {s.recordedBy && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">by {s.recordedBy}</p>
+                      )}
+                      {s.notes && (
+                        <p className="text-[11px] text-gray-500 mt-0.5 italic">{s.notes}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                        s.status === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {s.status}
+                      </span>
+                      {s.customerSatisfaction && (
+                        <span className="text-[10px] text-gray-400">Satisfaction: {s.customerSatisfaction}</span>
                       )}
                     </div>
                   </div>
@@ -175,7 +221,7 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
           )}
 
           {allLoaded && total === 0 && (
-            <p className="text-xs text-gray-400 py-2">No forms submitted yet.</p>
+            <p className="text-xs text-gray-400 py-2">No F-forms submitted yet.</p>
           )}
         </div>
       )}

@@ -5,14 +5,12 @@ import { useDrawer } from '@/lib/drawer-context'
 import Link from 'next/link'
 
 const STAGE_DOT: Record<string, string> = {
-  'Inquiry': 'bg-gray-400',
-  'Quotation Sent': 'bg-blue-400',
-  'Quotation Approved': 'bg-cyan-400',
   'Preparing': 'bg-purple-400',
   'Open': 'bg-amber-400',
-  'Working': 'bg-green-400',
-  'Handover': 'bg-teal-400',
+  'Production': 'bg-green-400',
   'Closed': 'bg-gray-600',
+  'Closed and active warranty': 'bg-teal-400',
+  'Warranty expired': 'bg-gray-400',
 }
 
 function urgencyGlow(project: Project): string {

@@ -45,8 +45,8 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
       ? existingSheets[0]
       : await createHandoverSheet(params.id, parsed.data)
 
-    // Handover submitted → awaiting final payment from client. Project is not yet Closed.
-    await updateProject(params.id, { [PROJECTS.PROJECT_STAGE]: 'Installation Completed' })
+    // Handover submitted → project is now Closed.
+    await updateProject(params.id, { [PROJECTS.PROJECT_STAGE]: 'Closed' })
 
     const projectRef = project.projectId ?? params.id
     const projectLabel = project.projectName

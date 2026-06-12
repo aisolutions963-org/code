@@ -1,15 +1,16 @@
-'use client'
+﻿'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Announcement, Project, Task } from '@/lib/types'
-import type { CalendarEvent } from '@/lib/airtable'
 import { useSession } from '@/app/dashboard/layout-client'
+import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
+import CommissionCard from '@/components/sed/CommissionCard'
+import PipelineColumn from '@/components/pipeline/PipelineColumn'
 
 interface HomeData {
   announcements: Announcement[]
-  events: CalendarEvent[]
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -35,12 +36,14 @@ function LiveClock() {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: 'Asia/Dubai',
   })
   const timeStr = time.toLocaleTimeString('en-AE', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hour12: true,
+    timeZone: 'Asia/Dubai',
   })
 
   return (
@@ -70,266 +73,34 @@ function AnnouncementCard({ ann }: { ann: Announcement }) {
   )
 }
 
-type CalendarType = 'installation' | 'activity'
-
-function MiniCalendar({
-  type,
-  events,
-  onDayClick,
+function HomeCalendar({
+  canAddActivity,
+  canAddInstallation,
+  onActivityDate,
+  onInstallationDate,
 }: {
-  type: CalendarType
-  events: CalendarEvent[]
-  onDayClick?: (date: string) => void
+  canAddActivity: boolean
+  canAddInstallation: boolean
+  onActivityDate: (date: string) => void
+  onInstallationDate: (date: string) => void
 }) {
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  })
-  const [popoverEvent, setPopoverEvent] = useState<{ ev: CalendarEvent; x: number; y: number } | null>(null)
-
-  const title = type === 'installation' ? 'Installation & Delivery Calendar' : 'Project Activity Calendar'
-  const filtered = events.filter((e) =>
-    type === 'installation'
-      ? e.type === 'installation' || e.type === 'delivery' || e.type === 'fabrication'
-      : e.type === 'activity',
-  )
-
-  const year = currentMonth.getFullYear()
-  const month = currentMonth.getMonth()
-
-  const firstDay = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-
-  const todayStr = new Date().toISOString().slice(0, 10)
-
-  const pointEvents = filtered.filter((e) => e.type !== 'fabrication')
-  const fabRanges = filtered.filter((e) => e.type === 'fabrication')
-
-  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`
-
-  const eventsByDate: Record<string, CalendarEvent[]> = {}
-  for (const ev of pointEvents) {
-    const d = ev.date.slice(0, 10)
-    if (d.startsWith(monthPrefix)) {
-      if (!eventsByDate[d]) eventsByDate[d] = []
-      eventsByDate[d].push(ev)
-    }
-  }
-
-  function getFabStatus(dateStr: string): { inRange: boolean; isStart: boolean; isEnd: boolean; titles: string[] } {
-    const titles: string[] = []
-    let inRange = false; let isStart = false; let isEnd = false
-    for (const ev of fabRanges) {
-      const start = ev.date.slice(0, 10)
-      const end = (ev.endDate ?? ev.date).slice(0, 10)
-      if (dateStr >= start && dateStr <= end) {
-        inRange = true
-        if (dateStr === start) isStart = true
-        if (dateStr === end) isEnd = true
-        titles.push(ev.title)
-      }
-    }
-    return { inRange, isStart, isEnd, titles }
-  }
-
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  const tabs: TabDef[] = [
+    { id: 'all',          label: 'All',                   dot: 'bg-gray-400',   types: null,                                          noAdd: true },
+    { id: 'installation', label: 'Installation & Delivery', dot: 'bg-blue-500',   types: ['installation', 'delivery', 'fabrication'],  noAdd: !canAddInstallation },
+    { id: 'activity',     label: 'Activity',              dot: 'bg-amber-400',  types: ['activity'],                                  noAdd: !canAddActivity },
   ]
 
-  const prevMonth = () => { setCurrentMonth(new Date(year, month - 1, 1)); setPopoverEvent(null) }
-  const nextMonth = () => { setCurrentMonth(new Date(year, month + 1, 1)); setPopoverEvent(null) }
-
-  const monthLabel = currentMonth.toLocaleDateString('en-AE', { month: 'long', year: 'numeric' })
-
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
-        <div className="flex items-center gap-1">
-          {onDayClick && (
-            <button
-              onClick={() => onDayClick(todayStr)}
-              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg bg-brand-50 text-brand-600 hover:bg-brand-100 border border-brand-200 mr-1"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add
-            </button>
-          )}
-          <button onClick={prevMonth} className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <span className="text-xs font-medium text-gray-600 min-w-[120px] text-center">{monthLabel}</span>
-          <button onClick={nextMonth} className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="p-3">
-        <div className="grid grid-cols-7 mb-1">
-          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-            <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-y-1">
-          {cells.map((day, i) => {
-            if (!day) return <div key={`empty-${i}`} />
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-            const evs = eventsByDate[dateStr] ?? []
-            const isToday = dateStr === todayStr
-            const fab = getFabStatus(dateStr)
-            const hasTooltip = evs.length > 0 || fab.inRange
-            return (
-              <div
-                key={dateStr}
-                onClick={() => onDayClick?.(dateStr)}
-                className={`relative flex flex-col items-center py-1 rounded-lg group
-                  ${onDayClick ? 'cursor-pointer' : 'cursor-default'}
-                  ${isToday ? 'bg-brand-500' : fab.inRange ? 'bg-emerald-50' : onDayClick ? 'hover:bg-blue-50' : evs.length > 0 ? 'hover:bg-gray-50' : ''}`}
-              >
-                <span className={`text-xs font-medium ${isToday ? 'text-white' : fab.inRange ? 'text-emerald-800' : 'text-gray-700'}`}>
-                  {day}
-                </span>
-                {fab.inRange && !isToday && (
-                  <div className="flex gap-0.5 mt-0.5 justify-center">
-                    {fab.isStart && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-                    {fab.isEnd && !fab.isStart && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />}
-                    {!fab.isStart && !fab.isEnd && <span className="w-2 h-0.5 bg-emerald-300 rounded-full" />}
-                  </div>
-                )}
-                {evs.length > 0 && (
-                  <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
-                    {evs.slice(0, 3).map((ev) => (
-                      <span
-                        key={ev.id}
-                        onClick={(e) => { e.stopPropagation(); setPopoverEvent({ ev, x: e.clientX, y: e.clientY }) }}
-                        className={`w-2 h-2 rounded-full cursor-pointer hover:scale-125 transition-transform ${
-                          ev.type === 'installation' ? 'bg-blue-500' :
-                          ev.type === 'delivery' ? 'bg-yellow-400' : 'bg-amber-400'
-                        }`}
-                      />
-                    ))}
-                    {evs.length > 3 && (
-                      <span className="text-[9px] text-gray-400">+{evs.length - 3}</span>
-                    )}
-                  </div>
-                )}
-                {hasTooltip && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-10 hidden group-hover:block w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-lg pointer-events-none">
-                    {fab.titles.map((t, idx) => (
-                      <div key={idx} className="truncate text-emerald-300">{t}</div>
-                    ))}
-                    {evs.map((ev) => (
-                      <div key={ev.id} className="truncate">{ev.title}</div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="px-3 pb-3 flex gap-3 flex-wrap">
-        {type === 'installation' ? (
-          <>
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-blue-500" />Installation
-            </span>
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <span className="w-2 h-2 rounded-full bg-yellow-400" />Delivery
-            </span>
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <span className="w-4 h-3 rounded bg-emerald-50 border border-emerald-300 inline-block" />Fabrication
-            </span>
-          </>
-        ) : (
-          <span className="flex items-center gap-1 text-xs text-gray-500">
-            <span className="w-2 h-2 rounded-full bg-amber-400" />Activity
-          </span>
-        )}
-      </div>
-
-      {/* Event detail popover */}
-      {popoverEvent && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setPopoverEvent(null)} />
-          <div
-            className="fixed z-50 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 p-4"
-            style={{
-              top: Math.min(popoverEvent.y + 10, window.innerHeight - 240),
-              left: Math.min(Math.max(popoverEvent.x - 128, 8), window.innerWidth - 272),
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div className="min-w-0 flex-1">
-                <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-md mb-1.5 ${
-                  popoverEvent.ev.type === 'activity' ? 'bg-amber-100 text-amber-700' :
-                  popoverEvent.ev.type === 'installation' ? 'bg-blue-100 text-blue-700' :
-                  'bg-green-100 text-green-700'
-                }`}>
-                  {popoverEvent.ev.type}
-                </span>
-                <p className="text-sm font-semibold text-gray-900 leading-snug">{popoverEvent.ev.title}</p>
-              </div>
-              <button
-                onClick={() => setPopoverEvent(null)}
-                className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors mt-0.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-400 w-14 shrink-0">Date</span>
-                <span className="text-gray-800 font-medium">
-                  {new Date(popoverEvent.ev.date + 'T00:00:00').toLocaleDateString('en-AE', {
-                    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-                  })}
-                </span>
-              </div>
-              {popoverEvent.ev.createdBy && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-400 w-14 shrink-0">Set by</span>
-                  <span className="text-gray-800 font-medium">{popoverEvent.ev.createdBy}</span>
-                </div>
-              )}
-              {popoverEvent.ev.projectId && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-400 w-14 shrink-0">Project</span>
-                  <span className="font-mono text-gray-700">{popoverEvent.ev.projectId}</span>
-                </div>
-              )}
-              {popoverEvent.ev.customTask && (
-                <div className="text-xs">
-                  <span className="text-gray-400">Task</span>
-                  <p className="text-gray-800 mt-0.5 font-medium">{popoverEvent.ev.customTask}</p>
-                </div>
-              )}
-              {popoverEvent.ev.notes && (
-                <div className="text-xs pt-1 border-t border-gray-100">
-                  <span className="text-gray-400">Notes</span>
-                  <p className="text-gray-700 mt-0.5 whitespace-pre-wrap leading-relaxed">{popoverEvent.ev.notes}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    <UnifiedCalendar
+      tabs={tabs}
+      onDayClick={(date, tabId) => {
+        if (tabId === 'installation' && canAddInstallation) onInstallationDate(date)
+        if (tabId === 'activity'    && canAddActivity)      onActivityDate(date)
+      }}
+    />
   )
 }
+
 
 // ─── Add Activity Modal ───────────────────────────────────────────────────────
 
@@ -487,9 +258,7 @@ function AddActivityModal({
   )
 }
 
-// ─── Add Installation / Delivery Modal ───────────────────────────────────────
-
-type InstallMode = 'task' | 'delivery'
+// ─── Add Installation Modal ───────────────────────────────────────────────────
 
 function AddInstallationModal({
   date,
@@ -501,12 +270,10 @@ function AddInstallationModal({
   onSuccess: () => void
 }) {
   const { data: projectData } = useSWR<{ projects: Project[] }>('/api/projects?all=true', fetcher)
-  const [mode, setMode] = useState<InstallMode>('task')
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [projectTasks, setProjectTasks] = useState<Task[]>([])
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState('')
-  const [itemsDescription, setItemsDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -516,7 +283,7 @@ function AddInstallationModal({
     setSelectedProjectId(projectRecordId)
     setSelectedTaskId('')
     setProjectTasks([])
-    if (!projectRecordId || mode !== 'task') return
+    if (!projectRecordId) return
     setLoadingTasks(true)
     try {
       const res = await fetch(`/api/tasks?projectId=${projectRecordId}&all=true`)
@@ -533,50 +300,20 @@ function AddInstallationModal({
     }
   }
 
-  function handleModeChange(m: InstallMode) {
-    setMode(m)
-    setSelectedProjectId('')
-    setSelectedTaskId('')
-    setProjectTasks([])
-    setItemsDescription('')
-    setError(null)
-  }
-
   async function handleSubmit() {
+    if (!selectedTaskId) { setError('Select a task'); return }
     setSaving(true)
     setError(null)
     try {
-      if (mode === 'task') {
-        if (!selectedTaskId) { setError('Select a task'); setSaving(false); return }
-        const res = await fetch(`/api/tasks/${selectedTaskId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fields: { taskStartDate: date } }),
-        })
-        if (!res.ok) {
-          const d = await res.json()
-          setError(d.error ?? 'Failed to save')
-          return
-        }
-      } else {
-        if (!selectedProjectId) { setError('Select a project'); setSaving(false); return }
-        if (!itemsDescription.trim()) { setError('Enter items description'); setSaving(false); return }
-        const proj = projects.find((p) => p.id === selectedProjectId)
-        if (!proj) { setError('Project not found'); setSaving(false); return }
-        const res = await fetch('/api/gate-passes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project: [selectedProjectId],
-            itemsDescription: itemsDescription.trim(),
-            estimatedSupplyDate: date,
-          }),
-        })
-        if (!res.ok) {
-          const d = await res.json()
-          setError(d.error ?? 'Failed to save')
-          return
-        }
+      const res = await fetch(`/api/tasks/${selectedTaskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { taskStartDate: date } }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setError(d.error ?? 'Failed to save')
+        return
       }
       onSuccess()
       onClose()
@@ -606,26 +343,6 @@ function AddInstallationModal({
           </button>
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex rounded-lg border border-gray-200 p-0.5 mb-4">
-          <button
-            onClick={() => handleModeChange('task')}
-            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              mode === 'task' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Installation Task
-          </button>
-          <button
-            onClick={() => handleModeChange('delivery')}
-            className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              mode === 'delivery' ? 'bg-green-500 text-white' : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Delivery
-          </button>
-        </div>
-
         {error && (
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
             {error}
@@ -649,7 +366,7 @@ function AddInstallationModal({
             </select>
           </div>
 
-          {mode === 'task' && selectedProjectId && (
+          {selectedProjectId && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Installation Task</label>
               {loadingTasks ? (
@@ -668,19 +385,6 @@ function AddInstallationModal({
                   ))}
                 </select>
               )}
-            </div>
-          )}
-
-          {mode === 'delivery' && selectedProjectId && (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Items Description</label>
-              <input
-                type="text"
-                value={itemsDescription}
-                onChange={(e) => setItemsDescription(e.target.value)}
-                placeholder="e.g. Kitchen cabinets batch 1"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
             </div>
           )}
         </div>
@@ -705,245 +409,78 @@ function AddInstallationModal({
   )
 }
 
-// ─── Project Pipeline ─────────────────────────────────────────────────────────
+// ─── Home Pipeline ────────────────────────────────────────────────────────────
 
-const PIPELINE_STAGES = [
-  { key: 'Preparing', label: 'Preparing' },
-  { key: 'Open', label: 'Open' },
-  { key: 'Production', label: 'Production' },
-  { key: 'Fixing', label: 'Fixing' },
-] as const
+const HOME_COLUMNS: { title: string; stages: string[] }[] = [
+  { title: 'Preparing',  stages: ['Preparing'] },
+  { title: 'Open',       stages: ['Open'] },
+  { title: 'Production', stages: ['Production'] },
+  { title: 'Done',       stages: ['Closed'] },
+  { title: 'Warranty',   stages: ['Closed and active warranty', 'Warranty expired'] },
+]
 
-type PipelineStage = typeof PIPELINE_STAGES[number]['key']
-
-const STAGE_STYLES: Record<PipelineStage, {
-  header: string; bar: string; badge: string; card: string; dot: string
-}> = {
-  Preparing: {
-    header: 'text-orange-400',
-    bar: 'bg-orange-500',
-    badge: 'bg-orange-500/20 text-orange-300',
-    card: 'border-orange-500/20 hover:border-orange-400/40',
-    dot: 'bg-orange-400',
-  },
-  Open: {
-    header: 'text-blue-400',
-    bar: 'bg-blue-500',
-    badge: 'bg-blue-500/20 text-blue-300',
-    card: 'border-blue-500/20 hover:border-blue-400/40',
-    dot: 'bg-blue-400',
-  },
-  Production: {
-    header: 'text-purple-400',
-    bar: 'bg-purple-500',
-    badge: 'bg-purple-500/20 text-purple-300',
-    card: 'border-purple-500/20 hover:border-purple-400/40',
-    dot: 'bg-purple-400',
-  },
-  Fixing: {
-    header: 'text-green-400',
-    bar: 'bg-green-500',
-    badge: 'bg-green-500/20 text-green-300',
-    card: 'border-green-500/20 hover:border-green-400/40',
-    dot: 'bg-green-400',
-  },
-}
-
-function ProjectPipeline({ role }: { role: string }) {
-  const [scopeProject, setScopeProject] = useState<Project | null>(null)
+function HomePipeline({ role }: { role: string }) {
+  const [search, setSearch] = useState('')
   const isWideRole = role === 'superadmin' || role === 'manager'
-  const { data: projectData, isLoading } = useSWR<{ projects: Project[] }>(
+  const { data, isLoading } = useSWR<{ projects: Project[] }>(
     isWideRole ? '/api/projects?all=true' : '/api/projects',
     fetcher,
-    { refreshInterval: 60000 },
-  )
-  const { data: taskData } = useSWR<{ tasks: Task[] }>(
-    '/api/tasks',
-    fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
-  const allProjects = projectData?.projects ?? []
-  const active = allProjects.filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
-  const tasks = taskData?.tasks ?? []
+  const projects = useMemo(() => {
+    const all = data?.projects ?? []
+    if (!search.trim()) return all
+    const q = search.toLowerCase()
+    return all.filter(
+      (p) =>
+        p.projectName.toLowerCase().includes(q) ||
+        p.clientName.toLowerCase().includes(q) ||
+        (p.projectId ?? '').toLowerCase().includes(q),
+    )
+  }, [data, search])
 
-  const tasksByProject = new Map<string, Task[]>()
-  for (const t of tasks) {
-    const pid = t.project?.[0]
-    if (!pid) continue
-    if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
-    tasksByProject.get(pid)!.push(t)
-  }
-
-  function getCurrentTask(projectId: string): Task | undefined {
-    const pts = tasksByProject.get(projectId) ?? []
-    return pts.find((t) => t.status === 'In Progress') ?? pts.find((t) => t.status === 'To Do')
-  }
-
-  if (isLoading || active.length === 0) return null
-
-  const grouped: Record<string, Project[]> = {}
-  for (const s of PIPELINE_STAGES) grouped[s.key] = []
-  for (const p of active) {
-    const stage = p.fabricationActive ? 'Production' : p.projectStage
-    if (stage in grouped) grouped[stage].push(p)
-  }
+  const columnData = useMemo(() =>
+    HOME_COLUMNS.map((col) => ({
+      ...col,
+      projects: projects.filter((p) => col.stages.includes(p.projectStage)),
+    })),
+  [projects])
 
   return (
-    <div className="bg-gray-800/60 rounded-2xl p-5">
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Active Project Pipeline</h2>
-        <span className="text-xs text-gray-500">{active.length} active</span>
+    <div className="bg-gray-800/60 rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.05]">
+        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide shrink-0">Pipeline</h2>
+        <div className="relative flex-1 max-w-xs">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search projects..."
+            className="w-full pl-9 pr-4 py-2 rounded-xl text-sm text-white/80 placeholder-white/25
+              bg-white/[0.05] border border-white/[0.08] focus:outline-none focus:border-white/20
+              focus:bg-white/[0.07] transition-all"
+          />
+        </div>
+        <div className="ml-auto">
+          {isLoading ? (
+            <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+          ) : (
+            <span className="text-xs text-white/30">{projects.length} project{projects.length !== 1 ? 's' : ''}</span>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto">
-        <div className="flex items-start gap-0 min-w-max pb-1">
-          {PIPELINE_STAGES.map((stage, i) => {
-            const stageProjects = grouped[stage.key] ?? []
-            const s = STAGE_STYLES[stage.key]
-            return (
-              <div key={stage.key} className="flex items-start">
-                <div className="w-44 flex-shrink-0">
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <div className={`h-0.5 w-4 ${s.bar} opacity-50 rounded-full`} />
-                    <span className={`text-[11px] font-bold uppercase tracking-widest ${s.header}`}>
-                      {stage.label}
-                    </span>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.badge}`}>
-                      {stageProjects.length}
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {stageProjects.length === 0 ? (
-                      <div className="h-14 border border-dashed border-gray-700 rounded-xl flex items-center justify-center">
-                        <span className="text-[10px] text-gray-600 uppercase tracking-wide">empty</span>
-                      </div>
-                    ) : (
-                      stageProjects.map((p) => {
-                        const task = getCurrentTask(p.id)
-                        const inProgress = task?.status === 'In Progress'
-                        const fabOverride = p.fabricationActive && stage.key === 'Production' && p.projectStage !== 'Production'
-                        return (
-                          <div
-                            key={p.id}
-                            onClick={() => setScopeProject(p)}
-                            className={`bg-gray-700/40 border rounded-xl p-2.5 transition-colors cursor-pointer ${s.card}`}
-                          >
-                            <div className="flex items-start justify-between gap-1">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1 mb-0.5">
-                                  <p className="text-[10px] font-mono text-gray-500 leading-none">
-                                    {p.projectId}
-                                  </p>
-                                  {fabOverride && (
-                                    <span className="text-[9px] font-semibold px-1 py-0 rounded bg-amber-500/20 text-amber-400 leading-4">FAB</span>
-                                  )}
-                                </div>
-                                <p className="text-xs font-semibold text-white truncate leading-tight">
-                                  {p.projectName}
-                                  {p.nickname && (
-                                    <span className="ml-1 font-normal text-gray-400">({p.nickname})</span>
-                                  )}
-                                </p>
-                                <p className="text-[10px] text-gray-400 truncate mt-0.5">
-                                  {p.clientName}
-                                </p>
-                              </div>
-                              <div className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${s.dot}`} />
-                            </div>
-                            {task && (
-                              <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center gap-1.5">
-                                <div
-                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                    inProgress ? 'bg-blue-400 animate-pulse' : 'bg-gray-600'
-                                  }`}
-                                />
-                                <p className="text-[10px] text-gray-400 truncate leading-tight">
-                                  {task.taskName}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {i < PIPELINE_STAGES.length - 1 && (
-                  <div className="w-10 flex-shrink-0 flex items-center justify-center pt-5">
-                    <svg className="w-10 h-5 text-gray-600" viewBox="0 0 40 20" fill="none">
-                      <path
-                        d="M2 10 H30 M24 4 L34 10 L24 16"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+        <div className="flex gap-4 px-5 py-4" style={{ minWidth: 'max-content' }}>
+          {columnData.map((col) => (
+            <PipelineColumn key={col.title} title={col.title} projects={col.projects} />
+          ))}
         </div>
       </div>
-
-      <div className="mt-4 pt-3 border-t border-gray-700/50 flex items-center gap-4">
-        <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-          In Progress
-        </span>
-        <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
-          <span className="w-1.5 h-1.5 rounded-full bg-gray-600" />
-          To Do
-        </span>
-        <span className="flex items-center gap-1.5 text-[10px] text-gray-500">
-          <span className="w-2 h-0.5 bg-gray-600 rounded" />
-          No task visible for your role
-        </span>
-      </div>
-
-      {scopeProject && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={() => setScopeProject(null)}
-        >
-          <div className="absolute inset-0 bg-black/60" />
-          <div
-            className="relative bg-gray-800 border border-gray-600 rounded-2xl p-5 max-w-sm w-full shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-mono text-gray-500">{scopeProject.projectId}</p>
-                <p className="text-sm font-semibold text-white leading-snug">
-                  {scopeProject.projectName}
-                  {scopeProject.nickname && (
-                    <span className="ml-1.5 font-normal text-gray-400">({scopeProject.nickname})</span>
-                  )}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">{scopeProject.clientName}</p>
-              </div>
-              <button
-                onClick={() => setScopeProject(null)}
-                className="shrink-0 text-gray-500 hover:text-gray-300 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="border-t border-gray-700 pt-3">
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Scope</p>
-              <p className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
-                {scopeProject.projectDescription ?? <span className="text-gray-600 italic">No scope defined.</span>}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -957,11 +494,10 @@ export default function HomePage() {
   const { data, isLoading, mutate } = useSWR<HomeData>(
     '/api/home',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
 
   const announcements = data?.announcements ?? []
-  const events = data?.events ?? []
 
   const canAddActivity = ['sed', 'superadmin'].includes(role)
   const canAddInstallation = ['manager', 'superadmin'].includes(role)
@@ -977,6 +513,12 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800">
       {/* Hero header with live clock */}
       <div className="px-6 pt-10 pb-8 text-center">
+        <img
+          src="/logo.png"
+          alt="WoodWings"
+          className="h-14 w-auto mx-auto mb-5 object-contain"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
         <p className="text-gray-400 text-sm mb-3">
           Welcome back, <span className="text-white font-medium">{name}</span>
           <span className="ml-2 text-gray-500">({ROLE_LABELS[role] ?? role})</span>
@@ -1015,22 +557,19 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Project pipeline schematic */}
-        <ProjectPipeline role={role} />
+        {/* Commission card — SED only */}
+        {role === 'sed' && <CommissionCard />}
+
+        {/* Project pipeline */}
+        <HomePipeline role={role} />
 
         {/* Calendars */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <MiniCalendar
-            type="installation"
-            events={events}
-            onDayClick={canAddInstallation ? setInstallationDate : undefined}
-          />
-          <MiniCalendar
-            type="activity"
-            events={events}
-            onDayClick={canAddActivity ? setActivityDate : undefined}
-          />
-        </div>
+        <HomeCalendar
+          canAddActivity={canAddActivity}
+          canAddInstallation={canAddInstallation}
+          onActivityDate={setActivityDate}
+          onInstallationDate={setInstallationDate}
+        />
       </div>
 
       {activityDate && (

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -26,9 +26,19 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/forms': 'Forms',
 }
 
+interface OverduePayment {
+  id: string
+  projectId: string
+  projectName: string
+  projectRef?: string
+  amount: number
+  dueDate: string
+  paymentType: string
+}
+
 interface SuperadminMetrics {
   staleProjects: number
-  overduePayments: number
+  overduePayments: OverduePayment[]
   pendingApprovals: number
   callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 }
@@ -99,24 +109,25 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
   const { data: pendingData } = useSWR<{ count: number }>(
     showPendingBell ? '/api/tasks/pending-approvals' : null,
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true, onSuccess: () => setLastUpdated(new Date()) },
+    { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
 
   const { data: metricsData } = useSWR<SuperadminMetrics>(
     role === 'superadmin' ? '/api/superadmin/metrics' : null,
     fetcher,
-    { refreshInterval: 60000, revalidateOnFocus: true, onSuccess: () => setLastUpdated(new Date()) },
+    { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
 
   const { data: notifData, mutate: mutateNotifs } = useSWR<NotificationsResponse>(
     '/api/notifications',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true, onSuccess: () => setLastUpdated(new Date()) },
+    { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
 
   const pendingCount = pendingData?.count ?? 0
   const staleCount = metricsData?.staleProjects ?? 0
-  const overdueCount = metricsData?.overduePayments ?? 0
+  const overduePayments = metricsData?.overduePayments ?? []
+  const overdueCount = overduePayments.length
   const callClientTasks = metricsData?.callClientTasks ?? []
   const appNotifications = notifData?.notifications ?? []
   const appUnread = notifData?.unreadCount ?? 0
@@ -158,10 +169,13 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
 
       {/* Left — logo (mobile only) + page title */}
       <div className="flex items-center gap-3">
-        {/* Mobile: show W logo since sidebar is hidden */}
-        <div className={`w-7 h-7 rounded-lg ${ROLE_DOT[role]} flex items-center justify-center shrink-0 md:hidden shadow-md`}>
-          <span className="text-white text-xs font-black">W</span>
-        </div>
+        {/* Mobile: logo since sidebar is hidden */}
+        <img
+          src="/logo.png"
+          alt="WoodWings"
+          className="h-7 w-auto shrink-0 object-contain md:hidden"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
         <span className="text-sm font-semibold text-white/90">{pageTitle}</span>
         <span className="hidden sm:flex items-center gap-1.5 text-xs text-white/30">
           <span className={`w-1.5 h-1.5 rounded-full ${ROLE_DOT[role]}`} />
@@ -283,13 +297,23 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                         </span>
                       </div>
                     )}
-                    {overdueCount > 0 && (
-                      <div className="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.04] transition-colors border-t border-white/[0.04]">
-                        <span className="text-sm text-white/60">
-                          <strong className="text-white/90">{overdueCount}</strong> overdue payment{overdueCount !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    )}
+                    {overduePayments.map((p) => (
+                      <Link
+                        key={p.id}
+                        href={`/dashboard/projects/${p.projectId}`}
+                        onClick={() => setBellOpen(false)}
+                        className="px-4 py-3 flex items-start gap-3 hover:bg-white/[0.06] transition-colors border-t border-white/[0.04] block"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-white/80 font-medium truncate">{p.projectName}</p>
+                          <p className="text-xs text-white/40 mt-0.5">
+                            {p.projectRef ? `${p.projectRef} · ` : ''}{p.paymentType || 'Payment'} · AED {p.amount.toLocaleString()}
+                          </p>
+                          <p className="text-[11px] text-red-400 mt-0.5">Due {p.dueDate}</p>
+                        </div>
+                        <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded shrink-0 mt-0.5">Overdue</span>
+                      </Link>
+                    ))}
                   </div>
                 )}
 
@@ -320,7 +344,7 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                             <p className="text-xs font-semibold text-white/80 leading-snug">{n.title}</p>
                             {n.body && <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2 whitespace-pre-wrap">{n.body}</p>}
                             <p className="text-[10px] text-white/25 mt-0.5">
-                              {new Date(n.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              {new Date(n.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}
                             </p>
                           </div>
                         </div>

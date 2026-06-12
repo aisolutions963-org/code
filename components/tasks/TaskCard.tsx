@@ -41,6 +41,7 @@ function relativeTime(iso: string): string {
 
 const INSPECTION_KEYWORDS = ['inspect', 'qc check', 'site check', 'handover', 'snagging']
 const CALL_CLIENT_KEYWORD = 'call the client'
+const DATE_TASK_KEYWORDS = ['site visit', 'installation date', 'fixing date', 'visit date']
 
 function isCallClientDecisionTask(task: Task, role: Role): boolean {
   return (
@@ -69,6 +70,11 @@ function deptBorder(departments: string[]): string {
 function isInspectionTask(taskName: string): boolean {
   const lower = taskName.toLowerCase()
   return INSPECTION_KEYWORDS.some((kw) => lower.includes(kw))
+}
+
+function isDateRequiredTask(taskName: string): boolean {
+  const lower = taskName.toLowerCase()
+  return DATE_TASK_KEYWORDS.some((kw) => lower.includes(kw))
 }
 
 function isArabicRole(role: Role): boolean {
@@ -136,12 +142,18 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showHint, setShowHint] = useState(false)
   const [localFields, setLocalFields] = useState<Partial<TaskUpdateInput>>(
-    () => getInitialFieldValues(task, getEditableFieldsForRole(role)),
+    () => ({
+      ...getInitialFieldValues(task, getEditableFieldsForRole(role)),
+      ...(role === 'superadmin' ? { superadminNote: task.superadminNote ?? '' } : {}),
+    }),
   )
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [calendarDate, setCalendarDate] = useState('')
+  const [calendarSaving, setCalendarSaving] = useState(false)
+  const [calendarSaved, setCalendarSaved] = useState(false)
 
   // Sync local fields when server data changes, but only when card is closed
   // to avoid overwriting in-progress edits
@@ -186,6 +198,9 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
   const isDecisionTask = isCallClientDecisionTask(task, role)
+  const isDateTask =
+    isDateRequiredTask(task.taskName) &&
+    (role === 'manager' || role === 'sed' || role === 'superadmin' || role === 'installation')
 
   const scheduleUpdate = useCallback(
     (key: keyof TaskUpdateInput, value: unknown) => {
@@ -269,6 +284,37 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     }
   }
 
+  async function handleAddToCalendar() {
+    if (!calendarDate) {
+      toast.error(ar ? 'اختر التاريخ أولاً' : 'Select a date first')
+      return
+    }
+    setCalendarSaving(true)
+    try {
+      const eventType = role === 'installation' ? 'installation' : 'activity'
+      const title = projectLabel
+        ? `${task.taskName} — ${projectLabel}`
+        : task.taskName
+      const res = await fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          date: calendarDate,
+          projectId: task.projectRecordId,
+          eventType,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      setCalendarSaved(true)
+      toast.success(ar ? 'تمت الإضافة للتقويم' : 'Added to calendar')
+    } catch {
+      toast.error(ar ? 'فشل الحفظ' : 'Failed to add to calendar')
+    } finally {
+      setCalendarSaving(false)
+    }
+  }
+
   function handleChange(key: keyof TaskUpdateInput, value: unknown) {
     if (key === 'status' && value === 'Completed') {
       if (isOrderSample || isPerItemOrderSample) {
@@ -305,6 +351,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       }
       if ((isMakeQuotation || isF4Task) && !task.projectQuotationNumber) {
         toast.error(ar ? 'استكمل بيانات العرض أدناه' : 'Complete the quotation details in the panel below')
+        return
+      }
+      if (isDateTask && !calendarSaved) {
+        toast.error(ar ? 'أضف التاريخ للتقويم أولاً' : 'Add a date to the calendar first')
         return
       }
     }
@@ -553,11 +603,54 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
+          {/* Date picker — site visit / installation scheduling tasks */}
+          {isDateTask && (
+            <div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-3 space-y-2">
+              <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
+                {ar ? 'تاريخ الزيارة / التركيب' : 'Visit / Installation Date'}
+              </p>
+              <div className="flex gap-2 items-center flex-wrap">
+                <input
+                  type="date"
+                  value={calendarDate}
+                  onChange={(e) => { setCalendarDate(e.target.value); setCalendarSaved(false) }}
+                  className="text-sm border border-violet-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+                />
+                <button
+                  onClick={handleAddToCalendar}
+                  disabled={!calendarDate || calendarSaving || calendarSaved}
+                  className="text-xs font-medium px-3 py-1.5 rounded-md bg-violet-600 text-white disabled:opacity-40 hover:bg-violet-700 transition-colors"
+                >
+                  {calendarSaving
+                    ? '…'
+                    : calendarSaved
+                      ? (ar ? '✓ تم الحفظ' : '✓ Saved')
+                      : (ar ? 'إضافة للتقويم' : 'Add to Calendar')}
+                </button>
+              </div>
+              <p className="text-[11px] text-violet-500">
+                {calendarSaved
+                  ? (ar ? 'تم إضافة الموعد — يمكنك الآن إتمام المهمة' : 'Date saved — you can now complete this task')
+                  : role === 'installation'
+                    ? (ar ? 'سيُضاف لتقويم التركيب' : 'Will be added to the installation calendar')
+                    : (ar ? 'سيُضاف لتقويم النشاطات' : 'Will be added to the activity calendar')}
+              </p>
+            </div>
+          )}
+
           {/* SED note — shown read-only to manager/superadmin */}
           {(role === 'manager' || role === 'superadmin') && task.sedNote && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 space-y-1">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Note from SED</p>
               <p className="text-sm text-blue-900 whitespace-pre-wrap">{task.sedNote}</p>
+            </div>
+          )}
+
+          {/* Admin follow-up note — visible to all roles, editable only by superadmin */}
+          {task.superadminNote && role !== 'superadmin' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 space-y-1">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">📌 Admin Follow-up Note</p>
+              <p className="text-sm text-amber-900 whitespace-pre-wrap">{task.superadminNote}</p>
             </div>
           )}
 

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import useSWR from 'swr'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
+import { Client } from '@/lib/types'
 
 const UAE_EMIRATES = [
   'Dubai', 'Abu Dabei', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah',
@@ -39,14 +40,13 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     clientName: '',
     projectDescription: '',
     detailedLocation: '',
-    paymentMode: '' as '' | 'Standard' | 'Progressive',
-
     clientPhone: '',
     emirate: '',
     location: '',
     sedNotes: '',
     isCommunal: false,
   })
+  const [selectedSedId, setSelectedSedId] = useState('')
   const [selectedCommunSeds, setSelectedCommunSeds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -56,11 +56,45 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     warning?: string
   } | null>(null)
 
-  const { data: sedData } = useSWR<{ members: SedMember[] }>(
-    form.isCommunal ? '/api/team/sed' : null,
+  const { data: sedData } = useSWR<{ members: SedMember[] }>('/api/team/sed', fetcher)
+  const sedMembers = sedData?.members ?? []
+
+  // Client autocomplete — only fetches when user interacts with the field
+  const [clientsNeeded, setClientsNeeded] = useState(false)
+  const { data: clientsData } = useSWR<{ clients: Client[] }>(
+    clientsNeeded ? '/api/clients' : null,
     fetcher,
   )
-  const sedMembers = sedData?.members ?? []
+  const allClients = clientsData?.clients ?? []
+  const [clientSuggestionsOpen, setClientSuggestionsOpen] = useState(false)
+  const clientInputRef = useRef<HTMLInputElement>(null)
+  const clientDropRef = useRef<HTMLDivElement>(null)
+
+  const clientSuggestions = form.clientName.trim().length >= 1
+    ? allClients.filter((c) =>
+        c.clientName.toLowerCase().includes(form.clientName.toLowerCase()),
+      ).slice(0, 8)
+    : []
+
+  function selectClient(c: Client) {
+    set('clientName', c.clientName)
+    if (c.phone) set('clientPhone', c.phone)
+    setClientSuggestionsOpen(false)
+    clientInputRef.current?.blur()
+  }
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (
+        clientInputRef.current && !clientInputRef.current.contains(e.target as Node) &&
+        clientDropRef.current && !clientDropRef.current.contains(e.target as Node)
+      ) {
+        setClientSuggestionsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -75,28 +109,24 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
   async function handleSave() {
     const missing: string[] = []
     if (!form.projectName.trim()) missing.push('Project Name')
-    if (!form.nickname.trim()) missing.push('Nickname')
-    if (!form.clientName.trim()) missing.push('Client Name')
     if (!form.projectDescription.trim()) missing.push('Project Scope')
-    if (!form.detailedLocation.trim()) missing.push('Exact Location')
-    if (!form.paymentMode) missing.push('Payment Mode')
     if (missing.length > 0) { setErr(`Required: ${missing.join(', ')}`); return }
 
     setSaving(true); setErr('')
     try {
       const body: Record<string, unknown> = {
         projectName: form.projectName.trim(),
-        nickname: form.nickname.trim(),
-        clientName: form.clientName.trim(),
         projectDescription: form.projectDescription,
-        detailedLocation: form.detailedLocation,
-        paymentMode: form.paymentMode,
       }
 
+      if (form.nickname.trim()) body.nickname = form.nickname.trim()
+      if (form.clientName.trim()) body.clientName = form.clientName.trim()
+      if (form.detailedLocation.trim()) body.detailedLocation = form.detailedLocation.trim()
       if (form.clientPhone) body.clientPhone = form.clientPhone
       if (form.emirate) body.emirate = form.emirate
       if (form.location) body.location = form.location
       if (form.sedNotes) body.sedNotes = form.sedNotes
+      if (selectedSedId) body.salesOwnerCollaboratorId = selectedSedId
       if (form.isCommunal && selectedCommunSeds.length > 0) body.communSedIds = selectedCommunSeds
 
       const res = await fetch('/api/projects', {
@@ -154,12 +184,13 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
       }
     >
       <div className="space-y-4 text-sm">
-      
+
         {err && (
           <p className="text-red-600 text-xs bg-red-50 border border-red-200 rounded px-3 py-2">{err}</p>
         )}
 
         <div className="grid grid-cols-2 gap-4">
+          {/* Project Name — required */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Project Name *</label>
             <input
@@ -170,8 +201,9 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Nickname — optional */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Nickname *</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Nickname</label>
             <input
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={form.nickname}
@@ -180,26 +212,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Client Name *</label>
-            <input
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              value={form.clientName}
-              onChange={(e) => set('clientName', e.target.value)}
-              placeholder="Full name"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Client Phone</label>
-            <input
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              value={form.clientPhone}
-              onChange={(e) => set('clientPhone', e.target.value)}
-              placeholder="+971 50 XXX XXXX"
-            />
-          </div>
-
+          {/* Project Scope — required, full width */}
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-500 mb-1">Project Scope *</label>
             <textarea
@@ -211,8 +224,74 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Assigned SED — manual, optional */}
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Exact Location *</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Assigned SED</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              value={selectedSedId}
+              onChange={(e) => setSelectedSedId(e.target.value)}
+            >
+              <option value="">— select SED —</option>
+              {sedMembers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Client Name — optional with autocomplete */}
+          <div className="relative">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Client Name</label>
+            <input
+              ref={clientInputRef}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={form.clientName}
+              onChange={(e) => { set('clientName', e.target.value); setClientsNeeded(true); setClientSuggestionsOpen(true) }}
+              onFocus={() => { setClientsNeeded(true); setClientSuggestionsOpen(true) }}
+              placeholder="Type to search or enter new client name"
+              autoComplete="off"
+            />
+            {clientSuggestionsOpen && clientSuggestions.length > 0 && (
+              <div
+                ref={clientDropRef}
+                className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+              >
+                {clientSuggestions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); selectClient(c) }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-brand-50 text-left text-sm border-b border-gray-100 last:border-0"
+                  >
+                    <div>
+                      <span className="font-medium text-gray-900">{c.clientName}</span>
+                      {c.phone && <span className="text-xs text-gray-400 ml-2">{c.phone}</span>}
+                    </div>
+                    {(c.projectCount ?? 0) > 0 && (
+                      <span className="text-[11px] text-gray-400 shrink-0 ml-2">
+                        {c.projectCount} project{c.projectCount !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Client Phone — optional */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Client Phone</label>
+            <input
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={form.clientPhone}
+              onChange={(e) => set('clientPhone', e.target.value)}
+              placeholder="+971 50 XXX XXXX"
+            />
+          </div>
+
+          {/* Exact Location — optional */}
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Exact Location</label>
             <input
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={form.detailedLocation}
@@ -221,6 +300,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Emirate */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Emirate</label>
             <select
@@ -233,6 +313,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             </select>
           </div>
 
+          {/* Area (Dubai only) */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">
               Area {!showLocation && <span className="text-gray-400 font-normal">(Dubai only)</span>}
@@ -255,19 +336,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             )}
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Payment Mode *</label>
-            <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-              value={form.paymentMode}
-              onChange={(e) => set('paymentMode', e.target.value as '' | 'Standard' | 'Progressive')}
-            >
-              <option value="">— select —</option>
-              <option>Standard</option>
-              <option>Progressive</option>
-            </select>
-          </div>
-
+          {/* Notes */}
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
             <textarea
@@ -279,6 +348,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Communal project */}
           <div className="col-span-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -300,17 +370,19 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
                     No other SED members found with Airtable IDs configured.
                   </p>
                 )}
-                {sedMembers.map((m) => (
-                  <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedCommunSeds.includes(m.id)}
-                      onChange={() => toggleCommunSed(m.id)}
-                      className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
-                    />
-                    <span className="text-gray-700">{m.name}</span>
-                  </label>
-                ))}
+                {sedMembers
+                  .filter((m) => m.id !== selectedSedId)
+                  .map((m) => (
+                    <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedCommunSeds.includes(m.id)}
+                        onChange={() => toggleCommunSed(m.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                      />
+                      <span className="text-gray-700">{m.name}</span>
+                    </label>
+                  ))}
               </div>
             )}
           </div>

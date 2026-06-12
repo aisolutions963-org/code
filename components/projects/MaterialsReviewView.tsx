@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
@@ -31,7 +31,7 @@ export default function MaterialsReviewView({ projects }: { projects: Project[] 
   const { data, isLoading, mutate } = useSWR<{ materials: Material[] }>(
     selectedId ? `/api/projects/${selectedId}/materials` : null,
     fetcher,
-    { refreshInterval: 30000 },
+    { refreshInterval: 300_000 },
   )
   const materials = data?.materials ?? []
 

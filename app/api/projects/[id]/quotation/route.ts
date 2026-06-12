@@ -1,23 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
-import { createProjectItem, createQuotation, generateItemTasksForProject, getProjectById, updateProject } from '@/lib/airtable'
+import { NextResponse } from 'next/server'
+import { requireRole } from '@/lib/apiHandler'
+import { createProjectItem, createQuotation, generateItemTasksForProject, getProjectById, getQuotationsByProject, updateProject } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
 import { CreateQuotationItemsSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params
-  const session = await getSession()
-  if (!session || !['sed', 'manager', 'superadmin'].includes(session.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, _session, { params }) => {
+  const { id } = params
+  const quotations = await getQuotationsByProject(id)
+  return NextResponse.json({ quotations })
+})
+
+export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, session, { params }) => {
+  const { id } = params
 
   let rawBody: unknown
   try {
-    rawBody = await request.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
@@ -32,71 +31,48 @@ export async function POST(
     )
   }
 
-  try {
-    // Set quotation number on the project and determine the reference.
-    // If the caller provides a reference explicitly, use it as-is.
-    // Otherwise auto-assign R0 only when no reference exists yet.
-    const project = await getProjectById(id)
-    const currentRef = project.quotationReference
-
-    let nextRef: string
-    if (parsed.data.quotationReference) {
-      nextRef = parsed.data.quotationReference
-    } else if (!currentRef) {
-      nextRef = 'R0'
-    } else {
-      nextRef = currentRef
-    }
-
-    const projectUpdate: Record<string, unknown> = {
-      [PROJECTS.QUOTATION_NUMBER]: parsed.data.quotationNumber,
-      [PROJECTS.QUOTATION_REFERENCE]: nextRef,
-    }
-    if (parsed.data.totalAmountToPay !== undefined) {
-      projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = parsed.data.totalAmountToPay
-    }
-    await updateProject(id, projectUpdate)
-
-    const results = []
-    for (const item of parsed.data.items) {
-      const projectItem = await createProjectItem({
-        projectId: id,
-        itemName: item.itemName,
-        quantity: item.quantity,
-      })
-      const quotation = await createQuotation({
-        projectId: id,
-        projectItemId: projectItem.id,
-        itemName: item.itemName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        description: item.description,
-        notes: item.notes,
-        quotationDate: parsed.data.quotationDate,
-      })
-      results.push({ projectItemId: projectItem.id, quotationId: quotation.id })
-
-      // Fire-and-forget: generate per-item tasks and notify departments
-      ;(async () => {
-        try {
-          const { todoTemplates } = await generateItemTasksForProject(id, projectItem.id, [])
-          if (todoTemplates.length > 0) {
-            await notifyTasksReady(
-              todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
-              `New item ready: ${item.itemName}`,
-            )
-          }
-        } catch (err) {
-          console.error('[QUOTATION] Item task generation failed for item', projectItem.id, ':', err)
-        }
-      })()
-    }
-    return NextResponse.json({ created: results.length, items: results }, { status: 201 })
-  } catch (error) {
-    console.error('POST /api/projects/[id]/quotation error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create items' },
-      { status: 500 },
-    )
+  const projectUpdate: Record<string, unknown> = {
+    [PROJECTS.QUOTATION_NUMBER]: parsed.data.quotationNumber,
+    [PROJECTS.QUOTATION_REFERENCE]: parsed.data.quotationReference,
   }
-}
+  if (parsed.data.totalAmountToPay !== undefined) {
+    projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = parsed.data.totalAmountToPay
+  }
+  await updateProject(id, projectUpdate)
+
+  const results = []
+  for (const item of parsed.data.items) {
+    const projectItem = await createProjectItem({
+      projectId: id,
+      itemName: item.itemName,
+      quantity: item.quantity,
+    })
+    const quotation = await createQuotation({
+      projectId: id,
+      projectItemId: projectItem.id,
+      itemName: item.itemName,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      description: item.description,
+      notes: item.notes,
+      quotationDate: parsed.data.quotationDate,
+      recordedBy: session.name,
+    })
+    results.push({ projectItemId: projectItem.id, quotationId: quotation.id })
+
+    try {
+      const { created: tasksCreated, todoTemplates } = await generateItemTasksForProject(id, projectItem.id, item.actions)
+      console.log(`[QUOTATION] Item ${projectItem.id} (${item.itemName}): generated ${tasksCreated} tasks, ${todoTemplates.length} To Do`)
+      if (todoTemplates.length > 0) {
+        await notifyTasksReady(
+          todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
+          `New item ready: ${item.itemName}`,
+        )
+      }
+    } catch (err) {
+      console.error('[QUOTATION] Item task generation failed for item', projectItem.id, ':', err)
+    }
+  }
+
+  return NextResponse.json({ created: results.length, items: results }, { status: 201 })
+})

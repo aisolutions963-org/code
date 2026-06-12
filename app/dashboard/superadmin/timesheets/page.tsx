@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
 import { TimesheetEntry, WorkerOption } from '@/lib/types'
+import { todayUAE } from '@/lib/dateUtils'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -120,11 +121,11 @@ function EditModal({
 }
 
 export default function SuperadminTimesheetsPage() {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const [from, setFrom] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
-    return d.toISOString().slice(0, 10)
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
   })
   const [to, setTo] = useState(today)
   const [workerId, setWorkerId] = useState('')
@@ -139,7 +140,7 @@ export default function SuperadminTimesheetsPage() {
   const { data, isLoading, error, mutate } = useSWR<{ entries: TimesheetEntry[] }>(
     `/api/timesheets?${params.toString()}`,
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const { data: workersData } = useSWR<{ workers: WorkerOption[] }>(
@@ -165,6 +166,7 @@ export default function SuperadminTimesheetsPage() {
   const totalRegular = entries.reduce((s, e) => s + e.regularHours, 0)
   const totalOvertime = entries.reduce((s, e) => s + e.overtimeHours, 0)
   const totalHours = entries.reduce((s, e) => s + e.totalHours, 0)
+  const totalCost = entries.reduce((s, e) => s + (e.estimatedCost ?? 0), 0)
 
   return (
     <div className="p-6 space-y-5 min-w-0">
@@ -238,6 +240,12 @@ export default function SuperadminTimesheetsPage() {
             <p className="text-lg font-bold text-green-700">{totalHours.toFixed(1)}</p>
             <p className="text-xs text-green-500">Total Hrs</p>
           </div>
+          {totalCost > 0 && (
+            <div className="bg-amber-50 border border-amber-100 rounded-lg px-4 py-2 text-center">
+              <p className="text-lg font-bold text-amber-700">AED {totalCost.toFixed(0)}</p>
+              <p className="text-xs text-amber-500">Est. Labor Cost</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -262,12 +270,14 @@ export default function SuperadminTimesheetsPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Worker</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Supervisor</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Workers</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Regular</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Overtime</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Est. Cost</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden xl:table-cell">Notes</th>
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
@@ -275,14 +285,24 @@ export default function SuperadminTimesheetsPage() {
                 {entries.map((e) => (
                   <tr key={e.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{e.workDate}</td>
-                    <td className="px-4 py-2.5 text-gray-800 font-medium">{e.workerName ?? e.workerIds[0] ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-gray-600 text-xs">{e.projectRef ?? e.projectIds[0] ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-800 font-medium">{e.supervisorName ?? e.workerName ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 hidden lg:table-cell">
+                      {e.workerNames && e.workerNames.length > 0 ? e.workerNames.join(', ') : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs">
+                      {e.locationType === 'Factory'
+                        ? <span className="text-green-700 bg-green-50 px-1.5 py-0.5 rounded font-medium">Factory</span>
+                        : <span className="text-gray-600">{e.projectRef ?? e.projectIds[0] ?? '—'}</span>}
+                    </td>
                     <td className="px-4 py-2.5 text-right text-gray-700">{e.regularHours.toFixed(1)}</td>
                     <td className="px-4 py-2.5 text-right text-orange-600">{e.overtimeHours > 0 ? e.overtimeHours.toFixed(1) : '—'}</td>
                     <td className={`px-4 py-2.5 text-right font-semibold ${e.totalHours > 14 ? 'text-orange-600' : 'text-gray-900'}`}>
                       {e.totalHours.toFixed(1)}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-xs truncate">{e.notes ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-right text-sm font-medium text-amber-700">
+                      {e.estimatedCost != null ? `AED ${e.estimatedCost.toFixed(0)}` : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400 max-w-xs truncate hidden xl:table-cell">{e.notes ?? '—'}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2 justify-end">
                         <button

@@ -27,12 +27,17 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
 }
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
-  const from = new URL(req.url).searchParams.get('from') ?? ''
+  const sp = new URL(req.url).searchParams
+  const from = sp.get('from') ?? ''
+  const to   = sp.get('to')   ?? ''
 
   const matParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  if (from) {
-    matParams.set('filterByFormula', encodeURIComponent(`IS_AFTER({${MATERIALS_NEEDED.REQUEST_DATE}}, "${from}")`))
-  }
+  const dateParts: string[] = []
+  if (from) dateParts.push(`IS_AFTER({${MATERIALS_NEEDED.REQUEST_DATE}}, "${from}")`)
+  if (to)   dateParts.push(`IS_BEFORE({${MATERIALS_NEEDED.REQUEST_DATE}}, "${to}")`)
+  if (dateParts.length === 1) matParams.set('filterByFormula', encodeURIComponent(dateParts[0]))
+  if (dateParts.length === 2) matParams.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
+
   matParams.append('fields[]', MATERIALS_NEEDED.NAME)
   matParams.append('fields[]', MATERIALS_NEEDED.SUPPLIER)
   matParams.append('fields[]', MATERIALS_NEEDED.QUANTITY)

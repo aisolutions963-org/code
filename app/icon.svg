@@ -1,4 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#7C3AED"/>
-  <text x="16" y="23" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="white" text-anchor="middle">W</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="wg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F0A870"/>
+      <stop offset="100%" stop-color="#9B4A15"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A1A2E"/>
+      <stop offset="100%" stop-color="#0f0f1a"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="16" fill="url(#bg)"/>
+  <!-- Left wing -->
+  <path d="M50 22 C38 22 20 30 12 50 C20 46 32 44 44 48 Z" fill="url(#wg)" opacity="0.95"/>
+  <!-- Right wing -->
+  <path d="M50 22 C62 22 80 30 88 50 C80 46 68 44 56 48 Z" fill="url(#wg)" opacity="0.95"/>
+  <!-- Center crown peak -->
+  <path d="M44 48 C46 38 48 30 50 22 C52 30 54 38 56 48 Z" fill="#C9A84C"/>
+  <!-- Base bar -->
+  <rect x="28" y="62" width="44" height="8" rx="4" fill="#C9A84C"/>
+  <!-- Crown body -->
+  <path d="M34 50 L44 48 L50 55 L56 48 L66 50 L62 62 L38 62 Z" fill="url(#wg)"/>
 </svg>

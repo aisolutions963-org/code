@@ -1,4 +1,5 @@
 import { TASKS, PROJECTS } from './fieldMap'
+import { todayUAE } from './dateUtils'
 import {
   getTaskById,
   updateTaskRaw,
@@ -9,12 +10,14 @@ import {
   generateTasksForProject,
   generatePhase3TasksForItem,
   generatePhase4Tasks,
+  createMaintenanceRecord,
+  getMaintenanceRecordForProject,
   createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
-import { notifyManager, notifyManagerEscalation, notifyCallClient, notifyAccountantEvent } from './email'
+import { notifyManager, notifyManagerEscalation, notifyCallClient, notifyRejection, notifyAccountantEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
-import { getAllUsers } from './db'
+import { getUsersByRole } from './db'
 import { PHASE_CONFIG, TASK_MARKERS } from './phases'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
@@ -63,7 +66,7 @@ async function maybeUnlockCallClient(projectId: string, projectItemId?: string):
     if (!takeApprovalTask) return
 
     await updateTaskRaw(takeApprovalTask.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })
-    createNotification({
+    await createNotification({
       recipientRole: 'sed',
       title: `New task ready: ${takeApprovalTask.taskName}`,
       body: 'Both approvals confirmed — ready to take client approval to start fabrication.',
@@ -84,13 +87,13 @@ async function maybeUnlockCallClient(projectId: string, projectItemId?: string):
     if (!callClientTask) return
 
     await updateTaskRaw(callClientTask.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })
-    createNotification({
+    await createNotification({
       recipientRole: 'superadmin',
       title: `Action required: ${callClientTask.taskName}`,
       body: 'All approval gates cleared — call the client to confirm the project.',
       link: ROLE_DASHBOARD['superadmin'],
     })
-    createNotification({
+    await createNotification({
       recipientRole: 'sed',
       title: `All gates approved — awaiting client call`,
       body: 'Quotation, sample, and design all approved. Superadmin will now call the client.',
@@ -221,16 +224,9 @@ async function unlockNextTasks(task: Task): Promise<void> {
       // "Send to SED & Fixing Team" is a fabrication-completion signal — send a
       // targeted, human-readable alert to SED and installation instead of a task
       // notification, since the task itself is invisible (auto-completed immediately).
-      if (t.taskName.toLowerCase().includes('notify accountant') && process.env.RESEND_API_KEY) {
-        const eventName = t.taskName.replace(/\s*\(auto\)\s*/gi, '').trim()
-        notifyAccountantEvent({ eventName, projectLabel }).catch((err) =>
-          console.error('[ACCOUNTANT-EMAIL]', err),
-        )
-        continue
-      }
       if (t.taskName.toLowerCase().includes('send to sed') && t.taskName.toLowerCase().includes('fixing team')) {
         for (const role of ['sed', 'installation'] as const) {
-          createNotification({
+          await createNotification({
             recipientRole: role,
             title: `Fabrication complete — 2 days to check items & tools`,
             body: `Items for project ${projectLabel} are ready. Verify all items and tools before delivery.`,
@@ -246,7 +242,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
       const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
       const title = t.taskName.replace(/\s*\(auto\)\s*/gi, '').trim()
       for (const role of uniqueRoles) {
-        createNotification({
+        await createNotification({
           recipientRole: role,
           title,
           body: `Project ${projectLabel}`,
@@ -296,7 +292,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
 
     for (const role of uniqueRoles) {
       const dashboard = ROLE_DASHBOARD[role] ?? '/dashboard/sed'
-      createNotification({
+      await createNotification({
         recipientRole: role,
         title: `New task ready: ${t.taskName}`,
         body: body
@@ -316,22 +312,44 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
 
   const { todoTemplates } = await generatePhase3TasksForItem(projectId, itemId)
   const projectLabel = await resolveProjectLabel(task)
-  notifyTasksReady(
+  await notifyTasksReady(
     todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
     `Phase 3 started for item (${projectLabel})`,
   )
 }
 
 async function maybeGeneratePhase4(task: Task): Promise<void> {
-  if (!task.taskName.toLowerCase().startsWith(PHASE_CONFIG.Closing.triggerTaskPrefix)) return
+  // Phase 4 triggers when ALL per-item (Phase 2/3) tasks across every item are Completed.
+  // Only evaluate on per-item task completions — project-level tasks never trigger this.
+  if (!(task.projectItem?.length)) return
   const projectId = task.project?.[0]
   if (!projectId) return
 
+  const allProjectTasks = await getAllTasksForProjectAll(projectId)
+  const perItemTasks = allProjectTasks.filter((t) => (t.projectItem?.length ?? 0) > 0)
+  if (perItemTasks.length === 0) return
+  if (!perItemTasks.every((t) => t.status === 'Completed')) return
+
   const { todoTemplates } = await generatePhase4Tasks(projectId)
+
+  // Warranty clock starts when all per-item tasks finish, regardless of whether
+  // Phase 4 tasks were pre-generated. Only create if record doesn't already exist.
+  const existingMaintenance = await getMaintenanceRecordForProject(projectId).catch(() => null)
+  if (!existingMaintenance) {
+    const warrantyStart = new Date()
+    const warrantyEnd = new Date(warrantyStart)
+    warrantyEnd.setFullYear(warrantyEnd.getFullYear() + 1)
+    createMaintenanceRecord(projectId, {
+      startDate: warrantyStart.toISOString().slice(0, 10),
+      endDate: warrantyEnd.toISOString().slice(0, 10),
+      status: 'Pending',
+    }).catch((err) => console.error('[WARRANTY] Failed to create maintenance record:', err))
+  }
+
   if (todoTemplates.length === 0) return
 
   const projectLabel = await resolveProjectLabel(task)
-  notifyTasksReady(
+  await notifyTasksReady(
     todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
     `Phase 4 — Closing started for project ${projectLabel}`,
   )
@@ -383,7 +401,7 @@ export async function handleTaskCompletion(
       // After F4 (advance payment), notify SED to submit quotation line items (F5)
       if (task.taskName.toLowerCase().startsWith('f4 —')) {
         const projectLabel = await resolveProjectLabel(task)
-        createNotification({
+        await createNotification({
           recipientRole: 'sed',
           title: `Submit quotation details (F5) — ${projectLabel}`,
           body: `Advance payment has been recorded. Please open F5 in the project to submit the quotation line items.`,
@@ -396,7 +414,7 @@ export async function handleTaskCompletion(
         const projectLabel = await resolveProjectLabel(task)
         const f5Body = `SED has submitted the quotation line items and chosen actions per item. Review the project to proceed.`
         for (const role of ['manager', 'fabrication', 'installation', 'superadmin'] as const) {
-          createNotification({
+          await createNotification({
             recipientRole: role,
             title: `Quotation details submitted (F5) — ${projectLabel}`,
             body: f5Body,
@@ -436,7 +454,7 @@ export async function handleManagerRejection(taskId: string): Promise<void> {
   )
   const projectRef = task.projectId ?? task.project?.[0] ?? ''
   // In-app notification to the task's department
-  notifyTasksReady(
+  await notifyTasksReady(
     [{ taskName: task.taskName, departments: task.department ?? [] }],
     `Rejected by manager — task returned for rework (${projectRef})` +
       (task.managerComment ? `\nNote: ${task.managerComment}` : ''),
@@ -448,13 +466,14 @@ export async function handleManagerRejection(taskId: string): Promise<void> {
       .filter((r): r is string => Boolean(r))
     const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['sed']))
     for (const role of uniqueRoles) {
-      const users = (await getAllUsers()).filter((u) => u.role === role && u.active === 1)
+      const users = await getUsersByRole(role)
       for (const user of users) {
-        notifyManager({
+        notifyRejection({
           taskName: task.taskName,
           projectId: projectRef,
-          submittedBy: user.name,
-        }).catch((err: unknown) => console.error('[A14] Rejection email failed:', err))
+          managerComment: task.managerComment ?? undefined,
+          recipientEmail: user.email,
+        }).catch((err) => console.error('[A14] Rejection email failed:', err))
       }
     }
   }
@@ -487,7 +506,7 @@ export async function handleCallClientOutcome(
           try {
             const { todoTemplates } = await generateTasksForProject(projectId, 'Open')
             const projectRef = task.projectId ?? projectId
-            notifyTasksReady(
+            await notifyTasksReady(
               todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
               `Phase 2 started — client approved (${projectRef})`,
             )
@@ -554,13 +573,13 @@ export async function handleCallClientOutcome(
         // Notify SED and manager that the client requested a review
         const projectRef = await resolveProjectLabel(task)
         const reviewBody = `Client requested review on project ${projectRef}. Phase 1 action tasks have been reset.`
-        createNotification({
+        await createNotification({
           recipientRole: 'sed',
           title: 'Client requested review — action tasks reset',
           body: reviewBody,
           link: ROLE_DASHBOARD['sed'],
         })
-        createNotification({
+        await createNotification({
           recipientRole: 'manager',
           title: 'Client requested review',
           body: reviewBody,
@@ -635,7 +654,7 @@ export async function handleOrderSampleBranch(
           .filter((r): r is string => Boolean(r))
         const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
         for (const role of uniqueRoles) {
-          createNotification({
+          await createNotification({
             recipientRole: role,
             title: `New task ready: ${t.taskName}`,
             body: `Completed: ${task.taskName} (${projectLabel})`,
@@ -662,7 +681,7 @@ export async function handleF3Order(input: {
       const projectId = task.project?.[0]
       if (!projectId) throw new Error('Task has no linked project')
 
-      const today = new Date().toISOString().slice(0, 10)
+      const today = todayUAE()
       const projectRef = await resolveProjectLabel(task)
 
       const materials = await createMaterialOrder({
@@ -704,8 +723,8 @@ export async function handleF3Order(input: {
           }
         }
 
-        createNotification({ recipientRole: 'superadmin', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: ROLE_DASHBOARD['superadmin'] })
-        createNotification({ recipientRole: 'manager', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: '/dashboard/mgr?view=materials' })
+        await createNotification({ recipientRole: 'superadmin', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: '/dashboard/superadmin?view=materials' })
+        await createNotification({ recipientRole: 'manager', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: '/dashboard/mgr?view=materials' })
         return { created: materials.length, finalStatus: 'Completed' as TaskStatus }
       } else {
         await updateTaskRaw(input.taskId, {
@@ -713,8 +732,10 @@ export async function handleF3Order(input: {
           [TASKS.STARTED_AT]: new Date().toISOString(),
         })
         const fabBody = `F3 Big Order for ${projectRef}: please check the store for ${materials.length} item(s) marked "Pending approval" in the materials list and confirm what needs ordering.${input.generalNotes ? `\nManager notes: ${input.generalNotes}` : ''}`
-        createNotification({ recipientRole: 'fabrication', title: `Store Check Required — F3 for ${projectRef}`, body: fabBody, link: ROLE_DASHBOARD['fabrication'] })
-        createNotification({ recipientRole: 'manager', title: `F3 Big Order pending store check — ${projectRef}`, body: `Materials submitted and awaiting fabrication store check.`, link: '/dashboard/mgr?view=materials' })
+        const bigOrderBody = `F3 Big Order submitted for ${projectRef}. ${materials.length} item(s) pending fabrication store check.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`
+        await createNotification({ recipientRole: 'fabrication', title: `Store Check Required — F3 for ${projectRef}`, body: fabBody, link: ROLE_DASHBOARD['fabrication'] })
+        await createNotification({ recipientRole: 'manager', title: `F3 Big Order pending store check — ${projectRef}`, body: bigOrderBody, link: '/dashboard/mgr?view=materials' })
+        await createNotification({ recipientRole: 'superadmin', title: `F3 Big Order — ${projectRef}`, body: bigOrderBody, link: '/dashboard/superadmin?view=materials' })
         return { created: materials.length, finalStatus: 'In Progress' as TaskStatus }
       }
     })(),

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import toast from 'react-hot-toast'
+import { todayUAE } from '@/lib/dateUtils'
 import { Task, TaskUpdateInput, Payment } from '@/lib/types'
 
 interface QuotationPanelProps {
@@ -12,7 +13,7 @@ interface QuotationPanelProps {
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-const today = new Date().toISOString().slice(0, 10)
+const today = todayUAE()
 
 const inp = 'w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'
 const sel = 'w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'
@@ -70,13 +71,14 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
 
   // ── makeQuotation handlers ──────────────────────────────────────────────
   async function saveAndComplete() {
+    const newQN = quotationInput.trim()
+    const newRef = referenceInput.trim()
+    if (!newQN) { setQuotationError('Quotation number is required'); return }
+    if (!newRef) { setQuotationError('Quotation reference is required'); return }
     setSaving(true)
     setQuotationError('')
     try {
-      const existingQN = (task.projectQuotationNumber ?? '').trim()
-      const newQN = quotationInput.trim()
-      const needsPatch = newQN && (newQN !== existingQN || referenceInput.trim())
-      if (needsPatch) await patchProjectQuotation(newQN, referenceInput.trim())
+      await patchProjectQuotation(newQN, newRef)
       await onUpdate(task.id, { status: 'Completed' } as Partial<TaskUpdateInput>)
       toast.success('Saved')
     } catch (e) {
@@ -88,7 +90,8 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
   }
 
   async function saveQuotationOnly() {
-    if (!quotationInput.trim()) { setQuotationError('Enter a quotation number'); return }
+    if (!quotationInput.trim()) { setQuotationError('Quotation number is required'); return }
+    if (!referenceInput.trim()) { setQuotationError('Quotation reference is required'); return }
     setSaving(true)
     setQuotationError('')
     try {
@@ -114,10 +117,20 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     if (!payerType) { setFormError('Payer type is required'); return }
     if (!projectId) { setFormError('No project linked to this task'); return }
 
+    const alreadyHasQN = !!task.projectQuotationNumber?.trim()
+    const alreadyHasRef = !!task.projectQuotationReference?.trim()
+    if (!alreadyHasQN && !quotationInput.trim()) {
+      setFormError('Quotation number is required before recording payment'); return
+    }
+    if (!alreadyHasRef && !referenceInput.trim()) {
+      setFormError('Quotation reference is required before recording payment'); return
+    }
+
     setSaving(true)
     try {
       const qn = quotationInput.trim()
-      if (qn) await patchProjectQuotation(qn, referenceInput.trim())
+      const ref = referenceInput.trim()
+      if (!alreadyHasQN && qn) await patchProjectQuotation(qn, ref)
 
       const body: Record<string, unknown> = {
         project: [projectId],
@@ -171,13 +184,13 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
             </p>
             <input
               className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
-              placeholder="e.g. WW-2024-001"
+              placeholder="e.g. 2341"
               value={quotationInput}
               onChange={(e) => { setQuotationInput(e.target.value); setQuotationError('') }}
             />
             <p className="text-xs font-semibold text-amber-800">
-              Reference Number{' '}
-              <span className="font-normal text-amber-600">— optional, manually assigned</span>
+              Reference Number <span className="text-red-500">*</span>
+              <span className="ml-1 font-normal text-amber-600">— official project reference</span>
             </p>
             <input
               className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white font-mono"
@@ -198,7 +211,7 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
               ) : (
                 <button
                   onClick={saveAndComplete}
-                  disabled={saving || !quotationInput.trim()}
+                  disabled={saving || !quotationInput.trim() || !referenceInput.trim()}
                   className="px-4 py-1.5 text-xs rounded-lg bg-amber-600 text-white font-medium hover:bg-amber-700 disabled:opacity-60"
                 >
                   {saving ? 'Saving…' : 'Save & Complete'}
@@ -276,8 +289,7 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
       {/* Quotation number */}
       <div>
         <label className={lbl}>
-          Quotation Number
-          <span className="ml-1 text-gray-400">(optional)</span>
+          Quotation Number <span className="text-red-500">*</span>
         </label>
         {task.projectQuotationNumber ? (
           <p className="text-sm font-mono font-medium text-blue-700 py-1">
@@ -290,13 +302,13 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
           <div className="grid grid-cols-2 gap-2">
             <input
               className={inp}
-              placeholder="e.g. WW-2024-001"
+              placeholder="e.g. 2341 *"
               value={quotationInput}
               onChange={(e) => setQuotationInput(e.target.value)}
             />
             <input
               className={inp + ' font-mono'}
-              placeholder="Ref (e.g. R0)"
+              placeholder="Ref e.g. R0 *"
               value={referenceInput}
               onChange={(e) => setReferenceInput(e.target.value)}
             />

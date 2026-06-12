@@ -1,4 +1,4 @@
-export const STAGE_ORDER = ['Preparing', 'Open', 'Installation Completed', 'Closed'] as const
+export const STAGE_ORDER = ['Preparing', 'Open', 'Production', 'Closed'] as const
 export type Stage = (typeof STAGE_ORDER)[number]
 
 export const PHASE_CONFIG = {
@@ -20,8 +20,7 @@ export const PHASE_CONFIG = {
   },
   Closing: {
     phaseLabel: 'Phase 4 — Closing',
-    // Task name prefix that triggers Phase 4 generation on completion
-    triggerTaskPrefix: 'handing over form',
+    // Phase 4 generates when all per-item tasks across all items are Completed
   },
 } as const
 

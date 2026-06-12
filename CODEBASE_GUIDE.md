@@ -300,7 +300,20 @@ getInstallationLogsByProject(projectId)
 // Handover and maintenance
 createHandoverSheet(projectId, data)
 getHandoverSheetForProject(projectId)
-createMaintenanceRecord(projectId, handoverDate)
+createMaintenanceRecord(projectId, { startDate, endDate, status? })
+  // status defaults to 'Active'; pass 'Pending' when creating at Phase 4 generation
+getMaintenanceRecordForProject(projectId)  // returns existing maintenance record or null
+activateMaintenanceRecord(recordId)         // sets status = 'Active' on final payment
+expireMaintenanceRecord(recordId)           // sets status = 'Expired' when warranty ends
+
+// Gate pass operations
+updateGatePass(id, { gatePassStatus?, confirmedDeliveryDate?, siteReady?, clientNotified? })
+
+// Client operations
+getAllClients()  // returns all clients with projectCount
+
+// Print gate pass
+// Use triggerPrint() from lib/printGatePass.ts — full-screen overlay approach
 
 // Calendar events
 getCalendarEvents()
@@ -728,28 +741,33 @@ The notification count badge in the sidebar calls `/api/notifications` on a time
 
 ### Most-used endpoints
 
-| Method | URL | What it does |
-|--------|-----|-------------|
-| GET | `/api/tasks` | Get tasks for the logged-in user's role |
-| PATCH | `/api/tasks/[id]` | Update a task (status, fields, etc.) |
-| POST | `/api/tasks/[id]/f3-order` | Submit an F3 material order |
-| GET | `/api/projects` | Get projects (filtered by role) |
-| POST | `/api/projects` | Create a new project |
-| GET | `/api/projects/[id]` | Get one project with its tasks and payments |
-| PATCH | `/api/projects/[id]` | Update project (quotation number, notes, etc.) |
-| GET | `/api/projects/[id]/quotation` | Get F5 quotation items |
-| POST | `/api/projects/[id]/quotation` | Submit F5 quotation items |
-| GET | `/api/projects/[id]/materials` | Get F3 material orders |
-| POST | `/api/projects/[id]/handover` | Submit handover sheet |
-| PATCH | `/api/projects/[id]/assign-installation` | Assign installation team to a project/item |
-| GET | `/api/projects/[id]/items-progress` | Get per-item phase progress |
-| GET | `/api/payments?projectId=` | Get payments for a project |
-| POST | `/api/payments` | Record a payment (manager/superadmin only) |
-| POST | `/api/installation-logs` | Log daily installation work |
-| GET | `/api/notifications` | Get notifications for current user |
-| POST | `/api/notifications/mark-read` | Mark notifications as read |
-| GET/PATCH | `/api/settings` | Read/update app settings (superadmin only) |
-| POST | `/api/projects/[id]/generate-tasks` | Seed tasks for a project phase (superadmin/dev only) |
+| Method | URL | Who | What it does |
+|--------|-----|-----|-------------|
+| GET | `/api/tasks` | all roles | Get tasks for the logged-in user's role |
+| PATCH | `/api/tasks/[id]` | all roles | Update a task (status, fields, superadminNote) |
+| POST | `/api/tasks/[id]/f3-order` | fabrication+ | Submit an F3 material order |
+| GET | `/api/projects` | all roles | Get projects (filtered by role and closed stages excluded) |
+| POST | `/api/projects` | sed/mgr/SA | Create a new project |
+| GET | `/api/projects/[id]` | all roles | Get one project |
+| PATCH | `/api/projects/[id]` | mgr/SA | Update project fields |
+| POST | `/api/projects/[id]/quotation` | sed/mgr/SA | Submit F5 quotation items |
+| POST | `/api/projects/[id]/handover` | install/mgr/SA | Submit handover sheet |
+| PATCH | `/api/projects/[id]/assign-installation` | mgr/SA | Assign installation team |
+| GET | `/api/projects/[id]/items-progress` | all roles | Per-item phase progress |
+| GET | `/api/payments?projectId=` | mgr/SA | Get payments for a project |
+| POST | `/api/payments` | mgr/SA | Record a payment — blocks duplicate Final (409) |
+| GET | `/api/gate-passes` | mgr/SA/install | Get gate passes |
+| POST | `/api/gate-passes` | mgr/SA | Create gate pass |
+| PATCH | `/api/gate-passes/[id]` | mgr/SA | Update status (Delivered/Cancelled), confirmedDeliveryDate, siteReady, clientNotified |
+| GET | `/api/maintenance` | SA | Get maintenance records + auto-expire overdue |
+| PATCH | `/api/maintenance` | SA | Manually expire a single maintenance record |
+| GET | `/api/clients` | all roles | Get all clients with project count (lazy — only load when needed) |
+| GET | `/api/reports/download/client-projects?clientName=` | SA | Excel report for one client's projects |
+| GET | `/api/notifications` | all roles | Get notifications for current user |
+| PATCH | `/api/notifications` | all roles | Mark all notifications read |
+| GET/PATCH | `/api/settings` | SA | Read/update app settings (accountant email) |
+| POST | `/api/installation-logs` | install | Log daily installation work |
+| POST | `/api/projects/[id]/generate-tasks` | SA | Seed tasks for a project phase |
 
 ### How a PATCH request works (task update)
 
@@ -811,7 +829,9 @@ The project lifecycle has four phases, each auto-starting when the previous phas
 | Phase 1 — Preparing | — | Project created (seeded manually or via superadmin) | Project-level |
 | Phase 2 — Opening | `Phase 2 — Opening` | Part of initial generation; per-item tasks at order ≥ 23 | Per item |
 | Phase 3 — Working | `Phase 3 — Working` | Template order 29 completes (per item) | Per item |
-| Phase 4 — Closing | `Phase 4 — Closing` | Task name starts with `'handing over form'` | Project-level |
+| Phase 4 — Closing | `Phase 4 — Closing` | **ALL per-item tasks across all items are Completed** | Project-level |
+
+**Phase 4 trigger changed (2026-06):** Phase 4 no longer keys off a task name. It fires when every per-item task for the project (across all items) is Completed. The "Handing Over Form" is now the first Phase 4 task — it appears after Phase 4 generates, not before.
 
 ### Phase 3 generation in detail
 
@@ -826,9 +846,13 @@ The project lifecycle has four phases, each auto-starting when the previous phas
 
 ### Phase 4 generation in detail
 
-`maybeGeneratePhase4(task)` fires when `task.taskName.toLowerCase().startsWith('handing over form')`. It calls `generatePhase4Tasks(projectId)`.
+`maybeGeneratePhase4(task)` fires on **any per-item task completion**. It fetches all per-item tasks for the project and only proceeds if every single one has `status === 'Completed'` — this is the "all items done" guard. It does NOT key off any task name.
 
-`generatePhase4Tasks` fetches templates with `stage = 'Closed'` and `phaseLabel === 'Phase 4 — Closing'`, then creates them with sequential status (min order = `To Do`, rest = `Locked`).
+`generatePhase4Tasks(projectId)` fetches templates with `stage = 'Closed'` and `phaseLabel === 'Phase 4 — Closing'`, checks which templates already have task records (idempotency), then creates the remainder with sequential status (min order = `To Do`, rest = `Locked`).
+
+After generating Phase 4 tasks, `maybeGeneratePhase4` also **creates a maintenance record** with `status = 'Pending'` and a 1-year warranty window. This is the warranty clock start — even before the client pays.
+
+**Note:** `PHASE_CONFIG.Closing` no longer has a `triggerTaskPrefix` property. The "Handing Over Form" task is now a Phase 4 template, not Phase 3.
 
 ### Phase 3 template chain (key orders)
 
@@ -899,4 +923,49 @@ The project lifecycle has four phases, each auto-starting when the previous phas
 
 ---
 
-*This document reflects the live codebase as of 2026-06-02 (session 2). If something changed and this guide is outdated, the authoritative source is always the code itself.*
+---
+
+## 13. Project Stage Values (complete list)
+
+Valid values for `projectStage` / `PROJECT_STAGE` in Airtable:
+
+| Stage | Meaning |
+|---|---|
+| `Preparing` | Phase 1 — intake and quotation |
+| `Open` | Phase 2 — items confirmed, production not started |
+| `Not-Approved` | Rejected by client or manager |
+| `Installation Completed` | Handover form submitted |
+| `Closed` | Legacy closed (pre-maintenance system) |
+| `Closed & Valid Maintenance` | Final payment received, warranty active |
+| `Closed & Warranty Done` | 1-year warranty expired |
+| `Archived` | Manually archived |
+
+**Do not use "Fabrication" or "Installation" as stage values** — those are department names.
+
+---
+
+## 14. Superadmin Follow-Up Notes on Tasks
+
+Superadmin can add a follow-up note to any task:
+- In `FieldEditor`, the `superadminNote` field renders as an amber textarea
+- Saving PATCHes `/api/tasks/[id]` with `{ superadminNote: "..." }`
+- The API route handles `superadminNote` separately (not through `filterAllowedFields`) — superadmin-only, notifies the task's department roles
+- Other roles see the note as a read-only amber banner in TaskCard
+
+---
+
+## 15. Client Autocomplete and Reports
+
+**NewProjectModal client autocomplete:**
+- `/api/clients` is fetched lazily — only when user focuses or types in the Client Name field
+- Shows existing clients with name, phone, and project count
+- Prevents duplicate client records from typos
+
+**SA Dashboard → Reports → Clients tab:**
+- Shows all clients grouped, each expandable with their projects
+- Per-client Excel download via `/api/reports/download/client-projects?clientName=`
+- Groups by `clientName.toLowerCase()` so case differences don't split the same client
+
+---
+
+*Last updated: 2026-06-07. The authoritative source is always the code itself.*

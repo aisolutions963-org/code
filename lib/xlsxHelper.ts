@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import { NextResponse } from 'next/server'
+import { todayUAE } from './dateUtils'
 
 export interface ColDef {
   header: string
@@ -49,7 +50,7 @@ export async function buildXlsx(
 }
 
 export function xlsxResponse(buffer: Buffer, filename: string): NextResponse {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   return new NextResponse(buffer.buffer as ArrayBuffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -1,20 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { requireRole } from '@/lib/apiHandler'
 import { getTaskCountForProject, generateTasksForProject, generatePhase3TasksForItem, getProjectItemsForProject, getProjectById } from '@/lib/airtable'
+import { getUserByAirtableMemberId, addSedProjectMapping } from '@/lib/db'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params
-  const session = await getSession()
-  if (!session || session.role !== 'superadmin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+export const POST = requireRole('superadmin')(async (req, _session, { params }) => {
+  const { id } = params
 
   let body: { stage?: string; force?: boolean } = {}
   try {
-    body = await request.json()
+    body = await req.json()
   } catch {
     // empty body is fine
   }
@@ -26,52 +20,46 @@ export async function POST(
 
   // Special: generate Phase 3 tasks for all items of this project
   if (stage === 'phase3') {
-    try {
-      const items = await getProjectItemsForProject(id)
-      if (items.length === 0) {
-        return NextResponse.json({ success: true, created: 0, message: 'No items found for this project' })
-      }
-      let totalCreated = 0
-      for (const item of items) {
-        const { created } = await generatePhase3TasksForItem(id, item.id)
-        totalCreated += created
-      }
-      return NextResponse.json({ success: true, created: totalCreated, items: items.length })
-    } catch (error) {
-      console.error('POST /api/projects/[id]/generate-tasks phase3 error:', error)
+    const items = await getProjectItemsForProject(id)
+    if (items.length === 0) {
+      return NextResponse.json({ success: true, created: 0, message: 'No items found for this project' })
+    }
+    let totalCreated = 0
+    for (const item of items) {
+      const { created } = await generatePhase3TasksForItem(id, item.id)
+      totalCreated += created
+    }
+    return NextResponse.json({ success: true, created: totalCreated, items: items.length })
+  }
+
+  if (!force) {
+    const existingCount = await getTaskCountForProject(id)
+    if (existingCount > 0) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Phase 3 generation failed' },
-        { status: 500 },
+        {
+          error: 'Tasks already exist for this project',
+          existingCount,
+          hint: 'Pass force: true to generate anyway',
+        },
+        { status: 409 },
       )
     }
   }
 
-  try {
-    if (!force) {
-      const existingCount = await getTaskCountForProject(id)
-      if (existingCount > 0) {
-        return NextResponse.json(
-          {
-            error: 'Tasks already exist for this project',
-            existingCount,
-            hint: 'Pass force: true to generate anyway',
-          },
-          { status: 409 },
-        )
-      }
-    }
+  const [result, project] = await Promise.all([
+    generateTasksForProject(id, stage),
+    getProjectById(id),
+  ])
 
-    const [result, project] = await Promise.all([
-      generateTasksForProject(id, stage),
-      getProjectById(id),
-    ])
-
-    return NextResponse.json({ success: true, ...result })
-  } catch (error) {
-    console.error('POST /api/projects/[id]/generate-tasks error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Generation failed' },
-      { status: 500 },
-    )
+  // Sync SQLite SED mappings so the assigned SED can always see this project
+  if (project.salesOwner?.id) {
+    const owner = await getUserByAirtableMemberId(project.salesOwner.id)
+    if (owner) await addSedProjectMapping(id, owner.id)
   }
-}
+  for (const communMemberId of project.communSedIds ?? []) {
+    const u = await getUserByAirtableMemberId(communMemberId)
+    if (u) await addSedProjectMapping(id, u.id)
+  }
+
+  return NextResponse.json({ success: true, ...result })
+})

@@ -11,6 +11,7 @@ const CreateSchema = z.object({
   nickname: z.string().max(50).optional(),
   role: z.string().max(50).optional(),
   active: z.boolean().optional().default(true),
+  hourlyRate: z.number().min(0).max(10000).optional(),
 })
 
 export const GET = requireRole('manager', 'superadmin')(async () => {

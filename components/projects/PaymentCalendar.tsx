@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo } from 'react'
 import useSWR from 'swr'
@@ -45,7 +45,7 @@ export default function PaymentCalendar() {
   const { data, isLoading, error } = useSWR<{ events: CalendarEvent[] }>(
     '/api/calendar',
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const events = useMemo(

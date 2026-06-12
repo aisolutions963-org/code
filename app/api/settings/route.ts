@@ -5,8 +5,9 @@ import { getSetting, setSetting } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 export const GET = requireRole('superadmin')(async () => {
+  const accountantEmail = await getSetting('accountant_email')
   return NextResponse.json({
-    accountantEmail: (await getSetting('accountant_email')) ?? '',
+    accountantEmail: accountantEmail ?? '',
   })
 })
 

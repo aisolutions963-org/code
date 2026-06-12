@@ -4,7 +4,7 @@
 
 ## How the System Works (Big Picture)
 
-**Stack:** Next.js 14 + Airtable (database) + SQLite (sessions/metrics)
+**Stack:** Next.js 16.2.6 + Airtable (primary database) + Turso / `@libsql/client` (sessions/metrics/notifications)
 
 **Roles:** `sed` | `manager` | `fabrication` | `installation` | `superadmin`
 
@@ -17,11 +17,15 @@ The Next.js API routes (`app/api/`) are thin wrappers: validate the request, cal
 ## Auth & Session
 
 - JWT stored in httpOnly cookie `ww_session` (24hr expiry, signed with `SESSION_SECRET` env var)
-- **Users live in SQLite** (`/data/users.db`), NOT Airtable. Fields: `id, name, email, hashed_password (bcryptjs), role, active, airtable_member_id`
+- **Users live in Turso (SQLite)**, NOT Airtable. Fields: `id, name, email, hashed_password (bcryptjs), role, active, airtable_member_id`
 - `lib/auth.ts` — `getSession()` reads cookie → verifies JWT → returns `SessionPayload { id, name, email, role }`
 - `lib/apiHandler.ts` — `requireRole(...roles)` wraps every protected route: validates session, checks role, resolves `params` from Next.js dynamic segments, calls handler
 - Login flow: `POST /api/auth/login` → bcrypt compare → sign JWT → set cookie → redirect to `/dashboard/{role}`
-- `lib/db.ts` — SQLite helpers: users CRUD, notifications table, metrics snapshots table
+- `lib/db.ts` — **fully async** Turso helpers (all functions return Promises):
+  - Users CRUD: `getUserByEmail`, `getUserById`, `getAllUsers`, `getUsersByRole`, `createUser`, `updateUser`, `deleteUser`
+  - Airtable sync: `getUserByAirtableMemberId`
+  - SED access: `addSedProjectMapping`, `getSedProjectIdsByUserId`
+  - Settings: `getSetting`, `setSetting` — **always `await` these**; missing await returns a Promise silently
 
 ---
 
@@ -43,7 +47,7 @@ The Next.js API routes (`app/api/`) are thin wrappers: validate the request, cal
 - **fabrication**: status, fabricationPath, postCarpentryPath, plannedProdStartDate, expectedFabEndDate, doc links
 - **sed**: status, postVisitOutcome, taskStartDate, conceptDesignApproval, sampleApproval, quotationOutcome, callCount, sedNote, followUpOutcome, doc links
 - **manager**: status, managerReviewStatus, managerComment, completionDate, plannedProdStartDate, expectedFabEndDate, priorityFlag, requiresManagerReviewManually, doc links
-- **superadmin**: all fields
+- **superadmin**: all fields + `superadminNote` (handled separately — saves + notifies task departments)
 
 `canEditField(role, fieldName)` — called before every PATCH
 `filterAllowedFields(role, fields)` — strips unauthorized fields from request body
@@ -53,7 +57,7 @@ The Next.js API routes (`app/api/`) are thin wrappers: validate the request, cal
 ## Project Lifecycle (Stages)
 
 ```
-Preparing → Open → Installation Completed → Closed
+Preparing → Open → Installation Completed → Closed & Valid Maintenance → Closed & Warranty Done
                 ↘ Not-Approved (rejected)
 ```
 
@@ -62,7 +66,23 @@ Preparing → Open → Installation Completed → Closed
 | Preparing (Phase 1) | 1–22 | SED tasks: intake, quotation, sample, call client |
 | Open (Phase 2) | 1–22 project-level, 23+ per-item | Generated after client approves call |
 | Working (Phase 3) | 31–49 | Material ordering, fabrication, delivery |
-| Closing (Phase 4) | 57–63 | Handover, final payment |
+| Closing (Phase 4) | — | Handover form, final payment — triggers when ALL per-item tasks done |
+
+**Phase 4 trigger:** fires when every per-item task across all items is `Completed`. No task-name trigger.
+`maybeGeneratePhase4` in `lib/workflow.ts`:
+1. Checks `perItemTasks.every(t => t.status === 'Completed')`
+2. Generates Phase 4 tasks (idempotent — checks `TASK_TEMPLATES_LINK` before creating)
+3. **Independently** checks for existing maintenance record and creates one if absent — warranty clock always starts even if Phase 4 tasks were already generated
+
+**Warranty flow:**
+1. Phase 4 fires → `createMaintenanceRecord('Pending')` — startDate=today, endDate=today+1yr
+2. Final payment → `activateMaintenanceRecord()` → project stage = `'Closed & Valid Maintenance'`
+3. `GET /api/maintenance` auto-expires → `'Expired'` + stage = `'Closed & Warranty Done'`
+4. `PATCH /api/maintenance` `{ recordId }` → manual expire
+
+**Valid project stages:** `Preparing`, `Open`, `Not-Approved`, `Installation Completed`, `Closed`, `Closed & Valid Maintenance`, `Closed & Warranty Done`, `Archived`
+
+Do NOT use "Fabrication" or "Installation" as stage values — those are department names.
 
 ---
 
@@ -140,6 +160,11 @@ The gate resolver. Two modes:
 - **No itemId (Phase 1):** Checks all `[gate]` tasks for project → if all Completed → unlocks "Call the Client"
 - **With itemId (Phase 2):** Checks all `[gate]` tasks for that item → if all Completed → unlocks "Take Approval From Client to Start Fabrication" for that item
 
+**`maybeGeneratePhase4(projectId)`**
+- Checks all per-item tasks — if all Completed, generates Phase 4 tasks (idempotent)
+- **Always** checks for maintenance record independently; creates one if missing
+- Warranty clock starts here regardless of task generation state
+
 #### Exported:
 
 | Function | Trigger | What it does |
@@ -147,14 +172,24 @@ The gate resolver. Two modes:
 | `handleTaskCompletion(taskId, submittedBy?)` | PATCH status=Completed | Marks task Completed (or Pending Approval if manager review needed), calls `unlockNextTasks` |
 | `handleManagerApproval(taskId)` | PATCH managerReviewStatus=Approved | Marks task Completed, calls `unlockNextTasks` |
 | `handleManagerRejection(taskId)` | PATCH managerReviewStatus=Rejected | Resets task to To Do, notifies dept |
-| `handleCallClientOutcome(taskId, outcome)` | POST /call-outcome | 'approved' → advance to Phase 2; 'review' → reset action tasks; 'refused' → mark Not-Approved |
-| `handleOrderSampleBranch(taskId, hasMaterial)` | POST /complete-branch | hasMaterial=true → Completed; false → In Progress. Unlocks matching "Sample Branch:" task for the right scope (project-level or per-item by projectItem) |
+| `handleCallClientOutcome(taskId, outcome)` | POST /call-outcome | `'approved'` → advance to Phase 2; `'review'` → reset action tasks; `'refused'` → mark Not-Approved |
+| `handleOrderSampleBranch(taskId, hasMaterial)` | POST /complete-branch | hasMaterial=true → Completed; false → In Progress. Unlocks matching "Sample Branch:" task for the right scope |
 | `handleF3Order(input)` | POST /f3-order | Creates material order records, completes task |
 | `handleCallCountEscalation(task)` | PATCH callCount >= 3 | Marks project Not-Approved, emails manager |
+
+**Known bugs fixed:**
+- `followUpOutcome = 'Reject Project'` now writes to `PROJECT_STAGE`, not `APPROVAL_STATUS` (was writing wrong field; rejected projects stayed visible)
+- Phase 4 maintenance clock now runs independently of task generation (previously skipped if tasks already existed)
 
 ---
 
 ### `lib/airtable.ts` — Data Layer
+
+#### URL helpers — CRITICAL, never mix:
+```ts
+recUrl(TABLE_ID, recordId)  // → PATCH a specific record
+tblUrl(TABLE_ID)            // → GET/POST on a table
+```
 
 #### Task reads:
 | Function | Returns |
@@ -164,6 +199,7 @@ The gate resolver. Two modes:
 | `getAllTasksForProject(projectId)` | All non-Locked tasks for project |
 | `getAllTasksForProjectAll(projectId)` | ALL tasks including Locked (used by workflow engine) |
 | `getLockedBranchTasksForProject(projectId)` | Locked tasks named "Sample Branch:..." for this project |
+| `getIncompleteTasksForProject(projectId)` | Non-Completed tasks |
 
 #### Task writes:
 | Function | Notes |
@@ -174,14 +210,52 @@ The gate resolver. Two modes:
 #### Project:
 | Function | Notes |
 |----------|-------|
+| `getProjects()` | Excludes all closed stages by default; fabrication/installation auto-filtered |
+| `getAllProjects()` | All projects including closed |
 | `getProjectById(id)` | Single project |
 | `updateProject(id, fields)` | Raw field IDs |
+| `createProject(input)` | Creates project + calls `getOrCreateClient()` |
+| `deleteProjectById(id)` | Deletes project + all tasks |
 
 #### Generation:
 | Function | Notes |
 |----------|-------|
-| `generateTasksForProject(projectId, stage)` | Creates tasks from templates for a stage. For 'Open', only creates project-level (orders ≤ 22); per-item (orders ≥ 23) created separately on F5 submission |
-| `checkAndUnlockCallClientTask(projectId)` | **Legacy Phase 1 gate check** — reads approval fields (`conceptDesignApproval`, `sampleApproval`, `quotationOutcome`) from `[GATE]` tasks; unlocks "Call the Client" if all Approved. Triggered by PATCH route when approval fields change |
+| `generateTasksForProject(projectId, stage)` | Creates tasks from templates. For 'Open', only project-level (orders ≤ 22) |
+| `generateItemTasksForProject(projectId)` | Per-item tasks (Phase 2, orders ≥ 23) |
+| `generatePhase3TasksForItem(projectId, itemId)` | Phase 3 per-item tasks |
+| `generatePhase4Tasks(projectId)` | Phase 4 project-level tasks (idempotent) |
+| `checkAndUnlockCallClientTask(projectId)` | Legacy Phase 1 gate check — reads approval fields, unlocks "Call the Client" if all Approved |
+
+#### Gate Passes:
+| Function | Notes |
+|----------|-------|
+| `getGatePassesByProject(projectId)` | |
+| `getAllGatePasses()` | |
+| `createGatePass(input)` | |
+| `updateGatePass(id, fields)` | Uses `recUrl()` — updatable: status, confirmedDeliveryDate, siteReady, clientNotified |
+
+#### Maintenance:
+| Function | Notes |
+|----------|-------|
+| `createMaintenanceRecord(status?)` | Default status = 'Pending'; sets 1-year window |
+| `getMaintenanceRecordForProject(projectId)` | |
+| `activateMaintenanceRecord(recordId)` | Sets status = 'Active'; triggers stage → 'Closed & Valid Maintenance' |
+| `expireMaintenanceRecord(recordId)` | Sets status = 'Expired'; stage → 'Closed & Warranty Done' |
+| `getMaintenanceRecords()` | All records (used by auto-expire route) |
+
+#### Calendar:
+| Function | Notes |
+|----------|-------|
+| `getCalendarEvents()` | |
+| `createCalendarEvent(input)` | |
+| `upsertF2DeliveryEvent(projectId, date)` | Idempotent delivery event |
+| `upsertReminderEvent(key, title, notes?)` | Generalised idempotent upsert via `CUSTOM_TASK` field as key |
+
+#### Clients:
+`getAllClients()` — includes `projectCount`; used by `/api/clients` and SA Reports Clients tab
+
+#### Payments:
+`getPaymentsByProject`, `createPayment` — `POST /api/payments` enforces one non-cancelled Final payment per project (409 if duplicate)
 
 ---
 
@@ -199,6 +273,8 @@ TASK_MARKERS.AUTO_MARKER = '(auto)'
 TASK_MARKERS.HEADLINE_PREFIX = 'to follow tasks progress'
 ```
 
+No `triggerTaskPrefix` in Phase 4 — trigger is logic-based, not name-based.
+
 ---
 
 ### `lib/types.ts` — Key Types
@@ -211,6 +287,8 @@ projectItem[]     — linked project item record ID(s); present only for per-ite
 projectRecordId   — denormalized project record ID (for lookup)
 projectId         — the human-readable project number (e.g. WW-045)
 conceptDesignApproval / sampleApproval / quotationOutcome  — approval gate fields
+superadminNote    — amber textarea visible to superadmin; read-only amber banner for all other roles
+sedNote           — blue banner, SED-only write
 ```
 
 **`TaskStatus`:** `'To Do' | 'In Progress' | 'Completed' | 'Locked' | 'Pending Approval'`
@@ -223,27 +301,142 @@ conceptDesignApproval / sampleApproval / quotationOutcome  — approval gate fie
 
 ## API Routes
 
+### Auth
+| Route | Method | Notes |
+|-------|--------|-------|
+| `/api/auth/login` | POST | |
+| `/api/auth/logout` | POST | |
+
 ### Tasks
 
 | Route | Method | Role | Calls |
 |-------|--------|------|-------|
 | `/api/tasks` | GET | any | `getTasksByRole` |
+| `/api/tasks/pending-approvals` | GET | manager/superadmin | Pending approval count |
 | `/api/tasks/[id]` | GET | any | `getTaskById` |
-| `/api/tasks/[id]` | PATCH | any | `handleTaskCompletion` / `handleManagerApproval` / `handleManagerRejection` / `checkAndUnlockCallClientTask` |
+| `/api/tasks/[id]` | PATCH | any | `handleTaskCompletion` / `handleManagerApproval` / `handleManagerRejection` / `checkAndUnlockCallClientTask`; `superadminNote` handled separately |
 | `/api/tasks/[id]/complete-branch` | POST | sed/manager/superadmin | `handleOrderSampleBranch` |
 | `/api/tasks/[id]/call-outcome` | POST | superadmin | `handleCallClientOutcome` |
 | `/api/tasks/[id]/f3-order` | POST | manager/superadmin | `handleF3Order` |
+| `/api/workflow/unlock` | POST | manager/superadmin | Manual unlock |
 
 ### Projects
 
 | Route | Method | Role | Does |
 |-------|--------|------|------|
+| `/api/projects` | GET | any | Role-filtered project list |
+| `/api/projects` | POST | sed/manager/superadmin | Create project |
 | `/api/projects/[id]` | GET | any | Returns project + tasks + payments |
 | `/api/projects/[id]` | PATCH | sed/manager/superadmin | Updates quotation number or manager notes |
 | `/api/projects/[id]` | DELETE | superadmin | Deletes project + all tasks |
 | `/api/projects/[id]/generate-tasks` | POST | manager/superadmin | Calls `generateTasksForProject` |
-| `/api/projects/[id]/quotation` | POST | sed/manager/superadmin | Submits F5 quotation items + generates per-item tasks |
-| `/api/projects/[id]/items-progress` | GET | any | Returns items with task progress summary |
+| `/api/projects/[id]/quotation` | GET/POST | sed/manager/superadmin | F5 quotation items + generates per-item tasks |
+| `/api/projects/[id]/items` | POST | any | Create project item |
+| `/api/projects/[id]/items/[itemId]` | POST | any | Update item |
+| `/api/projects/[id]/items-progress` | GET | any | Items with task progress summary |
+| `/api/projects/[id]/materials` | POST | any | Create materials |
+| `/api/projects/[id]/purchase-orders` | POST | any | Create PO |
+| `/api/projects/[id]/installation-logs` | POST | any | Log installation work |
+| `/api/projects/[id]/assign-installation` | POST | manager/superadmin | Assign team → `INSTALLATION_TEAM_MEMBERS` |
+| `/api/projects/[id]/advance` | POST | manager/superadmin | Stage advance |
+| `/api/projects/[id]/reopen` | POST | manager/superadmin | Reopen closed project |
+| `/api/projects/[id]/disapprove` | POST | manager/superadmin | Reject project |
+| `/api/projects/[id]/handover` | POST | manager/superadmin | Handover workflow |
+| `/api/projects/[id]/request-measurement` | POST | manager/superadmin | |
+| `/api/projects/[id]/inactivity-check` | POST | any | |
+
+### Gate Passes
+| Route | Method | Role | Notes |
+|-------|--------|------|-------|
+| `/api/gate-passes` | GET | any | |
+| `/api/gate-passes` | POST | manager/superadmin | |
+| `/api/gate-passes/[id]` | PATCH | manager/superadmin | Updates: `gatePassStatus`, `confirmedDeliveryDate`, `siteReady`, `clientNotified` |
+
+### Payments & Maintenance
+| Route | Method | Notes |
+|-------|--------|-------|
+| `/api/payments` | POST | Duplicate Final guard — 409 if non-cancelled Final already exists |
+| `/api/maintenance` | GET | Auto-expires maintenance records past `endDate` |
+| `/api/maintenance` | PATCH | Manual expire `{ recordId }` |
+
+### Materials
+| Route | Method |
+|-------|--------|
+| `/api/materials` | POST |
+| `/api/materials/[id]` | PATCH |
+
+### Users & Team
+| Route | Method | Role |
+|-------|--------|------|
+| `/api/users` | GET, POST | superadmin |
+| `/api/users/[id]` | PATCH, DELETE | superadmin |
+| `/api/workers` | GET, POST | superadmin |
+| `/api/workers/[id]` | PATCH, DELETE | superadmin |
+| `/api/team/sed` | GET | any |
+| `/api/team/installation` | GET | any |
+
+### Notifications & Comms
+| Route | Method | Notes |
+|-------|--------|-------|
+| `/api/notifications` | GET | Role-scoped list |
+| `/api/notifications` | PATCH | Mark all read |
+| `/api/notifications/[id]` | PATCH | Mark one read |
+| `/api/announcements` | POST | |
+| `/api/announcements/[id]` | PATCH, DELETE | |
+
+### Timesheets
+| Route | Method |
+|-------|--------|
+| `/api/timesheets` | GET, POST |
+| `/api/timesheets/[id]` | PATCH, DELETE |
+| `/api/timesheets/summary` | GET |
+| `/api/timesheets/workers` | GET |
+
+### Clients & Settings
+| Route | Method | Notes |
+|-------|--------|-------|
+| `/api/clients` | GET | All authenticated roles; lazy-loaded in `NewProjectModal` |
+| `/api/settings` | GET, POST | Always `await getSetting/setSetting` — Turso is async |
+
+### Calendar & Cron
+| Route | Method | Notes |
+|-------|--------|-------|
+| `/api/calendar` | POST | Create calendar event |
+| `/api/cron/weekly-reminder` | GET | Fri: notifications + upsert calendar event; Sat: notifications only |
+| `/api/cron/monthly-audit` | GET | Reminders + calendar event; idempotency key `monthly-audit:YYYY-MM` |
+
+### Reports (all GET → Excel download)
+```
+/api/reports/download/projects-by-stage
+/api/reports/download/ongoing-projects
+/api/reports/download/client-projects          ?clientName=
+/api/reports/download/sed-projects
+/api/reports/download/quotations
+/api/reports/download/quotation-line-items
+/api/reports/download/material-orders
+/api/reports/download/payables
+/api/reports/download/receivables
+/api/reports/download/follow-ups
+/api/reports/download/timesheets
+```
+
+### Superadmin Analytics
+| Route | Method |
+|-------|--------|
+| `/api/superadmin/metrics` | GET |
+| `/api/superadmin/kpi-counts` | GET |
+| `/api/superadmin/sed-stats` | GET |
+| `/api/superadmin/team-tasks` | GET |
+| `/api/superadmin/timeline` | GET |
+
+### System
+| Route | Method | Notes |
+|-------|--------|-------|
+| `/api/health` | GET | Public health check |
+| `/api/admin/health` | GET | Admin only |
+| `/api/admin/logs` | GET | |
+| `/api/admin/replay/[id]` | POST | Replay failed request |
+| `/api/debug/projects` | GET | |
 
 ---
 
@@ -271,6 +464,10 @@ isDecisionTask       — superadmin viewing 'Call the Client' task (shows 3-outc
 | `isF3Task` | Path selector (Small/Big) + material order table |
 | Default | Instructions, status badge, editable fields per role |
 
+**Superadmin note:**
+- `superadminNote` field (`TASKS.SUPERADMIN_NOTE = fldjVNPzFB76Ik0fh`) — amber textarea in `FieldEditor.tsx`
+- Shown as amber read-only banner in `TaskCard` for non-superadmin roles
+
 **Key handlers:**
 - `handleChange(key, value)` — intercepts status changes for special task types
 - `completeOrderSampleBranch(hasMaterial)` → POST `/complete-branch`
@@ -296,6 +493,11 @@ Card for a single project item showing step progress dots and status.
 Renders the per-item section of a project page.
 - Default: grid of `ItemProgressCard`s
 - When item selected: shows that item's task list (Level 3 view) with back button
+
+### `GatePassModal.tsx`
+4-section form: transport/driver, shipment/items, delivery/customer, pass metadata (validity + time).
+Auto-generates pass serial from Airtable record name (`gatePass.name`).
+Print: calls `triggerPrint()` from `lib/printGatePass.ts` — full-screen overlay, no iframes/popups.
 
 ---
 
@@ -338,7 +540,12 @@ Base ID: from env var `AIRTABLE_BASE_ID`
 | PURCHASE_ORDERS | see fieldMap | PO records |
 | INSTALLATION_LOGS | see fieldMap | Site work logs |
 | ANNOUNCEMENTS | see fieldMap | System-wide announcements |
-| CALENDAR_EVENTS | see fieldMap | Installation/delivery calendar events |
+| CALENDAR_EVENTS | see fieldMap | Installation/delivery/reminder calendar events |
+| MAINTENANCE | see fieldMap | Warranty tracking — Pending → Active → Expired |
+| PRODUCTION_TIMESHEETS | see fieldMap | Daily worker timesheet entries |
+| WORKERS | see fieldMap | Worker directory for timesheets |
+| SYSTEM_LOGS | see fieldMap | Structured error/event log |
+| FAILED_REQUESTS | see fieldMap | Failed requests queued for replay |
 
 **Key PROJECTS fields:**
 - `ASSIGNED_INSTALLATION_TEAM` (`fldXdHwEqZLdgBgy4`) — `multipleCollaborators`, **not used for assignment** (requires Airtable user IDs)
@@ -350,6 +557,10 @@ Base ID: from env var `AIRTABLE_BASE_ID`
 - `TEMPLATE_ORDER` — integer, drives sequencing
 - `PATH_CONDITION` — string, groups parallel paths
 - `PLANNED_PROD_START_DATE`, `EXPECTED_FAB_END_DATE` — fabrication date range
+- `SUPERADMIN_NOTE` (`fldjVNPzFB76Ik0fh`) — amber note, superadmin-only write
+
+**Key CALENDAR_EVENTS fields:**
+- `CUSTOM_TASK` — used as idempotency key in `upsertReminderEvent()` and `upsertF2DeliveryEvent()`
 
 ---
 
@@ -361,13 +572,15 @@ Base ID: from env var `AIRTABLE_BASE_ID`
 | `/dashboard/fab` | fabrication | Tasks, Materials (fab dates), Timeline (production schedule) |
 | `/dashboard/fix` | installation | Tasks only |
 | `/dashboard/mgr` | manager | Tasks, Deliveries, Projects (F5/F3/F6-handover/gate-pass/team-assign), Payments, Calendar, Installation |
-| `/dashboard/superadmin` | superadmin | All of the above + system config |
+| `/dashboard/superadmin` | superadmin | All of the above + Reports (Clients tab, Excel downloads), Users, Metrics, Calendar |
 | `/dashboard/project/[id]` | all | Project detail: tasks, items, payments, gate passes, installation logs |
-| `/home` | all | Pipeline (project stage grouping), Installation & Delivery calendar, team activity |
-
-**Home page special features:**
-- `ProjectPipeline` — groups active projects by stage; projects with `fabricationActive=true` appear in "Production" stage regardless of their Airtable `projectStage`
-- `MiniCalendar` (`type="installation"`) — fabrication date ranges as soft green cell highlights; delivery events as yellow dots; activity events show a detail popover on click
+| `/dashboard/pipeline` | manager/superadmin | Pipeline stage view |
+| `/dashboard/notifications` | all | Notification inbox |
+| `/dashboard/forms` | manager/superadmin | Gate pass creation (standalone GatePassModal with project picker) |
+| `/dashboard/superadmin/users` | superadmin | User management |
+| `/dashboard/superadmin/workers` | superadmin | Worker management |
+| `/dashboard/superadmin/timesheets` | superadmin | Timesheet review |
+| `/dashboard/superadmin/team-activity` | superadmin | Activity log |
 
 ---
 
@@ -376,13 +589,16 @@ Base ID: from env var `AIRTABLE_BASE_ID`
 | Panel | Shown when | What it does |
 |-------|-----------|--------------|
 | `QuotationPanel` | `pathCondition='Make Quotation'` | Enters quotation number + reference; saves to project, then completes task |
-| `F4QuotationPanel` | task name starts `'F4 —'` | Same inputs but for advance payment recording |
+| `F5QuotationPanel` | task name starts `'F4 —'` | Same inputs but for advance payment recording |
 | `OrderSamplePanel` | name=`'Order Sample'`, no `projectItem` | "We Have It" → completes; "Need to Order" → unlocks order branch |
-| `PerItemOrderSamplePanel` | `pathCondition='Select Sample (item)'` + `projectItem` | Same two-button, scoped per item |
 | `F3OrderPanel` | task name starts `'F3 —'` | Small/Big order selector + material table; POST `/f3-order` |
 | `AttachDocsPanel` | Phase 3 per-item final step | 7 document link inputs (Material List, Final Design, MEP, Site Photo, Site Size, Logistics, Sample) |
 | `ChooseInstallTeamPanel` | team assignment task | Fetches from `/api/team/installation`; PATCH `/api/projects/[id]/assign-installation` with record IDs → `INSTALLATION_TEAM_MEMBERS` field |
 | `F2ProductionPanel` | Fabrication date entry task | Arabic UI; enters `plannedProdStartDate` + `expectedFabEndDate` |
+| `F2DeliveryPanel` | F2 delivery scheduling | |
+| `CallClientDecisionPanel` | Call the Client task | 3-outcome panel (Approved / Review / Refused) |
+| `FixingTeamNotePanel` | Installation team notes | |
+| `FabricateMissingPanel` | Fabrication missing items | |
 
 ---
 
@@ -409,14 +625,14 @@ const { data, mutate } = useSWR('/api/tasks?role=sed', fetcher, {
 
 ## Notifications & Email
 
-**In-app notifications:** SQLite `notifications` table
-`lib/notifications.ts` — `createNotification({ userId?, role?, title, message })` — broadcasts to all users with a given role if `role` is provided
+**In-app notifications:** Turso `notifications` table
+`lib/notifications.ts` — `createNotification({ userId?, role?, title, message })` — broadcasts to all users with a given role if `role` is provided. All functions are async.
 
 **Email:** Resend (`lib/email.ts`), sender `notifications@woodwings.ae`
 Triggered by:
 - Task → Pending Approval → email manager
 - `callCount` reaches 3 → escalation email to manager
-- F4 completion → accountant email
+- F4 completion → accountant email via `notifyAccountantEvent()`
 - Visit site task date set → manager notification
 - Manager rejection → dept notification
 
@@ -424,19 +640,80 @@ Required env vars: `MANAGER_EMAIL`, `RESEND_API_KEY`
 
 ---
 
-## Recent / Notable Changes
+## Scheduled Cron (GitHub Actions)
 
-**`fabricationActive` on `Project`**
-- Computed server-side in `getProjects()` / `getAllProjects()` via `getFabricationActiveProjectIds()`
-- `true` when any task for that project is in the Fabrication department AND not Locked/Completed
-- Used by home page `ProjectPipeline` to override stage and show project in "Production"
+File: `.github/workflows/cron-reminders.yml`
+Vercel Cron removed — `vercel.json` is empty.
 
-**`INSTALLATION_TEAM_MEMBERS` field**
-- Added `PROJECTS.INSTALLATION_TEAM_MEMBERS = 'fldi1aJVJ94RBk6lP'` (`multipleRecordLinks` → TEAM_MEMBERS)
-- `transformProject` reads `assignedInstallationTeam` from this field
-- `assignInstallationTeam()` writes TEAM_MEMBERS record IDs to this field
-- Old `ASSIGNED_INSTALLATION_TEAM` field (`fldXdHwEqZLdgBgy4`, `multipleCollaborators`) is now **unused**
+| Schedule | UTC | UAE | Route |
+|---|---|---|---|
+| Fri reminder | 04:00 | 08:00 | `/api/cron/weekly-reminder` — notifications + upsert weekly review calendar event |
+| Sat follow-up | 05:00 | 09:00 | `/api/cron/weekly-reminder` — notifications only |
+| Monthly audit | 1st 04:00 | 1st 08:00 | `/api/cron/monthly-audit` — reminders + monthly audit calendar event |
 
-**Calendar fabrication ranges**
-- `getCalendarEvents()` emits one range event per fabrication task: `{ date: startDate, endDate: expectedFabEndDate, type: 'fabrication' }`
-- `MiniCalendar` renders range days as `bg-emerald-50` (not dots); start/end days get rounded corners
+Required GitHub secrets: `APP_URL`, `CRON_SECRET`
+Manual dispatch available via GitHub Actions tab.
+
+---
+
+## Environment Variables
+
+| Var | Notes |
+|-----|-------|
+| `SESSION_SECRET` | 32+ chars, JWT signing |
+| `AIRTABLE_BASE_ID` | |
+| `AIRTABLE_API_KEY` | |
+| `TURSO_URL` | Production Turso DB URL |
+| `TURSO_AUTH_TOKEN` | Production Turso auth token |
+| `RESEND_API_KEY` | |
+| `MANAGER_EMAIL` | Default manager email |
+| `NEXT_PUBLIC_APP_NAME` | Shown in UI |
+| `CRON_SECRET` | Bearer token for GitHub Actions → cron endpoints |
+| `APP_URL` | Deployment URL used by cron curl calls |
+
+---
+
+## Key Patterns & Gotchas
+
+- **All db calls must be awaited** — `lib/db.ts` is fully async (Turso). Missing `await` silently returns a Promise, e.g. `getSetting()` without await caused accountant emails to never fire.
+- **`recUrl` vs `tblUrl`** — never mix. PATCH a record = `recUrl`. POST/GET on table = `tblUrl`.
+- **`getProjects()` excludes closed stages by default** — includes `Closed & Valid Maintenance` and `Closed & Warranty Done` in the exclusion formula.
+- **`SALES_OWNER` is an array** — always read as `array[0]`, not a direct object. Affects SED stats, reports, and project ownership matching.
+- **Final payment is gated** — only one non-cancelled Final payment per project. 409 if duplicate.
+- **`superadminNote`** handled separately in `PATCH /api/tasks/[id]` — not merged with regular field updates.
+- **Phase 3 + Phase 4 generation are idempotent** — both check `TASK_TEMPLATES_LINK` before creating tasks.
+- **`/api/clients` is lazy-loaded** in `NewProjectModal` — only fetches on focus/type to conserve Airtable quota.
+- **Reject Project** writes to `PROJECT_STAGE`, not `APPROVAL_STATUS` (old bug was writing the wrong field).
+
+---
+
+## Recent Changes (2026-06-07 → 2026-06-08)
+
+**Staging Turso migration** — `lib/db.ts` rewritten for `@libsql/client` async; added `getUsersByRole`, `getUserByAirtableMemberId`, `addSedProjectMapping`, `getSedProjectIdsByUserId`; all API routes updated to await db calls.
+
+**Workflow bug fixes:**
+1. Reject Project now writes `PROJECT_STAGE` (was writing `APPROVAL_STATUS`)
+2. `maybeGeneratePhase4` maintenance clock now runs independently of task generation state
+
+**Cron reminders:**
+- Weekly reminder upserts a calendar event on Friday (Saturday stays notification-only)
+- New monthly audit route (`/api/cron/monthly-audit`) — creates reminders + calendar event
+- `upsertReminderEvent()` added to `lib/airtable.ts`
+
+**Settings await fix** — `getSetting`/`setSetting` in `/api/settings/route.ts` were missing `await`; accountant email was never readable/writable.
+
+**Cron moved to GitHub Actions** — Vercel Hobby plan caps at 2 cron jobs; `.github/workflows/cron-reminders.yml` replaces all Vercel cron entries.
+
+**Previous session (2026-06-07):**
+- Gate Pass redesign — 4-section form, `PATCH /api/gate-passes/[id]`, print overlay via `triggerPrint()`
+- Maintenance/warranty flow — Phase 4 creates Pending record, Final payment activates, auto-expires after 1 year
+- Phase 4 trigger rewrite — all-items guard, idempotent generation
+- Superadmin follow-up note — `TASKS.SUPERADMIN_NOTE = fldjVNPzFB76Ik0fh`, amber UI
+- Client system — autocomplete in `NewProjectModal`, SA Reports Clients tab, per-client Excel
+- Payment duplicate Final guard
+- `app/not-found.tsx`, `app/error.tsx` created; dead components (`TopBar`, `Sidebar`) deleted
+
+**Previous session (2026-06-04):**
+- `fabricationActive` on `Project` — computed via `getFabricationActiveProjectIds()`; used by `ProjectPipeline` to show project in "Production" stage
+- `INSTALLATION_TEAM_MEMBERS` (`fldi1aJVJ94RBk6lP`, `multipleRecordLinks` → TEAM_MEMBERS) — `assignInstallationTeam()` writes to this field; old `ASSIGNED_INSTALLATION_TEAM` (`fldXdHwEqZLdgBgy4`) is unused
+- Calendar fabrication ranges — `getCalendarEvents()` emits range events; `MiniCalendar` renders `bg-emerald-50` range days

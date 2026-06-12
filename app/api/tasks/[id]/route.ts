@@ -56,12 +56,34 @@ export const PATCH = requireRole()(
       }
     }
 
-    const { status, managerReviewStatus, callCount, followUpOutcome, ...otherFields } = fields as Partial<TaskUpdateInput>
+    const { status, managerReviewStatus, callCount, followUpOutcome, superadminNote, ...otherFields } = fields as Partial<TaskUpdateInput>
 
     if (Object.keys(otherFields).length > 0) {
       const filtered = filterAllowedFields(session.role, otherFields)
       if (Object.keys(filtered).length > 0) {
         await updateTask(params.id, filtered)
+      }
+    }
+
+    // Superadmin follow-up note — notify task departments, allow clearing with empty string
+    if (superadminNote !== undefined && session.role === 'superadmin') {
+      const noteTask = await getTaskById(params.id)
+      await updateTask(params.id, { superadminNote: superadminNote || '' })
+      if (superadminNote.trim()) {
+        const depts = noteTask.department ?? []
+        const roles = depts
+          .map((d) => ({ SED: 'sed', Fabrication: 'fabrication', Installation: 'installation', Manager: 'manager', Management: 'manager', Purchase: 'manager' })[d])
+          .filter((r): r is string => Boolean(r))
+        const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
+        const projectRef = noteTask.projectRef ?? noteTask.project?.[0] ?? ''
+        for (const role of uniqueRoles) {
+          await createNotification({
+            recipientRole: role,
+            title: `📌 Follow-up note — ${noteTask.taskName}`,
+            body: `Superadmin added a note on "${noteTask.taskName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}`,
+            link: `/${role === 'sed' ? 'dashboard/sed' : role === 'fabrication' ? 'dashboard/fab' : role === 'installation' ? 'dashboard/fix' : 'dashboard/mgr'}`,
+          })
+        }
       }
     }
 
@@ -76,16 +98,24 @@ export const PATCH = requireRole()(
     }
 
     if (status === 'Completed') {
-      // F4 (advance payment) requires a quotation number before it can be completed —
-      // this is the official project number used in reports and accounting.
+      // Official quotation number AND reference are required before completing Make Quotation or F4.
       const taskForValidation = await getTaskById(params.id)
-      if (taskForValidation.taskName.toLowerCase().startsWith('f4 —')) {
+      const taskNameLC = taskForValidation.taskName.toLowerCase()
+      const isMakeQuotationTask = taskNameLC.includes('make quotation') || taskForValidation.pathCondition === 'Make Quotation'
+      const isF4Task = taskNameLC.startsWith('f4 —')
+      if (isMakeQuotationTask || isF4Task) {
         const projectId = taskForValidation.project?.[0]
         if (projectId) {
           const project = await getProjectById(projectId)
           if (!project.quotationNumber?.trim()) {
             return NextResponse.json(
-              { error: 'Quotation number must be entered on the project before completing F4' },
+              { error: 'Quotation number is required before completing this task' },
+              { status: 400 },
+            )
+          }
+          if (!project.quotationReference?.trim()) {
+            return NextResponse.json(
+              { error: 'Quotation reference is required before completing this task' },
               { status: 400 },
             )
           }
@@ -101,7 +131,7 @@ export const PATCH = requireRole()(
         const workersVal = otherFields.noOfLaborsPerDay ?? taskForValidation.noOfLaborsPerDay
         const body = `${daysVal != null ? `${daysVal} days` : ''}${daysVal != null && workersVal != null ? ', ' : ''}${workersVal != null ? `${workersVal} workers/day` : ''} needed for handover${projectLabel ? ` — ${projectLabel}` : ''}`
         for (const role of ['manager', 'sed', 'superadmin'] as const) {
-          await createNotification({
+          createNotification({
             recipientRole: role,
             title: `Fixing team handover note — ${projectRef}`,
             body,
@@ -149,7 +179,7 @@ export const PATCH = requireRole()(
     // Notify manager when SED schedules a site visit date
     if ('taskStartDate' in otherFields && otherFields.taskStartDate && refreshed.pathCondition === 'Visit Site to Gather Details') {
       const projectRef = refreshed.projectRef ?? refreshed.project?.[0] ?? ''
-      await createNotification({
+      createNotification({
         recipientRole: 'manager',
         title: `Site visit scheduled — ${projectRef}`,
         body: `Visit date set to ${otherFields.taskStartDate as string}${refreshed.projectName ? ` — ${refreshed.projectName}` : ''}`,
@@ -165,28 +195,28 @@ export const PATCH = requireRole()(
       const projectName = refreshed.projectName ? ` — ${refreshed.projectName}` : ''
 
       if (followUpOutcome === 'Reject Project' && projectId) {
-        await updateProject(projectId, { [PROJECTS.APPROVAL_STATUS]: 'Not-Approved' })
-        await createNotification({
+        await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Not-Approved' })
+        createNotification({
           recipientRole: 'sed',
           title: `Project rejected — ${projectRef}`,
           body: `Superadmin has rejected project "${refreshed.projectName ?? projectRef}" due to inactivity.`,
           link: ROLE_DASHBOARD['sed'],
         })
-        await createNotification({
+        createNotification({
           recipientRole: 'manager',
           title: `Project rejected — ${projectRef}`,
           body: `Project "${refreshed.projectName ?? projectRef}" was rejected due to inactivity.`,
           link: ROLE_DASHBOARD['manager'],
         })
       } else if (followUpOutcome === 'SED to Follow Up') {
-        await createNotification({
+        createNotification({
           recipientRole: 'sed',
           title: `Action needed — ${projectRef}`,
           body: `Superadmin requests SED follow up on project "${refreshed.projectName ?? projectRef}"${projectName}. Please take the next action.`,
           link: ROLE_DASHBOARD['sed'],
         })
       } else if (followUpOutcome === 'Manager to Follow Up') {
-        await createNotification({
+        createNotification({
           recipientRole: 'manager',
           title: `Follow up with client — ${projectRef}`,
           body: `Superadmin requests manager to follow up with the client or SED on project "${refreshed.projectName ?? projectRef}".`,

@@ -1,14 +1,15 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import {
   createPayment,
   getPaymentsByProject,
   getProjectById,
-  getHandoverSheetForProject,
+  getMaintenanceRecordForProject,
+  activateMaintenanceRecord,
   createMaintenanceRecord,
   updateProject,
 } from '@/lib/airtable'
-import { notifyAccountant } from '@/lib/email'
+import { notifyAccountant, notifyAccountantEvent } from '@/lib/email'
 import { CreatePaymentSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
@@ -40,23 +41,59 @@ export const POST = requireRole('manager', 'superadmin')(
     }
 
     const body = parsed.data
-    const payment = await createPayment({ ...body, recordedBy: session.name })
 
-    if (process.env.RESEND_API_KEY) {
-      getProjectById(body.project[0])
-        .then((proj) =>
-          notifyAccountant({
-            projectName: proj.projectName,
-            projectId: proj.projectId,
-            amount: body.amount,
-            paymentType: body.paymentType,
-            method: body.paymentMethod,
-            reference: body.referenceNo ?? 'N/A',
-            receivedDate: body.receivedDate ?? 'N/A',
-            recordedBy: session.name,
-          }),
+    // Fetch project once: used for stageAtPayment capture + accountant email
+    const project = await getProjectById(body.project[0]).catch(() => null)
+
+    // Fetch existing payments: used for duplicate guards
+    const existing = await getPaymentsByProject(body.project[0])
+
+    // Final payment guard — prevent double-closure
+    if (body.paymentType === 'Final') {
+      const alreadyHasFinal = existing.some(
+        (p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled',
+      )
+      if (alreadyHasFinal) {
+        return NextResponse.json(
+          { error: 'A Final payment already exists for this project. Void it first if you need to re-record.' },
+          { status: 409 },
         )
-        .catch((err) => console.error('Accountant email failed:', err))
+      }
+    }
+
+    // General duplicate guard — same type + amount + date already exists
+    const isDuplicate = existing.some(
+      (p) =>
+        p.paymentType === body.paymentType &&
+        p.amount === body.amount &&
+        (body.receivedDate !== undefined ? p.receivedDate === body.receivedDate : false) &&
+        p.paymentStatus !== 'Cancelled',
+    )
+    if (isDuplicate) {
+      return NextResponse.json(
+        {
+          error: `A ${body.paymentType} payment of AED ${body.amount.toLocaleString()} on ${body.receivedDate ?? 'this date'} already exists for this project.`,
+        },
+        { status: 409 },
+      )
+    }
+
+    // Auto-capture the current project stage at time of payment
+    const stageAtPayment = project?.projectStage ?? body.stageAtPayment
+
+    const payment = await createPayment({ ...body, recordedBy: session.name, stageAtPayment })
+
+    if (process.env.RESEND_API_KEY && project) {
+      notifyAccountant({
+        projectName: project.projectName,
+        projectId: project.projectId,
+        amount: body.amount,
+        paymentType: body.paymentType,
+        method: body.paymentMethod,
+        reference: body.referenceNo ?? 'N/A',
+        receivedDate: body.receivedDate ?? 'N/A',
+        recordedBy: session.name,
+      }).catch((err: unknown) => console.error('Accountant email failed:', err))
     }
 
     // Final payment → close project + start 1-year maintenance period
@@ -78,33 +115,49 @@ export const POST = requireRole('manager', 'superadmin')(
 )
 
 async function closeProjectAfterFinalPayment(projectId: string, recordedBy: string) {
-  const [project, sheets] = await Promise.all([
+  const [project, existing] = await Promise.all([
     getProjectById(projectId),
-    getHandoverSheetForProject(projectId),
+    getMaintenanceRecordForProject(projectId),
   ])
 
-  const handoverDate =
-    sheets[0]?.finalInstallationDate ?? new Date().toISOString().slice(0, 10)
+  let warrantyEnd: string
 
-  const endDate = new Date(handoverDate)
-  endDate.setFullYear(endDate.getFullYear() + 1)
-  const endDateStr = endDate.toISOString().slice(0, 10)
+  if (existing) {
+    // Maintenance record was created at Phase 4 generation — just activate it
+    await activateMaintenanceRecord(existing.id)
+    warrantyEnd = existing.endDate
+  } else {
+    // Fallback: no Phase 4 record yet — create one now dated from today
+    const start = new Date()
+    const end = new Date(start)
+    end.setFullYear(end.getFullYear() + 1)
+    warrantyEnd = end.toISOString().slice(0, 10)
+    await createMaintenanceRecord(projectId, {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: warrantyEnd,
+      status: 'Active',
+    })
+  }
 
-  await Promise.all([
-    updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed' }),
-    createMaintenanceRecord(projectId, { startDate: handoverDate, endDate: endDateStr }),
-  ])
+  await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed and active warranty' })
 
   const projectRef = project.projectId ?? projectId
   const projectLabel = project.projectName
     ? `${projectRef} — ${project.projectName}`
     : projectRef
 
-  for (const role of ['sed', 'superadmin'] as const) {
-    await createNotification({
+  // Notify accountant by email
+  notifyAccountantEvent({
+    eventName: 'Final Payment Received — Project Closed',
+    projectLabel,
+  }).catch(() => {})
+
+  // In-app notifications
+  for (const role of ['sed', 'manager', 'superadmin'] as const) {
+    createNotification({
       recipientRole: role,
       title: `Project closed — ${projectRef}`,
-      body: `Final payment received for ${projectLabel}. Project is now Closed. 1-year maintenance active until ${endDateStr}. Recorded by ${recordedBy}.`,
+      body: `Final payment received for ${projectLabel}. Status: Closed and active warranty. Warranty active until ${warrantyEnd}. Recorded by ${recordedBy}.`,
       link: ROLE_DASHBOARD[role],
     })
   }

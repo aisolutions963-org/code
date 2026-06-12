@@ -1,9 +1,10 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput } from '@/lib/types'
+import { Task, TaskUpdateInput, Project, Payment, ClientRequest } from '@/lib/types'
 import { useSession } from '@/app/dashboard/layout-client'
 import ItemBoard from '@/components/projects/ItemBoard'
 import TaskList, { TaskListSkeleton } from '@/components/tasks/TaskList'
@@ -22,21 +23,288 @@ interface ItemsProgressResponse {
   items: ItemSummary[]
 }
 
+interface TimesheetSummary {
+  entryCount: number
+  totalRegularHours: number
+  totalOvertimeHours: number
+  totalHours: number
+  estimatedTotalCost?: number
+}
+
+interface ReportResponse {
+  project: Project
+  payments?: Payment[]
+  timesheetSummary?: TimesheetSummary
+}
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+function fmt(n: number) {
+  return `AED ${n.toLocaleString('en-AE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+}
+
+function statusBadge(s: string) {
+  const map: Record<string, string> = {
+    Received:  'bg-green-100 text-green-700',
+    Pending:   'bg-yellow-100 text-yellow-700',
+    Overdue:   'bg-red-100 text-red-700',
+    Cancelled: 'bg-gray-100 text-gray-400 line-through',
+  }
+  return map[s] ?? 'bg-gray-100 text-gray-600'
+}
+
+// ── sub-components ───────────────────────────────────────────────────────────
+
+function InfoRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null
+  return (
+    <div className="flex gap-2 text-sm">
+      <span className="text-gray-400 w-36 shrink-0">{label}</span>
+      <span className="text-gray-800 font-medium">{value}</span>
+    </div>
+  )
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="bg-gray-50 rounded-xl border border-gray-100 px-4 py-3">
+      <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <p className="text-lg font-bold text-gray-900">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+function ProjectOverview({ project }: { project: Project }) {
+  return (
+    <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Project info</h2>
+
+      <div className="space-y-2">
+        <InfoRow label="Client"          value={project.clientName} />
+        <InfoRow label="Phone"           value={project.clientPhone} />
+        <InfoRow label="SED"             value={project.salesOwner?.name} />
+        <InfoRow label="Quotation #"     value={project.quotationNumber} />
+        <InfoRow label="Reference"       value={project.quotationReference} />
+        <InfoRow label="Emirate"         value={project.emirate} />
+        <InfoRow label="Location"        value={project.location} />
+        <InfoRow label="Detail location" value={project.detailedLocation} />
+        <InfoRow label="Payment mode"    value={project.paymentMode} />
+      </div>
+
+      {project.projectDescription && (
+        <div className="pt-1">
+          <p className="text-xs text-gray-400 mb-1">Description</p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">{project.projectDescription}</p>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function PaymentsSection({ project, payments }: { project: Project; payments: Payment[] }) {
+  const total   = project.projectTotalCost ?? 0
+  const paid    = project.totalPaid ?? 0
+  const remaining = project.remainingBalance ?? (total - paid)
+  const progress = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0
+
+  const activePayments = payments.filter((p) => p.paymentStatus !== 'Cancelled')
+  const cancelledPayments = payments.filter((p) => p.paymentStatus === 'Cancelled')
+
+  return (
+    <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payments</h2>
+
+      {total > 0 && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Contract value"  value={fmt(total)} />
+            <StatCard label="Collected"       value={fmt(paid)}  sub={`${progress}%`} />
+            <StatCard label="Remaining"       value={fmt(remaining)} />
+            <StatCard label="Payment mode"    value={project.paymentMode ?? '—'} />
+          </div>
+
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-2 rounded-full transition-all"
+              style={{
+                width: `${progress}%`,
+                background: progress >= 100 ? '#22c55e' : 'linear-gradient(90deg,#d95e1a,#b84a14)',
+              }}
+            />
+          </div>
+        </>
+      )}
+
+      {payments.length === 0 ? (
+        <p className="text-sm text-gray-400">No payments recorded yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-xs text-gray-400 uppercase tracking-wider">
+                <th className="text-left py-2 pr-4">Type</th>
+                <th className="text-left py-2 pr-4">Status</th>
+                <th className="text-right py-2 pr-4">Amount</th>
+                <th className="text-left py-2 pr-4">Method</th>
+                <th className="text-left py-2 pr-4">Date</th>
+                <th className="text-left py-2 pr-4">Stage</th>
+                <th className="text-left py-2">Ref</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {activePayments.map((p) => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="py-2 pr-4 font-medium text-gray-800">{p.paymentType}</td>
+                  <td className="py-2 pr-4">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(p.paymentStatus)}`}>
+                      {p.paymentStatus}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4 text-right font-mono text-gray-900">{fmt(p.amount)}</td>
+                  <td className="py-2 pr-4 text-gray-600">{p.paymentMethod}</td>
+                  <td className="py-2 pr-4 text-gray-500">{p.receivedDate ?? p.dueDate ?? '—'}</td>
+                  <td className="py-2 pr-4 text-gray-400 text-xs">{p.stageAtPayment ?? '—'}</td>
+                  <td className="py-2 text-gray-400 text-xs">{p.referenceNo ?? '—'}</td>
+                </tr>
+              ))}
+              {cancelledPayments.length > 0 && cancelledPayments.map((p) => (
+                <tr key={p.id} className="opacity-40">
+                  <td className="py-1.5 pr-4 text-xs line-through">{p.paymentType}</td>
+                  <td className="py-1.5 pr-4">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">Void</span>
+                  </td>
+                  <td className="py-1.5 pr-4 text-right font-mono text-xs line-through">{fmt(p.amount)}</td>
+                  <td className="py-1.5 pr-4 text-xs">{p.paymentMethod}</td>
+                  <td className="py-1.5 pr-4 text-xs">{p.receivedDate ?? p.dueDate ?? '—'}</td>
+                  <td className="py-1.5 pr-4 text-xs">{p.stageAtPayment ?? '—'}</td>
+                  <td className="py-1.5 text-xs">{p.referenceNo ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function TimesheetSection({ summary }: { summary: TimesheetSummary }) {
+  return (
+    <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Labour hours</h2>
+
+      {summary.entryCount === 0 ? (
+        <p className="text-sm text-gray-400">No timesheet entries recorded for this project.</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard
+            label="Regular hours"
+            value={summary.totalRegularHours.toFixed(1)}
+            sub={`${summary.entryCount} entr${summary.entryCount === 1 ? 'y' : 'ies'}`}
+          />
+          <StatCard
+            label="Overtime hours"
+            value={summary.totalOvertimeHours.toFixed(1)}
+          />
+          <StatCard
+            label="Total hours"
+            value={summary.totalHours.toFixed(1)}
+          />
+          {summary.estimatedTotalCost !== undefined && (
+            <StatCard
+              label="Est. labour cost"
+              value={fmt(Math.round(summary.estimatedTotalCost))}
+            />
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+const TYPE_BADGE: Record<string, string> = {
+  Trade:       'bg-blue-100 text-blue-700',
+  Maintenance: 'bg-orange-100 text-orange-700',
+  Variance:    'bg-purple-100 text-purple-700',
+}
+
+function LinkedRequestsSection({ requests }: { requests: ClientRequest[] }) {
+  if (requests.length === 0) return null
+  return (
+    <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        Linked requests ({requests.length})
+      </h2>
+      <div className="space-y-2">
+        {requests.map((req) => {
+          const done = (req.tasks ?? []).filter((t) => t.status === 'Completed').length
+          const total = (req.tasks ?? []).length
+          return (
+            <div key={req.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-white transition-colors">
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${TYPE_BADGE[req.requestType] ?? 'bg-gray-100 text-gray-600'}`}>
+                {req.requestType}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-800 truncate">{req.projectName}</p>
+                {req.tradeReference && (
+                  <p className="text-[11px] font-mono text-gray-500">{req.tradeReference}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-gray-400">{done}/{total}</span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                  req.projectStage === 'Closed' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {req.projectStage}
+                </span>
+                <Link
+                  href={`/dashboard/project/${req.id}`}
+                  className="text-[11px] text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  Open →
+                </Link>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// ── main page ────────────────────────────────────────────────────────────────
+
+type Tab = 'tasks' | 'report'
+
 export default function ProjectItemBoardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { role } = useSession()
   const router = useRouter()
+  const [tab, setTab] = useState<Tab>('tasks')
 
+  // Items + tasks (existing)
   const { data, error, isLoading, mutate } = useSWR<ItemsProgressResponse>(
     `/api/projects/${id}/items-progress`,
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
-
   const { data: tasksData, isLoading: tasksLoading, mutate: mutateTasks } = useSWR<{ tasks: Task[] }>(
     `/api/tasks?projectId=${id}`,
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
+  )
+
+  // Report
+  const { data: reportData, isLoading: reportLoading } = useSWR<ReportResponse>(
+    tab === 'report' ? `/api/projects/${id}/report` : null,
+    fetcher,
+  )
+
+  const canSeeRequests = role === 'sed' || role === 'manager' || role === 'superadmin'
+  const { data: requestsData } = useSWR<{ requests: ClientRequest[] }>(
+    tab === 'report' && canSeeRequests ? `/api/projects/${id}/requests` : null,
+    fetcher,
   )
 
   const handleUpdate = async (taskId: string, fields: Partial<TaskUpdateInput>) => {
@@ -66,7 +334,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
 
   return (
     <div>
-      {/* Gradient page header */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-teal-50 to-white border-b border-teal-100 px-6 py-5">
         <button
           onClick={() => router.back()}
@@ -83,7 +351,6 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-60" />
             <span className="relative inline-flex rounded-full h-3 w-3 bg-teal-500" />
           </span>
-
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-xs text-gray-400 uppercase tracking-wider">{projectRef}</span>
@@ -101,94 +368,147 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
             )}
           </div>
         </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mt-4 border-b border-transparent">
+          {([['tasks', 'Tasks & Items'], ['report', 'Project Report']] as [Tab, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors ${
+                tab === key
+                  ? 'bg-white border border-b-white border-teal-100 text-teal-700 shadow-sm -mb-px'
+                  : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Docs bar — Attachments & Forms, pinned below header */}
-      {!tasksLoading && allTasks.length > 0 && (
+      {/* Docs bar — only on tasks tab */}
+      {tab === 'tasks' && !tasksLoading && allTasks.length > 0 && (
         <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-start gap-6 flex-wrap">
           <ProjectAttachmentsSection tasks={allTasks} />
           <ProjectFormsSection projectId={id} role={role} />
         </div>
       )}
 
-      {/* Content */}
-      <div className="p-6 max-w-5xl mx-auto space-y-8">
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-            Failed to load project data.{' '}
-            <button onClick={() => mutate()} className="underline">Retry</button>
-          </div>
-        )}
+      {/* ── Tasks & Items tab ── */}
+      {tab === 'tasks' && (
+        <div className="p-6 max-w-5xl mx-auto space-y-8">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+              Failed to load project data.{' '}
+              <button onClick={() => mutate()} className="underline">Retry</button>
+            </div>
+          )}
 
-        {/* General project tasks */}
-        {tasksLoading && <TaskListSkeleton />}
+          {tasksLoading && <TaskListSkeleton />}
 
-        {!tasksLoading && projectLevelTasks.length > 0 && (
-          <section>
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Project tasks
-            </h2>
-            <TaskList
-              tasks={projectLevelTasks}
-              role={role}
-              onUpdate={handleUpdate}
-              groupByProject={false}
-            />
-          </section>
-        )}
+          {!tasksLoading && projectLevelTasks.length > 0 && (
+            <section>
+              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                Project tasks
+              </h2>
+              <TaskList
+                tasks={projectLevelTasks}
+                role={role}
+                onUpdate={handleUpdate}
+                groupByProject={false}
+              />
+            </section>
+          )}
 
-        {/* Item board */}
-        {isLoading && !tasksLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[1, 2, 3, 4].map((n) => (
-              <div key={n} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden animate-pulse">
-                <div className="p-4 space-y-3">
-                  <div className="flex justify-between">
-                    <div className="h-4 bg-gray-100 rounded w-3/5" />
-                    <div className="w-6 h-6 bg-gray-100 rounded-full" />
-                  </div>
-                  <div className="h-14 bg-teal-50 rounded-lg" />
-                  <div className="flex gap-1">
-                    {[1,2,3,4,5,6].map((d) => <div key={d} className="w-2 h-2 bg-gray-100 rounded-full" />)}
+          {isLoading && !tasksLoading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden animate-pulse">
+                  <div className="p-4 space-y-3">
+                    <div className="flex justify-between">
+                      <div className="h-4 bg-gray-100 rounded w-3/5" />
+                      <div className="w-6 h-6 bg-gray-100 rounded-full" />
+                    </div>
+                    <div className="h-14 bg-teal-50 rounded-lg" />
+                    <div className="flex gap-1">
+                      {[1,2,3,4,5,6].map((d) => <div key={d} className="w-2 h-2 bg-gray-100 rounded-full" />)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {hasItems && (
-          <section>
-            {hasProjectTasks && (
-              <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                Items
-              </h2>
-            )}
-            <ItemBoard
-              projectId={id}
-              items={data!.items}
-              role={role}
-              onUpdate={handleUpdate}
-              onMutate={() => mutate()}
-            />
-          </section>
-        )}
-
-        {/* Empty state */}
-        {nothingToShow && (
-          <div className="text-center py-16">
-            <div className="w-14 h-14 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
+              ))}
             </div>
-            <p className="text-gray-700 text-sm font-medium">No tasks for your role on this project</p>
-            <p className="text-gray-400 text-xs mt-1">Tasks will appear here once they become active</p>
-          </div>
-        )}
-      </div>
+          )}
+
+          {hasItems && (
+            <section>
+              {hasProjectTasks && (
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                  Items
+                </h2>
+              )}
+              <ItemBoard
+                projectId={id}
+                items={data!.items}
+                role={role}
+                onUpdate={handleUpdate}
+                onMutate={() => mutate()}
+              />
+            </section>
+          )}
+
+          {nothingToShow && (
+            <div className="text-center py-16">
+              <div className="w-14 h-14 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <p className="text-gray-700 text-sm font-medium">No tasks for your role on this project</p>
+              <p className="text-gray-400 text-xs mt-1">Tasks will appear here once they become active</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Report tab ── */}
+      {tab === 'report' && (
+        <div className="p-6 max-w-3xl mx-auto space-y-4">
+          {reportLoading && (
+            <div className="space-y-4">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse space-y-3">
+                  <div className="h-3 bg-gray-100 rounded w-24" />
+                  <div className="h-4 bg-gray-100 rounded w-2/3" />
+                  <div className="h-4 bg-gray-100 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!reportLoading && reportData && (
+            <>
+              <ProjectOverview project={reportData.project} />
+              {reportData.payments && (
+                <PaymentsSection project={reportData.project} payments={reportData.payments} />
+              )}
+              {requestsData && requestsData.requests.length > 0 && (
+                <LinkedRequestsSection requests={requestsData.requests} />
+              )}
+              {reportData.timesheetSummary && (
+                <TimesheetSection summary={reportData.timesheetSummary} />
+              )}
+            </>
+          )}
+
+          {!reportLoading && !reportData && (
+            <div className="text-center py-16 text-sm text-gray-400">
+              Failed to load report.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

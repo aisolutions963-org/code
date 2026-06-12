@@ -27,10 +27,16 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
 }
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
-  const from = new URL(req.url).searchParams.get('from') ?? ''
+  const sp = new URL(req.url).searchParams
+  const from = sp.get('from') ?? ''
+  const to   = sp.get('to')   ?? ''
 
   const qParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  if (from) qParams.set('filterByFormula', encodeURIComponent(`IS_AFTER({${QUOTATIONS.SENT_DATE}}, "${from}")`))
+  const dateParts: string[] = []
+  if (from) dateParts.push(`IS_AFTER({${QUOTATIONS.SENT_DATE}}, "${from}")`)
+  if (to)   dateParts.push(`IS_BEFORE({${QUOTATIONS.SENT_DATE}}, "${to}")`)
+  if (dateParts.length === 1) qParams.set('filterByFormula', encodeURIComponent(dateParts[0]))
+  if (dateParts.length === 2) qParams.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
   qParams.append('fields[]', QUOTATIONS.NAME)
   qParams.append('fields[]', QUOTATIONS.PROJECT)
   qParams.append('fields[]', QUOTATIONS.DESCRIPTION)

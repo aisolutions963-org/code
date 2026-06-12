@@ -1,9 +1,8 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, GatePass, Project } from '@/lib/types'
-import { useSession } from '@/app/dashboard/layout-client'
+import { Task, TaskUpdateInput } from '@/lib/types'
 import F3OrderPanel from '@/components/tasks/panels/F3OrderPanel'
 import F5QuotationPanel from '@/components/tasks/panels/F5QuotationPanel'
 import QuotationPanel from '@/components/tasks/panels/QuotationPanel'
@@ -15,14 +14,8 @@ import F2ProductionPanel from '@/components/tasks/panels/F2ProductionPanel'
 import OrderSamplePanel from '@/components/tasks/panels/OrderSamplePanel'
 import FabricateMissingPanel from '@/components/tasks/panels/FabricateMissingPanel'
 import CallClientDecisionPanel from '@/components/tasks/panels/CallClientDecisionPanel'
-import GatePassModal from '@/components/projects/GatePassModal'
-import Modal from '@/components/ui/Modal'
-import Button from '@/components/ui/Button'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-const GATE_PASS_ROLES = ['manager', 'superadmin', 'installation'] as const
-const CAN_CREATE_GATE_PASS = ['manager', 'superadmin'] as const
 
 type FormType =
   | 'f5' | 'f4' | 'f3' | 'makeQuotation'
@@ -132,122 +125,10 @@ function FormCard({ task, formType, onUpdate }: FormCardProps) {
   )
 }
 
-function GatePassStatusBadge({ status }: { status?: string }) {
-  if (!status) return null
-  const [bg, text] =
-    status === 'Delivered' ? ['bg-green-100 text-green-700', ''] :
-    status === 'Pending' ? ['bg-amber-100 text-amber-700', ''] :
-    status === 'Cancelled' ? ['bg-red-100 text-red-700', ''] :
-    ['bg-gray-100 text-gray-600', '']
-  return (
-    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${bg} ${text}`}>
-      {status}
-    </span>
-  )
-}
-
-function GatePassCard({ gp }: { gp: GatePass }) {
-  const [expanded, setExpanded] = useState(false)
-  const deliveryDate = gp.confirmedDeliveryDate ?? gp.estimatedSupplyDate
-  const isConfirmed = !!gp.confirmedDeliveryDate
-
-  return (
-    <div className="rounded-xl border border-teal-200 overflow-hidden">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-teal-50 text-left"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="w-2 h-2 rounded-full shrink-0 bg-teal-400" />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">
-              {gp.projectName ?? gp.name ?? '—'}
-            </p>
-            {gp.projectDisplayId && (
-              <p className="text-xs text-gray-400 font-mono">{gp.projectDisplayId}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${isConfirmed ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-600'}`}>
-            {isConfirmed ? 'Confirmed' : 'Estimated'}
-          </span>
-          <span className="text-xs text-gray-500 tabular-nums">{deliveryDate}</span>
-          <GatePassStatusBadge status={gp.gatePassStatus} />
-          <svg
-            className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="p-4 border-t border-teal-100 bg-white space-y-3">
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">Items</p>
-            <p className="text-sm text-gray-800 whitespace-pre-line">{gp.itemsDescription}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <p className="text-gray-400">Estimated Supply</p>
-              <p className="font-medium text-gray-700">{gp.estimatedSupplyDate}</p>
-            </div>
-            {gp.confirmedDeliveryDate && (
-              <div>
-                <p className="text-gray-400">Confirmed Delivery</p>
-                <p className="font-medium text-teal-700">{gp.confirmedDeliveryDate}</p>
-              </div>
-            )}
-          </div>
-          {(gp.siteReady !== undefined || gp.clientNotified !== undefined) && (
-            <div className="flex gap-3 text-xs">
-              {gp.siteReady !== undefined && (
-                <span className={`px-2 py-0.5 rounded-full ${gp.siteReady ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {gp.siteReady ? 'Site ready' : 'Site not ready'}
-                </span>
-              )}
-              {gp.clientNotified !== undefined && (
-                <span className={`px-2 py-0.5 rounded-full ${gp.clientNotified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {gp.clientNotified ? 'Client notified' : 'Client not notified'}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function FormsPage() {
-  const { role } = useSession()
-
   const { data, isLoading, error, mutate } = useSWR<{ tasks: Task[] }>('/api/tasks', fetcher, {
-    refreshInterval: 30000,
+    refreshInterval: 300_000,
   })
-
-  const showGatePasses = (GATE_PASS_ROLES as readonly string[]).includes(role)
-  const canCreateGatePass = (CAN_CREATE_GATE_PASS as readonly string[]).includes(role)
-
-  const { data: gpData, isLoading: gpLoading, mutate: mutateGp } = useSWR<{ gatePasses: GatePass[] }>(
-    showGatePasses ? '/api/gate-passes' : null,
-    fetcher,
-    { refreshInterval: 60000 },
-  )
-  const gatePasses = gpData?.gatePasses ?? []
-
-  const [showProjectPicker, setShowProjectPicker] = useState(false)
-  const [pickerProjectId, setPickerProjectId] = useState('')
-  const [gatePassProject, setGatePassProject] = useState<Project | null>(null)
-  const [projectsNeeded, setProjectsNeeded] = useState(false)
-
-  const { data: projectData } = useSWR<{ projects: Project[] }>(
-    projectsNeeded ? '/api/projects' : null,
-    fetcher,
-  )
-  const projects = projectData?.projects ?? []
 
   const allTasks = data?.tasks ?? []
 
@@ -280,18 +161,6 @@ export default function FormsPage() {
     mutate()
   }
 
-  function openGatePassPicker() {
-    setProjectsNeeded(true)
-    setPickerProjectId('')
-    setShowProjectPicker(true)
-  }
-
-  function confirmProjectPicker() {
-    const proj = projects.find((p) => p.id === pickerProjectId) ?? null
-    setGatePassProject(proj)
-    setShowProjectPicker(false)
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
@@ -305,7 +174,7 @@ export default function FormsPage() {
             </p>
           </div>
           <button
-            onClick={() => { mutate(); mutateGp() }}
+            onClick={() => mutate()}
             className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white border border-gray-200 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -314,64 +183,6 @@ export default function FormsPage() {
             Refresh
           </button>
         </div>
-
-        {/* Gate Passes section */}
-        {showGatePasses && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <h2 className="text-sm font-semibold text-gray-700">
-                  Gate Passes
-                  {!gpLoading && gatePasses.length > 0 && (
-                    <span className="ml-2 text-xs font-normal text-gray-400">{gatePasses.length}</span>
-                  )}
-                </h2>
-              </div>
-              {canCreateGatePass && (
-                <button
-                  onClick={openGatePassPicker}
-                  className="text-xs text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  New Gate Pass
-                </button>
-              )}
-            </div>
-
-            {gpLoading && (
-              <div className="flex justify-center py-6">
-                <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
-
-            {!gpLoading && gatePasses.length === 0 && (
-              <div className="rounded-xl border border-dashed border-teal-200 px-4 py-6 text-center">
-                <p className="text-sm text-gray-400">No gate passes yet</p>
-                {canCreateGatePass && (
-                  <p className="text-xs text-gray-300 mt-1">Use the button above to create one for a project delivery</p>
-                )}
-              </div>
-            )}
-
-            {!gpLoading && gatePasses.map((gp) => (
-              <GatePassCard key={gp.id} gp={gp} />
-            ))}
-          </div>
-        )}
-
-        {/* Divider between sections when both are visible */}
-        {showGatePasses && (
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400 font-medium">Task Forms</span>
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-        )}
 
         {/* Task Forms section */}
         {isLoading && <Spinner />}
@@ -405,50 +216,6 @@ export default function FormsPage() {
         ))}
       </div>
 
-      {/* Project picker for gate pass */}
-      <Modal
-        open={showProjectPicker}
-        onClose={() => setShowProjectPicker(false)}
-        title="New Gate Pass — Select Project"
-        size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowProjectPicker(false)}>Cancel</Button>
-            <Button disabled={!pickerProjectId} onClick={confirmProjectPicker}>Continue</Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-gray-500">Select the project this gate pass is for.</p>
-          {projects.length === 0 ? (
-            <div className="flex justify-center py-6">
-              <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-              value={pickerProjectId}
-              onChange={(e) => setPickerProjectId(e.target.value)}
-            >
-              <option value="">Select project…</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.projectId} — {p.projectName}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      </Modal>
-
-      {/* Gate Pass creation form */}
-      {gatePassProject && (
-        <GatePassModal
-          project={gatePassProject}
-          onClose={() => setGatePassProject(null)}
-          onCreated={() => { setGatePassProject(null); mutateGp() }}
-        />
-      )}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { getMetrics, getSystemStatus } from '@/lib/metrics'
 import { getLogs } from '@/lib/logger'
 import { getFailedRequests } from '@/lib/failedRequests'
 import { SYSTEM_LOGS } from '@/lib/fieldMap'
+import { db } from '@/lib/db'
 
 const AIRTABLE_BASE = process.env.AIRTABLE_BASE_ID
 const AIRTABLE_KEY = process.env.AIRTABLE_API_KEY
@@ -21,12 +22,10 @@ async function checkAirtable(): Promise<'ok' | 'failing'> {
   }
 }
 
-function checkDatabase(): 'ok' | 'failing' {
+async function checkDatabase(): Promise<'ok' | 'failing'> {
   try {
-    // Dynamic require — SQLite is synchronous; if the module loads, the DB is reachable
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const db = require('@/lib/db').default
-    db.prepare('SELECT 1').get()
+    const client = await db()
+    await client.execute('SELECT 1')
     return 'ok'
   } catch {
     return 'failing'
@@ -34,14 +33,13 @@ function checkDatabase(): 'ok' | 'failing' {
 }
 
 export const GET = requireRole('superadmin')(async () => {
-  const [airtableStatus, recentErrors, failedRequests, metrics] = await Promise.all([
+  const [airtableStatus, databaseStatus, recentErrors, failedRequests, metrics] = await Promise.all([
     checkAirtable(),
+    checkDatabase(),
     getLogs({ level: 'error', limit: 20 }),
     getFailedRequests(20),
     Promise.resolve(getMetrics()),
   ])
-
-  const databaseStatus = checkDatabase()
   const status = getSystemStatus(airtableStatus === 'failing')
 
   return NextResponse.json({

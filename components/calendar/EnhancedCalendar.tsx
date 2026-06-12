@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import useSWR from 'swr'
 import type { CalendarEvent } from '@/lib/airtable'
+import { todayUAE } from '@/lib/dateUtils'
 import { Role } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then(r => r.json())
@@ -16,9 +17,16 @@ const TYPE_DOT: Record<string, string> = {
   'payment-received': 'bg-green-400',
 }
 
-export default function EnhancedCalendar({ role }: { role: Role }) {
+interface EnhancedCalendarProps {
+  role: Role
+  filterTypes?: string[]
+  creatorFilter?: string
+  title?: string
+}
+
+export default function EnhancedCalendar({ role, filterTypes, creatorFilter, title }: EnhancedCalendarProps) {
   const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
+  const todayStr = todayUAE()
 
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [currentMonth, setCurrentMonth] = useState(
@@ -27,15 +35,20 @@ export default function EnhancedCalendar({ role }: { role: Role }) {
   const [addingActivity, setAddingActivity] = useState(false)
 
   const { data, mutate } = useSWR<{ events: CalendarEvent[] }>('/api/calendar', fetcher, {
-    refreshInterval: 60000,
-    revalidateOnFocus: true,
+    refreshInterval: 300_000,
+    
   })
-  const events = data?.events ?? []
+  const allEvents = data?.events ?? []
+  const events = allEvents.filter(e => {
+    if (filterTypes && !filterTypes.includes(e.type)) return false
+    if (creatorFilter && e.createdBy !== creatorFilter) return false
+    return true
+  })
 
-  const canSeeFab = true
-  const canSeeDeliveries = true
-  const canSeeInstallation = true
-  const canSeeActivities = true
+  const canSeeFab = !filterTypes || filterTypes.includes('fabrication')
+  const canSeeDeliveries = !filterTypes || filterTypes.includes('delivery')
+  const canSeeInstallation = !filterTypes || filterTypes.includes('installation')
+  const canSeeActivities = !filterTypes || filterTypes.includes('activity')
   const canAddActivity = ['sed', 'manager', 'superadmin'].includes(role)
 
   const year = currentMonth.getFullYear()
@@ -59,9 +72,9 @@ export default function EnhancedCalendar({ role }: { role: Role }) {
   const activityEvents = canSeeActivities ? dayEvents.filter(e => e.type === 'activity') : []
 
   const sevenDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    return d.toISOString().slice(0, 10)
+    const [y, m, d] = todayStr.split('-').map(Number)
+    const dt = new Date(y, m - 1, d + i)
+    return dt.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
   })
 
   const monthLabel = currentMonth.toLocaleDateString('en-AE', { month: 'long', year: 'numeric' })
@@ -72,7 +85,7 @@ export default function EnhancedCalendar({ role }: { role: Role }) {
   return (
     <div className="bg-gray-800/60 rounded-2xl overflow-hidden">
       <div className="px-5 py-3 border-b border-gray-700/50 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Calendar</h2>
+        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">{title ?? 'Calendar'}</h2>
         <span className="text-xs text-gray-400">{selectedLabel}</span>
       </div>
 

@@ -32,6 +32,7 @@ const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   managerReviewStatus: 'Manager Review Status',
   managerComment: 'Manager Comment',
   sedNote: 'Note for Manager',
+  superadminNote: 'Admin Follow-up Note',
   postVisitOutcome: 'Post-Visit Outcome',
   taskStartDate: 'Start Date',
   completionDate: 'Completion Date',
@@ -294,16 +295,26 @@ export default function FieldEditor({
           )
         }
 
-        if (key === 'managerComment' || key === 'sedNote') {
+        if (key === 'managerComment' || key === 'sedNote' || key === 'superadminNote') {
           return (
             <div key={key} className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{labels[key] ?? key}</label>
+              <label className={`text-xs font-medium uppercase tracking-wide ${key === 'superadminNote' ? 'text-amber-600' : 'text-gray-500'}`}>
+                {labels[key] ?? key}
+              </label>
               <textarea
                 value={(value as string) ?? ''}
                 onChange={(e) => onChange(key, e.target.value)}
                 rows={3}
-                placeholder={key === 'sedNote' ? 'Leave a note visible to the manager…' : undefined}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                placeholder={
+                  key === 'sedNote' ? 'Leave a note visible to the manager…' :
+                  key === 'superadminNote' ? 'Add a follow-up note for this task…' :
+                  undefined
+                }
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 resize-none ${
+                  key === 'superadminNote'
+                    ? 'border-amber-300 focus:ring-amber-400 bg-amber-50'
+                    : 'border-gray-300 focus:ring-brand-500'
+                }`}
               />
             </div>
           )

@@ -29,10 +29,11 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
 const STAGE_LABELS: Record<string, string> = {
   Preparing:               'Preparing',
   Open:                    'Open',
+  Production:              'Production',
   Closed:                  'Finished',
   'Not-Approved':          'Not Approved',
-  'Closed & Valid Maintenance': 'Maintenance Active',
-  'Closed & Warranty Done': 'Maintenance Expired',
+  'Closed and active warranty': 'Active Warranty',
+  'Warranty expired':      'Warranty Expired',
 }
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
@@ -69,7 +70,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
 
   const rows = projects.map((proj) => {
     const f = proj.fields
-    const owner = f[PROJECTS.SALES_OWNER] as { name?: string } | undefined
+    const rawOwner = f[PROJECTS.SALES_OWNER]
+    const ownerEntry = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner
+    const owner = (!ownerEntry || typeof ownerEntry === 'string') ? undefined : ownerEntry as { name?: string }
     return {
       projectId:    (f[PROJECTS.PROJECT_ID] as string) ?? '',
       projectName:  (f[PROJECTS.PROJECT_NAME] as string) ?? '',

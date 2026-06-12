@@ -3,532 +3,322 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WoodWings PMS — دليل فريق التركيب</title>
+<title>WoodWings — دليل التركيب</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f5f0e8; --white: #ffffff; --navy: #1a1a2e; --gold: #c9a96e; --gold-light: #f0e6d3;
-    --text: #2d2d3a; --muted: #6b6b80; --border: #e2ddd6; --sidebar-w: 270px;
-    --locked: #6b7280; --todo: #3b82f6; --inprogress: #f59e0b; --pending: #8b5cf6; --completed: #10b981;
+    --bg: #f5f0e8; --white: #ffffff; --navy: #1a1a2e;
+    --gold: #c9a96e; --gold-light: #f0e6d3;
+    --text: #2d2d3a; --muted: #6b6b80; --border: #e2ddd6;
+    --sidebar-w: 270px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { direction: rtl; text-align: right; }
-  body { font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); line-height: 1.8; display: flex; }
-  h1,h2,h3,h4 { font-family: 'Tajawal', sans-serif; color: var(--navy); }
-  a { color: var(--gold); text-decoration: none; } a:hover { text-decoration: underline; }
-
-  #toc { width: var(--sidebar-w); min-height: 100vh; background: var(--navy); position: sticky; top: 0; height: 100vh; overflow-y: auto; flex-shrink: 0; order: 2; }
-  .toc-brand { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 8px; }
-  .toc-brand .logo { font-family: 'Tajawal', sans-serif; color: var(--gold); font-size: 1.2rem; font-weight: 700; }
-  .toc-brand .role-label { color: rgba(255,255,255,0.45); font-size: 0.78rem; margin-top: 2px; }
-  #toc a { display: flex; align-items: center; gap: 8px; padding: 8px 20px; color: rgba(255,255,255,0.55); font-size: 0.85rem; font-weight: 500; border-right: 3px solid transparent; transition: all 0.15s; flex-direction: row-reverse; justify-content: flex-end; }
-  #toc a:hover, #toc a.active { color: var(--gold); border-right-color: var(--gold); background: rgba(201,169,110,0.08); text-decoration: none; }
-  .toc-section-label { padding: 16px 20px 4px; color: rgba(255,255,255,0.25); font-size: 0.72rem; font-weight: 600; }
-
-  #main { flex: 1; max-width: calc(100% - var(--sidebar-w)); order: 1; }
-  .page-header { background: var(--navy); color: white; padding: 48px 60px 40px; border-bottom: 4px solid var(--gold); }
-  .page-header .manual-type { color: var(--gold); font-size: 0.82rem; margin-bottom: 8px; font-weight: 600; }
-  .page-header h1 { font-size: 2.2rem; color: white; margin-bottom: 12px; }
-  .page-header p { color: rgba(255,255,255,0.6); font-size: 1rem; max-width: 560px; }
-  .content { padding: 0 60px 80px; }
-  .section { padding: 52px 0 0; border-bottom: 1px solid var(--border); }
-  .section:last-child { border-bottom: none; }
-  .section-num { color: var(--gold); font-size: 0.78rem; font-weight: 700; margin-bottom: 4px; font-family: 'Cairo', sans-serif; }
-  .section h2 { font-size: 1.75rem; margin-bottom: 6px; }
-  .section-intro { color: var(--muted); font-size: 0.95rem; margin-bottom: 28px; }
-  h3 { font-size: 1.15rem; margin: 28px 0 12px; }
-  h4 { font-size: 1rem; margin: 20px 0 8px; font-family: 'Cairo', sans-serif; font-weight: 600; }
+  body { font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); line-height: 1.9; display: flex; min-height: 100vh; }
+  h1,h2,h3 { color: var(--navy); font-weight: 700; }
+  a { color: var(--gold); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  #toc { width: var(--sidebar-w); background: var(--navy); position: sticky; top: 0; height: 100vh; overflow-y: auto; flex-shrink: 0; padding-bottom: 40px; order: 2; }
+  .toc-brand { padding: 24px 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 6px; }
+  .toc-brand .logo { font-family: 'Cairo', sans-serif; color: var(--gold); font-size: 1.2rem; font-weight: 700; }
+  .toc-brand .role-label { color: rgba(255,255,255,0.4); font-size: 0.78rem; margin-top: 3px; }
+  #toc a { display: flex; align-items: center; padding: 7px 20px; color: rgba(255,255,255,0.52); font-size: 0.87rem; font-weight: 500; border-right: 3px solid transparent; transition: all 0.14s; }
+  #toc a:hover { color: var(--gold); border-right-color: var(--gold); background: rgba(201,169,110,0.07); text-decoration: none; }
+  .toc-group { padding: 14px 20px 3px; color: rgba(255,255,255,0.22); font-size: 0.72rem; }
+  main { flex: 1; min-width: 0; padding: 48px 60px 80px; max-width: 860px; order: 1; }
+  .page-header { margin-bottom: 52px; padding-bottom: 28px; border-bottom: 2px solid var(--border); }
+  .page-header h1 { font-size: 2.2rem; margin-bottom: 8px; }
+  .page-header .subtitle { color: var(--muted); font-size: 1.05rem; }
+  section { margin-bottom: 60px; }
+  section h2 { font-size: 1.55rem; margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  section h3 { font-size: 1.05rem; margin: 26px 0 10px; }
   p { margin-bottom: 12px; }
-  ul, ol { padding-right: 24px; padding-left: 0; margin-bottom: 14px; }
-  li { margin-bottom: 5px; }
-
-  .tbl-wrap { overflow-x: auto; margin: 16px 0 24px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
-  table { width: 100%; border-collapse: collapse; background: var(--white); font-size: 0.88rem; }
-  th { background: var(--navy); color: white; padding: 11px 16px; text-align: right; font-weight: 600; font-size: 0.83rem; }
-  td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: right; }
+  ul, ol { padding-right: 22px; padding-left: 0; margin-bottom: 12px; }
+  li { margin-bottom: 6px; }
+  .step { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin-bottom: 14px; }
+  .step-title { font-weight: 700; font-size: 0.97rem; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-direction: row-reverse; justify-content: flex-end; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: var(--navy); color: var(--gold); border-radius: 50%; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  .callout { border-radius: 8px 0 0 8px; padding: 13px 17px; margin: 14px 0; font-size: 0.91rem; border-right: 4px solid; }
+  .callout { background: var(--gold-light); border-right-color: var(--gold); }
+  .callout.info { background: #e8f2ff; border-right-color: #3b82f6; }
+  .callout.warn { background: #fffbeb; border-right-color: #f59e0b; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+  .b-locked { background: #f3f4f6; color: #6b7280; }
+  .b-todo { background: #dbeafe; color: #1d4ed8; }
+  .b-inprogress { background: #fef3c7; color: #92400e; }
+  .b-pending { background: #ede9fe; color: #5b21b6; }
+  .b-completed { background: #d1fae5; color: #065f46; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; align-items: center; flex-direction: row-reverse; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 0.9rem; }
+  th { background: var(--navy); color: var(--gold); padding: 9px 14px; text-align: right; font-weight: 600; }
+  td { padding: 8px 14px; border-bottom: 1px solid var(--border); text-align: right; }
   tr:last-child td { border-bottom: none; }
-  tr:nth-child(even) td { background: #faf8f5; }
-
-  .callout { display: flex; gap: 14px; padding: 16px 18px; border-radius: 10px; margin: 18px 0; font-size: 0.9rem; flex-direction: row-reverse; }
-  .callout-icon { font-size: 1.2rem; flex-shrink: 0; padding-top: 1px; }
-  .callout-body strong { display: block; margin-bottom: 3px; font-weight: 700; }
-  .callout.warning { background: #fffbeb; border-right: 4px solid #f59e0b; border-left: none; }
-  .callout.warning .callout-icon::before { content: "⚠️"; }
-  .callout.tip { background: #eff6ff; border-right: 4px solid #3b82f6; border-left: none; }
-  .callout.tip .callout-icon::before { content: "💡"; }
-  .callout.note { background: #f8fafc; border-right: 4px solid #94a3b8; border-left: none; }
-  .callout.note .callout-icon::before { content: "📌"; }
-
-  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; white-space: nowrap; flex-direction: row-reverse; }
-  .badge::after { content: "●"; font-size: 0.6rem; }
-  .b-locked { background: #f1f1f1; color: var(--locked); }
-  .b-todo { background: #eff6ff; color: var(--todo); }
-  .b-inprogress { background: #fffbeb; color: #b45309; }
-  .b-pending { background: #f5f3ff; color: #7c3aed; }
-  .b-completed { background: #ecfdf5; color: #059669; }
-  .status-legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
-
-  .steps { margin: 16px 0; }
-  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; flex-direction: row-reverse; }
-  .step-num { width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
-  .step-body { flex: 1; text-align: right; }
-  .step-body strong { display: block; margin-bottom: 3px; color: var(--navy); }
-
-  .flow { display: flex; flex-direction: column; align-items: flex-end; gap: 0; margin: 20px 0; }
-  .flow-box { background: var(--white); border: 2px solid var(--border); border-radius: 10px; padding: 12px 20px; font-size: 0.88rem; font-weight: 500; min-width: 220px; max-width: 420px; }
-  .flow-box.highlight { border-color: var(--gold); background: var(--gold-light); }
-  .flow-box.decision { border-color: #8b5cf6; background: #f5f3ff; }
-  .flow-arrow { padding: 4px 30px 4px 0; color: var(--muted); font-size: 0.9rem; }
-
-  .task-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin: 12px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-  .task-card-title { font-weight: 700; font-size: 1rem; color: var(--navy); margin-bottom: 6px; }
-  .task-card-desc { font-size: 0.87rem; color: var(--muted); }
-
-  .qrc { background: var(--navy); color: white; border-radius: 14px; padding: 36px; margin-top: 40px; }
-  .qrc h2 { color: var(--gold); font-size: 1.5rem; margin-bottom: 24px; }
-  .qrc h3 { color: var(--gold); font-size: 1rem; margin: 20px 0 10px; font-family: 'Cairo', sans-serif; font-weight: 600; }
-  .qrc table { background: rgba(255,255,255,0.05); }
-  .qrc th { background: rgba(201,169,110,0.2); color: var(--gold); }
-  .qrc td { color: rgba(255,255,255,0.8); border-bottom-color: rgba(255,255,255,0.08); }
-  .qrc tr:nth-child(even) td { background: rgba(255,255,255,0.03); }
-
-  @media print {
-    #toc { display: none !important; }
-    #main { max-width: 100%; order: 1; }
-    .page-header { background: white !important; color: var(--navy) !important; border-bottom: 3px solid var(--gold); padding: 24px 32px; }
-    .page-header h1, .page-header .manual-type { color: var(--navy) !important; }
-    .page-header p { color: var(--muted) !important; }
-    .content { padding: 0 32px 40px; }
-    .qrc { background: white !important; border: 2px solid var(--navy); }
-    .qrc h2, .qrc h3 { color: var(--navy) !important; }
-    .qrc td { color: var(--text) !important; }
-  }
-  @media (max-width: 900px) {
-    body { flex-direction: column; }
-    #toc { width: 100%; height: auto; position: relative; order: 1; }
-    #main { max-width: 100%; order: 2; }
-    .content { padding: 0 24px 60px; }
-    .page-header { padding: 32px 24px; }
-  }
+  tr:hover td { background: #faf8f4; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+  .field { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; }
+  .field strong { display: block; color: #555; font-size: 0.76rem; margin-bottom: 2px; font-weight: 700; }
+  details { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; background: var(--white); }
+  summary { padding: 13px 18px; font-weight: 700; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; flex-direction: row-reverse; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: '+'; color: var(--muted); font-size: 1.2rem; font-weight: 400; }
+  details[open] summary::before { content: '−'; }
+  details > div { padding: 4px 18px 16px; font-size: 0.93rem; }
+  @media (max-width: 768px) { #toc { display: none; } main { padding: 24px 20px; } .fields { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-<div id="main">
+
+<main>
+
   <div class="page-header">
-    <div class="manual-type">دليل المستخدم — الإصدار 1.1</div>
-    <h1>دليل فريق التركيب</h1>
-    <p>كل ما يحتاجه فريق التركيب للعمل على المهام الميدانية، وتسجيل فحوصات ما قبل التسليم، وإتمام أعمال التركيب والجودة عبر نظام WoodWings PMS.</p>
+    <h1>دليل التركيب</h1>
+    <p class="subtitle">إدارة مهام التركيب الميداني، سجلات العمل اليومية، وتسليم المشاريع.</p>
   </div>
-  <div class="content">
 
-    <!-- القسم 1 -->
-    <div class="section" id="s1">
-      <div class="section-num">القسم الأول</div>
-      <h2>مقدمة</h2>
-      <p class="section-intro">مرحباً بك في نظام WoodWings PMS. هذا الدليل مخصص لفريق التركيب ويشرح كيفية العمل على المهام الميدانية يومياً.</p>
+  <!-- DASHBOARD -->
+  <section id="overview">
+    <h2>نظرة عامة على لوحة التحكم</h2>
+    <p>عند تسجيل الدخول تظهر بطاقات ملخص لحالة مهامك:</p>
+    <ul>
+      <li><strong>مفتوحة</strong> — المهام الجاهزة للبدء.</li>
+      <li><strong>عاجلة</strong> — المهام المُعلَّم عليها بعلامة الأولوية 🚩 من قِبل الإدارة.</li>
+      <li><strong>مكتملة</strong> — ما أنجزته هذا الشهر.</li>
+    </ul>
+    <p>إذا تم تعيينك في مشروع جديد، ستصلك إشعار فوري وتظهر مهامه في قائمتك تلقائياً.</p>
+  </section>
 
-      <h3>ما هو نظام WoodWings PMS؟</h3>
-      <p>نظام WoodWings PMS هو نظام إدارة المشاريع الداخلي. يتتبع جميع مشاريع الشركة من الاتصال الأول مع العميل حتى التسليم النهائي. كفريق تركيب، دورك يبدأ بعد انتهاء التصنيع ويمتد حتى التسليم للعميل.</p>
+  <!-- HOME -->
+  <section id="home">
+    <h2>الصفحة الرئيسية</h2>
+    <p>الصفحة الرئيسية (أيقونة المنزل) تعرض إعلانات الإدارة والتقويم العام. تحقق منها للاطلاع على أي تعليمات جديدة أو إعلانات مثبتة.</p>
+  </section>
 
-      <h3>دورك في النظام: فريق التركيب</h3>
-      <p>مسؤولياتك في النظام:</p>
-      <ul>
-        <li>مراجعة القطع والأدوات قبل التسليم (نافذة يومين)</li>
-        <li>إدخال تقدير عدد الأيام والعمالة اللازمة للتركيب</li>
-        <li>تسجيل التركيب الأول والتركيب الثاني</li>
-        <li>إجراء فحص الجودة في الموقع وإرفاق الصور</li>
-        <li>إتمام أعمال الحشوات والتشطيبات</li>
-        <li>تحديث حالة المهام أولاً بأول</li>
-      </ul>
+  <!-- MY TASKS -->
+  <section id="my-tasks">
+    <h2>مهامي</h2>
+    <p>تعرض "مهامي" جميع المهام المسندة إليك. كل بطاقة تحتوي على اسم المشروع، اسم المهمة، والحالة.</p>
 
-      <h3>كيفية تسجيل الدخول</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">١</div><div class="step-body"><strong>افتح النظام</strong>انتقل إلى رابط التطبيق في المتصفح.</div></div>
-        <div class="step"><div class="step-num">٢</div><div class="step-body"><strong>أدخل بيانات الدخول</strong>اكتب بريدك الإلكتروني وكلمة المرور.</div></div>
-        <div class="step"><div class="step-num">٣</div><div class="step-body"><strong>سيتم توجيهك تلقائياً</strong>ستنتقل إلى لوحة تحكم فريق التركيب مباشرةً.</div></div>
-      </div>
-      <p>لتسجيل الخروج، اضغط على القائمة في أسفل الشريط الجانبي واختر <strong>تسجيل الخروج</strong>.</p>
-
-      <div class="callout note"><div class="callout-icon"></div><div class="callout-body"><strong>تأكد من تسجيل الدخول دائماً بحسابك الشخصي</strong>لا تشارك بيانات الدخول مع زملائك. كل شخص يحتاج حسابه الخاص.</div></div>
+    <h3>تحديث بطاقة المهمة</h3>
+    <div class="step">
+      <div class="step-title"><span class="step-num">١</span>انقر على البطاقة لتوسيعها.</div>
     </div>
-
-    <!-- القسم 2 -->
-    <div class="section" id="s2">
-      <div class="section-num">القسم الثاني</div>
-      <h2>لوحة التحكم</h2>
-      <p class="section-intro">لوحة تحكم فريق التركيب تحتوي على ستة تبويبات.</p>
-
-      <div class="tbl-wrap"><table>
-        <tr><th>التبويب</th><th>ماذا يعرض</th><th>متى تستخدمه</th></tr>
-        <tr><td><strong>مهامي (My Tasks)</strong></td><td>جميع مهام التركيب المعيّنة لك شخصياً.</td><td>يومياً — ابدأ من هنا لمعرفة ما يجب عمله اليوم.</td></tr>
-        <tr><td><strong>مهام الفريق (Team Tasks)</strong></td><td>مهام جميع أعضاء فريق التركيب في جميع المشاريع.</td><td>لمتابعة ما يعمل عليه الفريق وتنسيق الجهود.</td></tr>
-        <tr><td><strong>التسليمات (Deliveries)</strong></td><td>المهام التي لها تاريخ اكتمال محدد — جدول التسليم.</td><td>للتحضير المسبق لمواعيد التسليم للعملاء.</td></tr>
-        <tr><td><strong>الفحوصات (Inspections)</strong></td><td>مهام الفحص الميدانية — ما قبل التسليم وفحوصات الجودة.</td><td>عند الحاجة لمراجعة حالة الفحوصات المعلّقة.</td></tr>
-        <tr><td><strong>سجلات التركيب (Install Logs)</strong></td><td>سجلات التركيب الميداني المسجّلة سابقاً.</td><td>للرجوع إلى سجل العمل المنجز في مشروع معين.</td></tr>
-        <tr><td><strong>تصاريح البوابة (Gate Passes)</strong></td><td>تصاريح الدخول والتسليم الصادرة للمشاريع.</td><td>للتحقق من تفاصيل التسليم والتواريخ المؤكدة.</td></tr>
-      </table></div>
-    </div>
-
-    <!-- القسم 3 -->
-    <div class="section" id="s3">
-      <div class="section-num">القسم الثالث</div>
-      <h2>إدارة المهام</h2>
-      <p class="section-intro">فهم حالات المهام وكيفية التنقل بينها هو مفتاح العمل السلس.</p>
-
-      <h3>تسلسل حالات المهام</h3>
-      <div class="status-legend">
-        <span class="badge b-locked">مقفل</span>
-        <span style="color:var(--muted);line-height:2">←</span>
-        <span class="badge b-todo">للتنفيذ</span>
-        <span style="color:var(--muted);line-height:2">←</span>
-        <span class="badge b-inprogress">قيد التنفيذ</span>
-        <span style="color:var(--muted);line-height:2">←</span>
-        <span class="badge b-pending">بانتظار الموافقة</span>
-        <span style="color:var(--muted);line-height:2">←</span>
-        <span class="badge b-completed">مكتمل</span>
-      </div>
-
-      <div class="tbl-wrap"><table>
-        <tr><th>الحالة</th><th>المعنى</th><th>ما تفعله</th></tr>
-        <tr><td><span class="badge b-locked">مقفل</span></td><td>المهمة موجودة لكن تنتظر مهمة سابقة.</td><td>لا شيء — ستُفتح تلقائياً عند اكتمال المتطلب.</td></tr>
-        <tr><td><span class="badge b-todo">للتنفيذ</span></td><td>جاهزة للبدء.</td><td>افتح المهمة وغيّر حالتها إلى "قيد التنفيذ".</td></tr>
-        <tr><td><span class="badge b-inprogress">قيد التنفيذ</span></td><td>أنت تعمل عليها.</td><td>أنهِ العمل المطلوب ثم سجّل الاكتمال.</td></tr>
-        <tr><td><span class="badge b-pending">بانتظار الموافقة</span></td><td>أرسلتها — تنتظر موافقة المدير.</td><td>انتظر. إذا رُفضت ستصلك رسالة بريد.</td></tr>
-        <tr><td><span class="badge b-completed">مكتمل</span></td><td>منتهية.</td><td>انتقل للمهمة التالية.</td></tr>
-      </table></div>
-
-      <h3>خطوات تنفيذ مهمة</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">١</div><div class="step-body"><strong>ابحث عنها في "مهامي"</strong>المهام بحالة <span class="badge b-todo">للتنفيذ</span> تظهر في قائمتك.</div></div>
-        <div class="step"><div class="step-num">٢</div><div class="step-body"><strong>افتح بطاقة المهمة</strong>اضغط على عنوانها لرؤية التفاصيل والتعليمات.</div></div>
-        <div class="step"><div class="step-num">٣</div><div class="step-body"><strong>غيّر الحالة إلى "قيد التنفيذ"</strong>عند البدء الفعلي بالعمل.</div></div>
-        <div class="step"><div class="step-num">٤</div><div class="step-body"><strong>نفّذ المطلوب</strong>أكمل العمل وأدخل البيانات المطلوبة (الأرقام، الصور، الملاحظات).</div></div>
-        <div class="step"><div class="step-num">٥</div><div class="step-body"><strong>سجّل الاكتمال</strong>اضغط مكتمل أو أرسل للموافقة.</div></div>
-      </div>
-
-      <div class="callout warning"><div class="callout-icon"></div><div class="callout-body"><strong>المهام المرتبطة بوقت محدد</strong>بعض مهام التركيب لها نافذة زمنية (مثل فحص ما قبل التسليم — يومان). انتبه للتواريخ المذكورة في بطاقة المهمة وأنجزها ضمن الوقت المحدد.</div></div>
-    </div>
-
-    <!-- القسم 4 -->
-    <div class="section" id="s4">
-      <div class="section-num">القسم الرابع</div>
-      <h2>المهام التفصيلية لفريق التركيب</h2>
-      <p class="section-intro">إليك شرحاً تفصيلياً لكل نوع من مهام التركيب التي ستواجهها.</p>
-
-      <div class="task-card">
-        <div class="task-card-title">فحص ما قبل التسليم (نافذة يومين)</div>
-        <div class="task-card-desc">تظهر هذه المهمة بعد الانتهاء من التصنيع. عليك مراجعة القطع والأدوات اللازمة للتركيب خلال يومين من تاريخ إشعار الاكتمال.</div>
-        <ul style="margin-top: 10px; font-size: 0.88rem;">
-          <li>افتح المهمة وافحص قائمة القطع</li>
-          <li>تحقق من أن جميع الأدوات والمعدات جاهزة</li>
-          <li>أضف أي ملاحظات أو مخاوف في حقل الملاحظات</li>
-          <li>سجّل الاكتمال بعد الانتهاء من الفحص</li>
-        </ul>
-        <div class="callout warning" style="margin-top:12px;"><div class="callout-icon"></div><div class="callout-body"><strong>لا تتأخر في هذه المهمة</strong>إذا لم تكتمل في يومين، سيؤخر ذلك جدولة التسليم بالكامل.</div></div>
-      </div>
-
-      <div class="task-card">
-        <div class="task-card-title">تقدير العمالة والأيام</div>
-        <div class="task-card-desc">بعد مراجعة المشروع، تحتاج لإدخال تقديرك لمتطلبات التركيب.</div>
-        <ul style="margin-top: 10px; font-size: 0.88rem;">
-          <li><strong>عدد الأيام المطلوبة</strong> — كم يوماً يحتاج التركيب الكامل</li>
-          <li><strong>عدد العمال يومياً</strong> — كم عاملاً تحتاج كل يوم</li>
-          <li>أدخل هذه الأرقام في حقول المهمة ثم أرسل للموافقة</li>
-        </ul>
-      </div>
-
-      <div class="task-card">
-        <div class="task-card-title">التركيب الأول</div>
-        <div class="task-card-desc">مهمة التركيب الميداني الأول في الموقع.</div>
-        <ul style="margin-top: 10px; font-size: 0.88rem;">
-          <li>اذهب إلى الموقع في الموعد المحدد</li>
-          <li>نفّذ عمليات التركيب</li>
-          <li>سجّل الاكتمال عند الانتهاء</li>
-          <li>إذا كانت هناك قطع ناقصة أو تالفة، سجّلها في الملاحظات</li>
-        </ul>
-      </div>
-
-      <div class="task-card">
-        <div class="task-card-title">التركيب الثاني واللمسات الأخيرة</div>
-        <div class="task-card-desc">جولة التركيب الثانية لإكمال ما تبقى وعمل اللمسات النهائية.</div>
-        <ul style="margin-top: 10px; font-size: 0.88rem;">
-          <li>أكمل ما تبقى من التركيب الأول</li>
-          <li>نفّذ اللمسات الجمالية النهائية</li>
-          <li>سجّل الاكتمال عند الانتهاء</li>
-        </ul>
-      </div>
-
-      <div class="task-card">
-        <div class="task-card-title">فحص الجودة في الموقع (QC)</div>
-        <div class="task-card-desc">فحص جودة نهائي شامل قبل التسليم للعميل.</div>
-        <ul style="margin-top: 10px; font-size: 0.88rem;">
-          <li>افحص جميع القطع والعمل المنجز بدقة</li>
-          <li>التقط صوراً للعمل المنجز وأرفقها بالمهمة</li>
-          <li>سجّل "فحص الجودة مكتمل" (ضع علامة في المربع المخصص)</li>
-          <li>أضف ملاحظات عن أي مشكلة أو ملاحظة</li>
-        </ul>
-        <div class="callout tip" style="margin-top:12px;"><div class="callout-icon"></div><div class="callout-body"><strong>الصور مهمة</strong>ارفق صورة شاملة للعمل المنجز في فحص الجودة. هذه الصور تُستخدم كوثيقة رسمية عند التسليم.</div></div>
-      </div>
-
-      <div class="task-card">
-        <div class="task-card-title">الحشوات والتشطيبات (Fillers)</div>
-        <div class="task-card-desc">أعمال الحشوات وإخفاء الفراغات والتشطيبات النهائية.</div>
-        <ul style="margin-top: 10px; font-size: 0.88rem;">
-          <li>نفّذ جميع أعمال الحشوات المطلوبة</li>
-          <li>سجّل "الحشوات منتهية" عند الاكتمال</li>
-          <li>أرفق صوراً إذا طُلب منك ذلك</li>
-        </ul>
-      </div>
-
-      <div class="task-card" style="border-color: #8b5cf6;">
-        <div class="task-card-title">سجل أيام التركيب (Fixing Team Note)</div>
-        <div class="task-card-desc">مهمة تسجيل تقدم التركيب اليومي. تظهر بألوان بنفسجية. يمكنك إضافة عدة سجلات يومية — كل سجل يحتوي على التاريخ وعدد العمال وملاحظات اليوم.</div>
-        <ul style="margin-top: 10px; font-size: 0.88rem;">
-          <li>اضغط <strong>إضافة يوم</strong> لإضافة سجل جديد</li>
-          <li>أدخل تاريخ اليوم وعدد العمال وملاحظات العمل المنجز</li>
-          <li>يمكن إضافة عدة أيام في نفس المهمة</li>
-          <li>بعد إضافة جميع سجلات الأيام، اضغط <strong>تسليم للمدير</strong> للموافقة</li>
-        </ul>
-        <div class="callout note" style="margin-top:12px;"><div class="callout-icon"></div><div class="callout-body"><strong>هذه المهمة تتطلب موافقة المدير</strong>المدير يراجع السجلات اليومية قبل الموافقة على الانتقال للمرحلة التالية.</div></div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٢</span>عدّل الحقول المتاحة لمهام التركيب:</div>
+      <div class="fields">
+        <div class="field"><strong>الحالة</strong>غيّرها لتحديث التقدم</div>
+        <div class="field"><strong>أيام الفريق</strong>عدد أيام العمل المستغرقة</div>
+        <div class="field"><strong>عدد العمال</strong>كم عاملاً في الموقع</div>
+        <div class="field"><strong>تاريخ الإنجاز المتوقع</strong>متى تتوقع إنهاء التركيب</div>
+        <div class="field"><strong>نتيجة فحص الجودة</strong>مرّ الفحص / يحتاج إصلاح</div>
+        <div class="field"><strong>ملاحظات</strong>أي تعليق ميداني</div>
       </div>
     </div>
-
-    <!-- القسم 5 -->
-    <div class="section" id="s5">
-      <div class="section-num">القسم الخامس</div>
-      <h2>سير العمل — دورك في المشروع</h2>
-      <p class="section-intro">يشارك فريق التركيب في المرحلة الثالثة والرابعة من المشروع.</p>
-
-      <h3>متى يبدأ دورك</h3>
-      <p>تبدأ مهام التركيب عندما تنتهي مرحلة التصنيع ويسجّل فريق التصنيع مهمة "التصنيع منتهي". عندها تظهر مهام التركيب في قائمتك.</p>
-
-      <h3>المرحلة الثالثة — الجزء الميداني</h3>
-      <div class="flow">
-        <div class="flow-box highlight">إشعار: التصنيع منتهي</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box">مهمة: فحص ما قبل التسليم (يومان) — افحص القطع والأدوات</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box">مهمة: تقدير العمالة والأيام — أدخل عدد الأيام والعمال</div>
-        <div class="flow-arrow">↓ (موافقة المدير)</div>
-        <div class="flow-box">المدير يجدول التسليم ويُبلّغ العميل</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box">مهمة: التركيب الأول — نفّذ التركيب في الموقع</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box highlight">مهمة: سجل أيام التركيب (Fixing Team Note) — سجّل يومياً التاريخ والعمال والملاحظات، ثم أرسل للموافقة</div>
-        <div class="flow-arrow">↓ (موافقة المدير)</div>
-        <div class="flow-box">إذا كانت هناك قطع ناقصة → فريق التصنيع يصنّعها</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box">مهمة: التركيب الثاني واللمسات الأخيرة</div>
-      </div>
-
-      <h3>المرحلة الرابعة — الإغلاق</h3>
-      <div class="flow">
-        <div class="flow-box">مهمة: فحص الجودة في الموقع — صور + علامة الاكتمال</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box">مهمة: الحشوات والتشطيبات</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box">المدير يُبلّغ العميل للدفعة النهائية (F4 Final Payment)</div>
-        <div class="flow-arrow">↓</div>
-        <div class="flow-box highlight">مهمة: نموذج التسليم (Handing Over Form) — المدير يملأ نموذج الاستلام مع العميل → المشروع ينتقل إلى "التركيب مكتمل"</div>
-        <div class="flow-arrow">↓ (بعد الدفعة النهائية)</div>
-        <div class="flow-box highlight">المشروع مغلق — يبدأ سريان ضمان سنة كاملة</div>
-      </div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٣</span>احفظ التغييرات.</div>
+      <p>بعض المهام تتطلب موافقة المدير عند الإكمال. ستتحول إلى <span class="badge b-pending">في انتظار الموافقة</span> ويُبلَّغ المدير.</p>
     </div>
 
-    <!-- القسم 6 -->
-    <div class="section" id="s6">
-      <div class="section-num">القسم السادس</div>
-      <h2>سيناريوهات شائعة</h2>
+    <h3>علامة الأولوية</h3>
+    <p>المهام التي تحمل علامة 🚩 حمراء قد تم تمييزها كعاجلة من قِبل المدير. تعامل معها أولاً.</p>
 
-      <h3>سيناريو 1 — وصلني إشعار بانتهاء التصنيع. ماذا أفعل؟</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">١</div><div class="step-body">افتح لوحة التحكم وتحقق من تبويب "مهامي" — ستجد مهمة فحص ما قبل التسليم.</div></div>
-        <div class="step"><div class="step-num">٢</div><div class="step-body">اذهب إلى مكان تخزين القطع المصنّعة وافحصها خلال يومين.</div></div>
-        <div class="step"><div class="step-num">٣</div><div class="step-body">أضف ملاحظاتك في حقل الملاحظات (أي قطعة تالفة أو ناقصة).</div></div>
-        <div class="step"><div class="step-num">٤</div><div class="step-body">سجّل اكتمال المهمة.</div></div>
-      </div>
+    <h3>ملاحظة المدير العام</h3>
+    <p>إذا أضاف المدير العام ملاحظة، تظهر كشريط أصفر أعلى البطاقة الموسّعة. للقراءة فقط.</p>
+  </section>
 
-      <h3>سيناريو 2 — كيف أدخل تقدير أيام العمالة؟</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">١</div><div class="step-body">ابحث عن مهمة "تقدير العمالة والأيام" في "مهامي".</div></div>
-        <div class="step"><div class="step-num">٢</div><div class="step-body">افتح بطاقة المهمة.</div></div>
-        <div class="step"><div class="step-num">٣</div><div class="step-body">أدخل عدد الأيام المطلوبة في حقل "عدد أيام الفريق".</div></div>
-        <div class="step"><div class="step-num">٤</div><div class="step-body">أدخل عدد العمال يومياً في حقل "عدد العمال في اليوم".</div></div>
-        <div class="step"><div class="step-num">٥</div><div class="step-body">أرسل المهمة للموافقة — سيراجعها المدير.</div></div>
-      </div>
+  <!-- INSTALLATION RECORDS -->
+  <section id="records">
+    <h2>سجلات التركيب</h2>
+    <p>الشريط الجانبي ← سجلات التركيب. هنا تسجّل تقدم عمل التركيب يومياً لكل مشروع.</p>
 
-      <h3>سيناريو 3 — أنهيت التركيب الأول لكن هناك قطع ناقصة</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">١</div><div class="step-body">في بطاقة مهمة التركيب الأول، سجّل الملاحظات بوضوح (اذكر القطعة الناقصة وموقعها).</div></div>
-        <div class="step"><div class="step-num">٢</div><div class="step-body">سجّل اكتمال مهمة التركيب الأول. النظام سيُبلّغ المدير وفريق التصنيع تلقائياً.</div></div>
-        <div class="step"><div class="step-num">٣</div><div class="step-body">فريق التصنيع سيصنع القطع الناقصة وتعود إلى الموقع في التركيب الثاني.</div></div>
-      </div>
-
-      <h3>سيناريو 4 — كيف أُرفق صور فحص الجودة؟</h3>
-      <div class="steps">
-        <div class="step"><div class="step-num">١</div><div class="step-body">افتح مهمة "فحص الجودة في الموقع".</div></div>
-        <div class="step"><div class="step-num">٢</div><div class="step-body">في قسم "وثائق المهمة"، اضغط على زر الإرفاق.</div></div>
-        <div class="step"><div class="step-num">٣</div><div class="step-body">ارفع الصور المطلوبة من جهازك.</div></div>
-        <div class="step"><div class="step-num">٤</div><div class="step-body">ضع علامة في مربع "فحص الجودة مكتمل".</div></div>
-        <div class="step"><div class="step-num">٥</div><div class="step-body">سجّل اكتمال المهمة.</div></div>
-      </div>
-
-      <h3>سيناريو 5 — مهمتي رُفضت. ماذا أفعل؟</h3>
-      <p>ستصلك رسالة بريد إلكتروني بتعليق المدير. المهمة ستعود إلى <span class="badge b-todo">للتنفيذ</span> في قائمتك. اقرأ التعليق، أجرِ المطلوب، ثم أعد الإرسال للموافقة.</p>
+    <h3>إضافة سجل يومي جديد</h3>
+    <div class="step">
+      <div class="step-title"><span class="step-num">١</span>انقر "إضافة سجل" أو "+ New Record".</div>
     </div>
-
-    <!-- القسم 7 -->
-    <div class="section" id="s7">
-      <div class="section-num">القسم السابع</div>
-      <h2>مرجع الصلاحيات</h2>
-
-      <h3>ما يمكنك فعله</h3>
-      <ul>
-        <li>عرض وتنفيذ جميع مهام التركيب المعيّنة لك</li>
-        <li>تغيير حالة المهام من للتنفيذ إلى قيد التنفيذ إلى مكتمل</li>
-        <li>إدخال عدد أيام التركيب وعدد العمال</li>
-        <li>إدخال عدد أيام التركيب الفعلية</li>
-        <li>تحديد تاريخ الاكتمال</li>
-        <li>وضع علامة "فحص الجودة مكتمل"</li>
-        <li>وضع علامة "الحشوات منتهية"</li>
-        <li>إرفاق صور ووثائق بالمهام</li>
-        <li>عرض سجلات التركيب وتصاريح البوابة</li>
-        <li>عرض مهام الفريق والتسليمات</li>
-      </ul>
-
-      <h3>ما لا يمكنك فعله</h3>
-      <ul>
-        <li>إنشاء مشاريع جديدة أو تعديل بياناتها</li>
-        <li>الوصول إلى معلومات المدفوعات أو الأسعار</li>
-        <li>الموافقة على المهام أو رفضها (صلاحية المدير)</li>
-        <li>الوصول إلى مهام SED أو التفاصيل التجارية</li>
-        <li>الوصول إلى مهام قسم التصنيع الداخلية</li>
-        <li>إدارة حسابات المستخدمين</li>
-        <li>الوصول إلى لوحة تحكم المدير أو المسؤول العام</li>
-      </ul>
-
-      <h3>الحقول التي يمكنك تعديلها في المهمة</h3>
-      <div class="tbl-wrap"><table>
-        <tr><th>الحقل</th><th>ملاحظات</th></tr>
-        <tr><td>الحالة</td><td>للتنفيذ ← قيد التنفيذ ← مكتمل / بانتظار الموافقة</td></tr>
-        <tr><td>عدد أيام الفريق</td><td>التقدير لعدد أيام التركيب</td></tr>
-        <tr><td>عدد العمال يومياً</td><td>العمالة المطلوبة كل يوم</td></tr>
-        <tr><td>أيام التركيب الفعلية</td><td>بعد إتمام التركيب</td></tr>
-        <tr><td>تاريخ الاكتمال</td><td>تاريخ الانتهاء الفعلي</td></tr>
-        <tr><td>فحص الجودة مكتمل</td><td>مربع التحديد على مهام QC</td></tr>
-        <tr><td>الحشوات منتهية</td><td>مربع التحديد على مهام الحشوات</td></tr>
-        <tr><td>وثائق المهمة</td><td>إرفاق صور ومستندات</td></tr>
-        <tr><td>ملاحظات ما بعد الزيارة</td><td>ملاحظات ما بعد العمل الميداني</td></tr>
-      </table></div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٢</span>اختر المشروع من القائمة المنسدلة.</div>
     </div>
-
-    <!-- القسم 8 -->
-    <div class="section" id="s8">
-      <div class="section-num">القسم الثامن</div>
-      <h2>استكشاف الأخطاء</h2>
-
-      <div class="tbl-wrap"><table>
-        <tr><th>المشكلة</th><th>السبب المحتمل</th><th>الحل</th></tr>
-        <tr><td>لا تظهر مهمة فحص ما قبل التسليم</td><td>التصنيع لم ينته رسمياً في النظام بعد</td><td>تأكد من أن فريق التصنيع سجّل "التصنيع منتهي" في النظام. تواصل مع المدير إذا لزم.</td></tr>
-        <tr><td>لا أستطيع إدخال عدد الأيام أو العمال</td><td>ربما الحقل غير مفعّل لهذه المهمة أو أن المهمة في حالة خاطئة</td><td>تأكد أن المهمة في حالة "قيد التنفيذ". إذا استمر، تواصل مع مديرك.</td></tr>
-        <tr><td>لا أستطيع إرفاق صور</td><td>حجم الملف كبير جداً أو تنسيقه غير مدعوم</td><td>استخدم صور JPEG أو PNG بحجم معقول (أقل من 10MB). إذا استمر الخطأ، أخبر المسؤول العام.</td></tr>
-        <tr><td>مهمتي رُفضت بدون سبب واضح</td><td>التعليق قد يكون قصيراً</td><td>اتصل بمديرك مباشرة لفهم ما المطلوب بالضبط.</td></tr>
-        <tr><td>النظام لا يستجيب</td><td>مشكلة في الاتصال أو في الجلسة</td><td>أعد تحميل الصفحة. إذا استمر، أخبر المسؤول العام.</td></tr>
-        <tr><td>تصريح البوابة لا يظهر لمشروعي</td><td>المدير لم يصدر التصريح بعد</td><td>تواصل مع مديرك — هو المسؤول عن إصدار تصاريح البوابة.</td></tr>
-      </table></div>
-
-      <h3>من تتواصل معه</h3>
-      <div class="tbl-wrap"><table>
-        <tr><th>نوع المشكلة</th><th>الجهة</th></tr>
-        <tr><td>مهام التركيب والموافقات</td><td>مديرك المباشر</td></tr>
-        <tr><td>تصاريح البوابة وجدول التسليم</td><td>مديرك المباشر</td></tr>
-        <tr><td>الوصول إلى النظام وكلمة المرور</td><td>المسؤول العام (Superadmin)</td></tr>
-        <tr><td>أخطاء تقنية</td><td>المسؤول العام / تقنية المعلومات</td></tr>
-      </table></div>
-    </div>
-
-    <!-- القسم 9 -->
-    <div class="section" id="s9">
-      <div class="section-num">القسم التاسع</div>
-      <h2>بطاقة المرجع السريع</h2>
-      <div class="qrc">
-        <h2>مرجع سريع — فريق التركيب</h2>
-
-        <h3>دليل ألوان حالات المهام</h3>
-        <div class="status-legend">
-          <span class="badge b-locked">مقفل</span>
-          <span class="badge b-todo">للتنفيذ</span>
-          <span class="badge b-inprogress">قيد التنفيذ</span>
-          <span class="badge b-pending">بانتظار الموافقة</span>
-          <span class="badge b-completed">مكتمل</span>
-        </div>
-
-        <h3>مهام التركيب الرئيسية</h3>
-        <div class="tbl-wrap"><table>
-          <tr><th>المهمة</th><th>ما تفعله</th><th>المهلة</th></tr>
-          <tr><td>فحص ما قبل التسليم</td><td>افحص القطع والأدوات وسجّل الملاحظات</td><td>يومان</td></tr>
-          <tr><td>تقدير العمالة والأيام</td><td>أدخل عدد الأيام وعدد العمال</td><td>فور انتهاء الفحص</td></tr>
-          <tr><td>التركيب الأول</td><td>نفّذ التركيب وسجّل ما ينقص</td><td>بعد موافقة المدير</td></tr>
-          <tr><td>سجل أيام التركيب (Fixing Team Note)</td><td>سجّل يومياً التاريخ والعمال والملاحظات — أرسل للمدير عند الانتهاء</td><td>خلال فترة التركيب</td></tr>
-          <tr><td>التركيب الثاني واللمسات</td><td>أكمل ما تبقى واللمسات النهائية</td><td>بعد توفر القطع الناقصة</td></tr>
-          <tr><td>فحص الجودة في الموقع</td><td>افحص الكل وارفق صوراً</td><td>قبل التسليم</td></tr>
-          <tr><td>الحشوات والتشطيبات</td><td>أنجز الحشوات وسجّل الاكتمال</td><td>ضمن مرحلة الإغلاق</td></tr>
-        </table></div>
-
-        <h3>قائمة التحقق اليومية</h3>
-        <ul style="color:rgba(255,255,255,0.8);font-size:0.9rem;">
-          <li>راجع "مهامي" — ابدأ بالمهام المعلّقة</li>
-          <li>تحقق من تبويب "التسليمات" لمواعيد اليوم</li>
-          <li>تحديث حالة المهام التي أكملتها</li>
-          <li>تأكد من إرفاق الصور على مهام الفحص والجودة</li>
-          <li>لا تترك مهمة قيد التنفيذ بدون تحديث أكثر من يومين</li>
-        </ul>
-
-        <h3>مراحل المشروع</h3>
-        <div class="tbl-wrap"><table>
-          <tr><th>المرحلة</th><th>وصفها</th></tr>
-          <tr><td>مرحلة التحضير</td><td>SED يتواصل مع العميل — لا دور لك بعد</td></tr>
-          <tr><td>مرحلة الفتح</td><td>التصنيع يستعد — قريباً ستبدأ مهامك</td></tr>
-          <tr><td>مرحلة التنفيذ</td><td>دورك الرئيسي — تسليم وتركيب</td></tr>
-          <tr><td>مرحلة الإغلاق</td><td>فحص الجودة والتسليم النهائي للعميل</td></tr>
-        </table></div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٣</span>أدخل تفاصيل اليوم.</div>
+      <div class="fields">
+        <div class="field"><strong>التاريخ</strong>تاريخ يوم العمل</div>
+        <div class="field"><strong>وصف العمل المنجز</strong>ما الذي تم تركيبه اليوم</div>
+        <div class="field"><strong>عدد العمال</strong>كم شخصاً كان في الموقع</div>
+        <div class="field"><strong>تاريخ الانتهاء المتوقع</strong>موعد الإنجاز الكامل</div>
+        <div class="field"><strong>ملاحظات</strong>أي مشكلة أو ملاحظة ميدانية</div>
       </div>
     </div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٤</span>احفظ. يظهر السجل في تاريخ المشروع وفي تقارير المدير.</div>
+    </div>
 
-  </div>
-</div>
+    <div class="callout info">سجّل يومياً حتى تبقى الإدارة على اطلاع دائم بتقدم الموقع.</div>
+  </section>
+
+  <!-- DELIVERIES -->
+  <section id="deliveries">
+    <h2>التسليمات</h2>
+    <p>الشريط الجانبي ← التسليمات. يعرض جميع المهام التي لديها تاريخ إنجاز أو تسليم.</p>
+    <ul>
+      <li>المشاريع المقرر تسليمها خلال 7 أيام تظهر بأيقونة تنبيه.</li>
+      <li>انقر على أي صف للوصول إلى سجلات التركيب للمشروع.</li>
+    </ul>
+    <p>هذه الصفحة للمراجعة فقط — لتحديث تاريخ التسليم، عدّله من بطاقة المهمة في "مهامي".</p>
+  </section>
+
+  <!-- QC INSPECTIONS -->
+  <section id="qc">
+    <h2>فحوصات الجودة</h2>
+    <p>الشريط الجانبي ← الفحوصات. يعرض مهام فحص الجودة المُسندة إليك.</p>
+
+    <h3>تسجيل نتيجة الفحص</h3>
+    <div class="step">
+      <div class="step-title"><span class="step-num">١</span>ابحث عن مهمة الفحص في قائمتك ووسّعها.</div>
+    </div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٢</span>أدخل نتيجة الفحص الميداني.</div>
+      <p>الخيارات: مرّ الفحص / يحتاج إصلاح / مرفوض. أضف ملاحظات تصف أي مشكلة.</p>
+    </div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٣</span>إذا مرّ الفحص، غيّر الحالة إلى <span class="badge b-completed">مكتملة</span> واحفظ.</div>
+      <p>إذا كان هناك مشكلة، ابقِ الحالة <span class="badge b-inprogress">قيد التنفيذ</span> مع ملاحظة واضحة.</p>
+    </div>
+
+    <div class="callout warn">نتيجة فحص الجودة تُرسَل إلى المدير عند الإكمال. تأكد من دقة ملاحظاتك.</div>
+  </section>
+
+  <!-- F6 HANDOVER -->
+  <section id="f6">
+    <h2>نموذج F6 — ورقة التسليم</h2>
+    <p>نموذج F6 هو وثيقة التسليم الرسمية للمشروع. يُوقَّع عليها عند إتمام التسليم للعميل.</p>
+
+    <div class="step">
+      <div class="step-title"><span class="step-num">١</span>ابحث عن مهمة F6 في قائمة مهامك ووسّعها.</div>
+      <p>تظهر هذه المهمة فقط عندما تكون جميع مهام التركيب مكتملة.</p>
+    </div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٢</span>تحقق من تفاصيل المشروع المعروضة في النموذج.</div>
+      <p>اسم المشروع، العميل، الموقع، وتاريخ التسليم.</p>
+    </div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٣</span>انقر "توليد ورقة التسليم" أو "Generate Handover Sheet".</div>
+      <p>تُنشأ وثيقة PDF جاهزة للطباعة والتوقيع مع العميل.</p>
+    </div>
+    <div class="step">
+      <div class="step-title"><span class="step-num">٤</span>بعد توقيع العميل، غيّر حالة المهمة إلى <span class="badge b-completed">مكتملة</span>.</div>
+    </div>
+
+    <div class="callout success">إكمال F6 يُعلم الإدارة بأن التسليم تم بنجاح وقد يُطلق المرحلة الأخيرة من الدفع.</div>
+  </section>
+
+  <!-- MATERIALS -->
+  <section id="materials">
+    <h2>المواد</h2>
+    <p>الشريط الجانبي ← المواد. يعرض طلبات المواد المرتبطة بمشاريعك.</p>
+    <p>يُظهر كل صف: اسم المادة، المشروع، الكمية، تاريخ الاحتياج، والحالة. هذه القائمة للمراجعة فقط. لطلب مواد جديدة، تواصل مع مندوب المبيعات أو المدير.</p>
+  </section>
+
+  <!-- FORMS -->
+  <section id="forms">
+    <h2>النماذج</h2>
+    <p>الشريط الجانبي ← النماذج. تحتوي على وثائق عمل مشتركة مثل تصاريح الدخول والنماذج الإدارية التي تستخدمها الفرق الميدانية.</p>
+  </section>
+
+  <!-- TASK STATUS REFERENCE -->
+  <section id="task-statuses">
+    <h2>دليل حالات المهام</h2>
+    <p>تنتقل كل مهمة عبر هذه الحالات:</p>
+    <div class="status-row">
+      <span class="badge b-locked">مقفلة</span>
+      <span style="color:var(--muted)">←</span>
+      <span class="badge b-todo">للتنفيذ</span>
+      <span style="color:var(--muted)">←</span>
+      <span class="badge b-inprogress">قيد التنفيذ</span>
+      <span style="color:var(--muted)">←</span>
+      <span class="badge b-pending">في انتظار الموافقة</span>
+      <span style="color:var(--muted)">←</span>
+      <span class="badge b-completed">مكتملة</span>
+    </div>
+    <table>
+      <tr><th>الحالة</th><th>ماذا تعني</th></tr>
+      <tr><td><span class="badge b-locked">مقفلة</span></td><td>تنتظر اكتمال مهمة سابقة أولاً</td></tr>
+      <tr><td><span class="badge b-todo">للتنفيذ</span></td><td>جاهزة للبدء — لا يوجد ما يمنعها</td></tr>
+      <tr><td><span class="badge b-inprogress">قيد التنفيذ</span></td><td>يجري العمل عليها</td></tr>
+      <tr><td><span class="badge b-pending">في انتظار الموافقة</span></td><td>تم تسليمها وتنتظر مراجعة المدير</td></tr>
+      <tr><td><span class="badge b-completed">مكتملة</span></td><td>تمت — قد تفتح المهمة التالية</td></tr>
+    </table>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <h2>الأسئلة الشائعة</h2>
+
+    <details>
+      <summary>كيف أضيف سجل تركيب يومي؟</summary>
+      <div>
+        <p>اذهب إلى <strong>سجلات التركيب</strong> في الشريط الجانبي وانقر "إضافة سجل". اختر المشروع من القائمة، أدخل التاريخ، وصف ما تم تركيبه، عدد العمال، وتاريخ الانتهاء المتوقع، ثم احفظ. يظهر السجل في تاريخ المشروع ويطلع عليه المدير.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>كيف أولّد ورقة التسليم F6؟</summary>
+      <div>
+        <p>ابحث عن مهمة F6 في قائمة "مهامي" ووسّعها. تأكد من صحة تفاصيل المشروع المعروضة، ثم انقر "توليد ورقة التسليم". يُنشأ ملف PDF جاهز للطباعة. بعد التوقيع مع العميل، غيّر حالة المهمة إلى مكتملة.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>كيف أسجّل نتيجة فحص الجودة؟</summary>
+      <div>
+        <p>اذهب إلى <strong>الفحوصات</strong> أو ابحث في "مهامي" عن مهمة الفحص. وسّعها وأدخل نتيجة الفحص (مرّ / يحتاج إصلاح / مرفوض) مع ملاحظاتك. إذا مرّ الفحص، غيّر الحالة إلى مكتملة. إذا كانت هناك مشكلة، ابقِ الحالة قيد التنفيذ مع ملاحظة واضحة.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>المهمة مقفلة — متى تنفتح؟</summary>
+      <div>
+        <p>المهمة <span class="badge b-locked">المقفلة</span> تنتظر اكتمال مهمة أخرى قبلها. وسّع البطاقة لمعرفة أي مهمة هي العائق. تواصل مع الفريق المعني. بمجرد اكتمال تلك المهمة ستنفتح مهمتك تلقائياً.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>كيف أعرف أنني تم تعييني في مشروع جديد؟</summary>
+      <div>
+        <p>ستصلك إشعار فور تعيينك في مشروع جديد. كما ستظهر مهام التركيب الجديدة في قائمة "مهامي" تلقائياً بحالة <span class="badge b-todo">للتنفيذ</span>. تحقق من الإشعارات بانتظام.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>ماذا أفعل إذا وجدت مشكلة في الموقع أثناء التركيب؟</summary>
+      <div>
+        <p>سجّل المشكلة في حقل <strong>ملاحظات</strong> بطاقة المهمة أو في سجل التركيب اليومي. أبقِ حالة المهمة <span class="badge b-inprogress">قيد التنفيذ</span> ولا تكملها حتى تُحَل المشكلة. أبلغ مشرفك أو المدير مباشرة عن أي مشكلة طارئة.</p>
+      </div>
+    </details>
+
+  </section>
+
+</main>
 
 <nav id="toc">
   <div class="toc-brand">
-    <div class="logo">WoodWings PMS</div>
-    <div class="role-label">دليل فريق التركيب</div>
+    <div class="logo">WoodWings</div>
+    <div class="role-label">دليل التركيب</div>
   </div>
-  <div class="toc-section-label">المحتويات</div>
-  <a href="#s1">القسم الأول: المقدمة</a>
-  <a href="#s2">القسم الثاني: لوحة التحكم</a>
-  <a href="#s3">القسم الثالث: المهام</a>
-  <a href="#s4">القسم الرابع: المهام التفصيلية</a>
-  <a href="#s5">القسم الخامس: سير العمل</a>
-  <a href="#s6">القسم السادس: سيناريوهات</a>
-  <a href="#s7">القسم السابع: الصلاحيات</a>
-  <a href="#s8">القسم الثامن: استكشاف الأخطاء</a>
-  <a href="#s9">القسم التاسع: المرجع السريع</a>
+  <div class="toc-group">التنقل</div>
+  <a href="#overview">لوحة التحكم</a>
+  <a href="#home">الصفحة الرئيسية</a>
+  <div class="toc-group">المهام</div>
+  <a href="#my-tasks">مهامي</a>
+  <a href="#records">سجلات التركيب</a>
+  <a href="#deliveries">التسليمات</a>
+  <a href="#qc">فحوصات الجودة</a>
+  <a href="#f6">F6 — ورقة التسليم</a>
+  <div class="toc-group">أدوات أخرى</div>
+  <a href="#materials">المواد</a>
+  <a href="#forms">النماذج</a>
+  <div class="toc-group">مرجع</div>
+  <a href="#task-statuses">حالات المهام</a>
+  <a href="#faq">الأسئلة الشائعة</a>
 </nav>
 
-<script>
-  const links = document.querySelectorAll('#toc a');
-  const sections = document.querySelectorAll('.section');
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        links.forEach(l => l.classList.remove('active'));
-        const link = document.querySelector('#toc a[href="#' + e.target.id + '"]');
-        if (link) link.classList.add('active');
-      }
-    });
-  }, { rootMargin: '-20% 0px -70% 0px' });
-  sections.forEach(s => observer.observe(s));
-</script>
 </body>
 </html>

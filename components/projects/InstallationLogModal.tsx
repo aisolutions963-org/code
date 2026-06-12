@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
+import { todayUAE } from '@/lib/dateUtils'
 
 const TEAMS = ['Engr. Abdulkarim', 'Mr. Al Mahdi', 'Mr. Yahia'] as const
 
@@ -20,7 +21,7 @@ export default function InstallationLogModal({
   onClose: () => void
   onCreated: () => void
 }) {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => todayUAE())
   const [team, setTeam] = useState('')
   const [laborers, setLaborers] = useState('')
   const [workDescription, setWorkDescription] = useState('')

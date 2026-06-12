@@ -5,7 +5,6 @@ import {
   PROJECTS,
   PROJECT_ITEMS,
   PAYMENTS,
-  GATE_PASSES,
   MAINTENANCE,
   TEAM_MEMBERS,
   ANNOUNCEMENTS,
@@ -31,8 +30,7 @@ import {
   ProjectCreateInput,
   Payment,
   PaymentCreateInput,
-  GatePass,
-  GatePassCreateInput,
+  PaymentUpdateInput,
   MaintenanceRecord,
   Announcement,
   AnnouncementCreateInput,
@@ -54,11 +52,14 @@ import {
   WeeklySummary,
   WorkerCreateInput,
   WorkerUpdateInput,
+  ClientRequest,
+  ClientRequestCreateInput,
 } from './types'
 import { ROLE_TO_DEPARTMENT } from './permissions'
 import { validateEnv } from './env'
 import { recordAirtableFailure } from './metrics'
 import { notifyTasksReady, createNotification, ROLE_DASHBOARD } from './notifications'
+import { todayUAE } from './dateUtils'
 
 validateEnv()
 
@@ -238,6 +239,20 @@ function selectName(val: unknown): string | undefined {
   }
   return undefined
 }
+// Extracts the first linked record from a multipleRecordLinks field.
+// Handles both string IDs (["recXXXX"]) and expanded objects ([{id, name, email}]).
+function firstLinkedRecord(val: unknown): { id: string; name: string; email: string } | undefined {
+  const arr = Array.isArray(val) ? val : (val ? [val] : [])
+  if (arr.length === 0) return undefined
+  const entry = arr[0]
+  if (typeof entry === 'string') return { id: entry, name: '', email: '' }
+  if (entry && typeof entry === 'object') {
+    const r = entry as { id?: string; name?: string; email?: string }
+    return { id: r.id ?? '', name: r.name ?? '', email: r.email ?? '' }
+  }
+  return undefined
+}
+
 // Handles multipleLookupValues of a multipleSelects field — each value is {id, name, color}
 function lookupSelectNames(val: unknown): string[] {
   const items: unknown[] = []
@@ -326,6 +341,7 @@ function transformTask(record: RawRecord): Task {
     assignedTo: strArr(f[TASKS.ASSIGNED_TO]),
     callCount: num(f[TASKS.CALL_COUNT]),
     sedNote: str(f[TASKS.SED_NOTE]),
+    superadminNote: str(f[TASKS.SUPERADMIN_NOTE]),
     followUpOutcome: str(f[TASKS.FOLLOW_UP_OUTCOME]),
     pathCondition: selectName(f[TASKS.PATH_CONDITION]),
     taskDocLinks: parseDocLinks(f[TASKS.TASK_DOC_LINKS]),
@@ -335,13 +351,16 @@ function transformTask(record: RawRecord): Task {
 
 function transformProject(record: RawRecord): Project {
   const f = record.fields
-  const owner = f[PROJECTS.SALES_OWNER] as { id: string; email: string; name: string } | undefined
+  const owner = firstLinkedRecord(f[PROJECTS.SALES_OWNER])
   const rawCommun = f[PROJECTS.COMMUN_SEDS]
-  const communRaw = Array.isArray(rawCommun)
-    ? (rawCommun as Array<{ name?: string; email?: string; id?: string }>)
-    : []
-  const communSeds = communRaw.map((c) => c.name ?? c.email ?? c.id ?? '').filter(Boolean)
-  const communSedIds = communRaw.map((c) => c.id ?? '').filter(Boolean)
+  const communRaw: Array<string | { name?: string; email?: string; id?: string }> =
+    Array.isArray(rawCommun) ? rawCommun : []
+  const communSeds = communRaw
+    .map((c) => (typeof c === 'string' ? c : (c.name ?? c.email ?? c.id ?? '')))
+    .filter(Boolean)
+  const communSedIds = communRaw
+    .map((c) => (typeof c === 'string' ? c : (c.id ?? '')))
+    .filter(Boolean)
   const quotationNumber = str(f[PROJECTS.QUOTATION_NUMBER])
   return {
     id: record.id,
@@ -363,7 +382,6 @@ function transformProject(record: RawRecord): Project {
     taskIds: strArr(f[PROJECTS.TASKS]),
     projectItemIds: strArr(f[PROJECTS.PROJECT_ITEMS]),
     paymentIds: strArr(f[PROJECTS.PAYMENTS]),
-    gatePassIds: strArr(f[PROJECTS.GATE_PASSES]),
     managerNotes: str(f[PROJECTS.MANAGER_NOTES]),
     sedNotes: str(f[PROJECTS.SED_NOTES]),
     projectCreatedAt: str(f[PROJECTS.PROJECT_CREATED_AT]),
@@ -375,6 +393,10 @@ function transformProject(record: RawRecord): Project {
     projectDescription: str(f[PROJECTS.PROJECT_DESCRIPTION]),
     communSeds: communSeds.length > 0 ? communSeds : undefined,
     communSedIds: communSedIds.length > 0 ? communSedIds : undefined,
+    requestType: (str(f[PROJECTS.REQUEST_TYPE]) as 'Trade' | 'Maintenance' | 'Variance' | undefined) ?? undefined,
+    parentProjectId: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.id ?? undefined,
+    parentProjectName: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.name ?? undefined,
+    tradeReference: str(f[PROJECTS.TRADE_REFERENCE]) ?? undefined,
   }
 }
 
@@ -401,20 +423,7 @@ function transformPayment(record: RawRecord): Payment {
   }
 }
 
-function transformGatePass(record: RawRecord): GatePass {
-  const f = record.fields
-  return {
-    id: record.id,
-    name: str(f[GATE_PASSES.NAME]) ?? '',
-    project: strArr(f[GATE_PASSES.PROJECT]),
-    itemsDescription: str(f[GATE_PASSES.ITEMS_DESCRIPTION]) ?? '',
-    estimatedSupplyDate: str(f[GATE_PASSES.ESTIMATED_SUPPLY_DATE]) ?? '',
-    confirmedDeliveryDate: str(f[GATE_PASSES.CONFIRMED_DELIVERY_DATE]),
-    gatePassStatus: str(f[GATE_PASSES.GATE_PASS_STATUS]),
-    siteReady: bool(f[GATE_PASSES.SITE_READY]),
-    clientNotified: bool(f[GATE_PASSES.CLIENT_NOTIFIED]),
-  }
-}
+
 
 function transformMaintenance(record: RawRecord): MaintenanceRecord {
   const f = record.fields
@@ -459,6 +468,7 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   priorityFlag: TASKS.PRIORITY_FLAG,
   callCount: TASKS.CALL_COUNT,
   sedNote: TASKS.SED_NOTE,
+  superadminNote: TASKS.SUPERADMIN_NOTE,
   followUpOutcome: TASKS.FOLLOW_UP_OUTCOME,
   taskDocLinks: TASKS.TASK_DOC_LINKS,
   fillersDocLinks: TASKS.FILLERS_DOC_LINKS,
@@ -505,10 +515,10 @@ export async function getSedProjectIds(opts: {
   const email = opts.sedEmail?.toLowerCase()
   return records
     .filter((r) => {
-      const owner = r.fields[PROJECTS.SALES_OWNER] as { id?: string; email?: string } | undefined
+      const owner = firstLinkedRecord(r.fields[PROJECTS.SALES_OWNER])
       const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
       const communIds: string[] = Array.isArray(rawCommun)
-        ? (rawCommun as Array<{ id?: string }>).map((c) => c.id ?? '').filter(Boolean)
+        ? (rawCommun as Array<string | { id?: string }>).map((c) => typeof c === 'string' ? c : (c.id ?? '')).filter(Boolean)
         : []
       if (memberId) {
         if (owner?.id === memberId) return true
@@ -629,10 +639,15 @@ async function getFabricationActiveProjectIds(): Promise<Set<string>> {
   return ids
 }
 
-export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string } = {}): Promise<Project[]> {
-  let formula = `NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Archived"))`
+export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[] } = {}): Promise<Project[]> {
+  const requestTypeFieldReady = !PROJECTS.REQUEST_TYPE.startsWith('REPLACE')
+  const noRequests = requestTypeFieldReady ? `{${PROJECTS.REQUEST_TYPE}} = ""` : null
+  const withNoReq = (f: string) => noRequests ? `AND(${f}, ${noRequests})` : f
+  let formula = withNoReq(`NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Closed and active warranty", {${PROJECTS.PROJECT_STAGE}}="Warranty expired"))`)
   if (options.stage) {
-    formula = `{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`
+    formula = withNoReq(`{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`)
+  } else if (options.allowedStages?.length) {
+    formula = withNoReq(`OR(${options.allowedStages.map((s) => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')})`)
   }
   const [records, fabActiveIds] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, {
@@ -652,7 +667,6 @@ export async function getProjects(options: { stage?: string; sedEmail?: string; 
       }
       if (email) {
         if (p.salesOwner?.email?.toLowerCase() === email) return true
-        if (p.communSeds?.some(s => s.toLowerCase() === email)) return true
       }
       return false
     })
@@ -661,8 +675,10 @@ export async function getProjects(options: { stage?: string; sedEmail?: string; 
 }
 
 export async function getAllProjects(): Promise<Project[]> {
+  const requestTypeFieldReady = !PROJECTS.REQUEST_TYPE.startsWith('REPLACE')
   const [records, fabActiveIds] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, {
+      ...(requestTypeFieldReady ? { filterByFormula: `{${PROJECTS.REQUEST_TYPE}} = ""` } : {}),
       sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
     }),
     getFabricationActiveProjectIds(),
@@ -711,15 +727,26 @@ export async function updateProject(
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
-function transformClient(record: RawRecord): Client {
+function transformClient(record: RawRecord): Client & { projectCount: number } {
   const f = record.fields
+  const projects = f[CLIENTS.PROJECTS]
+  const projectCount = Array.isArray(projects) ? projects.length : 0
   return {
     id: record.id,
     clientId: str(f[CLIENTS.CLIENT_ID]),
     clientName: str(f[CLIENTS.CLIENT_NAME]) ?? '',
     phone: str(f[CLIENTS.PHONE]),
     email: str(f[CLIENTS.EMAIL]),
+    projectCount,
   }
+}
+
+export async function getAllClients(): Promise<(Client & { projectCount: number })[]> {
+  const records = await fetchAll(CLIENTS.TABLE_ID, {
+    fields: [CLIENTS.CLIENT_NAME, CLIENTS.PHONE, CLIENTS.EMAIL, CLIENTS.CLIENT_ID, CLIENTS.PROJECTS],
+    sort: [{ field: CLIENTS.CLIENT_NAME, direction: 'asc' }],
+  })
+  return records.map(transformClient)
 }
 
 async function findClientByName(name: string): Promise<Client | null> {
@@ -747,6 +774,7 @@ async function createClientRecord(name: string, phone?: string): Promise<Client>
     throw new Error(`Airtable error creating client ${res.status}: ${body}`)
   }
   const data = (await res.json()) as { records: RawRecord[] }
+  if (!data.records[0]) throw new Error('Airtable returned empty records for client creation')
   return transformClient(data.records[0])
 }
 
@@ -757,32 +785,26 @@ async function getOrCreateClient(name: string, phone?: string): Promise<Client> 
 }
 
 export async function createProject(input: ProjectCreateInput): Promise<Project> {
-  // Find or create the client record, then link it to the project
-  const client = await getOrCreateClient(
-    input.clientName,
-    input.clientPhone || undefined,
-  )
-
   const fields: Record<string, unknown> = {
     [PROJECTS.PROJECT_NAME]: input.projectName,
-    [PROJECTS.NICKNAME]: input.nickname,
-    [PROJECTS.CLIENT_NAME]: input.clientName,
-    [PROJECTS.CLIENT]: [client.id],
     [PROJECTS.PROJECT_DESCRIPTION]: input.projectDescription,
-    [PROJECTS.DETAILED_LOCATION]: input.detailedLocation,
-    [PROJECTS.PAYMENT_MODE]: input.paymentMode,
-
     [PROJECTS.PROJECT_STAGE]: 'Preparing',
   }
+
+  // Optional fields — only set when provided
+  if (input.nickname) fields[PROJECTS.NICKNAME] = input.nickname
+  if (input.detailedLocation) fields[PROJECTS.DETAILED_LOCATION] = input.detailedLocation
   if (input.clientPhone) fields[PROJECTS.CLIENT_PHONE] = input.clientPhone
   if (input.emirate) fields[PROJECTS.EMIRATE] = input.emirate
   if (input.location) fields[PROJECTS.LOCATION] = input.location
   if (input.sedNotes) fields[PROJECTS.SED_NOTES] = input.sedNotes
-  if (input.salesOwnerCollaboratorId) {
-    fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
-  }
-  if (input.communSedIds?.length) {
-    fields[PROJECTS.COMMUN_SEDS] = input.communSedIds
+  if (input.salesOwnerCollaboratorId) fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
+  if (input.communSedIds?.length) fields[PROJECTS.COMMUN_SEDS] = input.communSedIds
+
+  if (input.clientName) {
+    const client = await getOrCreateClient(input.clientName, input.clientPhone || undefined)
+    fields[PROJECTS.CLIENT_NAME] = input.clientName
+    fields[PROJECTS.CLIENT] = [client.id]
   }
 
   const res = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
@@ -835,56 +857,21 @@ export async function createPayment(input: PaymentCreateInput): Promise<Payment>
   return transformPayment(record)
 }
 
-export async function getGatePassesByProject(projectId: string): Promise<GatePass[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${GATE_PASSES.PROJECT}}, ","))`
-  const records = await fetchAll(GATE_PASSES.TABLE_ID, { filterByFormula: formula })
-  return records.map(transformGatePass)
-}
-
-export async function getAllGatePasses(): Promise<GatePass[]> {
-  const records = await fetchAll(GATE_PASSES.TABLE_ID, {
-    sort: [{ field: GATE_PASSES.ESTIMATED_SUPPLY_DATE, direction: 'desc' }],
-  })
-  const gatePasses = records.map(transformGatePass)
-  if (gatePasses.length === 0) return gatePasses
-
-  const projectRecordIds = Array.from(new Set(gatePasses.flatMap((gp) => gp.project)))
-  const nameMap: Record<string, { name: string; displayId: string }> = {}
-  const chunks: string[][] = []
-  for (let i = 0; i < projectRecordIds.length; i += 10) chunks.push(projectRecordIds.slice(i, i + 10))
-
-  await Promise.all(chunks.map(async (chunk) => {
-    const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
-    const recs = await fetchAll(PROJECTS.TABLE_ID, {
-      filterByFormula: formula,
-      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID],
-    })
-    for (const r of recs) {
-      nameMap[r.id] = {
-        name: str(r.fields[PROJECTS.PROJECT_NAME]) ?? '',
-        displayId: str(r.fields[PROJECTS.PROJECT_ID]) ?? '',
-      }
-    }
-  }))
-
-  return gatePasses.map((gp) => ({
-    ...gp,
-    projectName: gp.project[0] ? (nameMap[gp.project[0]]?.name ?? undefined) : undefined,
-    projectDisplayId: gp.project[0] ? (nameMap[gp.project[0]]?.displayId ?? undefined) : undefined,
-  }))
-}
-
-export async function createGatePass(input: GatePassCreateInput): Promise<GatePass> {
-  const fields: Record<string, unknown> = {
-    [GATE_PASSES.PROJECT]: input.project,
-    [GATE_PASSES.ITEMS_DESCRIPTION]: input.itemsDescription,
-    [GATE_PASSES.ESTIMATED_SUPPLY_DATE]: input.estimatedSupplyDate,
-  }
-  if (input.confirmedDeliveryDate) {
-    fields[GATE_PASSES.CONFIRMED_DELIVERY_DATE] = input.confirmedDeliveryDate
-  }
-  const res = await fetchWithRetry(tblUrl(GATE_PASSES.TABLE_ID), {
-    method: 'POST',
+export async function updatePayment(id: string, input: PaymentUpdateInput): Promise<Payment> {
+  const fields: Record<string, unknown> = {}
+  if (input.amount !== undefined) fields[PAYMENTS.AMOUNT] = input.amount
+  if (input.paymentType !== undefined) fields[PAYMENTS.PAYMENT_TYPE] = input.paymentType
+  if (input.paymentStatus !== undefined) fields[PAYMENTS.PAYMENT_STATUS] = input.paymentStatus
+  if (input.paymentMethod !== undefined) fields[PAYMENTS.PAYMENT_METHOD] = input.paymentMethod
+  if (input.referenceNo !== undefined) fields[PAYMENTS.REFERENCE_NO] = input.referenceNo
+  if (input.receivedDate !== undefined) fields[PAYMENTS.RECEIVED_DATE] = input.receivedDate
+  if (input.dueDate !== undefined) fields[PAYMENTS.DUE_DATE] = input.dueDate
+  if (input.payerType !== undefined) fields[PAYMENTS.PAYER_TYPE] = input.payerType
+  if (input.payerName !== undefined) fields[PAYMENTS.PAYER_NAME] = input.payerName
+  if (input.commissionAmount !== undefined) fields[PAYMENTS.COMMISSION_AMOUNT] = input.commissionAmount
+  if (input.notes !== undefined) fields[PAYMENTS.NOTES] = input.notes
+  const res = await fetchWithRetry(recUrl(PAYMENTS.TABLE_ID, id), {
+    method: 'PATCH',
     headers: airtableHeaders(),
     body: JSON.stringify({ fields }),
   })
@@ -893,7 +880,7 @@ export async function createGatePass(input: GatePassCreateInput): Promise<GatePa
     throw new Error(`Airtable error ${res.status}: ${body}`)
   }
   const record: RawRecord = await res.json()
-  return transformGatePass(record)
+  return transformPayment(record)
 }
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
@@ -1043,7 +1030,7 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
       : []
     const taskName = str(r.fields[TASKS.TASK_NAME]) ?? 'Call the Client'
     const projRef = str(r.fields[TASKS.PROJECT_ID]) ?? projectId
-    notifyTasksReady(
+    await notifyTasksReady(
       [{ taskName, departments: depts.length > 0 ? depts : ['Manager'] }],
       `All approval gates cleared for project ${projRef} — ready to call the client`,
     )
@@ -1186,7 +1173,7 @@ export async function assignInstallationTeam(
   })
   const projectRef = project.nickname ?? project.projectName ?? project.projectId
   const body = opts?.itemName ? `${projectRef} — ${opts.itemName}` : projectRef
-  createNotification({
+  await createNotification({
     recipientRole: 'installation',
     title: 'Installation team assigned',
     body,
@@ -1283,7 +1270,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
   const projectIds = Array.from(new Set(tasks.flatMap((t) => t.project ?? [])))
   if (projectIds.length === 0) return tasks
 
-  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null }> = {}
+  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null; salesOwnerName: string | null; communSeds: string[] }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) {
     chunks.push(projectIds.slice(i, i + 10))
@@ -1294,7 +1281,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
       const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const records = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE],
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS],
       })
       for (const r of records) {
         const ref = str(r.fields[PROJECTS.PROJECT_ID])
@@ -1302,7 +1289,11 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
         const nickname = str(r.fields[PROJECTS.NICKNAME]) ?? null
         const quotationNumber = str(r.fields[PROJECTS.QUOTATION_NUMBER]) ?? null
         const quotationReference = str(r.fields[PROJECTS.QUOTATION_REFERENCE]) ?? null
-        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference }
+        const owner = firstLinkedRecord(r.fields[PROJECTS.SALES_OWNER])
+        const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
+        const communRaw: Array<string | { name?: string; id?: string }> = Array.isArray(rawCommun) ? rawCommun : []
+        const communSeds = communRaw.map((c) => (typeof c === 'string' ? '' : (c.name ?? ''))).filter(Boolean)
+        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference, salesOwnerName: owner?.name ?? null, communSeds }
       }
     }),
   )
@@ -1321,6 +1312,8 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
             projectNickname: info.nickname ?? undefined,
             projectQuotationNumber: info.quotationNumber ?? undefined,
             projectQuotationReference: info.quotationReference ?? undefined,
+            projectSalesOwner: info.salesOwnerName ?? undefined,
+            projectCommunSeds: info.communSeds.length > 0 ? info.communSeds : undefined,
           }
         : {}),
     }
@@ -1454,7 +1447,7 @@ const ROLE_TO_AUDIENCE: Record<string, string> = {
 }
 
 export async function getAnnouncements(role?: string): Promise<Announcement[]> {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const expiryFilter = `OR(IS_AFTER({${ANNOUNCEMENTS.EXPIRES_AT}}, "${today}"), {${ANNOUNCEMENTS.EXPIRES_AT}}=BLANK())`
 
   let visibilityFilter: string
@@ -1550,6 +1543,27 @@ function transformMaterial(record: RawRecord): Material {
     requestedBy: str(f[MATERIALS_NEEDED.REQUESTED_BY]),
     requestDate: str(f[MATERIALS_NEEDED.REQUEST_DATE]),
   }
+}
+
+export async function getPendingMaterialsCount(): Promise<number> {
+  const formula = `OR({${MATERIALS_NEEDED.ORDER_STATUS}} = "Not ordered", {${MATERIALS_NEEDED.ORDER_STATUS}} = "Pending approval")`
+  const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [MATERIALS_NEEDED.ORDER_STATUS],
+  })
+  return records.length
+}
+
+export async function getAllActiveMaterials(options?: { projectIds?: string[] }): Promise<Material[]> {
+  let formula = `{${MATERIALS_NEEDED.ORDER_STATUS}} != "Received"`
+  if (options?.projectIds?.length) {
+    const projectFilters = options.projectIds
+      .map((id) => `{${MATERIALS_NEEDED.PROJECT_RECORD_ID}} = "${id}"`)
+      .join(', ')
+    formula = `AND(${formula}, OR(${projectFilters}))`
+  }
+  const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, { filterByFormula: formula })
+  return records.map(transformMaterial)
 }
 
 export async function getMaterialsByProject(projectId: string): Promise<Material[]> {
@@ -1737,6 +1751,7 @@ export async function createHandoverSheet(
     throw new Error(`Airtable error ${res.status}: ${body}`)
   }
   const data2 = (await res.json()) as { records: RawRecord[] }
+  if (!data2.records[0]) throw new Error('Airtable returned empty records for handover sheet creation')
   return transformHandoverSheet(data2.records[0])
 }
 
@@ -1750,11 +1765,11 @@ export async function getHandoverSheetForProject(projectId: string): Promise<Han
 
 export async function createMaintenanceRecord(
   projectId: string,
-  dates: { startDate: string; endDate: string },
-): Promise<void> {
+  dates: { startDate: string; endDate: string; status?: string },
+): Promise<string> {
   const fields: Record<string, unknown> = {
     [MAINTENANCE.PROJECTS]: [projectId],
-    [MAINTENANCE.STATUS]: 'Active',
+    [MAINTENANCE.STATUS]: dates.status ?? 'Active',
     [MAINTENANCE.START_DATE]: dates.startDate,
     [MAINTENANCE.END_DATE]: dates.endDate,
     [MAINTENANCE.WARRANTY_TYPE]: 'Standard 1-Year',
@@ -1763,6 +1778,41 @@ export async function createMaintenanceRecord(
     method: 'POST',
     headers: airtableHeaders(),
     body: JSON.stringify({ records: [{ fields }] }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const data = await res.json() as { records: RawRecord[] }
+  if (!data.records[0]) throw new Error('Airtable returned empty records for maintenance record creation')
+  return data.records[0].id
+}
+
+export async function getMaintenanceRecordForProject(projectId: string): Promise<MaintenanceRecord | null> {
+  const records = await fetchAll(MAINTENANCE.TABLE_ID, {
+    filterByFormula: `FIND("${projectId}", ARRAYJOIN({${MAINTENANCE.PROJECTS}}))`,
+    maxRecords: 1,
+  })
+  return records.length > 0 ? transformMaintenance(records[0]) : null
+}
+
+export async function activateMaintenanceRecord(recordId: string): Promise<void> {
+  const res = await fetchWithRetry(recUrl(MAINTENANCE.TABLE_ID, recordId), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields: { [MAINTENANCE.STATUS]: 'Active' } }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+}
+
+export async function expireMaintenanceRecord(recordId: string): Promise<void> {
+  const res = await fetchWithRetry(recUrl(MAINTENANCE.TABLE_ID, recordId), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields: { [MAINTENANCE.STATUS]: 'Expired' } }),
   })
   if (!res.ok) {
     const body = await res.text()
@@ -1915,12 +1965,7 @@ export interface CalendarEvent {
 }
 
 export async function getCalendarEvents(): Promise<CalendarEvent[]> {
-  const [gatePasses, tasks, fabTasks, payments, customEvents, installationLogs, allProjects] = await Promise.all([
-    fetchAll(GATE_PASSES.TABLE_ID, {
-      filterByFormula: `NOT({${GATE_PASSES.ESTIMATED_SUPPLY_DATE}}=BLANK())`,
-      fields: [GATE_PASSES.NAME, GATE_PASSES.ESTIMATED_SUPPLY_DATE, GATE_PASSES.CONFIRMED_DELIVERY_DATE, GATE_PASSES.PROJECT],
-      sort: [{ field: GATE_PASSES.ESTIMATED_SUPPLY_DATE, direction: 'asc' }],
-    }),
+  const [tasks, fabTasks, payments, customEvents, installationLogs, allProjects] = await Promise.all([
     fetchAll(TASKS.TABLE_ID, {
       filterByFormula: `AND(NOT({${TASKS.TASK_START_DATE}}=BLANK()), OR({${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="To Do"))`,
       fields: [TASKS.TASK_NAME, TASKS.TASK_START_DATE, TASKS.COMPLETION_DATE, TASKS.DEPARTMENT, TASKS.PROJECT_ID, TASKS.PROJECT],
@@ -1962,21 +2007,6 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
   }
 
   const events: CalendarEvent[] = []
-
-  for (const r of gatePasses) {
-    const f = r.fields
-    const date = str(f[GATE_PASSES.CONFIRMED_DELIVERY_DATE]) ?? str(f[GATE_PASSES.ESTIMATED_SUPPLY_DATE])
-    if (date) {
-      events.push({
-        id: r.id,
-        title: str(f[GATE_PASSES.NAME]) ?? 'Delivery',
-        date,
-        type: 'delivery',
-        projectName: getProjectName(f[GATE_PASSES.PROJECT]),
-        createdAt: r.createdTime,
-      })
-    }
-  }
 
   for (const r of tasks) {
     const f = r.fields
@@ -2048,11 +2078,16 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const title = str(f[CALENDAR_EVENTS.TITLE])
     if (!date || !title) continue
     const customTask = str(f[CALENDAR_EVENTS.CUSTOM_TASK])
+    let evType: CalendarEvent['type'] = 'activity'
+    if (customTask?.startsWith('f2:')) evType = 'delivery'
+    else if (customTask?.startsWith('type:installation')) evType = 'installation'
+    else if (customTask?.startsWith('type:fabrication'))  evType = 'fabrication'
+    else if (customTask?.startsWith('type:delivery'))     evType = 'delivery'
     events.push({
       id: r.id,
       title,
       date,
-      type: customTask?.startsWith('f2:') ? 'delivery' : 'activity',
+      type: evType,
       notes: str(f[CALENDAR_EVENTS.NOTES]),
       customTask,
       createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
@@ -2092,7 +2127,6 @@ export async function createAdHocTask(fields: {
     [TASKS.TASK_NAME]: fields.taskName,
     [TASKS.PROJECT]: fields.projectId,
     [TASKS.STATUS]: fields.status ?? 'To Do',
-    [TASKS.DEPARTMENT]: fields.departments,
   }
   const ids = await createTasksBatch([record])
   return ids[0]
@@ -2111,6 +2145,7 @@ export async function createCalendarEvent(input: {
   projectId?: string
   createdBy?: string
   customTask?: string
+  eventType?: string
 }): Promise<void> {
   const fields: Record<string, unknown> = {
     [CALENDAR_EVENTS.TITLE]: input.title,
@@ -2119,7 +2154,10 @@ export async function createCalendarEvent(input: {
   if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
   if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
   if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
-  if (input.customTask) fields[CALENDAR_EVENTS.CUSTOM_TASK] = input.customTask
+  // Encode event type in customTask unless a specific task key was provided
+  const taskKey = input.customTask
+    ?? (input.eventType && input.eventType !== 'activity' ? `type:${input.eventType}` : undefined)
+  if (taskKey) fields[CALENDAR_EVENTS.CUSTOM_TASK] = taskKey
   const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
@@ -2360,9 +2398,18 @@ export async function generateItemTasksForProject(
 
   // Idempotency: fetch existing tasks for this item and skip paths/templates already created.
   // This allows safely adding new actions to an item after initial submission.
-  const existingRaw = await fetchAll(TASKS.TABLE_ID, {
-    filterByFormula: `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}})), FIND("${itemId}", ARRAYJOIN({${TASKS.PROJECT_ITEM}})))`,
-    fields: [TASKS.PATH_CONDITION, TASKS.TASK_TEMPLATES_LINK],
+  // Note: ARRAYJOIN on a linked record field joins primary-field names, not record IDs,
+  // so we filter by project only then post-filter by itemId in JS (same pattern as line ~618).
+  const allProjectItemTasks = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: `{${TASKS.PROJECT}} = "${projectId}"`,
+    fields: [TASKS.PATH_CONDITION, TASKS.TASK_TEMPLATES_LINK, TASKS.PROJECT_ITEM],
+  })
+  const existingRaw = allProjectItemTasks.filter((r) => {
+    const pi = r.fields[TASKS.PROJECT_ITEM]
+    const ids: string[] = Array.isArray(pi)
+      ? (pi as Array<string | { id?: string }>).map((v) => (typeof v === 'string' ? v : (v.id ?? '')))
+      : []
+    return ids.includes(itemId)
   })
   const existingPaths = new Set<string>()
   const existingTemplateIds = new Set<string>()
@@ -2482,10 +2529,23 @@ export async function generatePhase4Tasks(
   )
   if (templates.length === 0) return { created: 0, todoTemplates: [] }
 
-  const minOrder = Math.min(...templates.map((t) => t.templateOrder!))
+  // Idempotency: skip templates already created for this project (same pattern as Phase 3)
+  const existingRaw = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}))`,
+    fields: [TASKS.TASK_TEMPLATES_LINK],
+  })
+  const existingTemplateIds = new Set<string>()
+  for (const r of existingRaw) {
+    const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
+    if (Array.isArray(links)) links.forEach((id) => existingTemplateIds.add(id as string))
+  }
+  const newTemplates = templates.filter((t) => !existingTemplateIds.has(t.id))
+  if (newTemplates.length === 0) return { created: 0, todoTemplates: [] }
+
+  const minOrder = Math.min(...newTemplates.map((t) => t.templateOrder!))
   const todoTemplates: TaskTemplate[] = []
 
-  const records = templates.map((t) => {
+  const records = newTemplates.map((t) => {
     const status: TaskStatus = t.templateOrder === minOrder ? 'To Do' : 'Locked'
     if (status === 'To Do') todoTemplates.push(t)
     return {
@@ -2498,6 +2558,42 @@ export async function generatePhase4Tasks(
 
   const ids = await createTasksBatch(records)
   return { created: ids.length, todoTemplates }
+}
+
+export async function upsertReminderEvent(input: {
+  customKey: string
+  title: string
+  date: string
+  notes?: string
+  createdBy?: string
+}): Promise<void> {
+  const existing = await fetchAll(CALENDAR_EVENTS.TABLE_ID, {
+    filterByFormula: `{${CALENDAR_EVENTS.CUSTOM_TASK}}="${input.customKey}"`,
+    fields: [CALENDAR_EVENTS.TITLE],
+  })
+  const fields: Record<string, unknown> = {
+    [CALENDAR_EVENTS.TITLE]: input.title,
+    [CALENDAR_EVENTS.DATE]: input.date,
+    [CALENDAR_EVENTS.CUSTOM_TASK]: input.customKey,
+  }
+  if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
+  if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
+
+  if (existing.length > 0) {
+    const res = await fetchWithRetry(recUrl(CALENDAR_EVENTS.TABLE_ID, existing[0].id), {
+      method: 'PATCH',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ fields }),
+    })
+    if (!res.ok) throw new Error(`Airtable error ${res.status}`)
+  } else {
+    const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ fields }),
+    })
+    if (!res.ok) throw new Error(`Airtable error ${res.status}`)
+  }
 }
 
 // ─── Item Types ───────────────────────────────────────────────────────────────
@@ -2615,12 +2711,18 @@ export async function getQuotationsByProject(projectId: string): Promise<Quotati
 
 function transformTimesheetEntry(rec: RawRecord): TimesheetEntry {
   const f = rec.fields
+  const supervisorIds = strArr(f[PRODUCTION_TIMESHEETS.SUPERVISOR])
+  const locRaw = selectName(f[PRODUCTION_TIMESHEETS.LOCATION_TYPE])
+  const locationType: TimesheetEntry['locationType'] =
+    locRaw === 'Factory' ? 'Factory' : locRaw === 'Project' ? 'Project' : undefined
   return {
     id: rec.id,
     entryLabel: str(f[PRODUCTION_TIMESHEETS.ENTRY_LABEL]),
     workDate: str(f[PRODUCTION_TIMESHEETS.WORK_DATE]) ?? '',
+    supervisorId: supervisorIds[0],
     workerIds: strArr(f[PRODUCTION_TIMESHEETS.WORKER]),
     projectIds: strArr(f[PRODUCTION_TIMESHEETS.PROJECT]),
+    locationType,
     regularHours: num(f[PRODUCTION_TIMESHEETS.REGULAR_HOURS]) ?? 0,
     overtimeHours: num(f[PRODUCTION_TIMESHEETS.OVERTIME_HOURS]) ?? 0,
     totalHours: num(f[PRODUCTION_TIMESHEETS.TOTAL_HOURS]) ?? 0,
@@ -2645,12 +2747,31 @@ export async function getTimesheetEntries(filters: TimesheetFilters = {}): Promi
 
   if (entries.length === 0) return entries
 
-  // Enrich with worker names
+  // Enrich with worker/supervisor names and estimated cost
   const allWorkers = await getAllWorkers()
-  const workerNameMap = new Map(allWorkers.map((w) => [w.id, w.nickname ? `${w.name} (${w.nickname})` : w.name]))
+  const workerMap = new Map(allWorkers.map((w) => [w.id, w]))
+  const workerDisplayName = (w: (typeof allWorkers)[0]) =>
+    w.nickname ? `${w.name} (${w.nickname})` : w.name
   for (const entry of entries) {
-    const wId = entry.workerIds[0]
-    if (wId) entry.workerName = workerNameMap.get(wId) ?? entry.workerName
+    // Supervisor
+    if (entry.supervisorId) {
+      const sup = workerMap.get(entry.supervisorId)
+      if (sup) entry.supervisorName = workerDisplayName(sup)
+    }
+    // Workers
+    const names = entry.workerIds
+      .map((id) => workerMap.get(id))
+      .filter(Boolean)
+      .map((w) => workerDisplayName(w!))
+    entry.workerNames = names
+    entry.workerName = entry.supervisorName ?? names[0]
+    // Estimated cost
+    const people = [
+      entry.supervisorId ? workerMap.get(entry.supervisorId) : undefined,
+      ...entry.workerIds.map((id) => workerMap.get(id)),
+    ].filter(Boolean)
+    const totalRate = people.reduce((s, w) => s + (w!.hourlyRate ?? 0), 0)
+    if (totalRate > 0) entry.estimatedCost = totalRate * entry.totalHours
   }
 
   // Enrich with project refs
@@ -2681,11 +2802,10 @@ export async function getTimesheetEntries(filters: TimesheetFilters = {}): Promi
 }
 
 export async function checkTimesheetDuplicate(
-  workerId: string,
-  projectId: string,
+  supervisorId: string,
   workDate: string,
 ): Promise<boolean> {
-  const formula = `AND({${PRODUCTION_TIMESHEETS.WORK_DATE}}="${workDate}", FIND("${workerId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.WORKER}}, ",")), FIND("${projectId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.PROJECT}}, ",")))`
+  const formula = `AND({${PRODUCTION_TIMESHEETS.WORK_DATE}}="${workDate}", FIND("${supervisorId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.SUPERVISOR}}, ",")))`
   const records = await fetchAll(PRODUCTION_TIMESHEETS.TABLE, {
     filterByFormula: formula,
     fields: [PRODUCTION_TIMESHEETS.ENTRY_LABEL],
@@ -2699,11 +2819,13 @@ export async function createTimesheetEntry(input: CreateTimesheetInput): Promise
   const overtime = input.overtimeHours ?? 0
   const fields: Record<string, unknown> = {
     [PRODUCTION_TIMESHEETS.WORK_DATE]: input.workDate,
+    [PRODUCTION_TIMESHEETS.SUPERVISOR]: [input.supervisorId],
     [PRODUCTION_TIMESHEETS.WORKER]: input.workerIds,
-    [PRODUCTION_TIMESHEETS.PROJECT]: input.projectIds,
+    [PRODUCTION_TIMESHEETS.LOCATION_TYPE]: input.locationType,
     [PRODUCTION_TIMESHEETS.REGULAR_HOURS]: regular,
     [PRODUCTION_TIMESHEETS.OVERTIME_HOURS]: overtime,
   }
+  if (input.projectIds.length > 0) fields[PRODUCTION_TIMESHEETS.PROJECT] = input.projectIds
   if (input.notes) fields[PRODUCTION_TIMESHEETS.NOTES] = input.notes
   const res = await fetchWithRetry(tblUrl(PRODUCTION_TIMESHEETS.TABLE), {
     method: 'POST',
@@ -2767,7 +2889,7 @@ export async function getTimesheetWorkers(): Promise<WorkerOption[]> {
   const records = await fetchAll(WORKERS.TABLE, {
     filterByFormula: `{${WORKERS.ACTIVE}}=TRUE()`,
     sort: [{ field: WORKERS.NAME, direction: 'asc' }],
-    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.ACTIVE],
+    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.ACTIVE, WORKERS.HOURLY_RATE],
   })
   return records.map((rec) => {
     const f = rec.fields
@@ -2777,6 +2899,7 @@ export async function getTimesheetWorkers(): Promise<WorkerOption[]> {
       fullName: str(f[WORKERS.FULL_NAME]),
       nickname: str(f[WORKERS.NICKNAME]),
       role: selectName(f[WORKERS.ROLE]),
+      hourlyRate: num(f[WORKERS.HOURLY_RATE]) ?? undefined,
     }
   })
 }
@@ -2792,9 +2915,10 @@ export async function getTimesheetWeeklySummary(weekStart: string): Promise<Week
     days: Map<string, { regularHours: number; overtimeHours: number; totalHours: number; projectRef?: string; entryId: string }>
   }>()
   for (const entry of entries) {
-    const wId = entry.workerIds[0] ?? 'unknown'
+    const wId = entry.supervisorId ?? entry.workerIds[0] ?? 'unknown'
+    const displayName = entry.supervisorName ?? entry.workerName ?? wId
     if (!workerMap.has(wId)) {
-      workerMap.set(wId, { workerName: entry.workerName ?? wId, days: new Map() })
+      workerMap.set(wId, { workerName: displayName, days: new Map() })
     }
     const worker = workerMap.get(wId)!
     worker.days.set(entry.workDate, {
@@ -2828,13 +2952,14 @@ function transformWorker(rec: RawRecord): WorkerOption {
     nickname: str(f[WORKERS.NICKNAME]),
     role: selectName(f[WORKERS.ROLE]),
     active: bool(f[WORKERS.ACTIVE]) ?? false,
+    hourlyRate: num(f[WORKERS.HOURLY_RATE]) ?? undefined,
   }
 }
 
 export async function getAllWorkers(): Promise<WorkerOption[]> {
   const records = await fetchAll(WORKERS.TABLE, {
     sort: [{ field: WORKERS.NAME, direction: 'asc' }],
-    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.ACTIVE],
+    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.ACTIVE, WORKERS.HOURLY_RATE],
   })
   return records.map(transformWorker)
 }
@@ -2847,6 +2972,7 @@ export async function createWorker(input: WorkerCreateInput): Promise<WorkerOpti
   if (input.nickname) fields[WORKERS.NICKNAME] = input.nickname
   if (input.role) fields[WORKERS.ROLE] = input.role
   if (input.active !== undefined) fields[WORKERS.ACTIVE] = input.active
+  if (input.hourlyRate !== undefined) fields[WORKERS.HOURLY_RATE] = input.hourlyRate
   const res = await fetchWithRetry(tblUrl(WORKERS.TABLE), {
     method: 'POST',
     headers: airtableHeaders(),
@@ -2867,6 +2993,7 @@ export async function updateWorker(id: string, input: WorkerUpdateInput): Promis
   if (input.nickname !== undefined) fields[WORKERS.NICKNAME] = input.nickname
   if (input.role !== undefined) fields[WORKERS.ROLE] = input.role
   if (input.active !== undefined) fields[WORKERS.ACTIVE] = input.active
+  if (input.hourlyRate !== undefined) fields[WORKERS.HOURLY_RATE] = input.hourlyRate
   const res = await fetchWithRetry(recUrl(WORKERS.TABLE, id), {
     method: 'PATCH',
     headers: airtableHeaders(),
@@ -2889,4 +3016,230 @@ export async function deleteWorker(id: string): Promise<void> {
     const body = await res.text()
     throw new Error(`Airtable error ${res.status}: ${body}`)
   }
+}
+
+// ─── Client Requests ─────────────────────────────────────────────────────────
+
+// Template IDs that provide department metadata for client request tasks
+const CR_TEMPLATE_SED     = 'rec6xYWnAAWOKyVr7' // Department = SED
+const CR_TEMPLATE_PAYMENT = 'recRX4dqaaY5RsPdH' // Department = Manager
+
+const TRADE_TASKS = [
+  { name: 'F3 — Order Trade Material',    order: 100, templateId: CR_TEMPLATE_SED },
+  { name: 'F4 — Trade Payment',           order: 101, templateId: CR_TEMPLATE_PAYMENT },
+  { name: 'Handover to Client',           order: 102, templateId: CR_TEMPLATE_SED },
+] as const
+
+const MAINTENANCE_TASKS = [
+  { name: 'Site Visit & Assessment',    order: 100, templateId: CR_TEMPLATE_SED },
+  { name: 'Carry Out Maintenance Work', order: 101, templateId: CR_TEMPLATE_SED },
+  { name: 'F4 — Maintenance Payment',  order: 102, templateId: CR_TEMPLATE_PAYMENT },
+  { name: 'Client Sign-off',           order: 103, templateId: CR_TEMPLATE_SED },
+] as const
+
+export async function createClientRequest(
+  input: ClientRequestCreateInput,
+): Promise<{ project: Project; tasksCreated: number; taskGenerationFailed?: boolean }> {
+  if (PROJECTS.REQUEST_TYPE.startsWith('REPLACE')) {
+    throw new Error('Client Requests feature requires Airtable field IDs to be configured in fieldMap.ts')
+  }
+  const isTrade    = input.requestType === 'Trade'
+  const isVariance = input.requestType === 'Variance'
+  let parentProjectName: string | undefined
+
+  if (input.parentProjectId) {
+    try {
+      const parent = await getProjectById(input.parentProjectId)
+      parentProjectName = parent.projectName
+    } catch {
+      // parent name is cosmetic; don't fail the whole request
+    }
+  }
+
+  const prefix = isTrade ? '[Trade]' : isVariance ? '[Variance]' : '[Maintenance]'
+  const projectName = `${prefix} ${parentProjectName ?? input.clientName}`
+
+  const fields: Record<string, unknown> = {
+    [PROJECTS.PROJECT_NAME]: projectName,
+    [PROJECTS.CLIENT_NAME]: input.clientName,
+    [PROJECTS.PROJECT_STAGE]: 'Preparing',
+    [PROJECTS.REQUEST_TYPE]: input.requestType,
+  }
+  if (input.clientPhone) fields[PROJECTS.CLIENT_PHONE] = input.clientPhone
+  if (input.description) fields[PROJECTS.PROJECT_DESCRIPTION] = input.description
+  if (input.salesOwnerCollaboratorId) fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
+  if (input.parentProjectId) fields[PROJECTS.PARENT_PROJECT] = [input.parentProjectId]
+  if ((isTrade || isVariance) && input.tradeReference) fields[PROJECTS.TRADE_REFERENCE] = input.tradeReference
+
+  const projRes = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!projRes.ok) {
+    const body = await projRes.text()
+    throw new Error(`Airtable error ${projRes.status}: ${body}`)
+  }
+  const projRecord: RawRecord = await projRes.json()
+  const project = transformProject(projRecord)
+
+  if (isVariance) {
+    try {
+      const result = await generateTasksForProject(project.id, 'Preparing')
+      return { project, tasksCreated: result.created }
+    } catch (err) {
+      console.error('[createClientRequest] Variance task generation failed:', err)
+      return { project, tasksCreated: 0, taskGenerationFailed: true }
+    }
+  }
+
+  const taskDefs = isTrade ? TRADE_TASKS : MAINTENANCE_TASKS
+  const taskRecords = taskDefs.map((t, i) => ({
+    [TASKS.TASK_NAME]: t.name,
+    [TASKS.PROJECT]: project.id,
+    [TASKS.STATUS]: i === 0 ? 'To Do' : 'Locked',
+    [TASKS.TASK_TEMPLATES_LINK]: [t.templateId],
+  }))
+
+  const taskIds = await createTasksBatch(taskRecords)
+  return { project, tasksCreated: taskIds.length }
+}
+
+export async function getClientRequests(options?: {
+  sedAirtableMemberId?: string
+}): Promise<ClientRequest[]> {
+  if (PROJECTS.REQUEST_TYPE.startsWith('REPLACE')) return []
+
+  const allRecords = await fetchAll(PROJECTS.TABLE_ID, {
+    filterByFormula: `{${PROJECTS.REQUEST_TYPE}} != ""`,
+    sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
+  })
+
+  const memberId = options?.sedAirtableMemberId
+  const projects = memberId
+    ? allRecords.filter((r) => {
+        const owner = firstLinkedRecord(r.fields[PROJECTS.SALES_OWNER])
+        if (owner?.id === memberId) return true
+        const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
+        const communIds: string[] = Array.isArray(rawCommun)
+          ? (rawCommun as Array<string | { id?: string }>).map((c) =>
+              typeof c === 'string' ? c : (c.id ?? ''),
+            ).filter(Boolean)
+          : []
+        return communIds.includes(memberId)
+      })
+    : allRecords
+  if (projects.length === 0) return []
+
+  const projectIds = projects.map((r) => r.id)
+
+  const taskFormula = `OR(${projectIds.map((id) => `{${TASKS.PROJECT}} = "${id}"`).join(',')})`
+  const taskRecords = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: taskFormula,
+    fields: [TASKS.PROJECT, TASKS.TASK_NAME, TASKS.STATUS, TASKS.TEMPLATE_ORDER, TASKS.DEPARTMENT],
+  })
+
+  const tasksByProject = new Map<string, Task[]>()
+  for (const tr of taskRecords) {
+    const pid = str(tr.fields[TASKS.PROJECT])
+    if (!pid) continue
+    if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
+    tasksByProject.get(pid)!.push(transformTask(tr))
+  }
+
+  return projects.map((r) => {
+    const p = transformProject(r)
+    return {
+      id: p.id,
+      projectName: p.projectName,
+      clientName: p.clientName,
+      clientPhone: p.clientPhone,
+      requestType: p.requestType as 'Trade' | 'Maintenance' | 'Variance',
+      projectStage: p.projectStage,
+      createdAt: p.projectCreatedAt,
+      description: p.projectDescription,
+      parentProjectId: p.parentProjectId,
+      parentProjectName: p.parentProjectName,
+      tradeReference: p.tradeReference,
+      tasks: tasksByProject.get(p.id) ?? [],
+    }
+  })
+}
+
+export async function getClientRequestsByParentProject(parentProjectId: string): Promise<ClientRequest[]> {
+  if (PROJECTS.PARENT_PROJECT.startsWith('REPLACE')) return []
+  const formula = `FIND("${parentProjectId}", ARRAYJOIN({${PROJECTS.PARENT_PROJECT}}, ","))`
+  const projects = await fetchAll(PROJECTS.TABLE_ID, {
+    filterByFormula: formula,
+    sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
+  })
+  if (projects.length === 0) return []
+
+  const projectIds = projects.map((r) => r.id)
+  const taskFormula = `OR(${projectIds.map((id) => `{${TASKS.PROJECT}} = "${id}"`).join(',')})`
+  const taskRecords = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: taskFormula,
+    fields: [TASKS.PROJECT, TASKS.TASK_NAME, TASKS.STATUS, TASKS.TEMPLATE_ORDER, TASKS.DEPARTMENT],
+  })
+
+  const tasksByProject = new Map<string, Task[]>()
+  for (const tr of taskRecords) {
+    const pid = str(tr.fields[TASKS.PROJECT])
+    if (!pid) continue
+    if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
+    tasksByProject.get(pid)!.push(transformTask(tr))
+  }
+
+  return projects.map((r) => {
+    const p = transformProject(r)
+    return {
+      id: p.id,
+      projectName: p.projectName,
+      clientName: p.clientName,
+      clientPhone: p.clientPhone,
+      requestType: p.requestType as 'Trade' | 'Maintenance' | 'Variance',
+      projectStage: p.projectStage,
+      createdAt: p.projectCreatedAt,
+      description: p.projectDescription,
+      parentProjectId: p.parentProjectId,
+      parentProjectName: p.parentProjectName,
+      tradeReference: p.tradeReference,
+      tasks: tasksByProject.get(p.id) ?? [],
+    }
+  })
+}
+
+export async function updateClientRequestTradeReference(
+  requestProjectId: string,
+  tradeReference: string,
+): Promise<void> {
+  await updateProject(requestProjectId, { [PROJECTS.TRADE_REFERENCE]: tradeReference })
+}
+
+// ─── SED Commission ───────────────────────────────────────────────────────────
+
+export async function getSedQuarterlyRevenue(
+  projectIds: string[],
+  quarterStart: string,
+  quarterEnd: string,
+): Promise<number> {
+  if (projectIds.length === 0) return 0
+
+  const CHUNK = 15
+  let total = 0
+
+  for (let i = 0; i < projectIds.length; i += CHUNK) {
+    const chunk = projectIds.slice(i, i + CHUNK)
+    const projectFilter = chunk
+      .map((id) => `FIND("${id}", ARRAYJOIN({${PAYMENTS.PROJECT}}, ","))`)
+      .join(',')
+    const formula = `AND(OR(${projectFilter}), {${PAYMENTS.PAYMENT_STATUS}}="Received", {${PAYMENTS.RECEIVED_DATE}}>="${quarterStart}", {${PAYMENTS.RECEIVED_DATE}}<="${quarterEnd}")`
+    const records = await fetchAll(PAYMENTS.TABLE_ID, {
+      filterByFormula: formula,
+      fields: [PAYMENTS.AMOUNT],
+    })
+    total += records.reduce((s, r) => s + ((r.fields[PAYMENTS.AMOUNT] as number) || 0), 0)
+  }
+
+  return total
 }

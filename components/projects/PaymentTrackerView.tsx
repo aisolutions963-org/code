@@ -5,6 +5,7 @@ import useSWR, { mutate as globalMutate } from 'swr'
 import { Project, Payment } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import { todayUAE } from '@/lib/dateUtils'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -19,7 +20,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
   )
   const payments = data?.project?.payments ?? []
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     amount: '',

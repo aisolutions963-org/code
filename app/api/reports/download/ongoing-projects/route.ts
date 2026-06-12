@@ -68,7 +68,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const rows: Record<string, unknown>[] = []
   for (const proj of projects) {
     const f = proj.fields
-    const owner = f[PROJECTS.SALES_OWNER] as { name?: string } | undefined
+    const rawOwner = f[PROJECTS.SALES_OWNER]
+    const ownerEntry = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner
+    const owner = (!ownerEntry || typeof ownerEntry === 'string') ? undefined : ownerEntry as { name?: string }
     rows.push({
       type: 'project',
       projectId: (f[PROJECTS.PROJECT_ID] as string) ?? '',

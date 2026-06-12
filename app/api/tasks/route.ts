@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getTasksByRole, getSedProjectIds } from '@/lib/airtable'
-import { getUserById } from '@/lib/db'
+import { getUserById, getSedProjectIdsByUserId } from '@/lib/db'
 import { Role } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
@@ -21,11 +21,16 @@ export async function GET(request: NextRequest) {
   try {
     let tasks
     if (role === 'sed' && !projectId) {
-      const dbUser = await getUserById(session.id)
-      const sedProjectIds = await getSedProjectIds({
+      const [dbUser, sqliteIds] = await Promise.all([
+        getUserById(session.id),
+        getSedProjectIdsByUserId(session.id),
+      ])
+      const airtableIds = await getSedProjectIds({
         sedAirtableMemberId: dbUser?.airtable_member_id ?? undefined,
         sedEmail: session.email,
       })
+      // Union both sources — SQLite covers projects created without airtable_member_id
+      const sedProjectIds = [...new Set([...airtableIds, ...sqliteIds])]
       tasks = await getTasksByRole(role, { sedProjectIds })
     } else {
       tasks = await getTasksByRole(role, { projectId })

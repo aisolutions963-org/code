@@ -9,7 +9,7 @@ export const GET = requireRole('superadmin')(async () => {
   ])
 
   const activeProjects = projects.filter(
-    (p) => !['Closed', 'Archived'].includes(p.projectStage),
+    (p) => !['Closed', 'Closed and active warranty', 'Warranty expired'].includes(p.projectStage),
   )
 
   const projectByHumanId = new Map<string, (typeof activeProjects)[0]>()

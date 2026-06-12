@@ -41,6 +41,7 @@ async function initDB(): Promise<void> {
       `CREATE TABLE IF NOT EXISTS notifications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         recipient_role TEXT NOT NULL,
+        recipient_user_id INTEGER,
         title TEXT NOT NULL,
         body TEXT NOT NULL DEFAULT '',
         link TEXT NOT NULL DEFAULT '',
@@ -52,10 +53,23 @@ async function initDB(): Promise<void> {
         value TEXT NOT NULL,
         updated_at TEXT DEFAULT (datetime('now'))
       )`,
+      `CREATE TABLE IF NOT EXISTS sed_projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_airtable_id TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        UNIQUE(project_airtable_id, user_id),
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      )`,
       `INSERT OR IGNORE INTO settings (key, value) VALUES ('accountant_email', 'aisolutions963@gmail.com')`,
     ],
     'write',
   )
+  // Migrate existing notifications table: add recipient_user_id if missing
+  try {
+    await c.execute(`ALTER TABLE notifications ADD COLUMN recipient_user_id INTEGER`)
+  } catch {
+    // Column already exists — expected on fresh DBs or after first migration
+  }
 }
 
 export async function db(): Promise<Client> {
@@ -121,6 +135,15 @@ export async function getAllUsers(): Promise<Omit<DBUser, 'hashed_password'>[]> 
   return rows<Omit<DBUser, 'hashed_password'>>(result)
 }
 
+export async function getUsersByRole(role: string): Promise<Omit<DBUser, 'hashed_password'>[]> {
+  const c = await db()
+  const result = await c.execute({
+    sql: 'SELECT id, name, email, role, active, airtable_member_id, created_at, updated_at FROM users WHERE role = ? AND active = 1',
+    args: [role],
+  })
+  return rows<Omit<DBUser, 'hashed_password'>>(result)
+}
+
 export async function createUser(user: {
   name: string
   email: string
@@ -171,6 +194,32 @@ export async function deleteUser(id: number): Promise<void> {
     sql: `UPDATE users SET active = 0, updated_at = datetime('now') WHERE id = ?`,
     args: [id],
   })
+}
+
+export async function getUserByAirtableMemberId(memberId: string): Promise<DBUser | undefined> {
+  const c = await db()
+  const result = await c.execute({
+    sql: 'SELECT * FROM users WHERE airtable_member_id = ? AND active = 1',
+    args: [memberId],
+  })
+  return row<DBUser>(result)
+}
+
+export async function addSedProjectMapping(projectAirtableId: string, userId: number): Promise<void> {
+  const c = await db()
+  await c.execute({
+    sql: 'INSERT OR IGNORE INTO sed_projects (project_airtable_id, user_id) VALUES (?, ?)',
+    args: [projectAirtableId, userId],
+  })
+}
+
+export async function getSedProjectIdsByUserId(userId: number): Promise<string[]> {
+  const c = await db()
+  const result = await c.execute({
+    sql: 'SELECT project_airtable_id FROM sed_projects WHERE user_id = ?',
+    args: [userId],
+  })
+  return rows<{ project_airtable_id: string }>(result).map((r) => r.project_airtable_id)
 }
 
 export async function getSetting(key: string): Promise<string | undefined> {

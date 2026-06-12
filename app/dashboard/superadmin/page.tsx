@@ -1,20 +1,22 @@
-'use client'
+﻿'use client'
 
-import { useState, useCallback, Fragment } from 'react'
+import { useState, useCallback, Fragment, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate as globalMutate } from 'swr'
+import { todayUAE } from '@/lib/dateUtils'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { Project, MaintenanceRecord, Announcement, Payment, Task, TaskUpdateInput } from '@/lib/types'
+import { Project, MaintenanceRecord, Announcement, Payment, Task, TaskUpdateInput, Client } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import TaskList from '@/components/tasks/TaskList'
-import PaymentCalendar from '@/components/projects/PaymentCalendar'
+import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
+import { useSession } from '@/app/dashboard/layout-client'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
-import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
+import AllMaterialsView from '@/components/materials/AllMaterialsView'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -34,7 +36,7 @@ type Page =
 
 interface SedMember { id: string; name: string }
 
-const UAE_EMIRATES = ['Dubai', 'Abu Dabei', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
+const UAE_EMIRATES = ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
 const DUBAI_LOCATIONS = [
   'Abu Hail', 'Al Baraha', 'Al Barsha', 'Al Bastakiya', 'Al Buteen', 'Al Dhagaya',
   'Al Garhoud', 'Al Hamriya', 'Al Hudaiba', 'Al Jaddaf', 'Al Jafilia', 'Al Karama',
@@ -86,9 +88,11 @@ interface SedStat {
   open: number
   closed: number
   notApproved: number
+  totalPaid: number
+  commission: number
 }
 
-type ReportCategory = 'Sales' | 'Accountant' | 'Material' | 'Calendar'
+type ReportCategory = 'Sales' | 'Accountant' | 'Material' | 'Calendar' | 'Clients'
 
 interface ReportItem {
   name: string
@@ -127,6 +131,11 @@ const REPORT_TABS: { category: ReportCategory; color: string; reports: ReportIte
   {
     category: 'Calendar',
     color: 'text-yellow-700 bg-yellow-50 border-yellow-200',
+    reports: [],
+  },
+  {
+    category: 'Clients',
+    color: 'text-sky-700 bg-sky-50 border-sky-200',
     reports: [],
   },
 ]
@@ -219,7 +228,7 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
 
   const chartData = selectedSed
     ? [
-        { name: 'Preparing', value: data.find((d) => d.sedName === selectedSed)?.preparing ?? 0, fill: '#92400E' },
+        { name: 'Preparing', value: data.find((d) => d.sedName === selectedSed)?.preparing ?? 0, fill: '#3b82f6' },
         { name: 'Open', value: data.find((d) => d.sedName === selectedSed)?.open ?? 0, fill: '#16a34a' },
         { name: 'Closed', value: data.find((d) => d.sedName === selectedSed)?.closed ?? 0, fill: '#f9a8d4' },
         { name: 'Not Approved', value: data.find((d) => d.sedName === selectedSed)?.notApproved ?? 0, fill: '#dc2626' },
@@ -263,7 +272,7 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
         {/* Legend */}
         <div className="flex gap-4 text-xs text-gray-500 mb-3">
           {[
-            { label: 'Preparing', color: '#92400E' },
+            { label: 'Preparing', color: '#3b82f6' },
             { label: 'Open', color: '#16a34a' },
             { label: 'Closed', color: '#f9a8d4' },
             { label: 'Not Approved', color: '#dc2626' },
@@ -302,39 +311,271 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
               <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Bar dataKey="preparing" fill="#92400E" radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
+              <Bar dataKey="preparing" fill="#3b82f6" radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
               <Bar dataKey="open" fill="#16a34a" radius={[0, 0, 0, 0]} name="Open" stackId="a" />
               <Bar dataKey="closed" fill="#f9a8d4" radius={[0, 0, 0, 0]} name="Closed" stackId="a" />
               <Bar dataKey="notApproved" fill="#dc2626" radius={[0, 3, 3, 0]} name="Not Approved" stackId="a" />
             </BarChart>
           )}
         </ResponsiveContainer>
+
+        {/* Commission summary table */}
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Commission (1.5% of paid)</p>
+          <div className="space-y-1">
+            {(selectedSed ? data.filter((d) => d.sedName === selectedSed) : data).map((d) => (
+              <div key={d.sedName} className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-gray-600 font-medium truncate">{d.sedName}</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-gray-400">Paid: AED {d.totalPaid.toLocaleString()}</span>
+                  <span className="font-semibold text-emerald-600">AED {d.commission.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
-function ReportsSection() {
-  const [activeTab, setActiveTab] = useState<ReportCategory>('Sales')
-  const [downloading, setDownloading] = useState<string | null>(null)
+// ─── Clients Report View ─────────────────────────────────────────────────────
 
-  async function downloadReport(route: string, name: string) {
-    setDownloading(route)
+function ClientsReportView() {
+  const { data: clientsData, isLoading: clientsLoading } = useSWR<{ clients: Client[] }>('/api/clients', fetcher)
+  const { data: projectsData, isLoading: projectsLoading } = useSWR<{ projects: Project[] }>('/api/projects', fetcher)
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState<string | null>(null)
+  const [dlError, setDlError] = useState<string | null>(null)
+
+  const clients = clientsData?.clients ?? []
+  const projects = projectsData?.projects ?? []
+
+  const projectsByClient = useMemo(() => {
+    const map = new Map<string, Project[]>()
+    for (const p of projects) {
+      const key = p.clientName.toLowerCase()
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(p)
+    }
+    return map
+  }, [projects])
+
+  const filtered = clients.filter((c) =>
+    !search.trim() || c.clientName.toLowerCase().includes(search.toLowerCase()),
+  )
+
+  async function downloadClient(clientName: string) {
+    setDownloading(clientName)
+    setDlError(null)
     try {
-      const from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-      const res = await fetch(`/api/reports/download/${route}?from=${from}`)
+      const res = await fetch(`/api/reports/download/client-projects?clientName=${encodeURIComponent(clientName)}`)
       if (!res.ok) throw new Error('Download failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `Client_${clientName.replace(/\s+/g, '_')}_${todayUAE()}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch {
-      window.alert('Download failed. Please try again.')
+      setDlError('Download failed. Please try again.')
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  const isLoading = clientsLoading || projectsLoading
+
+  const STAGE_COLOR: Record<string, string> = {
+    Preparing: 'bg-amber-100 text-amber-700',
+    Open: 'bg-green-100 text-green-700',
+    Production: 'bg-blue-100 text-blue-700',
+    Closed: 'bg-gray-100 text-gray-500',
+    'Not-Approved': 'bg-red-100 text-red-600',
+    'Closed and active warranty': 'bg-teal-100 text-teal-700',
+    'Warranty expired': 'bg-gray-100 text-gray-400',
+  }
+
+  return (
+    <div className="space-y-3 pb-2">
+      {dlError && (
+        <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center justify-between">
+          <span>{dlError}</span>
+          <button onClick={() => setDlError(null)} className="ml-2 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
+        </svg>
+        <input
+          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+          placeholder="Search clients…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {isLoading && (
+        <div className="flex justify-center py-8">
+          <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {!isLoading && filtered.length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-6">No clients found</p>
+      )}
+
+      {!isLoading && filtered.map((client) => {
+        const clientProjects = projectsByClient.get(client.clientName.toLowerCase()) ?? []
+        const isOpen = expanded === client.id
+        const totalValue = clientProjects.reduce((s, p) => s + (p.projectTotalCost ?? 0), 0)
+        const totalPaid = clientProjects.reduce((s, p) => s + (p.totalPaid ?? 0), 0)
+
+        return (
+          <div key={client.id} className="border border-gray-200 rounded-xl overflow-hidden">
+            {/* Client header row */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-sky-50 hover:bg-sky-100 transition-colors">
+              <button
+                className="flex-1 flex items-center gap-3 text-left min-w-0"
+                onClick={() => setExpanded(isOpen ? null : client.id)}
+              >
+                <div className="w-8 h-8 rounded-full bg-sky-200 flex items-center justify-center shrink-0 text-sky-700 font-bold text-sm">
+                  {client.clientName.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{client.clientName}</p>
+                  <p className="text-xs text-gray-400">
+                    {client.phone && <span className="mr-3">{client.phone}</span>}
+                    <span>{clientProjects.length} project{clientProjects.length !== 1 ? 's' : ''}</span>
+                    {totalValue > 0 && <span className="ml-3 text-sky-600 font-medium">AED {totalValue.toLocaleString()}</span>}
+                  </p>
+                </div>
+                <svg
+                  className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ml-auto ${isOpen ? 'rotate-180' : ''}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <button
+                onClick={() => downloadClient(client.clientName)}
+                disabled={downloading === client.clientName}
+                title="Download Excel report"
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-sky-300 text-sky-700 hover:bg-sky-200 disabled:opacity-50 transition-colors"
+              >
+                {downloading === client.clientName ? (
+                  <div className="w-3 h-3 border border-sky-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )}
+                Excel
+              </button>
+            </div>
+
+            {/* Expanded: project list */}
+            {isOpen && (
+              <div className="divide-y divide-gray-100">
+                {clientProjects.length === 0 ? (
+                  <p className="px-4 py-4 text-sm text-gray-400 italic">No projects found for this client</p>
+                ) : (
+                  <>
+                    {clientProjects.map((p) => (
+                      <div key={p.id} className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-gray-50">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono text-gray-400">{p.projectId}</span>
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STAGE_COLOR[p.projectStage] ?? 'bg-gray-100 text-gray-500'}`}
+                            >
+                              {p.projectStage}
+                            </span>
+                          </div>
+                          <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{p.projectName}</p>
+                          {(p.emirate || p.location) && (
+                            <p className="text-xs text-gray-400 truncate">{[p.emirate, p.location].filter(Boolean).join(' — ')}</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0 text-xs">
+                          {(p.projectTotalCost ?? 0) > 0 && (
+                            <>
+                              <p className="font-semibold text-gray-700">AED {(p.projectTotalCost ?? 0).toLocaleString()}</p>
+                              <p className="text-gray-400">Paid: {(p.totalPaid ?? 0).toLocaleString()}</p>
+                              {(p.remainingBalance ?? 0) > 0 && (
+                                <p className="text-red-500">Due: {(p.remainingBalance ?? 0).toLocaleString()}</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {/* Summary row */}
+                    <div className="px-4 py-2.5 bg-gray-50 flex justify-between text-xs font-semibold text-gray-600">
+                      <span>{clientProjects.length} project{clientProjects.length !== 1 ? 's' : ''} total</span>
+                      <span>
+                        AED {totalValue.toLocaleString()} &nbsp;·&nbsp; Paid {totalPaid.toLocaleString()} &nbsp;·&nbsp;
+                        <span className="text-red-500">Due {(totalValue - totalPaid).toLocaleString()}</span>
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Reports Section ─────────────────────────────────────────────────────────
+
+function quarterBounds(year: number, q: number): { from: string; to: string; label: string } {
+  const startMonth = (q - 1) * 3
+  const from = new Date(year, startMonth, 1)
+  const to   = new Date(year, startMonth + 3, 0) // last day of last month
+  const fmt  = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const label = `${months[startMonth]} – ${months[startMonth + 2]} ${year}`
+  return { from: fmt(from), to: fmt(to), label }
+}
+
+function ReportsSection() {
+  const now = new Date()
+  const curYear = now.getFullYear()
+  const curQ    = Math.ceil((now.getMonth() + 1) / 3)
+
+  const [activeTab, setActiveTab] = useState<ReportCategory>('Sales')
+  const [downloading, setDownloading] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [year, setYear] = useState(curYear)
+  const [q, setQ] = useState(curQ)
+
+  const { from, to, label } = quarterBounds(year, q)
+
+  async function downloadReport(route: string, name: string) {
+    setDownloading(route)
+    setDownloadError(null)
+    try {
+      const res = await fetch(`/api/reports/download/${route}?from=${from}&to=${to}`)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${name.replace(/\s+/g, '_')}_Q${q}_${year}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      setDownloadError('Download failed. Please try again.')
     } finally {
       setDownloading(null)
     }
@@ -346,12 +587,37 @@ function ReportsSection() {
     Accountant: 'bg-red-600 text-white border-red-600',
     Material: 'bg-purple-600 text-white border-purple-600',
     Calendar: 'bg-yellow-500 text-white border-yellow-500',
+    Clients: 'bg-sky-600 text-white border-sky-600',
   }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100">
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-4 flex-wrap">
         <p className="text-sm font-semibold text-gray-700">Reports</p>
+        {/* Quarter selector */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Year */}
+          <div className="flex items-center gap-1">
+            <button onClick={() => setYear(y => y - 1)} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xs">‹</button>
+            <span className="text-xs font-semibold text-gray-700 w-10 text-center">{year}</span>
+            <button onClick={() => setYear(y => y + 1)} disabled={year >= curYear} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xs disabled:opacity-30">›</button>
+          </div>
+          {/* Quarter buttons */}
+          <div className="flex gap-1">
+            {[1, 2, 3, 4].map((n) => (
+              <button
+                key={n}
+                onClick={() => setQ(n)}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md border transition-colors ${
+                  q === n ? 'bg-gray-800 text-white border-gray-800' : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700'
+                }`}
+              >
+                Q{n}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs text-gray-400">{label}</span>
+        </div>
       </div>
       {/* Tabs */}
       <div className="flex gap-2 px-5 pt-4 pb-2">
@@ -368,9 +634,21 @@ function ReportsSection() {
         ))}
       </div>
 
+      {/* Download error */}
+      {downloadError && (
+        <div className="mx-5 mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center justify-between">
+          <span>{downloadError}</span>
+          <button onClick={() => setDownloadError(null)} className="ml-2 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
+
       {/* Report list */}
-      <div className="px-5 pb-4">
-        {currentTab.reports.length === 0 ? (
+      <div className={activeTab === 'Calendar' ? '' : 'px-5 pb-4'}>
+        {activeTab === 'Calendar' ? (
+          <CalendarPage />
+        ) : activeTab === 'Clients' ? (
+          <ClientsReportView />
+        ) : currentTab.reports.length === 0 ? (
           <p className="text-sm text-gray-400 py-6 text-center">Coming soon</p>
         ) : (
           <div className="divide-y divide-gray-50">
@@ -408,10 +686,10 @@ function OverviewPage() {
     '/api/superadmin/kpi-counts', fetcher,
   )
   const { data: sedData, isLoading: sedLoading } = useSWR<{ seds: string[]; data: SedStat[] }>(
-    '/api/superadmin/sed-stats', fetcher, { refreshInterval: 30000 },
+    '/api/superadmin/sed-stats', fetcher, { refreshInterval: 300_000 },
   )
   const { data: tasksData, isLoading: tasksLoading, mutate: mutateTasks } = useSWR<{ tasks: Task[] }>(
-    '/api/tasks', fetcher, { refreshInterval: 30000 },
+    '/api/tasks', fetcher, { refreshInterval: 300_000 },
   )
   const [showNewProject, setShowNewProject] = useState(false)
 
@@ -464,9 +742,9 @@ function OverviewPage() {
         <KpiCard label="Open" value={kpi?.open ?? 0} href={`${BASE_PROJECTS_URL}&stage=Open`} downloadHref="/api/reports/download/projects-by-stage?stage=Open" loading={kpiLoading} />
         <KpiCard label="Not Approved" value={kpi?.notApproved ?? 0} href={`${BASE_PROJECTS_URL}&stage=Not-Approved`} downloadHref="/api/reports/download/projects-by-stage?stage=Not-Approved" loading={kpiLoading} />
         <KpiCard label="Finished" value={kpi?.finished ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed" loading={kpiLoading} />
-        <KpiCard label="Maintenance Active" value={kpi?.maintenanceActive ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Valid+Maintenance`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+%26+Valid+Maintenance" loading={kpiLoading} />
+        <KpiCard label="Active Warranty" value={kpi?.maintenanceActive ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+and+active+warranty`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+and+active+warranty" loading={kpiLoading} />
         <KpiCard label="Finished — Not Paid" value={kpi?.finishedUnpaid ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed&unpaid=true`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed&unpaid=true" loading={kpiLoading} />
-        <KpiCard label="Maintenance Expired" value={kpi?.maintenanceExpired ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+%26+Warranty+Done`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+%26+Warranty+Done" loading={kpiLoading} />
+        <KpiCard label="Warranty Expired" value={kpi?.maintenanceExpired ?? 0} href={`${BASE_PROJECTS_URL}&stage=Warranty+expired`} downloadHref="/api/reports/download/projects-by-stage?stage=Warranty+expired" loading={kpiLoading} />
       </div>
 
       {/* ── Section 2: SED Performance Chart ───────────────── */}
@@ -548,36 +826,13 @@ function OverviewPage() {
   )
 }
 
-function RequestMeasurementButton({ projectId }: { projectId: string }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error' | 'exists'>('idle')
 
-  async function request() {
-    setState('loading')
-    try {
-      const res = await fetch(`/api/projects/${projectId}/request-measurement`, { method: 'POST' })
-      if (res.status === 409) { setState('exists'); return }
-      if (!res.ok) throw new Error()
-      setState('done')
-    } catch {
-      setState('error')
-    }
-  }
 
-  if (state === 'done') return <span className="text-xs text-green-600 font-medium whitespace-nowrap">✓ Sent</span>
-  if (state === 'exists') return <span className="text-xs text-gray-400 font-medium whitespace-nowrap">Already sent</span>
-  if (state === 'error') return <button onClick={request} className="text-xs text-red-500 underline">Retry</button>
-
-  return (
-    <Button size="sm" variant="secondary" loading={state === 'loading'} onClick={request}>
-      📐 Measure
-    </Button>
-  )
-}
-
-function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onReopen: (id: string) => Promise<void>; onNotesSaved?: () => void }) {
+function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onReopen: (id: string) => Promise<void>; onDisapprove: (id: string) => Promise<void>; onNotesSaved?: () => void }) {
   const [loading, setLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
   const [reopenLoading, setReopenLoading] = useState(false)
+  const [disapproveLoading, setDisapproveLoading] = useState(false)
   const [err, setErr] = useState('')
   const [genMsg, setGenMsg] = useState('')
   const [expanded, setExpanded] = useState(false)
@@ -591,6 +846,12 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }:
   async function reopen() {
     setReopenLoading(true); setErr('')
     try { await onReopen(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setReopenLoading(false) }
+  }
+
+  async function disapprove() {
+    if (!window.confirm(`Mark "${p.projectName}" as Not-Approved? This will notify the SED and manager.`)) return
+    setDisapproveLoading(true); setErr('')
+    try { await onDisapprove(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setDisapproveLoading(false) }
   }
 
   async function generateTasks(force = false) {
@@ -618,7 +879,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }:
     }
   }
 
-  const canGenerate = p.projectStage === 'Preparing' || p.projectStage === 'Open'
+  const canGenerate = p.projectStage === 'Preparing' || p.projectStage === 'Open' || p.projectStage === 'Production'
 
   const address = [p.detailedLocation, p.location, p.emirate].filter(Boolean).join(', ')
 
@@ -651,7 +912,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }:
         </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">
-          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : 'gray'}>
+          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : p.projectStage === 'Production' ? 'green' : 'gray'}>
             {p.projectStage}
           </Badge>
         </td>
@@ -666,8 +927,16 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }:
                 ⚡ Tasks
               </Button>
             )}
-            {(p.projectStage === 'Preparing' || p.projectStage === 'Open') && (
-              <RequestMeasurementButton projectId={p.id} />
+            {p.projectStage !== 'Not-Approved' && p.projectStage !== 'Closed' && p.projectStage !== 'Closed and active warranty' && p.projectStage !== 'Warranty expired' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={disapproveLoading}
+                onClick={disapprove}
+                className="text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"
+              >
+                ✕ Not Approved
+              </Button>
             )}
             {p.projectStage === 'Not-Approved' && (
               <Button
@@ -680,7 +949,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onNotesSaved }:
                 ↩ Reopen
               </Button>
             )}
-            {p.projectStage !== 'Closed' && p.projectStage !== 'Not-Approved' && (
+            {p.projectStage !== 'Closed' && p.projectStage !== 'Not-Approved' && p.projectStage !== 'Closed and active warranty' && p.projectStage !== 'Warranty expired' && (
               <Button size="sm" variant="secondary" loading={loading} onClick={advance}>Advance →</Button>
             )}
             <Button
@@ -785,7 +1054,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 function TimelinePage() {
   const { data, isLoading } = useSWR<{ projects: TimelineProject[] }>(
-    '/api/superadmin/timeline', fetcher, { refreshInterval: 60000 },
+    '/api/superadmin/timeline', fetcher, { refreshInterval: 300_000 },
   )
 
   if (isLoading) return <Spinner />
@@ -901,9 +1170,11 @@ function TimelinePage() {
 
 function PhasesPage() {
   const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
-  const projects = (data?.projects ?? []).filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
+  const projects = (data?.projects ?? []).filter(
+    (p) => !['Closed', 'Closed and active warranty', 'Warranty expired', 'Not-Approved'].includes(p.projectStage),
+  )
 
   async function handleAdvance(id: string) {
     const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
@@ -1001,18 +1272,90 @@ function PhaseGateCard({ project: p, onAdvance }: { project: Project; onAdvance:
   )
 }
 
-// ─── Page 4: All Team Activity ────────────────────────────────────────────────
+// ─── Page 4: Team Activity ────────────────────────────────────────────────────
 
 type Dept = 'All' | 'SED' | 'Fabrication' | 'Installation' | 'Management'
 const DEPTS: Dept[] = ['All', 'SED', 'Fabrication', 'Installation', 'Management']
 
-function ActivityPage() {
-  const [dept, setDept] = useState<Dept>('All')
-  const { data, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
-    '/api/tasks', fetcher, { refreshInterval: 60000 },
-  )
-  const tasks = data?.tasks ?? []
+interface TeamTask { id: string; taskName: string; status: string; department: string[]; projectRef: string; projectRecordId: string }
+interface TeamGroup { name: string; role: string; userId: number; tasks: TeamTask[] }
 
+const ROLE_LABELS: Record<string, string> = { superadmin: 'Superadmin', manager: 'Manager', sed: 'SED', fabrication: 'Fabrication', installation: 'Installation' }
+const ROLE_COLORS: Record<string, string> = { superadmin: 'bg-brand-100 text-brand-700', manager: 'bg-green-100 text-green-700', sed: 'bg-purple-100 text-purple-700', fabrication: 'bg-amber-100 text-amber-700', installation: 'bg-blue-100 text-blue-700' }
+
+function PersonSection({ group }: { group: TeamGroup }) {
+  const [expanded, setExpanded] = useState(false)
+  const roleLabel = ROLE_LABELS[group.role] ?? group.role
+  const roleColor = ROLE_COLORS[group.role] ?? 'bg-gray-100 text-gray-600'
+  const activeTasks = group.tasks.filter((t) => t.status !== 'Locked' && t.status !== 'Completed')
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-gray-500">{group.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}</span>
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-gray-900">{group.name}</p>
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${roleColor}`}>{roleLabel}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {activeTasks.length > 0 && (
+            <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full">{activeTasks.length} active</span>
+          )}
+          <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-t border-gray-100">
+          {activeTasks.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-gray-400">No active tasks.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Task</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {activeTasks.map((t) => (
+                  <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef || '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-800 max-w-xs truncate">{t.taskName}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') || '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <Badge variant={({ 'In Progress': 'blue', 'Completed': 'green', 'Pending Approval': 'orange', 'To Do': 'gray', 'Locked': 'gray' } as Record<string, 'blue'|'green'|'orange'|'gray'|'red'>)[t.status] ?? 'gray'} size="sm">{t.status}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ActivityPage() {
+  const [viewMode, setViewMode] = useState<'task' | 'person'>('task')
+  const [dept, setDept] = useState<Dept>('All')
+
+  const { data, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
+    '/api/tasks', fetcher, { refreshInterval: 300_000 },
+  )
+  const { data: teamData, isLoading: teamLoading } = useSWR<{ groups: TeamGroup[] }>(
+    viewMode === 'person' ? '/api/superadmin/team-tasks' : null,
+    fetcher, { refreshInterval: 300_000 },
+  )
+
+  const tasks = data?.tasks ?? []
   const filtered = dept === 'All' ? tasks : tasks.filter((t) => t.department?.includes(dept))
 
   async function toggleFlag(task: Task) {
@@ -1024,7 +1367,6 @@ function ActivityPage() {
     mutate()
   }
 
-  // Monthly completions chart data
   const monthlyData = (() => {
     const map: Record<string, number> = {}
     for (const t of tasks) {
@@ -1043,93 +1385,100 @@ function ActivityPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">All Team Activity</h2>
-        <p className="text-sm text-gray-500">{tasks.length} tasks across all departments</p>
-      </div>
-
-      {/* Monthly chart */}
-      {monthlyData.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Monthly Completions (last 6 months)</p>
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart data={monthlyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Bar dataKey="count" fill="#6366f1" radius={[3, 3, 0, 0]} name="Completed" />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Team Activity</h2>
+          <p className="text-sm text-gray-500">{tasks.length} tasks across all departments</p>
         </div>
-      )}
-
-      {/* Dept tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
-        {DEPTS.map((d) => (
-          <button
-            key={d}
-            onClick={() => setDept(d)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${dept === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            {d}
-          </button>
-        ))}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg shrink-0">
+          <button onClick={() => setViewMode('task')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'task' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>By Task</button>
+          <button onClick={() => setViewMode('person')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'person' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>By Person</button>
+        </div>
       </div>
 
-      {/* Task table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="w-8 px-3 py-2.5" />
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Task</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((t) => {
-                const isCallClient = t.taskName.toLowerCase().includes('call the client') && t.status === 'To Do'
-                return (
-                  <tr key={t.id} className={isCallClient ? 'bg-teal-50 border-l-4 border-l-teal-400' : 'hover:bg-gray-50'}>
-                    <td className="px-3 py-2.5 text-center">
-                      <button onClick={() => toggleFlag(t)} title="Toggle priority">
-                        <span className={`text-sm ${t.priorityFlag ? 'text-red-500' : 'text-gray-200 hover:text-gray-400'}`}>⚑</span>
-                      </button>
-                    </td>
-                    <td className="px-4 py-2.5 max-w-xs truncate">
-                      {isCallClient ? (
-                        <span className="flex items-center gap-1.5">
-                          <svg className="w-3.5 h-3.5 text-teal-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                          <span className="font-semibold text-teal-800">{t.taskName}</span>
-                        </span>
-                      ) : (
-                        <span className="text-gray-800">{t.taskName}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') ?? '—'}</td>
-                    <td className="px-4 py-2.5">
-                      <TaskStatusBadge status={t.status} />
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef ?? t.project?.[0] ?? '—'}</td>
+      {viewMode === 'task' ? (
+        <>
+          {monthlyData.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Monthly Completions (last 6 months)</p>
+              <ResponsiveContainer width="100%" height={140}>
+                <BarChart data={monthlyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Bar dataKey="count" fill="#6366f1" radius={[3, 3, 0, 0]} name="Completed" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+            {DEPTS.map((d) => (
+              <button key={d} onClick={() => setDept(d)} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${dept === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{d}</button>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="w-8 px-3 py-2.5" />
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Task</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
                   </tr>
-                )
-              })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-sm text-gray-400">No tasks.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map((t) => {
+                    const isCallClient = t.taskName.toLowerCase().includes('call the client') && t.status === 'To Do'
+                    return (
+                      <tr key={t.id} className={isCallClient ? 'bg-teal-50 border-l-4 border-l-teal-400' : 'hover:bg-gray-50'}>
+                        <td className="px-3 py-2.5 text-center">
+                          <button onClick={() => toggleFlag(t)} title="Toggle priority">
+                            <span className={`text-sm ${t.priorityFlag ? 'text-red-500' : 'text-gray-200 hover:text-gray-400'}`}>⚑</span>
+                          </button>
+                        </td>
+                        <td className="px-4 py-2.5 max-w-xs truncate">
+                          {isCallClient ? (
+                            <span className="flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 text-teal-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                              <span className="font-semibold text-teal-800">{t.taskName}</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-800">{t.taskName}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') ?? '—'}</td>
+                        <td className="px-4 py-2.5"><TaskStatusBadge status={t.status} /></td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef ?? t.project?.[0] ?? '—'}</td>
+                      </tr>
+                    )
+                  })}
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={5} className="text-center py-8 text-sm text-gray-400">No tasks.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {teamLoading ? <Spinner /> : (teamData?.groups ?? []).length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <p className="text-sm text-gray-400">No active tasks found across the team.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(teamData?.groups ?? []).map((g) => <PersonSection key={`${g.name}-${g.role}`} group={g} />)}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -1149,7 +1498,7 @@ function TaskStatusBadge({ status }: { status: string }) {
 
 function PaymentsPage() {
   const { data, isLoading } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -1265,7 +1614,7 @@ function PaymentDetail({
   )
   const payments = data?.project?.payments ?? []
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayUAE()
   const [form, setForm] = useState({
     amount: '',
     paymentType: 'Advance',
@@ -1282,9 +1631,89 @@ function PaymentDetail({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [ferr, setFerr] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<typeof form | null>(null)
+  const [editErr, setEditErr] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [cancelling, setCancelling] = useState<string | null>(null)
 
   function setF(key: string, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
+  }
+  function setEF(key: string, value: string) {
+    setEditForm((f) => f ? { ...f, [key]: value } : f)
+  }
+
+  function startEdit(pm: Payment) {
+    setEditingId(pm.id)
+    setEditErr('')
+    setEditForm({
+      amount: pm.amount.toString(),
+      paymentType: pm.paymentType,
+      paymentStatus: pm.paymentStatus,
+      paymentMethod: pm.paymentMethod,
+      referenceNo: pm.referenceNo ?? '',
+      receivedDate: pm.receivedDate ?? '',
+      dueDate: pm.dueDate ?? '',
+      payerType: pm.payerType ?? '',
+      payerName: pm.payerName ?? '',
+      commission: pm.commissionAmount?.toString() ?? '',
+      notes: pm.notes ?? '',
+    })
+    setShowForm(false)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditForm(null)
+    setEditErr('')
+  }
+
+  async function doVoid(pm: Payment) {
+    if (!confirm(`Void this ${pm.paymentType} payment of AED ${pm.amount.toLocaleString()}? This cannot be undone.`)) return
+    setCancelling(pm.id)
+    try {
+      const res = await fetch(`/api/payments/${pm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentStatus: 'Cancelled' }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { setFerr((d as { error?: string }).error ?? 'Failed to void payment') }
+      else { mutate(); globalMutate('/api/projects?all=true') }
+    } catch { setFerr('Failed to void payment') }
+    finally { setCancelling(null) }
+  }
+
+  async function submitEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingId || !editForm) return
+    if (!editForm.amount || parseFloat(editForm.amount) <= 0) { setEditErr('Amount is required'); return }
+    setEditSaving(true); setEditErr('')
+    try {
+      const body: Record<string, unknown> = {
+        amount: parseFloat(editForm.amount),
+        paymentType: editForm.paymentType,
+        paymentStatus: editForm.paymentStatus,
+        paymentMethod: editForm.paymentMethod,
+      }
+      if (editForm.referenceNo.trim()) body.referenceNo = editForm.referenceNo.trim()
+      if (editForm.receivedDate) body.receivedDate = editForm.receivedDate
+      if (editForm.dueDate) body.dueDate = editForm.dueDate
+      if (editForm.payerType) body.payerType = editForm.payerType
+      if (editForm.payerName.trim()) body.payerName = editForm.payerName.trim()
+      if (editForm.payerType === 'Broker' && editForm.commission) body.commissionAmount = parseFloat(editForm.commission)
+      if (editForm.notes.trim()) body.notes = editForm.notes.trim()
+      const res = await fetch(`/api/payments/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { setEditErr((d as { error?: string }).error ?? 'Failed to update') }
+      else { cancelEdit(); mutate(); globalMutate('/api/projects?all=true') }
+    } catch { setEditErr('Failed to update payment') }
+    finally { setEditSaving(false) }
   }
 
   async function submitPayment(e: React.FormEvent) {
@@ -1334,30 +1763,132 @@ function PaymentDetail({
 
   return (
     <div className="space-y-3">
+      {ferr && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{ferr}</p>}
       {payments.length > 0 && (
         <table className="w-full text-xs">
           <thead>
             <tr className="text-gray-500">
-              <th className="text-left py-1 pr-4">Type</th>
-              <th className="text-left py-1 pr-4">Status</th>
-              <th className="text-right py-1 pr-4">Amount</th>
-              <th className="text-left py-1 pr-4">Method</th>
-              <th className="text-left py-1">Date</th>
+              <th className="text-left py-1 pr-3">Type</th>
+              <th className="text-left py-1 pr-3">Status</th>
+              <th className="text-right py-1 pr-3">Amount</th>
+              <th className="text-left py-1 pr-3">Method</th>
+              <th className="text-left py-1 pr-3">Date</th>
+              <th className="text-left py-1 pr-3">Stage</th>
+              <th className="text-right py-1">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {payments.map((pm) => (
-              <tr key={pm.id}>
-                <td className="py-1.5 pr-4 text-gray-700">{pm.paymentType}</td>
-                <td className="py-1.5 pr-4">
-                  <Badge variant={pm.paymentStatus === 'Received' ? 'green' : pm.paymentStatus === 'Pending' ? 'orange' : 'gray'} size="sm">
-                    {pm.paymentStatus}
-                  </Badge>
-                </td>
-                <td className="py-1.5 pr-4 text-right font-mono text-gray-800">AED {pm.amount.toLocaleString()}</td>
-                <td className="py-1.5 pr-4 text-gray-500">{pm.paymentMethod}</td>
-                <td className="py-1.5 text-gray-400">{pm.receivedDate ?? pm.dueDate ?? '—'}</td>
-              </tr>
+              <Fragment key={pm.id}>
+                <tr className={pm.paymentStatus === 'Cancelled' ? 'opacity-50 line-through' : ''}>
+                  <td className="py-1.5 pr-3 text-gray-700">{pm.paymentType}</td>
+                  <td className="py-1.5 pr-3">
+                    <Badge variant={pm.paymentStatus === 'Received' ? 'green' : pm.paymentStatus === 'Pending' ? 'orange' : 'gray'} size="sm">
+                      {pm.paymentStatus}
+                    </Badge>
+                  </td>
+                  <td className="py-1.5 pr-3 text-right font-mono text-gray-800">AED {pm.amount.toLocaleString()}</td>
+                  <td className="py-1.5 pr-3 text-gray-500">{pm.paymentMethod}</td>
+                  <td className="py-1.5 pr-3 text-gray-400">{pm.receivedDate ?? pm.dueDate ?? '—'}</td>
+                  <td className="py-1.5 pr-3 text-gray-400">{pm.stageAtPayment ?? '—'}</td>
+                  <td className="py-1.5 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => editingId === pm.id ? cancelEdit() : startEdit(pm)}
+                      className="text-xs text-blue-600 hover:underline mr-2"
+                    >
+                      {editingId === pm.id ? 'Discard' : 'Edit'}
+                    </button>
+                    {pm.paymentStatus !== 'Cancelled' && (
+                      <button
+                        onClick={() => doVoid(pm)}
+                        disabled={cancelling === pm.id}
+                        className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                      >
+                        {cancelling === pm.id ? '…' : 'Void'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+                {editingId === pm.id && editForm && (
+                  <tr>
+                    <td colSpan={7} className="pb-3 pt-1 bg-blue-50/50">
+                      <form onSubmit={submitEdit} className="grid grid-cols-2 gap-3 p-3 bg-white rounded-lg border border-blue-200">
+                        {editErr && <p className="col-span-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{editErr}</p>}
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Date</label>
+                          <input type="date" value={editForm.receivedDate} onChange={(e) => setEF('receivedDate', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Amount (AED) *</label>
+                          <input type="number" min="0" step="0.01" value={editForm.amount} onChange={(e) => setEF('amount', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Type</label>
+                          <select value={editForm.paymentType} onChange={(e) => setEF('paymentType', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment'].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Status</label>
+                          <select value={editForm.paymentStatus} onChange={(e) => setEF('paymentStatus', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            {['Received', 'Pending', 'Overdue', 'Cancelled'].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Method</label>
+                          <select value={editForm.paymentMethod} onChange={(e) => setEF('paymentMethod', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            {['Bank Transfer', 'Cash', 'Cheque'].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Reference No.</label>
+                          <input type="text" value={editForm.referenceNo} onChange={(e) => setEF('referenceNo', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Payer Type</label>
+                          <select value={editForm.payerType} onChange={(e) => setEF('payerType', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="">— select —</option>
+                            {['Broker', 'Contractor', 'End User', 'Designer'].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Payer Name</label>
+                          <input type="text" value={editForm.payerName} onChange={(e) => setEF('payerName', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        {editForm.payerType === 'Broker' && (
+                          <div className="col-span-2">
+                            <label className="text-xs text-gray-500 block mb-1">Commission Amount (AED)</label>
+                            <input type="number" min="0" step="0.01" value={editForm.commission} onChange={(e) => setEF('commission', e.target.value)}
+                              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Due Date</label>
+                          <input type="date" value={editForm.dueDate} onChange={(e) => setEF('dueDate', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                          <input type="text" value={editForm.notes} onChange={(e) => setEF('notes', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div className="col-span-2 flex items-center gap-3">
+                          <Button type="submit" size="sm" loading={editSaving}>Update Payment</Button>
+                          <button type="button" onClick={cancelEdit} className="text-xs text-gray-500 hover:underline">Discard</button>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -1455,7 +1986,7 @@ function PaymentDetail({
 
 function WarrantyPage() {
   const { data, isLoading } = useSWR<{ records: MaintenanceWithExtra[] }>(
-    '/api/maintenance', fetcher, { refreshInterval: 60000 },
+    '/api/maintenance', fetcher, { refreshInterval: 300_000 },
   )
   const records = data?.records ?? []
 
@@ -1525,21 +2056,13 @@ function WarrantyPage() {
 // ─── Page 7: User Management ──────────────────────────────────────────────────
 
 function UsersPage() {
+  // Redirect to the dedicated users sub-page which has the full management UI
+  if (typeof window !== 'undefined') {
+    window.location.replace('/dashboard/superadmin/users')
+  }
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">User Management</h2>
-        <p className="text-sm text-gray-500">Create, edit, and deactivate system users.</p>
-      </div>
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
-        <p className="text-sm text-gray-500 mb-4">Manage users in the dedicated users panel.</p>
-        <Link
-          href="/dashboard/superadmin/users"
-          className="inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors"
-        >
-          Open User Management →
-        </Link>
-      </div>
+    <div className="flex justify-center py-16">
+      <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 }
@@ -1564,7 +2087,7 @@ const EMPTY_FORM: AnnouncementForm = {
 
 function AnnouncementsPage() {
   const { data, isLoading, mutate } = useSWR<{ announcements: Announcement[] }>(
-    '/api/announcements', fetcher, { refreshInterval: 60000 },
+    '/api/announcements', fetcher, { refreshInterval: 300_000 },
   )
   const announcements = data?.announcements ?? []
   const [editing, setEditing] = useState<string | null>(null)
@@ -1738,16 +2261,27 @@ function AnnouncementsPage() {
   )
 }
 
-// ─── Page 9: Payment Calendar ─────────────────────────────────────────────────
+// ─── Page 9: Calendar ─────────────────────────────────────────────────────────
 
 function CalendarPage() {
+  const { name } = useSession()
+
+  const tabs: TabDef[] = [
+    { id: 'all',          label: 'All',               dot: 'bg-gray-400',   types: null,                                                  noAdd: true },
+    { id: 'activity',     label: 'Project Activity',  dot: 'bg-amber-400',  types: ['activity', 'fabrication'],                           canAddEvent: true },
+    { id: 'payments',     label: 'Payments',          dot: 'bg-green-500',  types: ['payment-received', 'payment-due', 'delivery'],        noAdd: true },
+    { id: 'personal',     label: 'My Activities',     dot: 'bg-purple-400', types: ['activity'], creatorFilter: name ?? undefined,         canAddEvent: true },
+    { id: 'installation', label: 'Installation',      dot: 'bg-blue-500',   types: ['installation', 'fabrication', 'delivery'],            showInstallAssign: true, canAddEvent: true },
+    { id: 'materials',    label: 'Material Delivery', dot: 'bg-yellow-400', types: ['delivery'],                                          noAdd: true },
+  ]
+
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Payment Calendar</h2>
-        <p className="text-sm text-gray-500">Monthly view of payments and deliveries</p>
+        <h2 className="text-lg font-semibold text-gray-900">Calendars</h2>
+        <p className="text-sm text-gray-500">All project and operational timelines in one place</p>
       </div>
-      <PaymentCalendar />
+      <UnifiedCalendar tabs={tabs} />
     </div>
   )
 }
@@ -2084,7 +2618,7 @@ function MyTasksPage() {
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks',
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true },
+    { refreshInterval: 300_000 },
   )
   const allTasks = data?.tasks ?? []
 
@@ -2181,12 +2715,7 @@ function MyTasksPage() {
 // ─── Materials ────────────────────────────────────────────────────────────────
 
 function MaterialsPage() {
-  const { data, isLoading } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
-  )
-  const projects = data?.projects ?? []
-  if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>
-  return <MaterialsReviewView projects={projects} />
+  return <AllMaterialsView role="superadmin" />
 }
 
 // ─── Page: All Projects ───────────────────────────────────────────────────────
@@ -2195,14 +2724,26 @@ function ProjectsPage() {
   const searchParams = useSearchParams()
   const stageFilter = searchParams.get('stage') ?? null
   const unpaidFilter = searchParams.get('unpaid') === 'true'
+  const [search, setSearch] = useState('')
 
   const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 30000 },
+    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
 
   const allProjects = data?.projects ?? []
   let filtered = stageFilter ? allProjects.filter((p) => p.projectStage === stageFilter) : allProjects
   if (unpaidFilter) filtered = filtered.filter((p) => (p.remainingBalance ?? 0) > 0)
+  if (search.trim()) {
+    const q = search.toLowerCase()
+    filtered = filtered.filter((p) =>
+      p.projectName.toLowerCase().includes(q) ||
+      p.clientName.toLowerCase().includes(q) ||
+      (p.quotationNumber ?? '').toLowerCase().includes(q) ||
+      (p.quotationReference ?? '').toLowerCase().includes(q) ||
+      (p.projectId ?? '').toLowerCase().includes(q) ||
+      (p.nickname ?? '').toLowerCase().includes(q),
+    )
+  }
 
   async function handleAdvance(id: string) {
     const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
@@ -2236,6 +2777,15 @@ function ProjectsPage() {
     mutate()
   }
 
+  async function handleDisapprove(id: string) {
+    const res = await fetch(`/api/projects/${id}/disapprove`, { method: 'POST' })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      throw new Error((d as { error?: string }).error ?? 'Failed to disapprove')
+    }
+    mutate()
+  }
+
   const title = stageFilter ? `Projects — ${stageFilter}` : 'All Projects'
 
   return (
@@ -2255,11 +2805,33 @@ function ProjectsPage() {
         </Link>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 111 11a6 6 0 0116 0z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by project name, client, quotation number…"
+          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+          >
+            ×
+          </button>
+        )}
+      </div>
+
       {isLoading && <Spinner />}
 
       {!isLoading && filtered.length === 0 && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center">
-          <p className="text-sm text-gray-400">No projects found.</p>
+          <p className="text-sm text-gray-400">{search ? `No projects match "${search}"` : 'No projects found.'}</p>
         </div>
       )}
 
@@ -2285,6 +2857,7 @@ function ProjectsPage() {
                     onAdvance={handleAdvance}
                     onDelete={handleDelete}
                     onReopen={handleReopen}
+                    onDisapprove={handleDisapprove}
                     onNotesSaved={() => mutate()}
                   />
                 ))}

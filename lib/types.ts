@@ -77,6 +77,7 @@ export interface Task {
   assigneeName?: string
   callCount?: number
   sedNote?: string
+  superadminNote?: string
   followUpOutcome?: string
   pathCondition?: string
   projectRef?: string
@@ -85,6 +86,8 @@ export interface Task {
   projectNickname?: string
   projectQuotationNumber?: string
   projectQuotationReference?: string
+  projectSalesOwner?: string
+  projectCommunSeds?: string[]
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
 }
@@ -117,6 +120,7 @@ export interface TaskUpdateInput {
   priorityFlag?: boolean
   callCount?: number
   sedNote?: string
+  superadminNote?: string
   followUpOutcome?: string
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
@@ -128,6 +132,7 @@ export interface Client {
   clientName: string
   phone?: string
   email?: string
+  projectCount?: number
 }
 
 export interface Project {
@@ -150,7 +155,6 @@ export interface Project {
   taskIds?: string[]
   projectItemIds?: string[]
   paymentIds?: string[]
-  gatePassIds?: string[]
   managerNotes?: string
   sedNotes?: string
   projectCreatedAt?: string
@@ -163,15 +167,44 @@ export interface Project {
   communSeds?: string[]
   communSedIds?: string[]
   fabricationActive?: boolean
+  requestType?: 'Trade' | 'Maintenance' | 'Variance'
+  parentProjectId?: string
+  parentProjectName?: string
+  tradeReference?: string
+}
+
+export interface ClientRequest {
+  id: string
+  projectName: string
+  clientName: string
+  clientPhone?: string
+  requestType: 'Trade' | 'Maintenance' | 'Variance'
+  projectStage: string
+  createdAt?: string
+  description?: string
+  parentProjectId?: string
+  parentProjectName?: string
+  tradeReference?: string
+  tasks?: Task[]
+}
+
+export interface ClientRequestCreateInput {
+  requestType: 'Trade' | 'Maintenance' | 'Variance'
+  clientName: string
+  clientPhone?: string
+  description?: string
+  tradeReference?: string
+  salesOwnerCollaboratorId?: string
+  parentProjectId?: string
 }
 
 export interface ProjectCreateInput {
   projectName: string
-  clientName: string
-  nickname: string
   projectDescription: string
-  detailedLocation: string
-  paymentMode: string
+
+  nickname?: string
+  clientName?: string
+  detailedLocation?: string
 
   clientPhone?: string
   emirate?: string
@@ -184,7 +217,6 @@ export interface ProjectCreateInput {
 export interface ProjectWithDetails extends Project {
   tasks?: Task[]
   payments?: Payment[]
-  gatePasses?: GatePass[]
 }
 
 export interface Payment {
@@ -224,25 +256,18 @@ export interface PaymentCreateInput {
   recordedBy?: string
 }
 
-export interface GatePass {
-  id: string
-  name: string
-  project: string[]
-  itemsDescription: string
-  estimatedSupplyDate: string
-  confirmedDeliveryDate?: string
-  gatePassStatus?: string
-  siteReady?: boolean
-  clientNotified?: boolean
-  projectName?: string
-  projectDisplayId?: string
-}
-
-export interface GatePassCreateInput {
-  project: string[]
-  itemsDescription: string
-  estimatedSupplyDate: string
-  confirmedDeliveryDate?: string
+export interface PaymentUpdateInput {
+  amount?: number
+  paymentType?: string
+  paymentStatus?: string
+  paymentMethod?: string
+  referenceNo?: string
+  receivedDate?: string
+  dueDate?: string
+  payerType?: string
+  payerName?: string
+  commissionAmount?: number
+  notes?: string
 }
 
 export interface MaintenanceRecord {
@@ -417,6 +442,7 @@ export interface WorkerCreateInput {
   nickname?: string
   role?: string
   active?: boolean
+  hourlyRate?: number
 }
 
 export interface WorkerUpdateInput {
@@ -425,27 +451,35 @@ export interface WorkerUpdateInput {
   nickname?: string
   role?: string
   active?: boolean
+  hourlyRate?: number
 }
 
 export interface TimesheetEntry {
   id: string
   entryLabel?: string
   workDate: string
+  supervisorId?: string
+  supervisorName?: string
   workerIds: string[]
   workerName?: string
+  workerNames?: string[]
   projectIds: string[]
   projectRef?: string
   projectName?: string
+  locationType?: 'Project' | 'Factory'
   regularHours: number
   overtimeHours: number
   totalHours: number
   notes?: string
+  estimatedCost?: number
 }
 
 export interface CreateTimesheetInput {
   workDate: string
+  supervisorId: string
   workerIds: string[]
   projectIds: string[]
+  locationType: 'Project' | 'Factory'
   regularHours: number
   overtimeHours?: number
   notes?: string
@@ -471,6 +505,7 @@ export interface WorkerOption {
   nickname?: string
   role?: string
   active?: boolean
+  hourlyRate?: number
 }
 
 export interface WeeklySummary {

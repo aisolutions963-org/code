@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
@@ -9,21 +9,20 @@ import TimelineStrip from '@/components/pipeline/TimelineStrip'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const COLUMNS: { title: string; stages: string[] }[] = [
-  { title: 'Inquiry',  stages: ['Inquiry'] },
-  { title: 'Quotation', stages: ['Quotation Sent', 'Quotation Approved', 'Quotation Rejected', 'On Hold'] },
-  { title: 'Phase 1',  stages: ['Preparing'] },
-  { title: 'Phase 2',  stages: ['Open'] },
-  { title: 'Phase 3',  stages: ['Working'] },
-  { title: 'Handover', stages: ['Handover', 'Handing Over'] },
-  { title: 'Done',     stages: ['Closed', 'Cancelled'] },
+  { title: 'Preparing',  stages: ['Preparing'] },
+  { title: 'Open',       stages: ['Open'] },
+  { title: 'Production', stages: ['Production'] },
+  { title: 'Done',       stages: ['Closed'] },
+  { title: 'Warranty',   stages: ['Closed and active warranty', 'Warranty expired'] },
 ]
 
-export default function PipelineClient() {
+export default function PipelineClient({ role }: { role: string }) {
   const [search, setSearch] = useState('')
+  const isWideRole = role === 'superadmin' || role === 'manager'
   const { data, isLoading } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true',
+    isWideRole ? '/api/projects?all=true' : '/api/projects',
     fetcher,
-    { refreshInterval: 60000 },
+    { refreshInterval: 300_000 },
   )
 
   const projects = useMemo(() => {

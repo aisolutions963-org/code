@@ -27,7 +27,9 @@ async function fetchAll<T>(tableId: string, params: URLSearchParams): Promise<T[
 }
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
-  const from = new URL(req.url).searchParams.get('from') ?? ''
+  const sp = new URL(req.url).searchParams
+  const from = sp.get('from') ?? ''
+  const to   = sp.get('to')   ?? ''
 
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   params.append('fields[]', QUOTATIONS.NAME)
@@ -39,9 +41,12 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   params.append('fields[]', QUOTATIONS.SENT_DATE)
   params.append('fields[]', QUOTATIONS.APPROVED_DATE)
   params.append('fields[]', QUOTATIONS.RECORDED_BY)
-  if (from) {
-    params.set('filterByFormula', encodeURIComponent(`IS_AFTER({${QUOTATIONS.SENT_DATE}}, "${from}")`))
-  }
+  const dateParts: string[] = []
+  if (from) dateParts.push(`IS_AFTER({${QUOTATIONS.SENT_DATE}}, "${from}")`)
+  if (to)   dateParts.push(`IS_BEFORE({${QUOTATIONS.SENT_DATE}}, "${to}")`)
+  if (dateParts.length === 1) params.set('filterByFormula', encodeURIComponent(dateParts[0]))
+  if (dateParts.length === 2) params.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
+
 
   const [quotations, allProjects] = await Promise.all([
     fetchAll<{ id: string; fields: Record<string, unknown> }>(QUOTATIONS.TABLE_ID, params),
@@ -62,7 +67,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     const f = q.fields
     const projectLinks = Array.isArray(f[QUOTATIONS.PROJECT]) ? (f[QUOTATIONS.PROJECT] as string[]) : []
     const proj = projectLinks[0] ? projectById.get(projectLinks[0]) : undefined
-    const owner = proj?.[PROJECTS.SALES_OWNER] as { name?: string } | undefined
+    const rawOwner = proj?.[PROJECTS.SALES_OWNER]
+    const ownerEntry = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner
+    const owner = (!ownerEntry || typeof ownerEntry === 'string') ? undefined : ownerEntry as { name?: string }
     const qty = (f[QUOTATIONS.QUANTITY] as number) ?? 0
     const price = (f[QUOTATIONS.UNIT_PRICE] as number) ?? 0
     const subtotal = qty * price

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
+import { todayUAE } from '@/lib/dateUtils'
 
 const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const lbl = 'block text-xs font-medium text-gray-500 mb-1'
@@ -19,7 +20,7 @@ export default function PurchaseOrderModal({
 }) {
   const [supplier, setSupplier] = useState('')
   const [totalAmount, setTotalAmount] = useState('')
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10))
+  const [orderDate, setOrderDate] = useState(() => todayUAE())
   const [expectedDelivery, setExpectedDelivery] = useState('')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)

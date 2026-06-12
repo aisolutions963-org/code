@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { requireRole } from '@/lib/apiHandler'
 import { generateItemTasksForProject } from '@/lib/airtable'
 import { z } from 'zod'
 
@@ -16,19 +16,12 @@ const AddActionsSchema = z.object({
     .min(1, 'Select at least one action'),
 })
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; itemId: string }> },
-) {
-  const { id, itemId } = await params
-  const session = await getSession()
-  if (!session || !['sed', 'manager', 'superadmin'].includes(session.role)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, _session, { params }) => {
+  const { id, itemId } = params
 
   let rawBody: unknown
   try {
-    rawBody = await request.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
@@ -41,14 +34,6 @@ export async function POST(
     )
   }
 
-  try {
-    const { created } = await generateItemTasksForProject(id, itemId, parsed.data.actions)
-    return NextResponse.json({ created })
-  } catch (error) {
-    console.error('POST /api/projects/[id]/items/[itemId] error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to add actions' },
-      { status: 500 },
-    )
-  }
-}
+  const { created } = await generateItemTasksForProject(id, itemId, parsed.data.actions)
+  return NextResponse.json({ created })
+})

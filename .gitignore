@@ -33,8 +33,11 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
-.vercel
-.env*
 
-# Claude Code settings (may contain sensitive config)
-.claude/
+# Credentials reference (never commit)
+CREDENTIALS.md
+
+# Playwright
+e2e/.auth/
+playwright-report/
+test-results/

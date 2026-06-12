@@ -73,6 +73,7 @@ export const TASKS = {
   HANDOVER_DOC_LINKS: 'fldZeGpG5VlY1Oiip',
   FILLERS_DOC_LINKS: 'fldxgHjnRVSlYlHbM',
   LAST_MODIFIED: 'fld8PyDkPBIZ0BNO1',
+  SUPERADMIN_NOTE: 'fldjVNPzFB76Ik0fh',
 } as const
 
 export const PROJECTS = {
@@ -94,7 +95,6 @@ export const PROJECTS = {
   TASKS: 'fldCezGrdho4OveCs',
   PROJECT_ITEMS: 'fldYcgC7XmHzZk9A1',
   PAYMENTS: 'fldtHlJddB54ZHeNZ',
-  GATE_PASSES: 'fld7iklMx1CKLXZiw',
   PROJECT_CREATED_AT: 'fldj9TQDO0WZEZBCR',
   MANAGER_NOTES: 'fldr3TvHVibp8QBtg',
   SED_NOTES: 'fldxFwBQKWytFdrBp',
@@ -109,6 +109,9 @@ export const PROJECTS = {
   DETAILED_LOCATION: 'fldoRWDUaeNKEtrbi',
   PROJECT_DESCRIPTION: 'fldhpCCy7ZIrh7pax',
   REQUIRED_INTAKE_PATHS: 'fld5jHSFxBU9euELy',
+  REQUEST_TYPE:    'fldDlEFv0as7eOxuS',  // single select: Trade | Maintenance | Variance
+  PARENT_PROJECT:  'flds3nCf54kT4Ss3s',  // linked record → PROJECTS
+  TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
 } as const
 
 export const PROJECT_ITEMS = {
@@ -160,18 +163,6 @@ export const PAYMENTS = {
   PAYER_NAME: 'fld7lK5GIkQibmLwe',
   COMMISSION_AMOUNT: 'fldqLG1zZiGwBu5XQ',
   RECORDED_BY: 'fldP53RxatemRSJ28',
-} as const
-
-export const GATE_PASSES = {
-  TABLE_ID: 'tblLu66NWdfPva9Mp',
-  NAME: 'fld2s422gcSf2ch4e',
-  PROJECT: 'fldLNjM9Z0ujfSmxc',
-  ITEMS_DESCRIPTION: 'fldiFsHMgMfCo7xUl',
-  ESTIMATED_SUPPLY_DATE: 'fldApKYRSn6boaOTR',
-  CONFIRMED_DELIVERY_DATE: 'fldbNn9XqApu67fXu',
-  GATE_PASS_STATUS: 'flddMUpnVZevM5y8X',
-  SITE_READY: 'fldMfo0s6OPcWXLpp',
-  CLIENT_NOTIFIED: 'fld1GxEYGezNjNgcp',
 } as const
 
 export const TEAM_MEMBERS = {
@@ -286,6 +277,8 @@ export const PRODUCTION_TIMESHEETS = {
   ENTRY_LABEL:    'fldvw5Yal2gzlHWeV',
   WORK_DATE:      'fldgYpSXiYQiUdJHR',
   WORKER:         'fldEQa6tiu1vTq9Sb',
+  SUPERVISOR:     'fldIz0C1nWJ4nAoxH',
+  LOCATION_TYPE:  'flddkAJk2apbR4yml',
   PROJECT:        'fldptqShoVtL3hjbs',
   REGULAR_HOURS:  'fldPEBPtEqibQF9gG',
   OVERTIME_HOURS: 'fldMeKDus6J01rkcA',
@@ -295,12 +288,13 @@ export const PRODUCTION_TIMESHEETS = {
 } as const
 
 export const WORKERS = {
-  TABLE:      'tblaelluGouAlw7Xo',
-  NAME:       'fldpgSQBVcF0nA2Kx',
-  FULL_NAME:  'fldykYIjjHcVUU07b',
-  NICKNAME:   'fld0C8rZpHkXI01z8',
-  ROLE:       'fldfoj2jJ0om9sFrr',
-  ACTIVE:     'fldtVRH12qbl8xFQo',
+  TABLE:        'tblaelluGouAlw7Xo',
+  NAME:         'fldpgSQBVcF0nA2Kx',
+  FULL_NAME:    'fldykYIjjHcVUU07b',
+  NICKNAME:     'fld0C8rZpHkXI01z8',
+  ROLE:         'fldfoj2jJ0om9sFrr',
+  ACTIVE:       'fldtVRH12qbl8xFQo',
+  HOURLY_RATE:  'fldWdzVfmq7DUM29W',
 } as const
 
 export const MATERIALS_NEEDED = {
