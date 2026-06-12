@@ -30,6 +30,7 @@ import {
   ProjectCreateInput,
   Payment,
   PaymentCreateInput,
+  PaymentUpdateInput,
   MaintenanceRecord,
   Announcement,
   AnnouncementCreateInput,
@@ -856,6 +857,32 @@ export async function createPayment(input: PaymentCreateInput): Promise<Payment>
   return transformPayment(record)
 }
 
+export async function updatePayment(id: string, input: PaymentUpdateInput): Promise<Payment> {
+  const fields: Record<string, unknown> = {}
+  if (input.amount !== undefined) fields[PAYMENTS.AMOUNT] = input.amount
+  if (input.paymentType !== undefined) fields[PAYMENTS.PAYMENT_TYPE] = input.paymentType
+  if (input.paymentStatus !== undefined) fields[PAYMENTS.PAYMENT_STATUS] = input.paymentStatus
+  if (input.paymentMethod !== undefined) fields[PAYMENTS.PAYMENT_METHOD] = input.paymentMethod
+  if (input.referenceNo !== undefined) fields[PAYMENTS.REFERENCE_NO] = input.referenceNo
+  if (input.receivedDate !== undefined) fields[PAYMENTS.RECEIVED_DATE] = input.receivedDate
+  if (input.dueDate !== undefined) fields[PAYMENTS.DUE_DATE] = input.dueDate
+  if (input.payerType !== undefined) fields[PAYMENTS.PAYER_TYPE] = input.payerType
+  if (input.payerName !== undefined) fields[PAYMENTS.PAYER_NAME] = input.payerName
+  if (input.commissionAmount !== undefined) fields[PAYMENTS.COMMISSION_AMOUNT] = input.commissionAmount
+  if (input.notes !== undefined) fields[PAYMENTS.NOTES] = input.notes
+  const res = await fetchWithRetry(recUrl(PAYMENTS.TABLE_ID, id), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const record: RawRecord = await res.json()
+  return transformPayment(record)
+}
+
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
   const records = await fetchAll(MAINTENANCE.TABLE_ID, {
     sort: [{ field: MAINTENANCE.START_DATE, direction: 'desc' }],
@@ -1518,6 +1545,27 @@ function transformMaterial(record: RawRecord): Material {
   }
 }
 
+export async function getPendingMaterialsCount(): Promise<number> {
+  const formula = `OR({${MATERIALS_NEEDED.ORDER_STATUS}} = "Not ordered", {${MATERIALS_NEEDED.ORDER_STATUS}} = "Pending approval")`
+  const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [MATERIALS_NEEDED.ORDER_STATUS],
+  })
+  return records.length
+}
+
+export async function getAllActiveMaterials(options?: { projectIds?: string[] }): Promise<Material[]> {
+  let formula = `{${MATERIALS_NEEDED.ORDER_STATUS}} != "Received"`
+  if (options?.projectIds?.length) {
+    const projectFilters = options.projectIds
+      .map((id) => `{${MATERIALS_NEEDED.PROJECT_RECORD_ID}} = "${id}"`)
+      .join(', ')
+    formula = `AND(${formula}, OR(${projectFilters}))`
+  }
+  const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, { filterByFormula: formula })
+  return records.map(transformMaterial)
+}
+
 export async function getMaterialsByProject(projectId: string): Promise<Material[]> {
   const formula = `{${MATERIALS_NEEDED.PROJECT_RECORD_ID}}="${projectId}"`
   const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, { filterByFormula: formula })
@@ -2079,7 +2127,6 @@ export async function createAdHocTask(fields: {
     [TASKS.TASK_NAME]: fields.taskName,
     [TASKS.PROJECT]: fields.projectId,
     [TASKS.STATUS]: fields.status ?? 'To Do',
-    [TASKS.DEPARTMENT]: fields.departments,
   }
   const ids = await createTasksBatch([record])
   return ids[0]
@@ -2973,18 +3020,21 @@ export async function deleteWorker(id: string): Promise<void> {
 
 // ─── Client Requests ─────────────────────────────────────────────────────────
 
+// Template IDs that provide department metadata for client request tasks
+const CR_TEMPLATE_SED     = 'rec6xYWnAAWOKyVr7' // Department = SED
+const CR_TEMPLATE_PAYMENT = 'recRX4dqaaY5RsPdH' // Department = Manager
+
 const TRADE_TASKS = [
-  { name: 'Set Trade Reference', order: 100 },
-  { name: 'Order Material (F3)', order: 101 },
-  { name: 'Record Payment', order: 102 },
-  { name: 'Handover to Client', order: 103 },
+  { name: 'F3 — Order Trade Material', order: 100, templateId: CR_TEMPLATE_SED },
+  { name: 'F4 — Trade Payment',        order: 101, templateId: CR_TEMPLATE_PAYMENT },
+  { name: 'Handover to Client',        order: 102, templateId: CR_TEMPLATE_SED },
 ] as const
 
 const MAINTENANCE_TASKS = [
-  { name: 'Site Visit & Assessment', order: 100 },
-  { name: 'Carry Out Maintenance Work', order: 101 },
-  { name: 'Record Payment', order: 102 },
-  { name: 'Client Sign-off', order: 103 },
+  { name: 'Site Visit & Assessment',    order: 100, templateId: CR_TEMPLATE_SED },
+  { name: 'Carry Out Maintenance Work', order: 101, templateId: CR_TEMPLATE_SED },
+  { name: 'F4 — Maintenance Payment',  order: 102, templateId: CR_TEMPLATE_PAYMENT },
+  { name: 'Client Sign-off',           order: 103, templateId: CR_TEMPLATE_SED },
 ] as const
 
 export async function createClientRequest(
@@ -3036,11 +3086,10 @@ export async function createClientRequest(
   const taskDefs = isTrade ? TRADE_TASKS : MAINTENANCE_TASKS
   const taskRecords = taskDefs.map((t, i) => ({
     [TASKS.TASK_NAME]: t.name,
-    [TASKS.PROJECT]: [project.id],
-    [TASKS.DEPARTMENT]: ['SED'],
+    [TASKS.PROJECT]: project.id,
     [TASKS.STATUS]: i === 0 ? 'To Do' : 'Locked',
-    [TASKS.TEMPLATE_ORDER]: t.order,
     [TASKS.TASK_ORDER]: t.order,
+    [TASKS.TASK_TEMPLATES_LINK]: [t.templateId],
   }))
 
   const taskIds = await createTasksBatch(taskRecords)

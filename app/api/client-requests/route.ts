@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { createClientRequest, getClientRequests } from '@/lib/airtable'
-import { getUserById } from '@/lib/db'
-import { addSedProjectMapping } from '@/lib/db'
+import { createClientRequest, getClientRequests, getProjectById } from '@/lib/airtable'
+import { getUserById, getUserByAirtableMemberId, addSedProjectMapping } from '@/lib/db'
 import { CreateClientRequestSchema } from '@/lib/validation'
 
 export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, session) => {
@@ -34,10 +33,21 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
 
   const data = { ...parsed.data }
 
-  if (session.role === 'sed' && !data.salesOwnerCollaboratorId) {
-    const dbUser = await getUserById(session.id)
-    if (dbUser?.airtable_member_id) {
-      data.salesOwnerCollaboratorId = dbUser.airtable_member_id
+  // Inherit SED, client name, and client phone from the parent project
+  if (data.parentProjectId) {
+    try {
+      const parentProject = await getProjectById(data.parentProjectId)
+      if (parentProject?.salesOwner?.id) {
+        data.salesOwnerCollaboratorId = parentProject.salesOwner.id
+      }
+      if (parentProject?.clientName) {
+        data.clientName = parentProject.clientName
+      }
+      if (parentProject?.clientPhone && !data.clientPhone) {
+        data.clientPhone = parentProject.clientPhone
+      }
+    } catch {
+      // proceed without inheritance if parent lookup fails
     }
   }
 
@@ -52,6 +62,12 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
+  // Map the inherited SED so they see this request in their list
+  if (data.salesOwnerCollaboratorId) {
+    const sedUser = await getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
+    if (sedUser) await addSedProjectMapping(project.id, sedUser.id)
+  }
+  // Also map the creator if they're a SED (covers the case where they have no airtable_member_id)
   if (session.role === 'sed') {
     await addSedProjectMapping(project.id, session.id)
   }

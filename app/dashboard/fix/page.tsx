@@ -7,6 +7,7 @@ import { Task, TaskUpdateInput, Project, InstallationLog } from '@/lib/types'
 import TaskList from '@/components/tasks/TaskList'
 import HandoverModal from '@/components/projects/HandoverModal'
 import InstallationLogModal from '@/components/projects/InstallationLogModal'
+import AllMaterialsView from '@/components/materials/AllMaterialsView'
 
 interface AssignmentNote { id: number; title: string; body: string; created_at: string; read: number }
 
@@ -89,12 +90,15 @@ export default function FixDashboard() {
         </div>
       </div>
 
+      {/* Materials view */}
+      {view === 'materials' && <AllMaterialsView role="installation" />}
+
       {/* Installation Logs view */}
       {view === 'logs' && (
         <LogsView projects={projects} onNewLog={(p) => setLogProject(p)} />
       )}
 
-      {view !== 'logs' && (
+      {view !== 'logs' && view !== 'materials' && (
         <>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">

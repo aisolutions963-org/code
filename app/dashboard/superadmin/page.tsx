@@ -16,7 +16,7 @@ import TaskList from '@/components/tasks/TaskList'
 import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
 import { useSession } from '@/app/dashboard/layout-client'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
-import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
+import AllMaterialsView from '@/components/materials/AllMaterialsView'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1629,9 +1629,89 @@ function PaymentDetail({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [ferr, setFerr] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<typeof form | null>(null)
+  const [editErr, setEditErr] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [cancelling, setCancelling] = useState<string | null>(null)
 
   function setF(key: string, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
+  }
+  function setEF(key: string, value: string) {
+    setEditForm((f) => f ? { ...f, [key]: value } : f)
+  }
+
+  function startEdit(pm: Payment) {
+    setEditingId(pm.id)
+    setEditErr('')
+    setEditForm({
+      amount: pm.amount.toString(),
+      paymentType: pm.paymentType,
+      paymentStatus: pm.paymentStatus,
+      paymentMethod: pm.paymentMethod,
+      referenceNo: pm.referenceNo ?? '',
+      receivedDate: pm.receivedDate ?? '',
+      dueDate: pm.dueDate ?? '',
+      payerType: pm.payerType ?? '',
+      payerName: pm.payerName ?? '',
+      commission: pm.commissionAmount?.toString() ?? '',
+      notes: pm.notes ?? '',
+    })
+    setShowForm(false)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditForm(null)
+    setEditErr('')
+  }
+
+  async function doVoid(pm: Payment) {
+    if (!confirm(`Void this ${pm.paymentType} payment of AED ${pm.amount.toLocaleString()}? This cannot be undone.`)) return
+    setCancelling(pm.id)
+    try {
+      const res = await fetch(`/api/payments/${pm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentStatus: 'Cancelled' }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { setFerr((d as { error?: string }).error ?? 'Failed to void payment') }
+      else { mutate(); globalMutate('/api/projects?all=true') }
+    } catch { setFerr('Failed to void payment') }
+    finally { setCancelling(null) }
+  }
+
+  async function submitEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingId || !editForm) return
+    if (!editForm.amount || parseFloat(editForm.amount) <= 0) { setEditErr('Amount is required'); return }
+    setEditSaving(true); setEditErr('')
+    try {
+      const body: Record<string, unknown> = {
+        amount: parseFloat(editForm.amount),
+        paymentType: editForm.paymentType,
+        paymentStatus: editForm.paymentStatus,
+        paymentMethod: editForm.paymentMethod,
+      }
+      if (editForm.referenceNo.trim()) body.referenceNo = editForm.referenceNo.trim()
+      if (editForm.receivedDate) body.receivedDate = editForm.receivedDate
+      if (editForm.dueDate) body.dueDate = editForm.dueDate
+      if (editForm.payerType) body.payerType = editForm.payerType
+      if (editForm.payerName.trim()) body.payerName = editForm.payerName.trim()
+      if (editForm.payerType === 'Broker' && editForm.commission) body.commissionAmount = parseFloat(editForm.commission)
+      if (editForm.notes.trim()) body.notes = editForm.notes.trim()
+      const res = await fetch(`/api/payments/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) { setEditErr((d as { error?: string }).error ?? 'Failed to update') }
+      else { cancelEdit(); mutate(); globalMutate('/api/projects?all=true') }
+    } catch { setEditErr('Failed to update payment') }
+    finally { setEditSaving(false) }
   }
 
   async function submitPayment(e: React.FormEvent) {
@@ -1681,30 +1761,132 @@ function PaymentDetail({
 
   return (
     <div className="space-y-3">
+      {ferr && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{ferr}</p>}
       {payments.length > 0 && (
         <table className="w-full text-xs">
           <thead>
             <tr className="text-gray-500">
-              <th className="text-left py-1 pr-4">Type</th>
-              <th className="text-left py-1 pr-4">Status</th>
-              <th className="text-right py-1 pr-4">Amount</th>
-              <th className="text-left py-1 pr-4">Method</th>
-              <th className="text-left py-1">Date</th>
+              <th className="text-left py-1 pr-3">Type</th>
+              <th className="text-left py-1 pr-3">Status</th>
+              <th className="text-right py-1 pr-3">Amount</th>
+              <th className="text-left py-1 pr-3">Method</th>
+              <th className="text-left py-1 pr-3">Date</th>
+              <th className="text-left py-1 pr-3">Stage</th>
+              <th className="text-right py-1">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {payments.map((pm) => (
-              <tr key={pm.id}>
-                <td className="py-1.5 pr-4 text-gray-700">{pm.paymentType}</td>
-                <td className="py-1.5 pr-4">
-                  <Badge variant={pm.paymentStatus === 'Received' ? 'green' : pm.paymentStatus === 'Pending' ? 'orange' : 'gray'} size="sm">
-                    {pm.paymentStatus}
-                  </Badge>
-                </td>
-                <td className="py-1.5 pr-4 text-right font-mono text-gray-800">AED {pm.amount.toLocaleString()}</td>
-                <td className="py-1.5 pr-4 text-gray-500">{pm.paymentMethod}</td>
-                <td className="py-1.5 text-gray-400">{pm.receivedDate ?? pm.dueDate ?? '—'}</td>
-              </tr>
+              <Fragment key={pm.id}>
+                <tr className={pm.paymentStatus === 'Cancelled' ? 'opacity-50 line-through' : ''}>
+                  <td className="py-1.5 pr-3 text-gray-700">{pm.paymentType}</td>
+                  <td className="py-1.5 pr-3">
+                    <Badge variant={pm.paymentStatus === 'Received' ? 'green' : pm.paymentStatus === 'Pending' ? 'orange' : 'gray'} size="sm">
+                      {pm.paymentStatus}
+                    </Badge>
+                  </td>
+                  <td className="py-1.5 pr-3 text-right font-mono text-gray-800">AED {pm.amount.toLocaleString()}</td>
+                  <td className="py-1.5 pr-3 text-gray-500">{pm.paymentMethod}</td>
+                  <td className="py-1.5 pr-3 text-gray-400">{pm.receivedDate ?? pm.dueDate ?? '—'}</td>
+                  <td className="py-1.5 pr-3 text-gray-400">{pm.stageAtPayment ?? '—'}</td>
+                  <td className="py-1.5 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => editingId === pm.id ? cancelEdit() : startEdit(pm)}
+                      className="text-xs text-blue-600 hover:underline mr-2"
+                    >
+                      {editingId === pm.id ? 'Discard' : 'Edit'}
+                    </button>
+                    {pm.paymentStatus !== 'Cancelled' && (
+                      <button
+                        onClick={() => doVoid(pm)}
+                        disabled={cancelling === pm.id}
+                        className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                      >
+                        {cancelling === pm.id ? '…' : 'Void'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+                {editingId === pm.id && editForm && (
+                  <tr>
+                    <td colSpan={7} className="pb-3 pt-1 bg-blue-50/50">
+                      <form onSubmit={submitEdit} className="grid grid-cols-2 gap-3 p-3 bg-white rounded-lg border border-blue-200">
+                        {editErr && <p className="col-span-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{editErr}</p>}
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Date</label>
+                          <input type="date" value={editForm.receivedDate} onChange={(e) => setEF('receivedDate', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Amount (AED) *</label>
+                          <input type="number" min="0" step="0.01" value={editForm.amount} onChange={(e) => setEF('amount', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Type</label>
+                          <select value={editForm.paymentType} onChange={(e) => setEF('paymentType', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment'].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Status</label>
+                          <select value={editForm.paymentStatus} onChange={(e) => setEF('paymentStatus', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            {['Received', 'Pending', 'Overdue', 'Cancelled'].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Method</label>
+                          <select value={editForm.paymentMethod} onChange={(e) => setEF('paymentMethod', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            {['Bank Transfer', 'Cash', 'Cheque'].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Reference No.</label>
+                          <input type="text" value={editForm.referenceNo} onChange={(e) => setEF('referenceNo', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Payer Type</label>
+                          <select value={editForm.payerType} onChange={(e) => setEF('payerType', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="">— select —</option>
+                            {['Broker', 'Contractor', 'End User', 'Designer'].map((v) => <option key={v}>{v}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Payer Name</label>
+                          <input type="text" value={editForm.payerName} onChange={(e) => setEF('payerName', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        {editForm.payerType === 'Broker' && (
+                          <div className="col-span-2">
+                            <label className="text-xs text-gray-500 block mb-1">Commission Amount (AED)</label>
+                            <input type="number" min="0" step="0.01" value={editForm.commission} onChange={(e) => setEF('commission', e.target.value)}
+                              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Due Date</label>
+                          <input type="date" value={editForm.dueDate} onChange={(e) => setEF('dueDate', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                          <input type="text" value={editForm.notes} onChange={(e) => setEF('notes', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        </div>
+                        <div className="col-span-2 flex items-center gap-3">
+                          <Button type="submit" size="sm" loading={editSaving}>Update Payment</Button>
+                          <button type="button" onClick={cancelEdit} className="text-xs text-gray-500 hover:underline">Discard</button>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -2531,12 +2713,7 @@ function MyTasksPage() {
 // ─── Materials ────────────────────────────────────────────────────────────────
 
 function MaterialsPage() {
-  const { data, isLoading } = useSWR<{ projects: Project[] }>(
-    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
-  )
-  const projects = data?.projects ?? []
-  if (isLoading) return <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>
-  return <MaterialsReviewView projects={projects} />
+  return <AllMaterialsView role="superadmin" />
 }
 
 // ─── Page: All Projects ───────────────────────────────────────────────────────

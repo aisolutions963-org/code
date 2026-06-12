@@ -11,6 +11,7 @@ import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import NewProjectModal from '@/components/projects/NewProjectModal'
 import CommissionCard from '@/components/sed/CommissionCard'
+import AllMaterialsView from '@/components/materials/AllMaterialsView'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -94,8 +95,11 @@ export default function SedDashboard() {
         <CommissionCard className="col-span-3" />
       </div>
 
+      {/* Materials view */}
+      {view === 'materials' && <AllMaterialsView role="sed" />}
+
       {/* Task views */}
-      {view !== 'projects' && view !== 'site-visits' && view !== 'approvals' && (
+      {view !== 'projects' && view !== 'site-visits' && view !== 'approvals' && view !== 'materials' && (
         <>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">

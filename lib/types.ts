@@ -256,6 +256,20 @@ export interface PaymentCreateInput {
   recordedBy?: string
 }
 
+export interface PaymentUpdateInput {
+  amount?: number
+  paymentType?: string
+  paymentStatus?: string
+  paymentMethod?: string
+  referenceNo?: string
+  receivedDate?: string
+  dueDate?: string
+  payerType?: string
+  payerName?: string
+  commissionAmount?: number
+  notes?: string
+}
+
 export interface MaintenanceRecord {
   id: string
   maintenanceId: string

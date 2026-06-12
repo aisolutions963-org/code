@@ -42,37 +42,58 @@ export const POST = requireRole('manager', 'superadmin')(
 
     const body = parsed.data
 
-    // Duplicate Final payment guard — prevent double-closure of the same project
+    // Fetch project once: used for stageAtPayment capture + accountant email
+    const project = await getProjectById(body.project[0]).catch(() => null)
+
+    // Fetch existing payments: used for duplicate guards
+    const existing = await getPaymentsByProject(body.project[0])
+
+    // Final payment guard — prevent double-closure
     if (body.paymentType === 'Final') {
-      const existing = await getPaymentsByProject(body.project[0])
       const alreadyHasFinal = existing.some(
         (p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled',
       )
       if (alreadyHasFinal) {
         return NextResponse.json(
-          { error: 'A Final payment already exists for this project. Cancel it first if you need to re-record.' },
+          { error: 'A Final payment already exists for this project. Void it first if you need to re-record.' },
           { status: 409 },
         )
       }
     }
 
-    const payment = await createPayment({ ...body, recordedBy: session.name })
+    // General duplicate guard — same type + amount + date already exists
+    const isDuplicate = existing.some(
+      (p) =>
+        p.paymentType === body.paymentType &&
+        p.amount === body.amount &&
+        p.receivedDate === body.receivedDate &&
+        p.paymentStatus !== 'Cancelled',
+    )
+    if (isDuplicate) {
+      return NextResponse.json(
+        {
+          error: `A ${body.paymentType} payment of AED ${body.amount.toLocaleString()} on ${body.receivedDate ?? 'this date'} already exists for this project.`,
+        },
+        { status: 409 },
+      )
+    }
 
-    if (process.env.RESEND_API_KEY) {
-      getProjectById(body.project[0])
-        .then((proj) =>
-          notifyAccountant({
-            projectName: proj.projectName,
-            projectId: proj.projectId,
-            amount: body.amount,
-            paymentType: body.paymentType,
-            method: body.paymentMethod,
-            reference: body.referenceNo ?? 'N/A',
-            receivedDate: body.receivedDate ?? 'N/A',
-            recordedBy: session.name,
-          }),
-        )
-        .catch((err) => console.error('Accountant email failed:', err))
+    // Auto-capture the current project stage at time of payment
+    const stageAtPayment = project?.projectStage ?? body.stageAtPayment
+
+    const payment = await createPayment({ ...body, recordedBy: session.name, stageAtPayment })
+
+    if (process.env.RESEND_API_KEY && project) {
+      notifyAccountant({
+        projectName: project.projectName,
+        projectId: project.projectId,
+        amount: body.amount,
+        paymentType: body.paymentType,
+        method: body.paymentMethod,
+        reference: body.referenceNo ?? 'N/A',
+        receivedDate: body.receivedDate ?? 'N/A',
+        recordedBy: session.name,
+      }).catch((err: unknown) => console.error('Accountant email failed:', err))
     }
 
     // Final payment → close project + start 1-year maintenance period

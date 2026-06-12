@@ -4,33 +4,27 @@ import { Project } from '@/lib/types'
 import PipelineProjectCard from './PipelineProjectCard'
 
 const COLUMN_GLOW: Record<string, string> = {
-  Inquiry: 'border-gray-500/20',
-  Quotation: 'border-blue-500/20',
-  'Phase 1': 'border-purple-500/20',
-  'Phase 2': 'border-amber-500/20',
-  'Phase 3': 'border-green-500/20',
-  Handover: 'border-teal-500/20',
-  Done: 'border-gray-600/20',
+  Preparing:  'border-orange-500/20',
+  Open:       'border-blue-500/20',
+  Production: 'border-purple-500/20',
+  Done:       'border-gray-600/20',
+  Warranty:   'border-teal-500/20',
 }
 
 const COLUMN_DOT: Record<string, string> = {
-  Inquiry: 'bg-gray-400',
-  Quotation: 'bg-blue-400',
-  'Phase 1': 'bg-purple-400',
-  'Phase 2': 'bg-amber-400',
-  'Phase 3': 'bg-green-400',
-  Handover: 'bg-teal-400',
-  Done: 'bg-gray-600',
+  Preparing:  'bg-orange-400',
+  Open:       'bg-blue-400',
+  Production: 'bg-purple-400',
+  Done:       'bg-gray-600',
+  Warranty:   'bg-teal-400',
 }
 
 const COLUMN_BADGE: Record<string, string> = {
-  Inquiry: 'bg-gray-500/15 text-gray-300',
-  Quotation: 'bg-blue-500/15 text-blue-300',
-  'Phase 1': 'bg-purple-500/15 text-purple-300',
-  'Phase 2': 'bg-amber-500/15 text-amber-300',
-  'Phase 3': 'bg-green-500/15 text-green-300',
-  Handover: 'bg-teal-500/15 text-teal-300',
-  Done: 'bg-gray-600/15 text-gray-400',
+  Preparing:  'bg-orange-500/15 text-orange-300',
+  Open:       'bg-blue-500/15 text-blue-300',
+  Production: 'bg-purple-500/15 text-purple-300',
+  Done:       'bg-gray-600/15 text-gray-400',
+  Warranty:   'bg-teal-500/15 text-teal-300',
 }
 
 export default function PipelineColumn({

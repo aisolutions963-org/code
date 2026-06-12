@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { createMaterialOrder } from '@/lib/airtable'
+import { createMaterialOrder, getAllActiveMaterials } from '@/lib/airtable'
 import { CreateMaterialOrderSchema } from '@/lib/validation'
 import { todayUAE } from '@/lib/dateUtils'
+
+export const GET = requireRole('manager', 'superadmin', 'sed', 'fabrication', 'installation')(async () => {
+  const materials = await getAllActiveMaterials()
+  const pendingCount = materials.filter(
+    (m) => m.orderStatus === 'Not ordered' || m.orderStatus === 'Pending approval',
+  ).length
+  return NextResponse.json({ materials, pendingCount })
+})
 
 export const POST = requireRole('sed', 'manager', 'fabrication', 'superadmin')(
   async (req: NextRequest, session) => {

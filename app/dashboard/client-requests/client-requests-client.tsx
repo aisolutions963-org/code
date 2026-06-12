@@ -131,13 +131,14 @@ function CreateModal({
 
   const selectedProject = filteredProjects.find((p) => p.id === parentProjectId)
 
-  // Auto-populate SED when a project is selected
+  // Auto-populate SED, client name, and phone when a project is selected
   useEffect(() => {
-    if (!parentProjectId || !showSedPicker) return
+    if (!parentProjectId) return
     const proj = filteredProjects.find((p) => p.id === parentProjectId)
-    if (proj?.salesOwner?.id) {
-      setSelectedSedId(proj.salesOwner.id)
-    }
+    if (!proj) return
+    if (showSedPicker && proj.salesOwner?.id) setSelectedSedId(proj.salesOwner.id)
+    if (proj.clientName) setClientName(proj.clientName)
+    if (proj.clientPhone) setClientPhone(proj.clientPhone)
   }, [parentProjectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build full trade reference: {quotationNumber}{tradeInput}r{quotationReference}
@@ -150,11 +151,13 @@ function CreateModal({
       : tradeInputClean
     : ''
 
-  // Reset project selection when type changes
+  // Reset project selection and inherited fields when type changes
   function handleTypeChange(t: 'Trade' | 'Maintenance') {
     setRequestType(t)
     setParentProjectId('')
     setSelectedSedId('')
+    setClientName('')
+    setClientPhone('')
   }
 
   const inp =

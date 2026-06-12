@@ -723,7 +723,7 @@ export async function handleF3Order(input: {
           }
         }
 
-        await createNotification({ recipientRole: 'superadmin', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: ROLE_DASHBOARD['superadmin'] })
+        await createNotification({ recipientRole: 'superadmin', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: '/dashboard/superadmin?view=materials' })
         await createNotification({ recipientRole: 'manager', title: `F3 Small Order — ${projectRef}`, body: notifyBody, link: '/dashboard/mgr?view=materials' })
         return { created: materials.length, finalStatus: 'Completed' as TaskStatus }
       } else {
@@ -732,8 +732,10 @@ export async function handleF3Order(input: {
           [TASKS.STARTED_AT]: new Date().toISOString(),
         })
         const fabBody = `F3 Big Order for ${projectRef}: please check the store for ${materials.length} item(s) marked "Pending approval" in the materials list and confirm what needs ordering.${input.generalNotes ? `\nManager notes: ${input.generalNotes}` : ''}`
+        const bigOrderBody = `F3 Big Order submitted for ${projectRef}. ${materials.length} item(s) pending fabrication store check.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`
         await createNotification({ recipientRole: 'fabrication', title: `Store Check Required — F3 for ${projectRef}`, body: fabBody, link: ROLE_DASHBOARD['fabrication'] })
-        await createNotification({ recipientRole: 'manager', title: `F3 Big Order pending store check — ${projectRef}`, body: `Materials submitted and awaiting fabrication store check.`, link: '/dashboard/mgr?view=materials' })
+        await createNotification({ recipientRole: 'manager', title: `F3 Big Order pending store check — ${projectRef}`, body: bigOrderBody, link: '/dashboard/mgr?view=materials' })
+        await createNotification({ recipientRole: 'superadmin', title: `F3 Big Order — ${projectRef}`, body: bigOrderBody, link: '/dashboard/superadmin?view=materials' })
         return { created: materials.length, finalStatus: 'In Progress' as TaskStatus }
       }
     })(),

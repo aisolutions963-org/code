@@ -71,6 +71,20 @@ export const CreatePaymentSchema = z.object({
   notes: z.string().max(2000).optional(),
 })
 
+export const UpdatePaymentSchema = z.object({
+  amount: z.number().positive().max(10_000_000).optional(),
+  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment']).optional(),
+  paymentStatus: z.enum(['Received', 'Pending', 'Overdue', 'Cancelled']).optional(),
+  paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Cheque']).optional(),
+  referenceNo: z.string().max(100).optional(),
+  receivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  payerType: z.enum(['Broker', 'Contractor', 'End User', 'Designer']).optional(),
+  payerName: z.string().max(200).optional(),
+  commissionAmount: z.number().min(0).max(10_000_000).optional(),
+  notes: z.string().max(2000).optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: 'At least one field must be provided' })
+
 export const CreateAnnouncementSchema = z.object({
   title: z.string().min(1).max(200).transform((v) => v.trim()),
   message: z.string().max(5000).optional(),

@@ -12,7 +12,7 @@ import QuotationModal from '@/components/projects/QuotationModal'
 import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
 import HandoverModal from '@/components/projects/HandoverModal'
 import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
-import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
+import AllMaterialsView from '@/components/materials/AllMaterialsView'
 import AssignInstallationModal, { TeamMember } from '@/components/projects/AssignInstallationModal'
 import TimesheetsView from '@/components/timesheets/TimesheetsView'
 
@@ -39,7 +39,7 @@ export default function MgrDashboard() {
 
   const { data: projectData, error: projectError, isLoading: projectLoading, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
-      view === 'projects' || view === 'payments' || view === 'installation' || view === 'materials' || view === 'timesheets' ? '/api/projects' : null,
+      view === 'projects' || view === 'payments' || view === 'installation' || view === 'timesheets' ? '/api/projects' : null,
       fetcher,
       { refreshInterval: 300_000 },
     )
@@ -109,14 +109,7 @@ export default function MgrDashboard() {
       )}
 
       {/* Materials view */}
-      {view === 'materials' && (
-        <>
-          {projectLoading && <div className="flex justify-center py-12"><div className="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
-          {!projectLoading && !projectError && (
-            <MaterialsReviewView projects={projects} />
-          )}
-        </>
-      )}
+      {view === 'materials' && <AllMaterialsView role="manager" />}
 
       {/* Projects view */}
       {view === 'projects' && (() => {

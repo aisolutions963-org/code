@@ -2,9 +2,9 @@
 
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, Project } from '@/lib/types'
+import { Task, TaskUpdateInput } from '@/lib/types'
 import TaskList from '@/components/tasks/TaskList'
-import MaterialsReviewView from '@/components/projects/MaterialsReviewView'
+import AllMaterialsView from '@/components/materials/AllMaterialsView'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -17,14 +17,7 @@ export default function FabDashboard() {
     { refreshInterval: 300_000 },
   )
 
-  const { data: projectData } = useSWR<{ projects: Project[] }>(
-    view === 'materials' ? '/api/projects' : null,
-    fetcher,
-    { refreshInterval: 300_000 },
-  )
-
   const tasks = data?.tasks ?? []
-  const projects = projectData?.projects ?? []
 
   const handleUpdate = async (id: string, fields: Partial<TaskUpdateInput>) => {
     const res = await fetch(`/api/tasks/${id}`, {
@@ -107,7 +100,7 @@ export default function FabDashboard() {
       {/* Materials view */}
       {view === 'materials' && (
         <div className="mb-4">
-          <MaterialsReviewView projects={projects} />
+          <AllMaterialsView role="fabrication" />
         </div>
       )}
 

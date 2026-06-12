@@ -98,16 +98,24 @@ export const PATCH = requireRole()(
     }
 
     if (status === 'Completed') {
-      // F4 (advance payment) requires a quotation number before it can be completed —
-      // this is the official project number used in reports and accounting.
+      // Official quotation number AND reference are required before completing Make Quotation or F4.
       const taskForValidation = await getTaskById(params.id)
-      if (taskForValidation.taskName.toLowerCase().startsWith('f4 —')) {
+      const taskNameLC = taskForValidation.taskName.toLowerCase()
+      const isMakeQuotationTask = taskNameLC.includes('make quotation') || taskForValidation.pathCondition === 'Make Quotation'
+      const isF4Task = taskNameLC.startsWith('f4 —')
+      if (isMakeQuotationTask || isF4Task) {
         const projectId = taskForValidation.project?.[0]
         if (projectId) {
           const project = await getProjectById(projectId)
           if (!project.quotationNumber?.trim()) {
             return NextResponse.json(
-              { error: 'Quotation number must be entered on the project before completing F4' },
+              { error: 'Quotation number is required before completing this task' },
+              { status: 400 },
+            )
+          }
+          if (!project.quotationReference?.trim()) {
+            return NextResponse.json(
+              { error: 'Quotation reference is required before completing this task' },
               { status: 400 },
             )
           }

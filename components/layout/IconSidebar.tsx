@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
+import useSWR from 'swr'
 import { Role } from '@/lib/types'
 
 interface NavItem {
@@ -249,6 +250,12 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       ],
     },
     {
+      label: 'Operations',
+      items: [
+        { label: 'Materials', href: '/dashboard/superadmin?view=materials', icon: <HammerIcon /> },
+      ],
+    },
+    {
       label: 'Finance',
       items: [
         { label: 'Payments', href: '/dashboard/superadmin?view=payments', icon: <CashIcon /> },
@@ -327,6 +334,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Site Visits', href: '/dashboard/sed?view=site-visits', icon: <LocationIcon /> },
         { label: 'QC Checks', href: '/dashboard/sed?view=qc', icon: <InspectIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
+        { label: 'Materials', href: '/dashboard/sed?view=materials', icon: <HammerIcon /> },
       ],
     },
     {
@@ -375,6 +383,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Inspections', href: '/dashboard/fix?view=inspections', icon: <InspectIcon /> },
         { label: 'Install Logs', href: '/dashboard/fix?view=logs', icon: <ClipboardIcon /> },
+        { label: 'Materials', href: '/dashboard/fix?view=materials', icon: <HammerIcon /> },
       ],
     },
   ],
@@ -421,11 +430,20 @@ const ROLE_RING: Record<Role, string> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+const sidebarFetcher = (url: string) => fetch(url).then((r) => r.json())
+
 export default function IconSidebar({ role, name }: { role: Role; name: string }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [viewAsOpen, setViewAsOpen] = useState(false)
+
+  const { data: materialsData } = useSWR<{ pendingCount: number }>(
+    '/api/materials',
+    sidebarFetcher,
+    { refreshInterval: 120_000 },
+  )
+  const pendingMaterials = materialsData?.pendingCount ?? 0
 
   const groups = NAV_GROUPS[role] ?? []
   const currentHref = pathname + (searchParams.toString() ? '?' + searchParams.toString() : '')
@@ -489,6 +507,12 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
                     )}
                     <span className={`transition-colors ${active ? ROLE_TEXT[role] : ''}`}>{item.icon}</span>
                     <span className="truncate">{item.label}</span>
+                    {item.href.includes('view=materials') && pendingMaterials > 0 && (
+                      <span className="ml-auto shrink-0 min-w-[18px] h-[18px] flex items-center justify-center
+                        text-[10px] font-bold bg-amber-500 text-white rounded-full px-1 leading-none">
+                        {pendingMaterials}
+                      </span>
+                    )}
                   </Link>
                 )
               })}
