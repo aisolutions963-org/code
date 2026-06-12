@@ -36,7 +36,7 @@ type Page =
 
 interface SedMember { id: string; name: string }
 
-const UAE_EMIRATES = ['Dubai', 'Abu Dabei', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
+const UAE_EMIRATES = ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah']
 const DUBAI_LOCATIONS = [
   'Abu Hail', 'Al Baraha', 'Al Barsha', 'Al Bastakiya', 'Al Buteen', 'Al Dhagaya',
   'Al Garhoud', 'Al Hamriya', 'Al Hudaiba', 'Al Jaddaf', 'Al Jafilia', 'Al Karama',
@@ -1172,7 +1172,9 @@ function PhasesPage() {
   const { data, isLoading, mutate } = useSWR<{ projects: Project[] }>(
     '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
-  const projects = (data?.projects ?? []).filter((p) => !['Closed', 'Archived'].includes(p.projectStage))
+  const projects = (data?.projects ?? []).filter(
+    (p) => !['Closed', 'Closed and active warranty', 'Warranty expired', 'Not-Approved'].includes(p.projectStage),
+  )
 
   async function handleAdvance(id: string) {
     const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })

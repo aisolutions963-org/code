@@ -228,7 +228,7 @@ export const CreateProjectSchema = z.object({
 
 export const CreateClientRequestSchema = z
   .object({
-    requestType: z.enum(['Trade', 'Maintenance']),
+    requestType: z.enum(['Trade', 'Maintenance', 'Variance']),
     clientName: z.string().min(1, 'Client name is required').max(200).transform((v) => v.trim()),
     clientPhone: z.string().max(30).optional(),
     description: z.string().max(1000).optional(),
@@ -243,6 +243,8 @@ export const CreateClientRequestSchema = z
         path: ['parentProjectId'],
         message: d.requestType === 'Trade'
           ? 'Parent project is required for Trade requests'
+          : d.requestType === 'Variance'
+          ? 'Parent project is required for Variance requests'
           : 'Select the project under warranty for this maintenance request',
       })
     }

@@ -6,6 +6,15 @@ import {
   CreateClientRequestSchema,
   LoginSchema,
   CreateUserSchema,
+  UpdateUserSchema,
+  CreateAnnouncementSchema,
+  CreateQuotationItemsSchema,
+  CreateMaterialsSchema,
+  CreateMaterialOrderSchema,
+  CreateHandoverSchema,
+  CreateInstallationLogSchema,
+  CreatePurchaseOrderSchema,
+  CreateCalendarEventSchema,
 } from '@/lib/validation'
 
 // ── CreatePaymentSchema ─────────────────────────────────────────────────────
@@ -162,12 +171,22 @@ describe('CreateClientRequestSchema', () => {
     expect(CreateClientRequestSchema.safeParse(input).success).toBe(true)
   })
 
-  it('accepts valid Maintenance request (no parentProjectId required)', () => {
+  it('accepts valid Maintenance request with parentProjectId', () => {
+    const input = {
+      requestType: 'Maintenance',
+      clientName: 'Ahmed Khalil',
+      parentProjectId: 'recWARRANTY',
+    }
+    expect(CreateClientRequestSchema.safeParse(input).success).toBe(true)
+  })
+
+  it('rejects Maintenance request without parentProjectId (must link to project under warranty)', () => {
     const input = {
       requestType: 'Maintenance',
       clientName: 'Ahmed Khalil',
     }
-    expect(CreateClientRequestSchema.safeParse(input).success).toBe(true)
+    const result = CreateClientRequestSchema.safeParse(input)
+    expect(result.success).toBe(false)
   })
 
   it('rejects Trade request without parentProjectId', () => {
@@ -202,6 +221,7 @@ describe('CreateClientRequestSchema', () => {
     const result = CreateClientRequestSchema.safeParse({
       requestType: 'Maintenance',
       clientName: '  Ahmed  ',
+      parentProjectId: 'recWARRANTY',
     })
     expect(result.success).toBe(true)
     if (result.success) expect(result.data.clientName).toBe('Ahmed')
@@ -257,5 +277,349 @@ describe('CreateUserSchema', () => {
 
   it('rejects name longer than 100 chars', () => {
     expect(CreateUserSchema.safeParse({ ...base, name: 'a'.repeat(101) }).success).toBe(false)
+  })
+})
+
+// ── UpdateUserSchema ────────────────────────────────────────────────────────
+
+describe('UpdateUserSchema', () => {
+  it('accepts partial update with just name', () => {
+    expect(UpdateUserSchema.safeParse({ name: 'New Name' }).success).toBe(true)
+  })
+
+  it('accepts active flag 0 or 1', () => {
+    expect(UpdateUserSchema.safeParse({ active: 0 }).success).toBe(true)
+    expect(UpdateUserSchema.safeParse({ active: 1 }).success).toBe(true)
+  })
+
+  it('rejects active value outside 0/1', () => {
+    expect(UpdateUserSchema.safeParse({ active: 2 }).success).toBe(false)
+  })
+
+  it('accepts empty object (all fields optional)', () => {
+    expect(UpdateUserSchema.safeParse({}).success).toBe(true)
+  })
+
+  it('rejects invalid role', () => {
+    expect(UpdateUserSchema.safeParse({ role: 'owner' }).success).toBe(false)
+  })
+
+  it('normalises email to lowercase on update', () => {
+    const result = UpdateUserSchema.safeParse({ email: 'ADMIN@WOODWINGS.AE' })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.email).toBe('admin@woodwings.ae')
+  })
+
+  it('rejects invalid email on update', () => {
+    expect(UpdateUserSchema.safeParse({ email: 'notanemail' }).success).toBe(false)
+  })
+})
+
+// ── CreateAnnouncementSchema ────────────────────────────────────────────────
+
+describe('CreateAnnouncementSchema', () => {
+  it('accepts minimal announcement', () => {
+    expect(CreateAnnouncementSchema.safeParse({ title: 'Notice' }).success).toBe(true)
+  })
+
+  it('trims title whitespace', () => {
+    const result = CreateAnnouncementSchema.safeParse({ title: '  Notice  ' })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.title).toBe('Notice')
+  })
+
+  it('rejects empty title', () => {
+    expect(CreateAnnouncementSchema.safeParse({ title: '' }).success).toBe(false)
+  })
+
+  it('accepts all optional fields', () => {
+    expect(CreateAnnouncementSchema.safeParse({
+      title: 'Update',
+      message: 'Details here',
+      pinned: true,
+      visibleTo: 'manager',
+      expiresAt: '2026-12-31',
+    }).success).toBe(true)
+  })
+
+  it('rejects invalid expiresAt format', () => {
+    expect(CreateAnnouncementSchema.safeParse({ title: 'X', expiresAt: '31-12-2026' }).success).toBe(false)
+  })
+})
+
+// ── CreateQuotationItemsSchema ──────────────────────────────────────────────
+
+describe('CreateQuotationItemsSchema', () => {
+  const validItem = {
+    itemName: 'Wardrobe',
+    description: 'Built-in oak wardrobe',
+    quantity: 2,
+    unitPrice: 5000,
+    actions: ['Design (item)'],
+  }
+  const base = {
+    quotationNumber: '2341',
+    quotationReference: 'WW-2341-REF',
+    quotationDate: '2026-06-01',
+    items: [validItem],
+  }
+
+  it('accepts valid quotation with one item', () => {
+    expect(CreateQuotationItemsSchema.safeParse(base).success).toBe(true)
+  })
+
+  it('rejects quotation number shorter than 4 digits', () => {
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationNumber: '123' }).success).toBe(false)
+  })
+
+  it('rejects non-numeric quotation number', () => {
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationNumber: 'AB12' }).success).toBe(false)
+  })
+
+  it('rejects empty items array', () => {
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, items: [] }).success).toBe(false)
+  })
+
+  it('rejects item with no actions', () => {
+    const badItem = { ...validItem, actions: [] }
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, items: [badItem] }).success).toBe(false)
+  })
+
+  it('rejects invalid action value', () => {
+    const badItem = { ...validItem, actions: ['Paint Wall'] }
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, items: [badItem] }).success).toBe(false)
+  })
+
+  it('rejects empty quotationReference', () => {
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationReference: '' }).success).toBe(false)
+  })
+})
+
+// ── CreateMaterialsSchema ───────────────────────────────────────────────────
+
+describe('CreateMaterialsSchema', () => {
+  const validItem = { name: 'Oak Veneer' }
+  const base = { items: [validItem] }
+
+  it('accepts minimal item with just a name', () => {
+    expect(CreateMaterialsSchema.safeParse(base).success).toBe(true)
+  })
+
+  it('accepts full item', () => {
+    expect(CreateMaterialsSchema.safeParse({
+      items: [{ name: 'MDF Board', supplier: 'Dubai Wood', quantity: 10, unit: 'm²', unitCost: 120, notes: 'Grade A' }],
+    }).success).toBe(true)
+  })
+
+  it('rejects empty items array', () => {
+    expect(CreateMaterialsSchema.safeParse({ items: [] }).success).toBe(false)
+  })
+
+  it('rejects invalid unit', () => {
+    expect(CreateMaterialsSchema.safeParse({ items: [{ name: 'X', unit: 'ton' }] }).success).toBe(false)
+  })
+})
+
+// ── CreateMaterialOrderSchema ───────────────────────────────────────────────
+
+describe('CreateMaterialOrderSchema', () => {
+  const validItem = { name: 'Screws', quantity: 100, unit: 'pcs' }
+
+  it('accepts Project purpose with projectId', () => {
+    expect(CreateMaterialOrderSchema.safeParse({
+      purpose: 'Project',
+      projectId: 'recABC',
+      items: [validItem],
+    }).success).toBe(true)
+  })
+
+  it('accepts Office purpose without projectId', () => {
+    expect(CreateMaterialOrderSchema.safeParse({
+      purpose: 'Office',
+      items: [validItem],
+    }).success).toBe(true)
+  })
+
+  it('rejects Project purpose without projectId', () => {
+    const result = CreateMaterialOrderSchema.safeParse({ purpose: 'Project', items: [validItem] })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects empty items array', () => {
+    expect(CreateMaterialOrderSchema.safeParse({ purpose: 'Office', items: [] }).success).toBe(false)
+  })
+
+  it('rejects invalid purpose', () => {
+    expect(CreateMaterialOrderSchema.safeParse({ purpose: 'Home', items: [validItem] }).success).toBe(false)
+  })
+
+  it('rejects item with zero quantity', () => {
+    expect(CreateMaterialOrderSchema.safeParse({
+      purpose: 'Factory',
+      items: [{ name: 'X', quantity: 0, unit: 'pcs' }],
+    }).success).toBe(false)
+  })
+})
+
+// ── CreateHandoverSchema ────────────────────────────────────────────────────
+
+describe('CreateHandoverSchema', () => {
+  const base = {
+    finalInstallationDate: '2026-06-15',
+    customerSatisfaction: 'Satisfied',
+    installationDifficulty: 'Medium',
+  }
+
+  it('accepts valid handover', () => {
+    expect(CreateHandoverSchema.safeParse(base).success).toBe(true)
+  })
+
+  it('accepts all optional fields', () => {
+    expect(CreateHandoverSchema.safeParse({ ...base, newsletterOptIn: true, notes: 'All good' }).success).toBe(true)
+  })
+
+  it('rejects invalid customerSatisfaction', () => {
+    expect(CreateHandoverSchema.safeParse({ ...base, customerSatisfaction: 'Happy' }).success).toBe(false)
+  })
+
+  it('rejects invalid installationDifficulty', () => {
+    expect(CreateHandoverSchema.safeParse({ ...base, installationDifficulty: 'Extreme' }).success).toBe(false)
+  })
+
+  it('rejects malformed finalInstallationDate', () => {
+    expect(CreateHandoverSchema.safeParse({ ...base, finalInstallationDate: '15/06/2026' }).success).toBe(false)
+  })
+
+  it('accepts all valid satisfaction values', () => {
+    ['Very Satisfied', 'Satisfied', 'Neutral', 'Unsatisfied'].forEach((v) => {
+      expect(CreateHandoverSchema.safeParse({ ...base, customerSatisfaction: v }).success).toBe(true)
+    })
+  })
+})
+
+// ── CreateInstallationLogSchema ─────────────────────────────────────────────
+
+describe('CreateInstallationLogSchema', () => {
+  const base = {
+    project: ['recABC'],
+    date: '2026-06-15',
+  }
+
+  it('accepts minimal log entry', () => {
+    expect(CreateInstallationLogSchema.safeParse(base).success).toBe(true)
+  })
+
+  it('accepts full log entry', () => {
+    expect(CreateInstallationLogSchema.safeParse({
+      ...base,
+      installationTeam: 'Mr. Yahia',
+      numberOfLaborers: 4,
+      workDescription: 'Installed kitchen cabinets',
+      expectedFinishDate: '2026-06-20',
+    }).success).toBe(true)
+  })
+
+  it('rejects missing project', () => {
+    expect(CreateInstallationLogSchema.safeParse({ date: '2026-06-15' }).success).toBe(false)
+  })
+
+  it('rejects malformed date', () => {
+    expect(CreateInstallationLogSchema.safeParse({ ...base, date: '15-06-2026' }).success).toBe(false)
+  })
+
+  it('rejects invalid installationTeam', () => {
+    expect(CreateInstallationLogSchema.safeParse({ ...base, installationTeam: 'Mr. Unknown' }).success).toBe(false)
+  })
+
+  it('rejects numberOfLaborers = 0', () => {
+    expect(CreateInstallationLogSchema.safeParse({ ...base, numberOfLaborers: 0 }).success).toBe(false)
+  })
+})
+
+// ── CreatePurchaseOrderSchema ───────────────────────────────────────────────
+
+describe('CreatePurchaseOrderSchema', () => {
+  const base = {
+    project: ['recABC'],
+    supplier: 'Al Futtaim Timber',
+  }
+
+  it('accepts minimal purchase order', () => {
+    expect(CreatePurchaseOrderSchema.safeParse(base).success).toBe(true)
+  })
+
+  it('accepts full purchase order', () => {
+    expect(CreatePurchaseOrderSchema.safeParse({
+      ...base,
+      totalAmount: 15000,
+      orderDate: '2026-06-01',
+      expectedDelivery: '2026-06-10',
+      notes: 'Urgent',
+    }).success).toBe(true)
+  })
+
+  it('trims supplier whitespace', () => {
+    const result = CreatePurchaseOrderSchema.safeParse({ ...base, supplier: '  Supplier  ' })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.supplier).toBe('Supplier')
+  })
+
+  it('rejects missing project', () => {
+    expect(CreatePurchaseOrderSchema.safeParse({ supplier: 'X' }).success).toBe(false)
+  })
+
+  it('rejects empty supplier', () => {
+    expect(CreatePurchaseOrderSchema.safeParse({ ...base, supplier: '' }).success).toBe(false)
+  })
+
+  it('rejects malformed orderDate', () => {
+    expect(CreatePurchaseOrderSchema.safeParse({ ...base, orderDate: '01/06/2026' }).success).toBe(false)
+  })
+})
+
+// ── CreateCalendarEventSchema ───────────────────────────────────────────────
+
+describe('CreateCalendarEventSchema', () => {
+  const base = {
+    title: 'Site Visit',
+    date: '2026-06-20',
+  }
+
+  it('accepts minimal event', () => {
+    expect(CreateCalendarEventSchema.safeParse(base).success).toBe(true)
+  })
+
+  it('accepts full event', () => {
+    expect(CreateCalendarEventSchema.safeParse({
+      ...base,
+      notes: 'Bring drawings',
+      projectId: 'recABC',
+      eventType: 'installation',
+      teamMemberIds: ['rec1', 'rec2'],
+    }).success).toBe(true)
+  })
+
+  it('trims title whitespace', () => {
+    const result = CreateCalendarEventSchema.safeParse({ ...base, title: '  Visit  ' })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.title).toBe('Visit')
+  })
+
+  it('rejects empty title', () => {
+    expect(CreateCalendarEventSchema.safeParse({ ...base, title: '' }).success).toBe(false)
+  })
+
+  it('rejects malformed date', () => {
+    expect(CreateCalendarEventSchema.safeParse({ ...base, date: '20/06/2026' }).success).toBe(false)
+  })
+
+  it('rejects invalid eventType', () => {
+    expect(CreateCalendarEventSchema.safeParse({ ...base, eventType: 'meeting' }).success).toBe(false)
+  })
+
+  it('accepts all valid eventTypes', () => {
+    ['activity', 'installation', 'fabrication', 'delivery'].forEach((t) => {
+      expect(CreateCalendarEventSchema.safeParse({ ...base, eventType: t }).success).toBe(true)
+    })
   })
 })

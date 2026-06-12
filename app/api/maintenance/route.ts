@@ -66,7 +66,13 @@ async function buildResponse(records: Awaited<ReturnType<typeof getMaintenanceRe
 
 // PATCH /api/maintenance — manually expire a single maintenance record
 export const PATCH = requireRole('superadmin')(async (req: NextRequest) => {
-  const { recordId } = await req.json() as { recordId: string }
+  let body: { recordId: string }
+  try {
+    body = await req.json() as { recordId: string }
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
+  const { recordId } = body
   if (!recordId) return NextResponse.json({ error: 'recordId required' }, { status: 400 })
 
   const records = await getMaintenanceRecords()

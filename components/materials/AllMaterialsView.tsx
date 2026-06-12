@@ -113,11 +113,12 @@ export default function AllMaterialsView({ role }: { role: string }) {
       false,
     )
     try {
-      await fetch(`/api/materials/${materialId}`, {
+      const res = await fetch(`/api/materials/${materialId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderStatus: status }),
       })
+      if (!res.ok) mutate()
     } catch {
       mutate()
     } finally {

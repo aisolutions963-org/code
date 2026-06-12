@@ -5,9 +5,13 @@ import { CreateCalendarEventSchema } from '@/lib/validation'
 import { getUserByAirtableMemberId } from '@/lib/db'
 import { createNotification } from '@/lib/notifications'
 
-export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async () => {
+const PAYMENT_EVENT_TYPES = new Set(['payment-due', 'payment-received'])
+
+export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async (_req, session) => {
   try {
-    const events = await getCalendarEvents()
+    const all = await getCalendarEvents()
+    const canSeePayments = session.role === 'manager' || session.role === 'superadmin'
+    const events = canSeePayments ? all : all.filter((e) => !PAYMENT_EVENT_TYPES.has(e.type))
     return NextResponse.json({ events })
   } catch (error) {
     console.error('GET /api/calendar error:', error)

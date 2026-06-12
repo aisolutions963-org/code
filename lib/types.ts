@@ -167,7 +167,7 @@ export interface Project {
   communSeds?: string[]
   communSedIds?: string[]
   fabricationActive?: boolean
-  requestType?: 'Trade' | 'Maintenance'
+  requestType?: 'Trade' | 'Maintenance' | 'Variance'
   parentProjectId?: string
   parentProjectName?: string
   tradeReference?: string
@@ -178,7 +178,7 @@ export interface ClientRequest {
   projectName: string
   clientName: string
   clientPhone?: string
-  requestType: 'Trade' | 'Maintenance'
+  requestType: 'Trade' | 'Maintenance' | 'Variance'
   projectStage: string
   createdAt?: string
   description?: string
@@ -189,7 +189,7 @@ export interface ClientRequest {
 }
 
 export interface ClientRequestCreateInput {
-  requestType: 'Trade' | 'Maintenance'
+  requestType: 'Trade' | 'Maintenance' | 'Variance'
   clientName: string
   clientPhone?: string
   description?: string

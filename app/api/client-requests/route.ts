@@ -52,11 +52,13 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
   }
 
   let project: Awaited<ReturnType<typeof createClientRequest>>['project']
-  let tasks: Awaited<ReturnType<typeof createClientRequest>>['tasks']
+  let tasksCreated: number
+  let taskGenerationFailed: boolean | undefined
   try {
     const result = await createClientRequest(data)
     project = result.project
-    tasks = result.tasks
+    tasksCreated = result.tasksCreated
+    taskGenerationFailed = result.taskGenerationFailed
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to create request'
     return NextResponse.json({ error: msg }, { status: 500 })
@@ -72,8 +74,12 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     await addSedProjectMapping(project.id, session.id)
   }
 
+  const warning = taskGenerationFailed
+    ? 'Variance project created but task generation failed — open the project and regenerate tasks.'
+    : undefined
+
   return NextResponse.json(
-    { request: { ...project, tasks }, tasksCreated: tasks.length },
+    { request: project, tasksCreated, ...(warning ? { warning } : {}) },
     { status: 201 },
   )
 })

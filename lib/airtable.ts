@@ -393,7 +393,7 @@ function transformProject(record: RawRecord): Project {
     projectDescription: str(f[PROJECTS.PROJECT_DESCRIPTION]),
     communSeds: communSeds.length > 0 ? communSeds : undefined,
     communSedIds: communSedIds.length > 0 ? communSedIds : undefined,
-    requestType: (str(f[PROJECTS.REQUEST_TYPE]) as 'Trade' | 'Maintenance' | undefined) ?? undefined,
+    requestType: (str(f[PROJECTS.REQUEST_TYPE]) as 'Trade' | 'Maintenance' | 'Variance' | undefined) ?? undefined,
     parentProjectId: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.id ?? undefined,
     parentProjectName: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.name ?? undefined,
     tradeReference: str(f[PROJECTS.TRADE_REFERENCE]) ?? undefined,
@@ -3025,9 +3025,9 @@ const CR_TEMPLATE_SED     = 'rec6xYWnAAWOKyVr7' // Department = SED
 const CR_TEMPLATE_PAYMENT = 'recRX4dqaaY5RsPdH' // Department = Manager
 
 const TRADE_TASKS = [
-  { name: 'F3 — Order Trade Material', order: 100, templateId: CR_TEMPLATE_SED },
-  { name: 'F4 — Trade Payment',        order: 101, templateId: CR_TEMPLATE_PAYMENT },
-  { name: 'Handover to Client',        order: 102, templateId: CR_TEMPLATE_SED },
+  { name: 'F3 — Order Trade Material',    order: 100, templateId: CR_TEMPLATE_SED },
+  { name: 'F4 — Trade Payment',           order: 101, templateId: CR_TEMPLATE_PAYMENT },
+  { name: 'Handover to Client',           order: 102, templateId: CR_TEMPLATE_SED },
 ] as const
 
 const MAINTENANCE_TASKS = [
@@ -3039,11 +3039,12 @@ const MAINTENANCE_TASKS = [
 
 export async function createClientRequest(
   input: ClientRequestCreateInput,
-): Promise<{ project: Project; tasks: { id: string; name: string }[] }> {
+): Promise<{ project: Project; tasksCreated: number; taskGenerationFailed?: boolean }> {
   if (PROJECTS.REQUEST_TYPE.startsWith('REPLACE')) {
     throw new Error('Client Requests feature requires Airtable field IDs to be configured in fieldMap.ts')
   }
-  const isTrade = input.requestType === 'Trade'
+  const isTrade    = input.requestType === 'Trade'
+  const isVariance = input.requestType === 'Variance'
   let parentProjectName: string | undefined
 
   if (input.parentProjectId) {
@@ -3055,9 +3056,8 @@ export async function createClientRequest(
     }
   }
 
-  const projectName = isTrade
-    ? `[Trade] ${parentProjectName ?? input.clientName}`
-    : `[Maintenance] ${parentProjectName ?? input.clientName}`
+  const prefix = isTrade ? '[Trade]' : isVariance ? '[Variance]' : '[Maintenance]'
+  const projectName = `${prefix} ${parentProjectName ?? input.clientName}`
 
   const fields: Record<string, unknown> = {
     [PROJECTS.PROJECT_NAME]: projectName,
@@ -3069,7 +3069,7 @@ export async function createClientRequest(
   if (input.description) fields[PROJECTS.PROJECT_DESCRIPTION] = input.description
   if (input.salesOwnerCollaboratorId) fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
   if (input.parentProjectId) fields[PROJECTS.PARENT_PROJECT] = [input.parentProjectId]
-  if (isTrade && input.tradeReference) fields[PROJECTS.TRADE_REFERENCE] = input.tradeReference
+  if ((isTrade || isVariance) && input.tradeReference) fields[PROJECTS.TRADE_REFERENCE] = input.tradeReference
 
   const projRes = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
     method: 'POST',
@@ -3083,6 +3083,16 @@ export async function createClientRequest(
   const projRecord: RawRecord = await projRes.json()
   const project = transformProject(projRecord)
 
+  if (isVariance) {
+    try {
+      const result = await generateTasksForProject(project.id, 'Preparing')
+      return { project, tasksCreated: result.created }
+    } catch (err) {
+      console.error('[createClientRequest] Variance task generation failed:', err)
+      return { project, tasksCreated: 0, taskGenerationFailed: true }
+    }
+  }
+
   const taskDefs = isTrade ? TRADE_TASKS : MAINTENANCE_TASKS
   const taskRecords = taskDefs.map((t, i) => ({
     [TASKS.TASK_NAME]: t.name,
@@ -3093,9 +3103,7 @@ export async function createClientRequest(
   }))
 
   const taskIds = await createTasksBatch(taskRecords)
-  const tasks = taskDefs.map((t, i) => ({ id: taskIds[i] ?? '', name: t.name }))
-
-  return { project, tasks }
+  return { project, tasksCreated: taskIds.length }
 }
 
 export async function getClientRequests(options?: {
@@ -3147,7 +3155,7 @@ export async function getClientRequests(options?: {
       projectName: p.projectName,
       clientName: p.clientName,
       clientPhone: p.clientPhone,
-      requestType: p.requestType as 'Trade' | 'Maintenance',
+      requestType: p.requestType as 'Trade' | 'Maintenance' | 'Variance',
       projectStage: p.projectStage,
       createdAt: p.projectCreatedAt,
       description: p.projectDescription,
@@ -3161,7 +3169,7 @@ export async function getClientRequests(options?: {
 
 export async function getClientRequestsByParentProject(parentProjectId: string): Promise<ClientRequest[]> {
   if (PROJECTS.PARENT_PROJECT.startsWith('REPLACE')) return []
-  const formula = `{${PROJECTS.PARENT_PROJECT}} = "${parentProjectId}"`
+  const formula = `FIND("${parentProjectId}", ARRAYJOIN({${PROJECTS.PARENT_PROJECT}}, ","))`
   const projects = await fetchAll(PROJECTS.TABLE_ID, {
     filterByFormula: formula,
     sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
@@ -3190,7 +3198,7 @@ export async function getClientRequestsByParentProject(parentProjectId: string):
       projectName: p.projectName,
       clientName: p.clientName,
       clientPhone: p.clientPhone,
-      requestType: p.requestType as 'Trade' | 'Maintenance',
+      requestType: p.requestType as 'Trade' | 'Maintenance' | 'Variance',
       projectStage: p.projectStage,
       createdAt: p.projectCreatedAt,
       description: p.projectDescription,

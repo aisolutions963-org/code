@@ -79,7 +79,7 @@ describe('filterAllowedFields', () => {
       status: 'In Progress',
       postVisitOutcome: 'Client agreed',
       superadminNote: 'should be stripped',
-      managerReviewStatus: 'should be stripped',
+      managerReviewStatus: 'Pending',
     }
     const result = filterAllowedFields('sed', input)
     expect(result).toHaveProperty('status', 'In Progress')

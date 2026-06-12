@@ -109,7 +109,7 @@ export const PROJECTS = {
   DETAILED_LOCATION: 'fldoRWDUaeNKEtrbi',
   PROJECT_DESCRIPTION: 'fldhpCCy7ZIrh7pax',
   REQUIRED_INTAKE_PATHS: 'fld5jHSFxBU9euELy',
-  REQUEST_TYPE:    'fldDlEFv0as7eOxuS',  // single select: Trade | Maintenance
+  REQUEST_TYPE:    'fldDlEFv0as7eOxuS',  // single select: Trade | Maintenance | Variance
   PARENT_PROJECT:  'flds3nCf54kT4Ss3s',  // linked record → PROJECTS
   TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
 } as const
