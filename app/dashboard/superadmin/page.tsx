@@ -270,7 +270,7 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
 
       <div className="p-4">
         {/* Legend */}
-        <div className="flex gap-4 text-xs text-gray-500 mb-3">
+        <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-3">
           {[
             { label: 'Preparing', color: '#3b82f6' },
             { label: 'Open', color: '#16a34a' },
@@ -289,7 +289,7 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
             <BarChart
               layout="vertical"
               data={chartData as { name: string; value: number; fill: string }[]}
-              margin={{ top: 0, right: 20, left: 80, bottom: 0 }}
+              margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
               <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -305,7 +305,7 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
             <BarChart
               layout="vertical"
               data={chartData as { name: string; preparing: number; open: number; closed: number; notApproved: number }[]}
-              margin={{ top: 0, right: 20, left: 80, bottom: 0 }}
+              margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
               <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -324,9 +324,9 @@ function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Commission (1.5% of paid)</p>
           <div className="space-y-1">
             {(selectedSed ? data.filter((d) => d.sedName === selectedSed) : data).map((d) => (
-              <div key={d.sedName} className="flex items-center justify-between gap-3 text-xs">
+              <div key={d.sedName} className="flex items-start flex-wrap justify-between gap-1 text-xs">
                 <span className="text-gray-600 font-medium truncate">{d.sedName}</span>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <span className="text-gray-400">Paid: AED {d.totalPaid.toLocaleString()}</span>
                   <span className="font-semibold text-emerald-600">AED {d.commission.toLocaleString()}</span>
                 </div>
@@ -1093,7 +1093,7 @@ function TimelinePage() {
       </div>
 
       {/* Legend */}
-      <div className="flex gap-4 text-xs text-gray-500">
+      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
         {Object.entries(TYPE_COLORS).map(([type, cls]) => (
           <span key={type} className="flex items-center gap-1.5">
             <span className={`w-2.5 h-2.5 rounded-full ${cls}`} />
@@ -1124,7 +1124,7 @@ function TimelinePage() {
         {projects.map((proj) => (
           <div key={proj.id} className="flex items-center border-b border-gray-50 last:border-0 group">
             {/* Project label */}
-            <div className="w-48 shrink-0 px-4 py-3 border-r border-gray-100">
+            <div className="w-28 sm:w-48 shrink-0 px-4 py-3 border-r border-gray-100">
               <p className="text-xs font-medium text-gray-800 truncate">{proj.projectName}</p>
               <p className="text-xs text-gray-400 truncate">{proj.clientName}</p>
             </div>
@@ -1310,7 +1310,7 @@ function PersonSection({ group }: { group: TeamGroup }) {
         </div>
       </button>
       {expanded && (
-        <div className="border-t border-gray-100">
+        <div className="border-t border-gray-100 overflow-x-auto">
           {activeTasks.length === 0 ? (
             <p className="px-5 py-4 text-sm text-gray-400">No active tasks.</p>
           ) : (
@@ -1412,7 +1412,7 @@ function ActivityPage() {
               </ResponsiveContainer>
             </div>
           )}
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg overflow-x-auto">
             {DEPTS.map((d) => (
               <button key={d} onClick={() => setDept(d)} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${dept === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{d}</button>
             ))}
