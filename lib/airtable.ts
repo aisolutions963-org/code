@@ -821,7 +821,7 @@ export async function createProject(input: ProjectCreateInput): Promise<Project>
 }
 
 export async function getPaymentsByProject(projectId: string): Promise<Payment[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${PAYMENTS.PROJECT}}, ","))`
+  const formula = `{${PAYMENTS.PROJECT}} = "${projectId}"`
   const records = await fetchAll(PAYMENTS.TABLE_ID, { filterByFormula: formula })
   return records.map(transformPayment)
 }
@@ -3231,7 +3231,7 @@ export async function getSedQuarterlyRevenue(
   for (let i = 0; i < projectIds.length; i += CHUNK) {
     const chunk = projectIds.slice(i, i + CHUNK)
     const projectFilter = chunk
-      .map((id) => `FIND("${id}", ARRAYJOIN({${PAYMENTS.PROJECT}}, ","))`)
+      .map((id) => `{${PAYMENTS.PROJECT}} = "${id}"`)
       .join(',')
     const formula = `AND(OR(${projectFilter}), {${PAYMENTS.PAYMENT_STATUS}}="Received", {${PAYMENTS.RECEIVED_DATE}}>="${quarterStart}", {${PAYMENTS.RECEIVED_DATE}}<="${quarterEnd}")`
     const records = await fetchAll(PAYMENTS.TABLE_ID, {
