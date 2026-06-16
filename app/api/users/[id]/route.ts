@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { hashPassword, getUserById, updateUser, deleteUser } from '@/lib/db'
+import { hashPassword, getUserById, updateUser, deleteUser, hardDeleteUser } from '@/lib/db'
 import { updateTeamMember, createTeamMember } from '@/lib/airtable'
 import { UpdateUserSchema } from '@/lib/validation'
 
@@ -87,20 +87,26 @@ export const PATCH = requireRole('superadmin')(
 )
 
 export const DELETE = requireRole('superadmin')(
-  async (_req: NextRequest, _session, { params }) => {
+  async (req: NextRequest, _session, { params }) => {
     const id = parseInt(params.id, 10)
     if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
     const existing = await getUserById(id)
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-    await deleteUser(id)
+    const permanent = new URL(req.url).searchParams.get('permanent') === 'true'
+
+    if (permanent) {
+      await hardDeleteUser(id)
+    } else {
+      await deleteUser(id)
+    }
 
     if (existing.airtable_member_id) {
       try {
         await updateTeamMember(existing.airtable_member_id, { active: false })
       } catch {
-        // Soft-delete failure is best-effort — user is already removed from system
+        // best-effort
       }
     }
 

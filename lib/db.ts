@@ -196,6 +196,11 @@ export async function deleteUser(id: number): Promise<void> {
   })
 }
 
+export async function hardDeleteUser(id: number): Promise<void> {
+  const c = await db()
+  await c.execute({ sql: `DELETE FROM users WHERE id = ?`, args: [id] })
+}
+
 export async function getUserByAirtableMemberId(memberId: string): Promise<DBUser | undefined> {
   const c = await db()
   const result = await c.execute({

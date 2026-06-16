@@ -134,6 +134,8 @@ export default function UsersPage() {
   const [formError, setFormError] = useState('')
   const [confirmDeactivate, setConfirmDeactivate] = useState<User | null>(null)
   const [deactivating, setDeactivating] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<User | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const users = data?.users ?? []
 
@@ -209,6 +211,23 @@ export default function UsersPage() {
     }
   }
 
+  async function handleDelete(user: User) {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/users/${user.id}?permanent=true`, { method: 'DELETE' })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error ?? 'Failed to delete')
+      }
+      mutate()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete')
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(null)
+    }
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
@@ -266,14 +285,20 @@ export default function UsersPage() {
                       >
                         Edit
                       </button>
-                      {user.active ? (
+                      {user.active && (
                         <button
                           onClick={() => setConfirmDeactivate(user)}
-                          className="text-xs text-red-500 hover:text-red-600 font-medium"
+                          className="text-xs text-amber-500 hover:text-amber-600 font-medium"
                         >
                           Deactivate
                         </button>
-                      ) : null}
+                      )}
+                      <button
+                        onClick={() => setConfirmDelete(user)}
+                        className="text-xs text-red-500 hover:text-red-600 font-medium"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -362,6 +387,28 @@ export default function UsersPage() {
             </select>
           </div>
         </div>
+      </Modal>
+
+      {/* Permanent delete confirmation */}
+      <Modal
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        title="Delete User"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button
+              onClick={() => confirmDelete && handleDelete(confirmDelete)}
+              loading={deleting}
+            >
+              Delete permanently
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-700">
+          Permanently delete <strong>{confirmDelete?.name}</strong>? This removes them from the system entirely and cannot be undone.
+        </p>
       </Modal>
 
       {/* Deactivate confirmation */}
