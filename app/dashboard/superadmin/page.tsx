@@ -109,6 +109,7 @@ const REPORT_TABS: { category: ReportCategory; color: string; reports: ReportIte
       { name: 'SED Follow-Ups', description: 'Follow-up log with outcomes and next actions', route: 'follow-ups' },
       { name: 'Ongoing Projects', description: 'Per-item production status matrix', route: 'ongoing-projects' },
       { name: 'SED Projects Status', description: 'Project portfolio per SED with quote amounts', route: 'sed-projects' },
+      { name: 'Client Requests', description: 'Trade, Maintenance & Variance requests with task progress', route: 'client-requests' },
     ],
   },
   {
