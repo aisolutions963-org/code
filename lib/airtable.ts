@@ -3083,8 +3083,7 @@ const TRADE_TASKS = [
 const MAINTENANCE_TASKS = [
   { name: 'Site Visit & Assessment',    order: 100, templateId: CR_TEMPLATE_SED },
   { name: 'Carry Out Maintenance Work', order: 101, templateId: CR_TEMPLATE_SED },
-  { name: 'F4 — Maintenance Payment',  order: 102, templateId: CR_TEMPLATE_PAYMENT },
-  { name: 'Client Sign-off',           order: 103, templateId: CR_TEMPLATE_SED },
+  { name: 'Client Sign-off',           order: 102, templateId: CR_TEMPLATE_SED },
 ] as const
 
 export async function createClientRequest(
