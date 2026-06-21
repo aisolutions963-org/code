@@ -26,6 +26,12 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
   return records
 }
 
+function selectName(v: unknown): string {
+  if (!v) return ''
+  if (typeof v === 'object' && v !== null && 'name' in v) return (v as { name: string }).name
+  return ''
+}
+
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const sp = new URL(req.url).searchParams
   const from = sp.get('from') ?? ''
@@ -38,7 +44,10 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   if (dateParts.length === 1) matParams.set('filterByFormula', encodeURIComponent(dateParts[0]))
   if (dateParts.length === 2) matParams.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
 
+  // Prefer extended Material Name field; fall back to legacy Name
   matParams.append('fields[]', MATERIALS_NEEDED.NAME)
+  matParams.append('fields[]', MATERIALS_NEEDED.MATERIAL_NAME)
+  matParams.append('fields[]', MATERIALS_NEEDED.MATERIAL_NAME_AR)
   matParams.append('fields[]', MATERIALS_NEEDED.SUPPLIER)
   matParams.append('fields[]', MATERIALS_NEEDED.QUANTITY)
   matParams.append('fields[]', MATERIALS_NEEDED.UNIT)
@@ -48,7 +57,12 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   matParams.append('fields[]', MATERIALS_NEEDED.EXPECTED_ARRIVAL_DATE)
   matParams.append('fields[]', MATERIALS_NEEDED.ACTUAL_ARRIVAL_DATE)
   matParams.append('fields[]', MATERIALS_NEEDED.PROJECTS)
+  matParams.append('fields[]', MATERIALS_NEEDED.TOTAL_AMOUNT)
+  matParams.append('fields[]', MATERIALS_NEEDED.AMOUNT_PAID)
+  matParams.append('fields[]', MATERIALS_NEEDED.AMOUNT_PAYABLE)
+  matParams.append('fields[]', MATERIALS_NEEDED.INVOICE_NUMBER)
   matParams.append('fields[]', MATERIALS_NEEDED.NOTES)
+  matParams.append('fields[]', MATERIALS_NEEDED.MATERIAL_NOTES)
 
   const projParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   projParams.append('fields[]', PROJECTS.PROJECT_ID)
@@ -67,33 +81,47 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     const proj = projIds[0] ? projectById.get(projIds[0]) : undefined
     const qty = (f[MATERIALS_NEEDED.QUANTITY] as number) ?? 0
     const unitCost = (f[MATERIALS_NEEDED.UNIT_COST] as number) ?? 0
+    // Use extended Material Name if available, otherwise fall back to legacy Name field
+    const materialName = (f[MATERIALS_NEEDED.MATERIAL_NAME] as string)
+      || (f[MATERIALS_NEEDED.NAME] as string)
+      || ''
     return {
-      name: (f[MATERIALS_NEEDED.NAME] as string) ?? '',
-      supplier: (f[MATERIALS_NEEDED.SUPPLIER] as string) ?? '',
+      name:            materialName,
+      nameAr:          (f[MATERIALS_NEEDED.MATERIAL_NAME_AR] as string) ?? '',
+      supplier:        (f[MATERIALS_NEEDED.SUPPLIER] as string) ?? '',
       qty,
-      unit: (f[MATERIALS_NEEDED.UNIT] as string) ?? '',
-      project: (proj?.[PROJECTS.PROJECT_NAME] as string) ?? '',
-      status: (f[MATERIALS_NEEDED.ORDER_STATUS] as string) ?? '',
-      reqDate: (f[MATERIALS_NEEDED.REQUEST_DATE] as string) ?? '',
+      unit:            selectName(f[MATERIALS_NEEDED.UNIT]),
+      project:         (proj?.[PROJECTS.PROJECT_NAME] as string) ?? '',
+      projectRef:      (proj?.[PROJECTS.PROJECT_ID] as string) ?? '',
+      status:          selectName(f[MATERIALS_NEEDED.ORDER_STATUS]),
+      reqDate:         (f[MATERIALS_NEEDED.REQUEST_DATE] as string) ?? '',
       expectedArrival: (f[MATERIALS_NEEDED.EXPECTED_ARRIVAL_DATE] as string) ?? '',
-      actualArrival: (f[MATERIALS_NEEDED.ACTUAL_ARRIVAL_DATE] as string) ?? '',
-      total: qty * unitCost,
-      notes: (f[MATERIALS_NEEDED.NOTES] as string) ?? '',
+      actualArrival:   (f[MATERIALS_NEEDED.ACTUAL_ARRIVAL_DATE] as string) ?? '',
+      total:           (f[MATERIALS_NEEDED.TOTAL_AMOUNT] as number) ?? qty * unitCost,
+      paid:            (f[MATERIALS_NEEDED.AMOUNT_PAID] as number) ?? 0,
+      payable:         (f[MATERIALS_NEEDED.AMOUNT_PAYABLE] as number) ?? 0,
+      invoiceNum:      (f[MATERIALS_NEEDED.INVOICE_NUMBER] as string) ?? '',
+      notes:           (f[MATERIALS_NEEDED.MATERIAL_NOTES] as string) || (f[MATERIALS_NEEDED.NOTES] as string) || '',
     }
   })
 
   const buffer = await buildXlsx('Material Orders', [
-    { header: 'Material Name', key: 'name', width: 28 },
-    { header: 'Supplier', key: 'supplier', width: 22 },
-    { header: 'Qty', key: 'qty', width: 8 },
-    { header: 'Unit', key: 'unit', width: 10 },
-    { header: 'Project', key: 'project', width: 26 },
-    { header: 'Status', key: 'status', width: 16 },
-    { header: 'Req. Date', key: 'reqDate', width: 14, isDate: true },
-    { header: 'Expected Arrival', key: 'expectedArrival', width: 16, isDate: true },
-    { header: 'Actual Arrival', key: 'actualArrival', width: 14, isDate: true },
-    { header: 'Total (AED)', key: 'total', width: 14, isCurrency: true },
-    { header: 'Notes', key: 'notes', width: 28 },
+    { header: 'Material Name',       key: 'name',            width: 28 },
+    { header: 'Material Name (AR)',  key: 'nameAr',          width: 24, isArabic: true },
+    { header: 'Supplier',            key: 'supplier',        width: 22 },
+    { header: 'Qty',                 key: 'qty',             width: 8 },
+    { header: 'Unit',                key: 'unit',            width: 10 },
+    { header: 'Project',             key: 'project',         width: 26 },
+    { header: 'Project Ref',         key: 'projectRef',      width: 14 },
+    { header: 'Status',              key: 'status',          width: 16 },
+    { header: 'Req. Date',           key: 'reqDate',         width: 14, isDate: true },
+    { header: 'Expected Arrival',    key: 'expectedArrival', width: 16, isDate: true },
+    { header: 'Actual Arrival',      key: 'actualArrival',   width: 14, isDate: true },
+    { header: 'Total (AED)',         key: 'total',           width: 14, isCurrency: true },
+    { header: 'Paid (AED)',          key: 'paid',            width: 14, isCurrency: true },
+    { header: 'Payable (AED)',       key: 'payable',         width: 14, isCurrency: true },
+    { header: 'Invoice #',           key: 'invoiceNum',      width: 16 },
+    { header: 'Notes',               key: 'notes',           width: 28 },
   ], rows)
 
   return xlsxResponse(buffer, 'Material_Orders')

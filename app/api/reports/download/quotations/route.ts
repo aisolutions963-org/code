@@ -26,6 +26,11 @@ async function fetchAll<T>(tableId: string, params: URLSearchParams): Promise<T[
   return records
 }
 
+function collaboratorName(v: unknown): string {
+  if (!v || typeof v !== 'object') return ''
+  return (v as { name?: string }).name ?? ''
+}
+
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const sp = new URL(req.url).searchParams
   const from = sp.get('from') ?? ''
@@ -33,20 +38,28 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
 
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   params.append('fields[]', QUOTATIONS.NAME)
+  params.append('fields[]', QUOTATIONS.CLIENT_NAME)
   params.append('fields[]', QUOTATIONS.PROJECT)
   params.append('fields[]', QUOTATIONS.DESCRIPTION)
-  params.append('fields[]', QUOTATIONS.QUANTITY)
-  params.append('fields[]', QUOTATIONS.UNIT_PRICE)
   params.append('fields[]', QUOTATIONS.QUOTATION_STATUS)
   params.append('fields[]', QUOTATIONS.SENT_DATE)
   params.append('fields[]', QUOTATIONS.APPROVED_DATE)
   params.append('fields[]', QUOTATIONS.RECORDED_BY)
+  params.append('fields[]', QUOTATIONS.QUOTE_AMOUNT)
+  params.append('fields[]', QUOTATIONS.VAT_AMOUNT)
+  params.append('fields[]', QUOTATIONS.TOTAL_WITH_VAT)
+  params.append('fields[]', QUOTATIONS.VARIATION_1)
+  params.append('fields[]', QUOTATIONS.VARIATION_2)
+  params.append('fields[]', QUOTATIONS.TOTAL_WITH_VARS)
+  params.append('fields[]', QUOTATIONS.NEXT_FOLLOWUP)
+  params.append('fields[]', QUOTATIONS.SALES)
+  params.append('fields[]', QUOTATIONS.REVISION)
+
   const dateParts: string[] = []
   if (from) dateParts.push(`IS_AFTER({${QUOTATIONS.SENT_DATE}}, "${from}")`)
   if (to)   dateParts.push(`IS_BEFORE({${QUOTATIONS.SENT_DATE}}, "${to}")`)
   if (dateParts.length === 1) params.set('filterByFormula', encodeURIComponent(dateParts[0]))
   if (dateParts.length === 2) params.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
-
 
   const [quotations, allProjects] = await Promise.all([
     fetchAll<{ id: string; fields: Record<string, unknown> }>(QUOTATIONS.TABLE_ID, params),
@@ -56,7 +69,6 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       p.append('fields[]', PROJECTS.PROJECT_NAME)
       p.append('fields[]', PROJECTS.CLIENT_NAME)
       p.append('fields[]', PROJECTS.PROJECT_STAGE)
-      p.append('fields[]', PROJECTS.SALES_OWNER)
       return p
     })()),
   ])
@@ -67,39 +79,48 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     const f = q.fields
     const projectLinks = Array.isArray(f[QUOTATIONS.PROJECT]) ? (f[QUOTATIONS.PROJECT] as string[]) : []
     const proj = projectLinks[0] ? projectById.get(projectLinks[0]) : undefined
-    const rawOwner = proj?.[PROJECTS.SALES_OWNER]
-    const ownerEntry = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner
-    const owner = (!ownerEntry || typeof ownerEntry === 'string') ? undefined : ownerEntry as { name?: string }
-    const qty = (f[QUOTATIONS.QUANTITY] as number) ?? 0
-    const price = (f[QUOTATIONS.UNIT_PRICE] as number) ?? 0
-    const subtotal = qty * price
+
     return {
-      projectRef: (proj?.[PROJECTS.PROJECT_ID] as string) ?? '',
-      clientName: (proj?.[PROJECTS.CLIENT_NAME] as string) ?? '',
-      projectDetails: (proj?.[PROJECTS.PROJECT_NAME] as string) ?? '',
-      description: (f[QUOTATIONS.DESCRIPTION] as string) ?? '',
-      status: (f[QUOTATIONS.QUOTATION_STATUS] as string) ?? '',
+      projectRef:    (proj?.[PROJECTS.PROJECT_ID] as string) ?? '',
+      clientName:    (f[QUOTATIONS.CLIENT_NAME] as string) ?? (proj?.[PROJECTS.CLIENT_NAME] as string) ?? '',
+      projectName:   (proj?.[PROJECTS.PROJECT_NAME] as string) ?? '',
+      description:   (f[QUOTATIONS.DESCRIPTION] as string) ?? '',
+      status:        (f[QUOTATIONS.QUOTATION_STATUS] as string) ?? '',
       projectStatus: (proj?.[PROJECTS.PROJECT_STAGE] as string) ?? '',
-      sales: owner?.name ?? '',
-      quoteAmount: subtotal,
-      sentDate: (f[QUOTATIONS.SENT_DATE] as string) ?? '',
-      approvedDate: (f[QUOTATIONS.APPROVED_DATE] as string) ?? '',
-      recordedBy: (f[QUOTATIONS.RECORDED_BY] as string) ?? '',
+      revision:      (f[QUOTATIONS.REVISION] as string) ?? '',
+      sales:         collaboratorName(f[QUOTATIONS.SALES]),
+      quoteAmount:   (f[QUOTATIONS.QUOTE_AMOUNT] as number) ?? 0,
+      vatAmount:     (f[QUOTATIONS.VAT_AMOUNT] as number) ?? 0,
+      totalWithVat:  (f[QUOTATIONS.TOTAL_WITH_VAT] as number) ?? 0,
+      variation1:    (f[QUOTATIONS.VARIATION_1] as number) ?? 0,
+      variation2:    (f[QUOTATIONS.VARIATION_2] as number) ?? 0,
+      totalWithVars: (f[QUOTATIONS.TOTAL_WITH_VARS] as number) ?? 0,
+      sentDate:      (f[QUOTATIONS.SENT_DATE] as string) ?? '',
+      approvedDate:  (f[QUOTATIONS.APPROVED_DATE] as string) ?? '',
+      nextFollowUp:  (f[QUOTATIONS.NEXT_FOLLOWUP] as string) ?? '',
+      recordedBy:    (f[QUOTATIONS.RECORDED_BY] as string) ?? '',
     }
   })
 
   const buffer = await buildXlsx('Quotations', [
-    { header: 'Project Ref', key: 'projectRef', width: 14 },
-    { header: 'Client Name', key: 'clientName', width: 22 },
-    { header: 'Project Details', key: 'projectDetails', width: 28 },
-    { header: 'Description', key: 'description', width: 30 },
-    { header: 'Q. Status', key: 'status', width: 16 },
-    { header: 'Project Status', key: 'projectStatus', width: 16 },
-    { header: 'Sales', key: 'sales', width: 18 },
-    { header: 'Quote Amount (AED)', key: 'quoteAmount', width: 20, isCurrency: true },
-    { header: 'Quote Date', key: 'sentDate', width: 14, isDate: true },
-    { header: 'Approved Date', key: 'approvedDate', width: 14, isDate: true },
-    { header: 'Recorded By', key: 'recordedBy', width: 18 },
+    { header: 'Project Ref',            key: 'projectRef',    width: 14 },
+    { header: 'Client Name',            key: 'clientName',    width: 22 },
+    { header: 'Project Name',           key: 'projectName',   width: 28 },
+    { header: 'Description',            key: 'description',   width: 30 },
+    { header: 'Q. Status',              key: 'status',        width: 16 },
+    { header: 'Project Status',         key: 'projectStatus', width: 16 },
+    { header: 'Revision',               key: 'revision',      width: 10 },
+    { header: 'Sales',                  key: 'sales',         width: 18 },
+    { header: 'Quote Amount (AED)',      key: 'quoteAmount',   width: 20, isCurrency: true },
+    { header: 'VAT Amount (AED)',        key: 'vatAmount',     width: 18, isCurrency: true },
+    { header: 'Total incl. VAT (AED)',   key: 'totalWithVat',  width: 20, isCurrency: true },
+    { header: 'Variation 1 (AED)',       key: 'variation1',    width: 18, isCurrency: true },
+    { header: 'Variation 2 (AED)',       key: 'variation2',    width: 18, isCurrency: true },
+    { header: 'Total with Vars (AED)',   key: 'totalWithVars', width: 20, isCurrency: true },
+    { header: 'Sent Date',              key: 'sentDate',      width: 14, isDate: true },
+    { header: 'Approved Date',          key: 'approvedDate',  width: 14, isDate: true },
+    { header: 'Next Follow-Up',         key: 'nextFollowUp',  width: 16, isDate: true },
+    { header: 'Recorded By',            key: 'recordedBy',    width: 18 },
   ], rows)
 
   return xlsxResponse(buffer, 'Quotations_Pipeline')
