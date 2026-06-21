@@ -489,6 +489,20 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
 
           {!reportLoading && reportData && (
             <>
+              {(role === 'superadmin' || role === 'manager') && (
+                <div className="flex justify-end">
+                  <a
+                    href={`/api/reports/download/project?id=${id}`}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-lg transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download Report
+                  </a>
+                </div>
+              )}
               <ProjectOverview project={reportData.project} />
               {reportData.payments && (
                 <PaymentsSection project={reportData.project} payments={reportData.payments} />

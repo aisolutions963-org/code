@@ -24,7 +24,17 @@ function formatDate(iso: string): string {
 }
 
 function workerLabel(w: WorkerOption): string {
-  return w.nickname ? `${w.name} (${w.nickname})` : w.name
+  const base = w.nickname ? `${w.name} (${w.nickname})` : w.name
+  return w.workerType ? `${base} — ${w.workerType}` : base
+}
+
+function sortWorkers(workers: WorkerOption[]): WorkerOption[] {
+  return [...workers].sort((a, b) => {
+    const aIsSup = a.workerType === 'Supervisor' ? 0 : 1
+    const bIsSup = b.workerType === 'Supervisor' ? 0 : 1
+    if (aIsSup !== bIsSup) return aIsSup - bIsSup
+    return a.name.localeCompare(b.name)
+  })
 }
 
 // ─── Log Entry Form ───────────────────────────────────────────────────────────
@@ -532,7 +542,7 @@ export default function TimesheetsView({ projects }: { projects: Project[] }) {
     fetcher,
     { revalidateOnFocus: false },
   )
-  const workers = workersData?.workers ?? []
+  const workers = sortWorkers(workersData?.workers ?? [])
 
   return (
     <div className="space-y-4">

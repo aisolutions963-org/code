@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getProjects, getAllProjects, getProjectById, createProject, generateTasksForProject, projectNameExists } from '@/lib/airtable'
+import { getProjects, getAllProjects, getProjectById, createProject, createEndUser, generateTasksForProject, projectNameExists } from '@/lib/airtable'
 import { getUserById, getUserByAirtableMemberId, addSedProjectMapping, getSedProjectIdsByUserId } from '@/lib/db'
 import { CreateProjectSchema } from '@/lib/validation'
 import { createNotification } from '@/lib/notifications'
@@ -105,6 +105,15 @@ export async function POST(request: NextRequest) {
           await addSedProjectMapping(project.id, communUser.id)
         }
       }
+    }
+
+    // Create End User record if provided (Broker/Contractor projects)
+    if (data.endUserName && (data.clientStatus === 'Broker' || data.clientStatus === 'Contractor')) {
+      createEndUser({
+        name: data.endUserName,
+        phoneOrEmail: data.endUserContact,
+        projectId: project.id,
+      }).catch((err) => console.error('[A19] createEndUser failed:', err))
     }
 
     // A19 — generate Phase 1 tasks; await so the response includes the count

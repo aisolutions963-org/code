@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
-import { getUserByEmail } from './db'
+import { getUserByEmail, getUserById } from './db'
 import { hashPassword, verifyPassword } from './db'
 import { SessionPayload, Role } from './types'
 
@@ -41,13 +41,36 @@ export async function getSession(): Promise<SessionPayload | null> {
   return verifySession(token)
 }
 
-export async function login(email: string, password: string): Promise<SessionPayload | null> {
+export async function login(
+  email: string,
+  password: string,
+): Promise<SessionPayload | { requiresPasswordChange: true; tempToken: string } | null> {
   const user = await getUserByEmail(email)
   if (!user) return null
   const valid = await verifyPassword(password, user.hashed_password)
   if (!valid) return null
+  if (user.force_password_change) {
+    const tempToken = await new SignJWT({ userId: user.id, type: 'password_change' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(getSecret())
+    return { requiresPasswordChange: true, tempToken }
+  }
   return { id: user.id, name: user.name, email: user.email, role: user.role as Role }
 }
+
+export async function verifyTempToken(token: string): Promise<number | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecret())
+    if (payload.type !== 'password_change' || typeof payload.userId !== 'number') return null
+    return payload.userId
+  } catch {
+    return null
+  }
+}
+
+export { getUserById }
 
 export async function setSessionCookie(token: string): Promise<void> {
   const store = await cookies()

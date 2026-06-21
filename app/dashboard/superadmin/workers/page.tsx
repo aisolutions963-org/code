@@ -25,16 +25,19 @@ function Spinner() {
   )
 }
 
+const WORKER_TYPE_OPTIONS = ['Supervisor', 'Worker'] as const
+
 interface WorkerFormData {
   name: string
   fullName: string
   nickname: string
   role: string
+  workerType: string
   active: boolean
   hourlyRate: string
 }
 
-const EMPTY_FORM: WorkerFormData = { name: '', fullName: '', nickname: '', role: '', active: true, hourlyRate: '' }
+const EMPTY_FORM: WorkerFormData = { name: '', fullName: '', nickname: '', role: '', workerType: '', active: true, hourlyRate: '' }
 
 function WorkerModal({
   worker,
@@ -53,6 +56,7 @@ function WorkerModal({
           fullName: worker.fullName ?? '',
           nickname: worker.nickname ?? '',
           role: worker.role ?? '',
+          workerType: worker.workerType ?? '',
           active: worker.active ?? true,
           hourlyRate: worker.hourlyRate != null ? String(worker.hourlyRate) : '',
         }
@@ -76,6 +80,7 @@ function WorkerModal({
         fullName: form.fullName.trim() || undefined,
         nickname: form.nickname.trim() || undefined,
         role: form.role || undefined,
+        workerType: form.workerType || undefined,
         active: form.active,
         hourlyRate: form.hourlyRate !== '' ? Number(form.hourlyRate) : undefined,
       }
@@ -145,6 +150,19 @@ function WorkerModal({
                 <option value="">— select trade —</option>
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Worker Type</label>
+              <select
+                value={form.workerType}
+                onChange={(e) => set('workerType', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white"
+              >
+                <option value="">— select type —</option>
+                {WORKER_TYPE_OPTIONS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
@@ -354,11 +372,20 @@ export default function WorkersPage() {
                   <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{w.fullName ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs hidden md:table-cell">{w.nickname ?? '—'}</td>
                   <td className="px-4 py-3">
-                    {w.role ? (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{w.role}</span>
-                    ) : (
-                      <span className="text-gray-300">—</span>
-                    )}
+                    <div className="flex flex-wrap gap-1">
+                      {w.workerType && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          w.workerType === 'Supervisor'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>{w.workerType}</span>
+                      )}
+                      {w.role ? (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{w.role}</span>
+                      ) : !w.workerType ? (
+                        <span className="text-gray-300">—</span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-medium text-gray-700 hidden lg:table-cell">
                     {w.hourlyRate != null ? `AED ${w.hourlyRate}` : <span className="text-gray-300">—</span>}

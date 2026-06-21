@@ -31,6 +31,10 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Login failed'); return }
+      if (data.requiresPasswordChange) {
+        router.push(`/change-password?t=${encodeURIComponent(data.tempToken)}`)
+        return
+      }
       router.push(`/dashboard/${ROLE_TO_DASHBOARD[data.user.role] ?? data.user.role}`)
     } catch {
       setError('Network error — please try again')

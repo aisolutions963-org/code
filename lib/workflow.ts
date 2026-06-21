@@ -730,6 +730,7 @@ export async function handleF3Order(input: {
         await updateTaskRaw(input.taskId, {
           [TASKS.STATUS]: 'In Progress' as TaskStatus,
           [TASKS.STARTED_AT]: new Date().toISOString(),
+          ...(input.generalNotes ? { [TASKS.SED_NOTE]: input.generalNotes } : {}),
         })
         const fabBody = `F3 Big Order for ${projectRef}: please check the store for ${materials.length} item(s) marked "Pending approval" in the materials list and confirm what needs ordering.${input.generalNotes ? `\nManager notes: ${input.generalNotes}` : ''}`
         const bigOrderBody = `F3 Big Order submitted for ${projectRef}. ${materials.length} item(s) pending fabrication store check.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`

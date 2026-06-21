@@ -41,6 +41,13 @@ function relativeTime(iso: string): string {
 
 const INSPECTION_KEYWORDS = ['inspect', 'qc check', 'site check', 'handover', 'snagging']
 const CALL_CLIENT_KEYWORD = 'call the client'
+const FOLLOW_UP_KEYWORD = 'follow up'
+
+const FOLLOW_UP_OUTCOMES = [
+  'Reject Project',
+  'SED to Follow Up',
+  'Manager to Follow Up',
+] as const
 const DATE_TASK_KEYWORDS = ['site visit', 'installation date', 'fixing date', 'visit date']
 
 function isCallClientDecisionTask(task: Task, role: Role): boolean {
@@ -154,6 +161,9 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [calendarDate, setCalendarDate] = useState('')
   const [calendarSaving, setCalendarSaving] = useState(false)
   const [calendarSaved, setCalendarSaved] = useState(false)
+  const [followUpOutcome, setFollowUpOutcome] = useState(task.followUpOutcome ?? '')
+  const [followUpNote, setFollowUpNote] = useState(task.superadminNote ?? '')
+  const [followUpSaving, setFollowUpSaving] = useState(false)
 
   // Sync local fields when server data changes, but only when card is closed
   // to avoid overwriting in-progress edits
@@ -194,6 +204,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     task.taskName.toLowerCase().startsWith('how many days') ||
     task.taskName.toLowerCase().startsWith('installation day')
   const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
+
+  const isFollowUpTask =
+    role === 'superadmin' &&
+    task.taskName.toLowerCase().includes(FOLLOW_UP_KEYWORD)
 
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
@@ -262,6 +276,21 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       toast.error(e instanceof Error ? e.message : 'Failed')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function saveFollowUpOutcomeNote() {
+    setFollowUpSaving(true)
+    try {
+      await onUpdate(task.id, {
+        ...(followUpOutcome ? { followUpOutcome: followUpOutcome as 'Reject Project' | 'SED to Follow Up' | 'Manager to Follow Up' } : {}),
+        superadminNote: followUpNote,
+      })
+      toast.success('Follow-up saved')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setFollowUpSaving(false)
     }
   }
 
@@ -638,10 +667,12 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
-          {/* SED note — shown read-only to manager/superadmin */}
-          {(role === 'manager' || role === 'superadmin') && task.sedNote && (
+          {/* SED note — shown read-only to manager/superadmin/fabrication */}
+          {(role === 'manager' || role === 'superadmin' || role === 'fabrication') && task.sedNote && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 space-y-1">
-              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Note from SED</p>
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                {role === 'fabrication' ? 'Stock Check Note' : 'Note from SED'}
+              </p>
               <p className="text-sm text-blue-900 whitespace-pre-wrap">{task.sedNote}</p>
             </div>
           )}
@@ -651,6 +682,43 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 space-y-1">
               <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">📌 Admin Follow-up Note</p>
               <p className="text-sm text-amber-900 whitespace-pre-wrap">{task.superadminNote}</p>
+            </div>
+          )}
+
+          {/* Follow-up outcome + note — superadmin only on follow-up tasks */}
+          {isFollowUpTask && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-3">
+              <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Follow-Up Outcome</p>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Outcome</label>
+                <select
+                  value={followUpOutcome}
+                  onChange={(e) => setFollowUpOutcome(e.target.value)}
+                  className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                >
+                  <option value="">— select outcome —</option>
+                  {FOLLOW_UP_OUTCOMES.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Admin Note</label>
+                <textarea
+                  value={followUpNote}
+                  onChange={(e) => setFollowUpNote(e.target.value)}
+                  rows={3}
+                  placeholder="Add a follow-up note…"
+                  className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                />
+              </div>
+              <button
+                onClick={saveFollowUpOutcomeNote}
+                disabled={followUpSaving}
+                className="text-xs font-semibold px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-60 transition-colors"
+              >
+                {followUpSaving ? 'Saving…' : 'Save Note & Outcome'}
+              </button>
             </div>
           )}
 

@@ -193,7 +193,7 @@ export default function F3OrderPanel({ task, onUpdate }: F3OrderPanelProps) {
           {f3Path === 'big' && (
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
-                Notes for Fabrication
+                Stock Check Note
               </label>
               <input
                 className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400"

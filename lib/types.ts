@@ -201,17 +201,20 @@ export interface ClientRequestCreateInput {
 export interface ProjectCreateInput {
   projectName: string
   projectDescription: string
+  emirate: string
+  clientStatus: 'Broker' | 'End-to-End Client' | 'Designer' | 'Contractor' | 'Developer' | 'Other'
 
   nickname?: string
   clientName?: string
   detailedLocation?: string
 
   clientPhone?: string
-  emirate?: string
   location?: string
   sedNotes?: string
   salesOwnerCollaboratorId?: string
   communSedIds?: string[]
+  endUserName?: string
+  endUserContact?: string
 }
 
 export interface ProjectWithDetails extends Project {
@@ -441,6 +444,7 @@ export interface WorkerCreateInput {
   fullName?: string
   nickname?: string
   role?: string
+  workerType?: string
   active?: boolean
   hourlyRate?: number
 }
@@ -450,6 +454,7 @@ export interface WorkerUpdateInput {
   fullName?: string
   nickname?: string
   role?: string
+  workerType?: string
   active?: boolean
   hourlyRate?: number
 }
@@ -504,6 +509,7 @@ export interface WorkerOption {
   fullName?: string
   nickname?: string
   role?: string
+  workerType?: 'Supervisor' | 'Worker'
   active?: boolean
   hourlyRate?: number
 }

@@ -213,17 +213,20 @@ export const CreateCalendarEventSchema = z.object({
 export const CreateProjectSchema = z.object({
   projectName: z.string().min(1).max(200).transform((v) => v.trim()),
   projectDescription: z.string().min(1).max(5000),
+  emirate: z.string().min(1, 'Emirate is required').max(100),
+  clientStatus: z.enum(['Broker', 'End-to-End Client', 'Designer', 'Contractor', 'Developer', 'Other']),
 
   nickname: z.string().max(100).transform((v) => v.trim()).optional(),
   clientName: z.string().max(200).transform((v) => v.trim()).optional(),
   detailedLocation: z.string().max(1000).optional(),
 
   clientPhone: z.string().max(30).optional(),
-  emirate: z.string().max(100).optional(),
   location: z.string().max(200).optional(),
   sedNotes: z.string().max(5000).optional(),
   salesOwnerCollaboratorId: z.string().optional(),
   communSedIds: z.array(z.string().min(1)).max(10).optional(),
+  endUserName: z.string().max(200).optional(),
+  endUserContact: z.string().max(200).optional(),
 })
 
 export const CreateClientRequestSchema = z

@@ -136,8 +136,24 @@ export default function UsersPage() {
   const [deactivating, setDeactivating] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<User | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const users = data?.users ?? []
+
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/admin/sync-users')
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error ?? 'Sync failed')
+      toast.success(`Sync complete — ${d.added} added, ${d.updated} updated, ${d.deactivated} deactivated`)
+      mutate()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   function openAdd() {
     setEditingUser(null)
@@ -235,7 +251,12 @@ export default function UsersPage() {
           <h1 className="text-xl font-bold text-gray-900">User Management</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage system access and roles</p>
         </div>
-        <Button onClick={openAdd}>Add User</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleSync} loading={syncing}>
+            {syncing ? 'Syncing…' : 'Sync from Airtable'}
+          </Button>
+          <Button onClick={openAdd}>Add User</Button>
+        </div>
       </div>
 
       <EmailSettingsCard />

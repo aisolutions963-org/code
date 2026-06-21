@@ -61,14 +61,26 @@ async function initDB(): Promise<void> {
         FOREIGN KEY(user_id) REFERENCES users(id)
       )`,
       `INSERT OR IGNORE INTO settings (key, value) VALUES ('accountant_email', 'aisolutions963@gmail.com')`,
+      `CREATE TABLE IF NOT EXISTS inactivity_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id TEXT NOT NULL,
+        alerted_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(project_id, alerted_at)
+      )`,
     ],
     'write',
   )
-  // Migrate existing notifications table: add recipient_user_id if missing
-  try {
-    await c.execute(`ALTER TABLE notifications ADD COLUMN recipient_user_id INTEGER`)
-  } catch {
-    // Column already exists — expected on fresh DBs or after first migration
+  // Migrate: add columns that may not exist in older DBs
+  const migrations = [
+    `ALTER TABLE notifications ADD COLUMN recipient_user_id INTEGER`,
+    `ALTER TABLE users ADD COLUMN force_password_change INTEGER NOT NULL DEFAULT 0`,
+  ]
+  for (const sql of migrations) {
+    try {
+      await c.execute(sql)
+    } catch {
+      // Column already exists — expected after first run
+    }
   }
 }
 
@@ -99,6 +111,7 @@ export interface DBUser {
   hashed_password: string
   role: string
   active: number
+  force_password_change: number
   airtable_member_id: string | null
   created_at: string
   updated_at: string
@@ -166,6 +179,14 @@ export async function createUser(user: {
   return row<DBUser>(fetched)!
 }
 
+export async function setForcePasswordChange(id: number, value: 0 | 1): Promise<void> {
+  const c = await db()
+  await c.execute({
+    sql: `UPDATE users SET force_password_change = ?, updated_at = datetime('now') WHERE id = ?`,
+    args: [value, id],
+  })
+}
+
 export async function updateUser(
   id: number,
   fields: {
@@ -174,6 +195,7 @@ export async function updateUser(
     hashed_password?: string
     role?: string
     active?: number
+    force_password_change?: number
     airtable_member_id?: string
   },
 ): Promise<void> {

@@ -10,6 +10,7 @@ const UpdateSchema = z.object({
   fullName: z.string().max(100).optional(),
   nickname: z.string().max(50).optional(),
   role: z.string().max(50).optional(),
+  workerType: z.enum(['Supervisor', 'Worker', '']).optional(),
   active: z.boolean().optional(),
   hourlyRate: z.number().min(0).max(10000).optional(),
 })

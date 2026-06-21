@@ -120,6 +120,8 @@ describe('CreateProjectSchema', () => {
   const base = {
     projectName: 'Villa Renovation',
     projectDescription: 'Full interior woodwork for 4BR villa',
+    emirate: 'Dubai',
+    clientStatus: 'End-to-End Client',
   }
 
   it('accepts minimal valid project', () => {
@@ -137,16 +139,60 @@ describe('CreateProjectSchema', () => {
   })
 
   it('rejects missing projectDescription', () => {
-    expect(CreateProjectSchema.safeParse({ projectName: 'X' }).success).toBe(false)
+    expect(CreateProjectSchema.safeParse({ projectName: 'X', emirate: 'Dubai', clientStatus: 'Broker' }).success).toBe(false)
   })
 
-  it('accepts optional fields', () => {
+  it('rejects missing emirate', () => {
+    const { emirate, ...withoutEmirate } = base
+    expect(CreateProjectSchema.safeParse(withoutEmirate).success).toBe(false)
+  })
+
+  it('rejects empty emirate string', () => {
+    expect(CreateProjectSchema.safeParse({ ...base, emirate: '' }).success).toBe(false)
+  })
+
+  it('rejects missing clientStatus', () => {
+    const { clientStatus, ...withoutStatus } = base
+    expect(CreateProjectSchema.safeParse(withoutStatus).success).toBe(false)
+  })
+
+  it('rejects invalid clientStatus value', () => {
+    expect(CreateProjectSchema.safeParse({ ...base, clientStatus: 'Freelancer' }).success).toBe(false)
+  })
+
+  it('accepts all valid clientStatus values', () => {
+    const statuses = ['Broker', 'End-to-End Client', 'Designer', 'Contractor', 'Developer', 'Other']
+    statuses.forEach((s) => {
+      expect(CreateProjectSchema.safeParse({ ...base, clientStatus: s }).success).toBe(true)
+    })
+  })
+
+  it('accepts optional endUserName and endUserContact for Broker clientStatus', () => {
+    const brokerProject = {
+      ...base,
+      clientStatus: 'Broker',
+      endUserName: 'Khalid Al Rashid',
+      endUserContact: '+971501112233',
+    }
+    expect(CreateProjectSchema.safeParse(brokerProject).success).toBe(true)
+  })
+
+  it('accepts optional endUserName and endUserContact for Contractor clientStatus', () => {
+    const contractorProject = {
+      ...base,
+      clientStatus: 'Contractor',
+      endUserName: 'Hessa Nasser',
+      endUserContact: 'hessa@example.com',
+    }
+    expect(CreateProjectSchema.safeParse(contractorProject).success).toBe(true)
+  })
+
+  it('accepts all optional metadata fields', () => {
     const full = {
       ...base,
       nickname: 'Villa A',
       clientName: 'Mohammed Al Hamdan',
       clientPhone: '+971501234567',
-      emirate: 'Dubai',
       location: 'Jumeirah',
       sedNotes: 'Client prefers oak',
     }

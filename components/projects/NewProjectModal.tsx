@@ -10,6 +10,15 @@ const UAE_EMIRATES = [
   'Dubai', 'Abu Dabei', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah',
 ]
 
+const CLIENT_STATUS_OPTIONS = [
+  'Broker',
+  'End-to-End Client',
+  'Designer',
+  'Contractor',
+  'Developer',
+  'Other',
+] as const
+
 const DUBAI_LOCATIONS = [
   'Abu Hail', 'Al Baraha', 'Al Barsha', 'Al Bastakiya', 'Al Buteen', 'Al Dhagaya',
   'Al Garhoud', 'Al Hamriya', 'Al Hudaiba', 'Al Jaddaf', 'Al Jafilia', 'Al Karama',
@@ -45,6 +54,9 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     location: '',
     sedNotes: '',
     isCommunal: false,
+    clientStatus: '',
+    endUserName: '',
+    endUserContact: '',
   })
   const [selectedSedId, setSelectedSedId] = useState('')
   const [selectedCommunSeds, setSelectedCommunSeds] = useState<string[]>([])
@@ -110,6 +122,8 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     const missing: string[] = []
     if (!form.projectName.trim()) missing.push('Project Name')
     if (!form.projectDescription.trim()) missing.push('Project Scope')
+    if (!form.emirate) missing.push('Emirate')
+    if (!form.clientStatus) missing.push('Client Status')
     if (missing.length > 0) { setErr(`Required: ${missing.join(', ')}`); return }
 
     setSaving(true); setErr('')
@@ -117,17 +131,23 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
       const body: Record<string, unknown> = {
         projectName: form.projectName.trim(),
         projectDescription: form.projectDescription,
+        emirate: form.emirate,
+        clientStatus: form.clientStatus,
       }
 
       if (form.nickname.trim()) body.nickname = form.nickname.trim()
       if (form.clientName.trim()) body.clientName = form.clientName.trim()
       if (form.detailedLocation.trim()) body.detailedLocation = form.detailedLocation.trim()
       if (form.clientPhone) body.clientPhone = form.clientPhone
-      if (form.emirate) body.emirate = form.emirate
       if (form.location) body.location = form.location
       if (form.sedNotes) body.sedNotes = form.sedNotes
       if (selectedSedId) body.salesOwnerCollaboratorId = selectedSedId
       if (form.isCommunal && selectedCommunSeds.length > 0) body.communSedIds = selectedCommunSeds
+      const needsEndUser = form.clientStatus === 'Broker' || form.clientStatus === 'Contractor'
+      if (needsEndUser && form.endUserName.trim()) {
+        body.endUserName = form.endUserName.trim()
+        if (form.endUserContact.trim()) body.endUserContact = form.endUserContact.trim()
+      }
 
       const res = await fetch('/api/projects', {
         method: 'POST',
@@ -224,6 +244,21 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
+          {/* Client Status — required */}
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Client Status *</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+              value={form.clientStatus}
+              onChange={(e) => set('clientStatus', e.target.value)}
+            >
+              <option value="">— select client type —</option>
+              {CLIENT_STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Assigned SED — manual, optional */}
           <div className="col-span-2">
             <label className="block text-xs font-medium text-gray-500 mb-1">Assigned SED</label>
@@ -300,9 +335,9 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
-          {/* Emirate */}
+          {/* Emirate — required */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Emirate</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Emirate *</label>
             <select
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
               value={form.emirate}
@@ -347,6 +382,33 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
               placeholder="General notes from first call..."
             />
           </div>
+
+          {/* End User — shown for Broker or Contractor */}
+          {(form.clientStatus === 'Broker' || form.clientStatus === 'Contractor') && (
+            <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 space-y-3">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">End User (Optional)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">End User Name</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    value={form.endUserName}
+                    onChange={(e) => set('endUserName', e.target.value)}
+                    placeholder="End user full name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone / Email</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    value={form.endUserContact}
+                    onChange={(e) => set('endUserContact', e.target.value)}
+                    placeholder="+971 50 XXX XXXX or email"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Communal project */}
           <div className="col-span-2">

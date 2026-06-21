@@ -1,0 +1,22 @@
+name: Inactivity Check
+
+on:
+  schedule:
+    # Daily at 04:00 UTC = 08:00 UAE
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  inactivity-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call inactivity-check cron endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/inactivity-check")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Inactivity check returned $STATUS — treating as failure"
+            exit 1
+          fi

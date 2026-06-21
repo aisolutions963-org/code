@@ -123,7 +123,6 @@ export default function AllMaterialsView({ role }: { role: string }) {
       mutate()
     } finally {
       setUpdating(null)
-      mutate()
     }
   }
 

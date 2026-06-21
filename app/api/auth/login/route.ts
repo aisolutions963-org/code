@@ -41,15 +41,20 @@ export async function POST(req: NextRequest) {
   }
 
   const { email, password } = parsed.data
-  const user = await login(email, password)
-  if (!user) {
+  const result = await login(email, password)
+  if (!result) {
     rateLimiter.set(ip, attempts + 1)
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
   }
 
   rateLimiter.delete(ip)
-  const token = await createSession(user)
+
+  if ('requiresPasswordChange' in result) {
+    return NextResponse.json({ requiresPasswordChange: true, tempToken: result.tempToken })
+  }
+
+  const token = await createSession(result)
   await setSessionCookie(token)
 
-  return NextResponse.json({ user: { name: user.name, role: user.role } })
+  return NextResponse.json({ user: { name: result.name, role: result.role } })
 }

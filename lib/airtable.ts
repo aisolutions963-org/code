@@ -16,6 +16,7 @@ import {
   CALENDAR_EVENTS,
   PRODUCTION_TIMESHEETS,
   WORKERS,
+  END_USERS,
 } from './fieldMap'
 import { PHASE_CONFIG } from './phases'
 import {
@@ -784,18 +785,42 @@ async function getOrCreateClient(name: string, phone?: string): Promise<Client> 
   return createClientRecord(name, phone)
 }
 
+export async function createEndUser(input: {
+  name: string
+  phoneOrEmail?: string
+  projectId: string
+  clientId?: string
+}): Promise<void> {
+  const fields: Record<string, unknown> = {
+    [END_USERS.NAME]: input.name,
+    [END_USERS.PROJECT]: [input.projectId],
+  }
+  if (input.phoneOrEmail) fields[END_USERS.PHONE_EMAIL] = input.phoneOrEmail
+  if (input.clientId) fields[END_USERS.CLIENT] = [input.clientId]
+  const res = await fetchWithRetry(tblUrl(END_USERS.TABLE_ID), {
+    method: 'POST',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error creating End User ${res.status}: ${body}`)
+  }
+}
+
 export async function createProject(input: ProjectCreateInput): Promise<Project> {
   const fields: Record<string, unknown> = {
     [PROJECTS.PROJECT_NAME]: input.projectName,
     [PROJECTS.PROJECT_DESCRIPTION]: input.projectDescription,
     [PROJECTS.PROJECT_STAGE]: 'Preparing',
+    [PROJECTS.EMIRATE]: input.emirate,
+    [PROJECTS.CLIENT_STATUS]: input.clientStatus,
   }
 
   // Optional fields — only set when provided
   if (input.nickname) fields[PROJECTS.NICKNAME] = input.nickname
   if (input.detailedLocation) fields[PROJECTS.DETAILED_LOCATION] = input.detailedLocation
   if (input.clientPhone) fields[PROJECTS.CLIENT_PHONE] = input.clientPhone
-  if (input.emirate) fields[PROJECTS.EMIRATE] = input.emirate
   if (input.location) fields[PROJECTS.LOCATION] = input.location
   if (input.sedNotes) fields[PROJECTS.SED_NOTES] = input.sedNotes
   if (input.salesOwnerCollaboratorId) fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
@@ -1147,6 +1172,27 @@ export interface TeamMember {
   name: string
   role: string
   active: boolean
+}
+
+export interface TeamMemberSync {
+  id: string           // Airtable record ID
+  name: string
+  email: string
+  systemRole: string
+  active: boolean
+}
+
+export async function getActiveTeamMembersForSync(): Promise<TeamMemberSync[]> {
+  const records = await fetchAll(TEAM_MEMBERS.TABLE_ID, {
+    filterByFormula: `{${TEAM_MEMBERS.ACTIVE}} = 1`,
+  })
+  return records.map((r) => ({
+    id: r.id,
+    name: str(r.fields[TEAM_MEMBERS.NAME]) ?? '',
+    email: str(r.fields[TEAM_MEMBERS.AIRTABLE_EMAIL]) ?? '',
+    systemRole: str(r.fields[TEAM_MEMBERS.SYSTEM_ROLE]) ?? '',
+    active: bool(r.fields[TEAM_MEMBERS.ACTIVE]) ?? true,
+  }))
 }
 
 export async function getInstallationTeamMembers(): Promise<TeamMember[]> {
@@ -1555,14 +1601,14 @@ export async function getPendingMaterialsCount(): Promise<number> {
 }
 
 export async function getAllActiveMaterials(options?: { projectIds?: string[] }): Promise<Material[]> {
-  let formula = `{${MATERIALS_NEEDED.ORDER_STATUS}} != "Received"`
+  let formula: string | undefined
   if (options?.projectIds?.length) {
     const projectFilters = options.projectIds
       .map((id) => `{${MATERIALS_NEEDED.PROJECT_RECORD_ID}} = "${id}"`)
       .join(', ')
-    formula = `AND(${formula}, OR(${projectFilters}))`
+    formula = `OR(${projectFilters})`
   }
-  const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, { filterByFormula: formula })
+  const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, formula ? { filterByFormula: formula } : {})
   return records.map(transformMaterial)
 }
 
@@ -2889,7 +2935,7 @@ export async function getTimesheetWorkers(): Promise<WorkerOption[]> {
   const records = await fetchAll(WORKERS.TABLE, {
     filterByFormula: `{${WORKERS.ACTIVE}}=TRUE()`,
     sort: [{ field: WORKERS.NAME, direction: 'asc' }],
-    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.ACTIVE, WORKERS.HOURLY_RATE],
+    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.WORKER_TYPE, WORKERS.ACTIVE, WORKERS.HOURLY_RATE],
   })
   return records.map((rec) => {
     const f = rec.fields
@@ -2899,6 +2945,7 @@ export async function getTimesheetWorkers(): Promise<WorkerOption[]> {
       fullName: str(f[WORKERS.FULL_NAME]),
       nickname: str(f[WORKERS.NICKNAME]),
       role: selectName(f[WORKERS.ROLE]),
+      workerType: selectName(f[WORKERS.WORKER_TYPE]) as WorkerOption['workerType'],
       hourlyRate: num(f[WORKERS.HOURLY_RATE]) ?? undefined,
     }
   })
@@ -2951,6 +2998,7 @@ function transformWorker(rec: RawRecord): WorkerOption {
     fullName: str(f[WORKERS.FULL_NAME]),
     nickname: str(f[WORKERS.NICKNAME]),
     role: selectName(f[WORKERS.ROLE]),
+    workerType: selectName(f[WORKERS.WORKER_TYPE]) as WorkerOption['workerType'],
     active: bool(f[WORKERS.ACTIVE]) ?? false,
     hourlyRate: num(f[WORKERS.HOURLY_RATE]) ?? undefined,
   }
@@ -2959,7 +3007,7 @@ function transformWorker(rec: RawRecord): WorkerOption {
 export async function getAllWorkers(): Promise<WorkerOption[]> {
   const records = await fetchAll(WORKERS.TABLE, {
     sort: [{ field: WORKERS.NAME, direction: 'asc' }],
-    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.ACTIVE, WORKERS.HOURLY_RATE],
+    fields: [WORKERS.NAME, WORKERS.FULL_NAME, WORKERS.NICKNAME, WORKERS.ROLE, WORKERS.WORKER_TYPE, WORKERS.ACTIVE, WORKERS.HOURLY_RATE],
   })
   return records.map(transformWorker)
 }
@@ -2971,6 +3019,7 @@ export async function createWorker(input: WorkerCreateInput): Promise<WorkerOpti
   if (input.fullName) fields[WORKERS.FULL_NAME] = input.fullName
   if (input.nickname) fields[WORKERS.NICKNAME] = input.nickname
   if (input.role) fields[WORKERS.ROLE] = input.role
+  if (input.workerType) fields[WORKERS.WORKER_TYPE] = input.workerType
   if (input.active !== undefined) fields[WORKERS.ACTIVE] = input.active
   if (input.hourlyRate !== undefined) fields[WORKERS.HOURLY_RATE] = input.hourlyRate
   const res = await fetchWithRetry(tblUrl(WORKERS.TABLE), {
@@ -2992,6 +3041,7 @@ export async function updateWorker(id: string, input: WorkerUpdateInput): Promis
   if (input.fullName !== undefined) fields[WORKERS.FULL_NAME] = input.fullName
   if (input.nickname !== undefined) fields[WORKERS.NICKNAME] = input.nickname
   if (input.role !== undefined) fields[WORKERS.ROLE] = input.role
+  if (input.workerType !== undefined) fields[WORKERS.WORKER_TYPE] = input.workerType || null
   if (input.active !== undefined) fields[WORKERS.ACTIVE] = input.active
   if (input.hourlyRate !== undefined) fields[WORKERS.HOURLY_RATE] = input.hourlyRate
   const res = await fetchWithRetry(recUrl(WORKERS.TABLE, id), {

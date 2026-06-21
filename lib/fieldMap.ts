@@ -7,6 +7,14 @@ export const CLIENTS = {
   PROJECTS: 'fldg6O6PUTESQDTNn',
 } as const
 
+export const END_USERS = {
+  TABLE_ID:    'tblb0ZAwU0gvP2Qht',
+  NAME:        'fldLoq8lMYo5jbLb3',  // singleLineText — End User Name
+  PHONE_EMAIL: 'fldrx3Xjc9zpG0tNr',  // singleLineText — Phone / Email
+  PROJECT:     'fld6YVYG1Phu0pP6I',  // multipleRecordLinks → PROJECTS
+  CLIENT:      'fldIY8VZCxzN6DfGB',  // multipleRecordLinks → CLIENTS
+} as const
+
 export const TASK_TEMPLATES = {
   TABLE_ID: 'tblfJFDNd2dcY1rUk',
   TASK_NAME: 'fldhUOs66e7p0IRhR',
@@ -112,6 +120,7 @@ export const PROJECTS = {
   REQUEST_TYPE:    'fldDlEFv0as7eOxuS',  // single select: Trade | Maintenance | Variance
   PARENT_PROJECT:  'flds3nCf54kT4Ss3s',  // linked record → PROJECTS
   TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
+  CLIENT_STATUS:   'fldwHeIOIoC4yXoua',  // single select: Broker | End-to-End Client | Designer | Contractor | Developer | Other
 } as const
 
 export const PROJECT_ITEMS = {
@@ -293,6 +302,7 @@ export const WORKERS = {
   FULL_NAME:    'fldykYIjjHcVUU07b',
   NICKNAME:     'fld0C8rZpHkXI01z8',
   ROLE:         'fldfoj2jJ0om9sFrr',
+  WORKER_TYPE:  'fldE39xPMrNCWiePS',  // single select: Supervisor | Worker
   ACTIVE:       'fldtVRH12qbl8xFQo',
   HOURLY_RATE:  'fldWdzVfmq7DUM29W',
 } as const
