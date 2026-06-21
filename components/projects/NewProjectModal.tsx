@@ -7,7 +7,7 @@ import Button from '@/components/ui/Button'
 import { Client } from '@/lib/types'
 
 const UAE_EMIRATES = [
-  'Dubai', 'Abu Dabei', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah',
+  'Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah',
 ]
 
 const CLIENT_STATUS_OPTIONS = [

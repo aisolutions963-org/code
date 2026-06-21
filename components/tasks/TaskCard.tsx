@@ -48,7 +48,7 @@ const FOLLOW_UP_OUTCOMES = [
   'SED to Follow Up',
   'Manager to Follow Up',
 ] as const
-const DATE_TASK_KEYWORDS = ['site visit', 'installation date', 'fixing date', 'visit date']
+const DATE_TASK_KEYWORDS = ['site visit', 'visit site', 'installation date', 'fixing date', 'visit date']
 
 function isCallClientDecisionTask(task: Task, role: Role): boolean {
   return (
@@ -158,9 +158,9 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [saveError, setSaveError] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [calendarDate, setCalendarDate] = useState('')
+  const [calendarDate, setCalendarDate] = useState(task.taskStartDate ?? '')
   const [calendarSaving, setCalendarSaving] = useState(false)
-  const [calendarSaved, setCalendarSaved] = useState(false)
+  const [calendarSaved, setCalendarSaved] = useState(!!task.taskStartDate)
   const [followUpOutcome, setFollowUpOutcome] = useState(task.followUpOutcome ?? '')
   const [followUpNote, setFollowUpNote] = useState(task.superadminNote ?? '')
   const [followUpSaving, setFollowUpSaving] = useState(false)
@@ -335,6 +335,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         }),
       })
       if (!res.ok) throw new Error('Failed')
+      await onUpdate(task.id, { taskStartDate: calendarDate })
       setCalendarSaved(true)
       toast.success(ar ? 'تمت الإضافة للتقويم' : 'Added to calendar')
     } catch {
