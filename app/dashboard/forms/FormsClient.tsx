@@ -160,65 +160,76 @@ function PaymentForm({ project }: { project: Project }) {
 
 const UNITS = ['pcs', 'm', 'm²', 'kg', 'set', 'box', 'roll'] as const
 type Unit = typeof UNITS[number]
+const PURPOSES = ['Project', 'Office', 'Factory', 'Cars', 'Other'] as const
+type Purpose = typeof PURPOSES[number]
 
 interface MaterialRow {
   name: string
   quantity: string
   unit: Unit | ''
   supplier: string
+  neededBy: string
   notes: string
 }
 
-function MaterialOrderForm({ project }: { project: Project }) {
-  const [showForm, setShowForm] = useState(false)
+const EMPTY_ROW: MaterialRow = { name: '', quantity: '', unit: '', supplier: '', neededBy: '', notes: '' }
+
+function F3Modal({
+  projects,
+  onClose,
+  onSubmitted,
+}: {
+  projects: Project[]
+  onClose: () => void
+  onSubmitted: () => void
+}) {
+  const today = todayUAE()
+  const [purpose, setPurpose] = useState<Purpose>('Project')
+  const [projectId, setProjectId] = useState('')
   const [orderType, setOrderType] = useState<'small' | 'big' | null>(null)
-  const [stockNote, setStockNote] = useState('')
-  const [rows, setRows] = useState<MaterialRow[]>([{ name: '', quantity: '', unit: '', supplier: '', notes: '' }])
+  const [rows, setRows] = useState<MaterialRow[]>([EMPTY_ROW, EMPTY_ROW])
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [err, setErr] = useState('')
 
-  function reset() {
-    setOrderType(null); setStockNote(''); setSaved(false); setErr('')
-    setRows([{ name: '', quantity: '', unit: '', supplier: '', notes: '' }])
-  }
-  function addRow() { setRows((r) => [...r, { name: '', quantity: '', unit: '', supplier: '', notes: '' }]) }
+  function addRow() { setRows((r) => [...r, { ...EMPTY_ROW }]) }
   function removeRow(i: number) { setRows((r) => r.filter((_, idx) => idx !== i)) }
   function updateRow(i: number, key: keyof MaterialRow, value: string) {
     setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [key]: value } : row)))
   }
 
-  async function submit(e: React.FormEvent) {
+  const validRows = rows.filter((r) => r.name.trim())
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr('')
-    if (!orderType) { setErr('Choose an order type first'); return }
-    const valid = rows.filter((r) => r.name.trim())
-    if (valid.length === 0) { setErr('Add at least one material'); return }
-    const bad = valid.find((r) => !r.quantity || !r.unit)
+    if (!orderType) { setErr('Select an order type (Small or Big)'); return }
+    if (purpose === 'Project' && !projectId) { setErr('Select a project'); return }
+    if (validRows.length === 0) { setErr('Add at least one material'); return }
+    const bad = validRows.find((r) => !r.quantity || !r.unit)
     if (bad) { setErr(`"${bad.name}": quantity and unit are required`); return }
-    setSaving(true); setSaved(false)
+
+    setSaving(true)
     try {
       const res = await fetch('/api/materials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          purpose: 'Project',
-          projectId: project.id,
+          purpose,
+          ...(purpose === 'Project' ? { projectId } : {}),
           orderType,
-          ...(stockNote.trim() ? { stockCheckNote: stockNote.trim() } : {}),
-          items: valid.map((r) => ({
+          items: validRows.map((r) => ({
             name: r.name.trim(),
             quantity: parseFloat(r.quantity),
             unit: r.unit,
             ...(r.supplier.trim() ? { supplier: r.supplier.trim() } : {}),
+            ...(r.neededBy ? { neededByDate: r.neededBy } : {}),
             ...(r.notes.trim() ? { notes: r.notes.trim() } : {}),
           })),
         }),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
-      setSaved(true)
-      setShowForm(false)
-      reset()
+      onSubmitted()
+      onClose()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed')
     } finally {
@@ -226,155 +237,161 @@ function MaterialOrderForm({ project }: { project: Project }) {
     }
   }
 
-  return (
-    <div className="border-t border-gray-100 pt-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Order</span>
-        <button
-          onClick={() => { setShowForm((v) => !v); if (showForm) reset() }}
-          className="text-xs text-brand-600 hover:underline font-medium"
-        >
-          {showForm ? '− Cancel' : '+ Order materials'}
-        </button>
-      </div>
-      {saved && !showForm && (
-        <p className="text-xs text-green-600 mb-1">Material order submitted.</p>
-      )}
-      {showForm && (
-        <form onSubmit={submit} className="space-y-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-          {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{err}</p>}
+  const rowInp = 'w-full border border-gray-200 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white'
 
-          {/* Order type selector — mirrors F3 panel */}
-          <div>
-            <p className="text-xs font-semibold text-emerald-800 mb-2">
-              Order Type <span className="font-normal text-emerald-700">— choose before submitting</span>
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <h2 className="text-sm font-bold text-gray-800">F3 — Material Order</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+
+            {/* ORDER DETAILS */}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Order Details</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Purpose <span className="text-red-500">*</span></label>
+                  <select
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    value={purpose}
+                    onChange={(e) => { setPurpose(e.target.value as Purpose); setProjectId('') }}
+                  >
+                    {PURPOSES.map((p) => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    Project {purpose === 'Project' && <span className="text-red-500">*</span>}
+                  </label>
+                  <select
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-400"
+                    value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}
+                    disabled={purpose !== 'Project'}
+                  >
+                    <option value="">Select project…</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.projectName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs text-gray-500">
+                <div>
+                  <span className="font-medium text-gray-400">Request Date</span>
+                  <p className="text-gray-700 mt-0.5">{today}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-400">Requested By</span>
+                  <p className="text-gray-700 mt-0.5">Current user (auto)</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Type */}
+            <div className="grid grid-cols-2 gap-3">
+              {(['small', 'big'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setOrderType(t)}
+                  className={`text-left px-4 py-3 rounded-xl text-sm font-semibold border-2 transition-all ${
+                    orderType === t
+                      ? t === 'small'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                        : 'border-amber-500 bg-amber-50 text-amber-900'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <div>{t === 'small' ? 'Small Order' : 'Big Order'}</div>
+                  <div className="text-xs font-normal mt-0.5 opacity-70">
+                    {t === 'small' ? 'Order directly' : 'Fabrication checks store first'}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Materials Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 min-w-[140px]">Material Name <span className="text-red-400">*</span></th>
+                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 min-w-[100px]">Supplier</th>
+                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 w-16">Qty <span className="text-red-400">*</span></th>
+                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 w-20">Unit <span className="text-red-400">*</span></th>
+                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 w-32">Needed By</th>
+                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 min-w-[100px]">Notes</th>
+                    <th className="w-4" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {rows.map((row, i) => (
+                    <tr key={i}>
+                      <td className="py-1.5 pr-2">
+                        <input className={rowInp} value={row.name} onChange={(e) => updateRow(i, 'name', e.target.value)} placeholder="e.g. MDF 18mm" />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <input className={rowInp} value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="Supplier" />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <input type="number" min="0" step="0.01" className={rowInp} value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} placeholder="0" />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <select className={rowInp} value={row.unit} onChange={(e) => updateRow(i, 'unit', e.target.value)}>
+                          <option value="">—</option>
+                          {UNITS.map((u) => <option key={u}>{u}</option>)}
+                        </select>
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <input type="date" className={rowInp} value={row.neededBy} onChange={(e) => updateRow(i, 'neededBy', e.target.value)} />
+                      </td>
+                      <td className="py-1.5 pr-2">
+                        <input className={rowInp} value={row.notes} onChange={(e) => updateRow(i, 'notes', e.target.value)} placeholder="Color, spec…" />
+                      </td>
+                      <td className="py-1.5">
+                        {rows.length > 1 && (
+                          <button type="button" onClick={() => removeRow(i)} className="text-gray-300 hover:text-red-400 text-base leading-none">×</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button type="button" onClick={addRow} className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                + Add row
+              </button>
+            </div>
+
+            {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-gray-100 px-5 py-4 flex items-center justify-between shrink-0">
+            <p className="text-xs text-gray-400">
+              Purpose can be: {PURPOSES.join(' / ')}
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setOrderType('small')}
-                className={`text-left px-3 py-2.5 rounded-lg text-xs font-semibold border-2 transition-all ${
-                  orderType === 'small'
-                    ? 'border-emerald-500 bg-emerald-100 text-emerald-900'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-emerald-300'
-                }`}
-              >
-                <div className="font-bold">Small Order</div>
-                <div className="font-normal mt-0.5 opacity-80">Order directly</div>
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200">
+                Cancel
               </button>
               <button
-                type="button"
-                onClick={() => setOrderType('big')}
-                className={`text-left px-3 py-2.5 rounded-lg text-xs font-semibold border-2 transition-all ${
-                  orderType === 'big'
-                    ? 'border-amber-500 bg-amber-50 text-amber-900'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-amber-300'
-                }`}
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 transition-colors"
               >
-                <div className="font-bold">Big Order</div>
-                <div className="font-normal mt-0.5 opacity-80">Fabrication checks store first</div>
+                {saving ? 'Submitting…' : `Submit Order (${validRows.length})`}
               </button>
             </div>
           </div>
-
-          {orderType && <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-emerald-200">
-                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[130px]">Material *</th>
-                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-16">Qty *</th>
-                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-20">Unit *</th>
-                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[90px]">Supplier</th>
-                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[90px]">Notes</th>
-                  <th className="w-4" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-emerald-100">
-                {rows.map((row, i) => (
-                  <tr key={i}>
-                    <td className="py-1 pr-2">
-                      <input
-                        className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
-                        value={row.name}
-                        onChange={(e) => updateRow(i, 'name', e.target.value)}
-                        placeholder="e.g. MDF 18mm"
-                      />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
-                        value={row.quantity}
-                        onChange={(e) => updateRow(i, 'quantity', e.target.value)}
-                        placeholder="0"
-                      />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <select
-                        className="w-full border border-gray-200 rounded px-1 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                        value={row.unit}
-                        onChange={(e) => updateRow(i, 'unit', e.target.value)}
-                      >
-                        <option value="">—</option>
-                        {UNITS.map((u) => <option key={u}>{u}</option>)}
-                      </select>
-                    </td>
-                    <td className="py-1 pr-2">
-                      <input
-                        className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
-                        value={row.supplier}
-                        onChange={(e) => updateRow(i, 'supplier', e.target.value)}
-                        placeholder="Supplier"
-                      />
-                    </td>
-                    <td className="py-1 pr-2">
-                      <input
-                        className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
-                        value={row.notes}
-                        onChange={(e) => updateRow(i, 'notes', e.target.value)}
-                        placeholder="Spec, colour…"
-                      />
-                    </td>
-                    <td className="py-1">
-                      {rows.length > 1 && (
-                        <button type="button" onClick={() => removeRow(i)} className="text-gray-300 hover:text-red-400 text-base leading-none">×</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>}
-
-          {orderType && (
-            <button type="button" onClick={addRow} className="text-xs text-emerald-700 hover:text-emerald-900 font-medium">
-              + Add row
-            </button>
-          )}
-
-          {orderType === 'big' && (
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Stock Check Note</label>
-              <input
-                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white"
-                value={stockNote}
-                onChange={(e) => setStockNote(e.target.value)}
-                placeholder="Any instructions for the store check…"
-              />
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            size="sm"
-            loading={saving}
-          >
-            {orderType === 'big' ? 'Send to Fabrication for Store Check' : 'Submit Order'}
-          </Button>
         </form>
-      )}
+      </div>
     </div>
   )
 }
@@ -404,7 +421,7 @@ function HandoverSection({ project, onCreated }: { project: Project; onCreated: 
   )
 }
 
-function ProjectCard({ project, canPay, canOrderMaterials, onRefresh }: { project: Project; canPay: boolean; canOrderMaterials: boolean; onRefresh: () => void }) {
+function ProjectCard({ project, canPay, onRefresh }: { project: Project; canPay: boolean; onRefresh: () => void }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
       <div>
@@ -414,7 +431,6 @@ function ProjectCard({ project, canPay, canOrderMaterials, onRefresh }: { projec
         </p>
       </div>
       {canPay && <PaymentForm project={project} />}
-      {canOrderMaterials && <MaterialOrderForm project={project} />}
       <HandoverSection project={project} onCreated={onRefresh} />
     </div>
   )
@@ -434,6 +450,9 @@ export default function FormsClient({ role }: { role: Role }) {
     fetcher,
     { refreshInterval: 300_000 },
   )
+
+  const [showF3, setShowF3] = useState(false)
+  const [f3Saved, setF3Saved] = useState(false)
 
   const canPay = role === 'manager' || role === 'superadmin'
   const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'superadmin'
@@ -460,6 +479,23 @@ export default function FormsClient({ role }: { role: Role }) {
           </button>
         </div>
 
+        {/* F3 Material Order — standalone entry point */}
+        {canOrderMaterials && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">F3 — Material Order</p>
+              <p className="text-xs text-gray-400 mt-0.5">Order for any project, office, factory or other purpose</p>
+              {f3Saved && <p className="text-xs text-green-600 mt-1">Order submitted successfully.</p>}
+            </div>
+            <button
+              onClick={() => { setShowF3(true); setF3Saved(false) }}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-colors shrink-0"
+            >
+              + New Order
+            </button>
+          </div>
+        )}
+
         {isLoading && <Spinner />}
 
         {error && (
@@ -481,11 +517,18 @@ export default function FormsClient({ role }: { role: Role }) {
             key={project.id}
             project={project}
             canPay={canPay}
-            canOrderMaterials={canOrderMaterials}
             onRefresh={() => mutate()}
           />
         ))}
       </div>
+
+      {showF3 && (
+        <F3Modal
+          projects={projects}
+          onClose={() => setShowF3(false)}
+          onSubmitted={() => { setF3Saved(true); mutate() }}
+        />
+      )}
     </div>
   )
 }
