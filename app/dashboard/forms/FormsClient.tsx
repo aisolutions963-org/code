@@ -171,11 +171,17 @@ interface MaterialRow {
 
 function MaterialOrderForm({ project }: { project: Project }) {
   const [showForm, setShowForm] = useState(false)
+  const [orderType, setOrderType] = useState<'small' | 'big' | null>(null)
+  const [stockNote, setStockNote] = useState('')
   const [rows, setRows] = useState<MaterialRow[]>([{ name: '', quantity: '', unit: '', supplier: '', notes: '' }])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState('')
 
+  function reset() {
+    setOrderType(null); setStockNote(''); setSaved(false); setErr('')
+    setRows([{ name: '', quantity: '', unit: '', supplier: '', notes: '' }])
+  }
   function addRow() { setRows((r) => [...r, { name: '', quantity: '', unit: '', supplier: '', notes: '' }]) }
   function removeRow(i: number) { setRows((r) => r.filter((_, idx) => idx !== i)) }
   function updateRow(i: number, key: keyof MaterialRow, value: string) {
@@ -185,6 +191,7 @@ function MaterialOrderForm({ project }: { project: Project }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setErr('')
+    if (!orderType) { setErr('Choose an order type first'); return }
     const valid = rows.filter((r) => r.name.trim())
     if (valid.length === 0) { setErr('Add at least one material'); return }
     const bad = valid.find((r) => !r.quantity || !r.unit)
@@ -197,6 +204,8 @@ function MaterialOrderForm({ project }: { project: Project }) {
         body: JSON.stringify({
           purpose: 'Project',
           projectId: project.id,
+          orderType,
+          ...(stockNote.trim() ? { stockCheckNote: stockNote.trim() } : {}),
           items: valid.map((r) => ({
             name: r.name.trim(),
             quantity: parseFloat(r.quantity),
@@ -209,7 +218,7 @@ function MaterialOrderForm({ project }: { project: Project }) {
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
       setSaved(true)
       setShowForm(false)
-      setRows([{ name: '', quantity: '', unit: '', supplier: '', notes: '' }])
+      reset()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed')
     } finally {
@@ -222,7 +231,7 @@ function MaterialOrderForm({ project }: { project: Project }) {
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Order</span>
         <button
-          onClick={() => { setShowForm((v) => !v); setSaved(false); setErr('') }}
+          onClick={() => { setShowForm((v) => !v); if (showForm) reset() }}
           className="text-xs text-brand-600 hover:underline font-medium"
         >
           {showForm ? '− Cancel' : '+ Order materials'}
@@ -234,7 +243,41 @@ function MaterialOrderForm({ project }: { project: Project }) {
       {showForm && (
         <form onSubmit={submit} className="space-y-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
           {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{err}</p>}
-          <div className="overflow-x-auto">
+
+          {/* Order type selector — mirrors F3 panel */}
+          <div>
+            <p className="text-xs font-semibold text-emerald-800 mb-2">
+              Order Type <span className="font-normal text-emerald-700">— choose before submitting</span>
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setOrderType('small')}
+                className={`text-left px-3 py-2.5 rounded-lg text-xs font-semibold border-2 transition-all ${
+                  orderType === 'small'
+                    ? 'border-emerald-500 bg-emerald-100 text-emerald-900'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-emerald-300'
+                }`}
+              >
+                <div className="font-bold">Small Order</div>
+                <div className="font-normal mt-0.5 opacity-80">Order directly</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrderType('big')}
+                className={`text-left px-3 py-2.5 rounded-lg text-xs font-semibold border-2 transition-all ${
+                  orderType === 'big'
+                    ? 'border-amber-500 bg-amber-50 text-amber-900'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-amber-300'
+                }`}
+              >
+                <div className="font-bold">Big Order</div>
+                <div className="font-normal mt-0.5 opacity-80">Fabrication checks store first</div>
+              </button>
+            </div>
+          </div>
+
+          {orderType && <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-emerald-200">
@@ -303,11 +346,33 @@ function MaterialOrderForm({ project }: { project: Project }) {
                 ))}
               </tbody>
             </table>
-          </div>
-          <button type="button" onClick={addRow} className="text-xs text-emerald-700 hover:text-emerald-900 font-medium">
-            + Add row
-          </button>
-          <Button type="submit" size="sm" loading={saving}>Submit Order</Button>
+          </div>}
+
+          {orderType && (
+            <button type="button" onClick={addRow} className="text-xs text-emerald-700 hover:text-emerald-900 font-medium">
+              + Add row
+            </button>
+          )}
+
+          {orderType === 'big' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Stock Check Note</label>
+              <input
+                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white"
+                value={stockNote}
+                onChange={(e) => setStockNote(e.target.value)}
+                placeholder="Any instructions for the store check…"
+              />
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            size="sm"
+            loading={saving}
+          >
+            {orderType === 'big' ? 'Send to Fabrication for Store Check' : 'Submit Order'}
+          </Button>
         </form>
       )}
     </div>
