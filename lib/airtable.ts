@@ -1802,11 +1802,14 @@ export async function createHandoverSheet(
 }
 
 export async function getHandoverSheetForProject(projectId: string): Promise<HandoverSheet[]> {
+  // Linked fields expand to primary field values in Airtable formulas, not record IDs.
+  // Fetch all sheets and filter client-side by record ID.
   const records = await fetchAll(HANDOVER_SHEETS.TABLE_ID, {
-    filterByFormula: `FIND("${projectId}", ARRAYJOIN({${HANDOVER_SHEETS.PROJECT}}, ","))`,
     sort: [{ field: HANDOVER_SHEETS.FINAL_INSTALLATION_DATE, direction: 'desc' }],
   })
-  return records.map(transformHandoverSheet)
+  return records
+    .filter((r) => strArr(r.fields[HANDOVER_SHEETS.PROJECT]).includes(projectId))
+    .map(transformHandoverSheet)
 }
 
 export async function createMaintenanceRecord(
@@ -2683,12 +2686,14 @@ export async function createProjectItem(input: {
 }
 
 export async function getProjectItemsForProject(projectId: string): Promise<ProjectItem[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${PROJECT_ITEMS.PROJECT}}, ","))`
+  // Linked fields expand to primary field values in Airtable formulas, not record IDs.
+  // Fetch all items and filter client-side by project record ID.
   const records = await fetchAll(PROJECT_ITEMS.TABLE_ID, {
-    filterByFormula: formula,
     sort: [{ field: PROJECT_ITEMS.ITEM_SEQUENCE, direction: 'asc' }],
   })
-  return records.map(transformProjectItem)
+  return records
+    .filter((r) => strArr(r.fields[PROJECT_ITEMS.PROJECT]).includes(projectId))
+    .map(transformProjectItem)
 }
 
 // ─── Quotations ───────────────────────────────────────────────────────────────
@@ -2748,9 +2753,12 @@ export async function createQuotation(input: {
 }
 
 export async function getQuotationsByProject(projectId: string): Promise<Quotation[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${QUOTATIONS.PROJECT}}, ","))`
-  const records = await fetchAll(QUOTATIONS.TABLE_ID, { filterByFormula: formula })
-  return records.map(transformQuotation)
+  // Linked fields expand to primary field values in Airtable formulas, not record IDs.
+  // Fetch all quotations and filter client-side by project record ID.
+  const records = await fetchAll(QUOTATIONS.TABLE_ID, {})
+  return records
+    .filter((r) => strArr(r.fields[QUOTATIONS.PROJECT]).includes(projectId))
+    .map(transformQuotation)
 }
 
 // ─── Timesheets ──────────────────────────────────────────────────────────────

@@ -11,6 +11,18 @@ import { CreateHandoverSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
+export const GET = requireRole('manager', 'superadmin', 'sed', 'installation')(
+  async (_req: NextRequest, _session, { params }) => {
+    try {
+      const sheets = await getHandoverSheetForProject(params.id)
+      return NextResponse.json({ sheets })
+    } catch (error) {
+      console.error('GET /api/projects/[id]/handover error:', error)
+      return NextResponse.json({ error: 'Failed to fetch handover sheets' }, { status: 500 })
+    }
+  },
+)
+
 export const POST = requireRole('installation', 'manager', 'superadmin')(
   async (req: NextRequest, session, { params }) => {
     let formData: FormData
