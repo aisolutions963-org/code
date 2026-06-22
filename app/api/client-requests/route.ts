@@ -61,6 +61,7 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     taskGenerationFailed = result.taskGenerationFailed
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to create request'
+    console.error('[POST /api/client-requests] error:', msg)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
