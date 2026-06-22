@@ -23,6 +23,18 @@ import { PHASE_CONFIG, TASK_MARKERS } from './phases'
 const WORKFLOW_TIMEOUT_MS = 15_000
 const { HEADLINE_PREFIX, AUTO_MARKER: AUTO_TASK_MARKER, CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX, FABRICATION_DONE_MARKER } = TASK_MARKERS
 
+// Sequential position map for Trade/Maintenance client request tasks.
+// These tasks have no templateOrder (computed fields can't be written to),
+// so we derive order from the fixed task names instead.
+const CR_TASK_SEQUENCE: Record<string, number> = {
+  'F3 — Order Trade Material':    1,
+  'F4 — Trade Payment':           2,
+  'Handover to Client':           3,
+  'Site Visit & Assessment':      1,
+  'Carry Out Maintenance Work':   2,
+  'Client Sign-off':              3,
+}
+
 function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([
     promise,
@@ -118,36 +130,35 @@ async function unlockNextTasks(task: Task): Promise<void> {
   if (!projectId) return
 
   // GATE/LOOP tasks (no templateOrder) only trigger the call-client gate check,
-  // not the standard order chain. Exception: client request tasks use taskOrder
-  // (a plain writable field) instead of the computed templateOrder.
+  // not the standard order chain. Exception: client request tasks (Trade/Maintenance)
+  // have fixed task names — use a name→position map to drive sequential unlock.
   if ((task.templateOrder ?? []).length === 0) {
-    if ((task.taskOrder ?? []).length > 0) {
+    const crPosition = CR_TASK_SEQUENCE[task.taskName]
+    if (crPosition !== undefined) {
       const [allCrTasks, crProjectLabel] = await Promise.all([
         getAllTasksForProjectAll(projectId),
         resolveProjectLabel(task),
       ])
-      const completedOrder = task.taskOrder[0]
-      const lockedNext = allCrTasks.filter(
-        (t) => t.status === 'Locked' && (t.taskOrder?.[0] ?? -1) > completedOrder,
-      )
-      if (lockedNext.length > 0) {
-        const minOrder = Math.min(...lockedNext.map((t) => t.taskOrder[0]))
-        const toUnlock = lockedNext.filter((t) => t.taskOrder[0] === minOrder)
-        await Promise.all(
-          toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
+      const nextTask = allCrTasks
+        .filter(
+          (t) =>
+            t.status === 'Locked' &&
+            CR_TASK_SEQUENCE[t.taskName] !== undefined &&
+            CR_TASK_SEQUENCE[t.taskName] > crPosition,
         )
-        for (const t of toUnlock) {
-          const depts = t.department ?? []
-          const roles = depts.map((d) => DEPT_ROLE_MAP[d]).filter((r): r is string => Boolean(r))
-          const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
-          for (const role of uniqueRoles) {
-            await createNotification({
-              recipientRole: role,
-              title: `New task ready: ${t.taskName}`,
-              body: `Project ${crProjectLabel}`,
-              link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
-            })
-          }
+        .sort((a, b) => CR_TASK_SEQUENCE[a.taskName] - CR_TASK_SEQUENCE[b.taskName])[0]
+      if (nextTask) {
+        await updateTaskRaw(nextTask.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })
+        const depts = nextTask.department ?? []
+        const roles = depts.map((d) => DEPT_ROLE_MAP[d]).filter((r): r is string => Boolean(r))
+        const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
+        for (const role of uniqueRoles) {
+          await createNotification({
+            recipientRole: role,
+            title: `New task ready: ${nextTask.taskName}`,
+            body: `Project ${crProjectLabel}`,
+            link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
+          })
         }
       }
       return

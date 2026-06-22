@@ -3156,7 +3156,6 @@ export async function createClientRequest(
     [TASKS.PROJECT]: project.id,
     [TASKS.STATUS]: i === 0 ? 'To Do' : 'Locked',
     [TASKS.TASK_TEMPLATES_LINK]: [t.templateId],
-    [TASKS.TASK_ORDER]: t.order,
   }))
 
   const taskIds = await createTasksBatch(taskRecords)
