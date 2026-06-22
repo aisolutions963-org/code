@@ -118,8 +118,40 @@ async function unlockNextTasks(task: Task): Promise<void> {
   if (!projectId) return
 
   // GATE/LOOP tasks (no templateOrder) only trigger the call-client gate check,
-  // not the standard order chain.
+  // not the standard order chain. Exception: client request tasks use taskOrder
+  // (a plain writable field) instead of the computed templateOrder.
   if ((task.templateOrder ?? []).length === 0) {
+    if ((task.taskOrder ?? []).length > 0) {
+      const [allCrTasks, crProjectLabel] = await Promise.all([
+        getAllTasksForProjectAll(projectId),
+        resolveProjectLabel(task),
+      ])
+      const completedOrder = task.taskOrder[0]
+      const lockedNext = allCrTasks.filter(
+        (t) => t.status === 'Locked' && (t.taskOrder?.[0] ?? -1) > completedOrder,
+      )
+      if (lockedNext.length > 0) {
+        const minOrder = Math.min(...lockedNext.map((t) => t.taskOrder[0]))
+        const toUnlock = lockedNext.filter((t) => t.taskOrder[0] === minOrder)
+        await Promise.all(
+          toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
+        )
+        for (const t of toUnlock) {
+          const depts = t.department ?? []
+          const roles = depts.map((d) => DEPT_ROLE_MAP[d]).filter((r): r is string => Boolean(r))
+          const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
+          for (const role of uniqueRoles) {
+            await createNotification({
+              recipientRole: role,
+              title: `New task ready: ${t.taskName}`,
+              body: `Project ${crProjectLabel}`,
+              link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
+            })
+          }
+        }
+      }
+      return
+    }
     await maybeUnlockCallClient(projectId, task.projectItem?.[0])
     return
   }
