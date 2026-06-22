@@ -245,8 +245,16 @@ function CreateModal({
       setErr('Variance reference is required (e.g. VR1)')
       return
     }
+    if (requestType === 'Trade' && !refInputClean) {
+      setErr('Trade reference is required (e.g. Tr1)')
+      return
+    }
     const tqn = tradeQuotNum.trim()
-    if (requestType === 'Trade' && tqn && !/^\d{4,}$/.test(tqn)) {
+    if (requestType === 'Trade' && !tqn) {
+      setErr('Trade Quotation Number is required')
+      return
+    }
+    if (requestType === 'Trade' && !/^\d{4,}$/.test(tqn)) {
       setErr('Trade Quotation Number must be 4 or more digits')
       return
     }
@@ -389,7 +397,9 @@ function CreateModal({
           {requestType === 'Trade' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1 font-medium">Trade Reference</label>
+                <label className="block text-xs text-gray-500 mb-1 font-medium">
+                  Trade Reference <span className="text-red-500">*</span>
+                </label>
                 <input
                   className={inp}
                   value={refInput}
@@ -398,7 +408,9 @@ function CreateModal({
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1 font-medium">Trade Quotation Number</label>
+                <label className="block text-xs text-gray-500 mb-1 font-medium">
+                  Trade Quotation Number <span className="text-red-500">*</span>
+                </label>
                 <input
                   className={inp}
                   value={tradeQuotNum}

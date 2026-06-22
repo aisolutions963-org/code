@@ -3158,7 +3158,21 @@ export async function createClientRequest(
     [TASKS.TASK_TEMPLATES_LINK]: [t.templateId],
   }))
 
-  const taskIds = await createTasksBatch(taskRecords)
+  const taskIds: string[] = []
+  for (let i = 0; i < taskRecords.length; i += 10) {
+    const chunk = taskRecords.slice(i, i + 10)
+    const res = await fetchWithRetry(tblUrl(TASKS.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ records: chunk.map((fields) => ({ fields })) }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error ${res.status}: ${body}`)
+    }
+    const data = (await res.json()) as { records: RawRecord[] }
+    taskIds.push(...data.records.map((r) => r.id))
+  }
   return { project, tasksCreated: taskIds.length }
 }
 
