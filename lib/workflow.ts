@@ -240,7 +240,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
         .map((d) => DEPT_ROLE_MAP[d])
         .filter((r): r is string => Boolean(r))
       const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
-      const title = t.taskName.replace(/\s*\(auto\)\s*/gi, '').trim()
+      const title = t.taskName.replace(/\s*\(auto[^)]*\)\s*/gi, '').trim()
       for (const role of uniqueRoles) {
         await createNotification({
           recipientRole: role,
@@ -249,7 +249,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
           link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
         })
       }
-      if (t.taskName.toLowerCase().includes('notify accountant') && process.env.RESEND_API_KEY) {
+      if (t.taskName.toLowerCase().includes('accountant') && process.env.RESEND_API_KEY) {
         notifyAccountantEvent({ eventName: title, projectLabel })
           .catch((err) => console.error('[A15] notifyAccountantEvent failed:', err))
       }

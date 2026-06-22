@@ -158,6 +158,162 @@ function PaymentForm({ project }: { project: Project }) {
   )
 }
 
+const UNITS = ['pcs', 'm', 'm²', 'kg', 'set', 'box', 'roll'] as const
+type Unit = typeof UNITS[number]
+
+interface MaterialRow {
+  name: string
+  quantity: string
+  unit: Unit | ''
+  supplier: string
+  notes: string
+}
+
+function MaterialOrderForm({ project }: { project: Project }) {
+  const [showForm, setShowForm] = useState(false)
+  const [rows, setRows] = useState<MaterialRow[]>([{ name: '', quantity: '', unit: '', supplier: '', notes: '' }])
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState('')
+
+  function addRow() { setRows((r) => [...r, { name: '', quantity: '', unit: '', supplier: '', notes: '' }]) }
+  function removeRow(i: number) { setRows((r) => r.filter((_, idx) => idx !== i)) }
+  function updateRow(i: number, key: keyof MaterialRow, value: string) {
+    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [key]: value } : row)))
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setErr('')
+    const valid = rows.filter((r) => r.name.trim())
+    if (valid.length === 0) { setErr('Add at least one material'); return }
+    const bad = valid.find((r) => !r.quantity || !r.unit)
+    if (bad) { setErr(`"${bad.name}": quantity and unit are required`); return }
+    setSaving(true); setSaved(false)
+    try {
+      const res = await fetch('/api/materials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purpose: 'Project',
+          projectId: project.id,
+          items: valid.map((r) => ({
+            name: r.name.trim(),
+            quantity: parseFloat(r.quantity),
+            unit: r.unit,
+            ...(r.supplier.trim() ? { supplier: r.supplier.trim() } : {}),
+            ...(r.notes.trim() ? { notes: r.notes.trim() } : {}),
+          })),
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
+      setSaved(true)
+      setShowForm(false)
+      setRows([{ name: '', quantity: '', unit: '', supplier: '', notes: '' }])
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="border-t border-gray-100 pt-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Material Order</span>
+        <button
+          onClick={() => { setShowForm((v) => !v); setSaved(false); setErr('') }}
+          className="text-xs text-brand-600 hover:underline font-medium"
+        >
+          {showForm ? '− Cancel' : '+ Order materials'}
+        </button>
+      </div>
+      {saved && !showForm && (
+        <p className="text-xs text-green-600 mb-1">Material order submitted.</p>
+      )}
+      {showForm && (
+        <form onSubmit={submit} className="space-y-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+          {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{err}</p>}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-emerald-200">
+                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[130px]">Material *</th>
+                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-16">Qty *</th>
+                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-20">Unit *</th>
+                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[90px]">Supplier</th>
+                  <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[90px]">Notes</th>
+                  <th className="w-4" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-100">
+                {rows.map((row, i) => (
+                  <tr key={i}>
+                    <td className="py-1 pr-2">
+                      <input
+                        className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
+                        value={row.name}
+                        onChange={(e) => updateRow(i, 'name', e.target.value)}
+                        placeholder="e.g. MDF 18mm"
+                      />
+                    </td>
+                    <td className="py-1 pr-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
+                        value={row.quantity}
+                        onChange={(e) => updateRow(i, 'quantity', e.target.value)}
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="py-1 pr-2">
+                      <select
+                        className="w-full border border-gray-200 rounded px-1 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                        value={row.unit}
+                        onChange={(e) => updateRow(i, 'unit', e.target.value)}
+                      >
+                        <option value="">—</option>
+                        {UNITS.map((u) => <option key={u}>{u}</option>)}
+                      </select>
+                    </td>
+                    <td className="py-1 pr-2">
+                      <input
+                        className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
+                        value={row.supplier}
+                        onChange={(e) => updateRow(i, 'supplier', e.target.value)}
+                        placeholder="Supplier"
+                      />
+                    </td>
+                    <td className="py-1 pr-2">
+                      <input
+                        className="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 bg-white"
+                        value={row.notes}
+                        onChange={(e) => updateRow(i, 'notes', e.target.value)}
+                        placeholder="Spec, colour…"
+                      />
+                    </td>
+                    <td className="py-1">
+                      {rows.length > 1 && (
+                        <button type="button" onClick={() => removeRow(i)} className="text-gray-300 hover:text-red-400 text-base leading-none">×</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" onClick={addRow} className="text-xs text-emerald-700 hover:text-emerald-900 font-medium">
+            + Add row
+          </button>
+          <Button type="submit" size="sm" loading={saving}>Submit Order</Button>
+        </form>
+      )}
+    </div>
+  )
+}
+
 function HandoverSection({ project, onCreated }: { project: Project; onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   return (
@@ -183,7 +339,7 @@ function HandoverSection({ project, onCreated }: { project: Project; onCreated: 
   )
 }
 
-function ProjectCard({ project, canPay, onRefresh }: { project: Project; canPay: boolean; onRefresh: () => void }) {
+function ProjectCard({ project, canPay, canOrderMaterials, onRefresh }: { project: Project; canPay: boolean; canOrderMaterials: boolean; onRefresh: () => void }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
       <div>
@@ -193,6 +349,7 @@ function ProjectCard({ project, canPay, onRefresh }: { project: Project; canPay:
         </p>
       </div>
       {canPay && <PaymentForm project={project} />}
+      {canOrderMaterials && <MaterialOrderForm project={project} />}
       <HandoverSection project={project} onCreated={onRefresh} />
     </div>
   )
@@ -214,6 +371,7 @@ export default function FormsClient({ role }: { role: Role }) {
   )
 
   const canPay = role === 'manager' || role === 'superadmin'
+  const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'superadmin'
   const projects = data?.projects ?? []
 
   return (
@@ -258,6 +416,7 @@ export default function FormsClient({ role }: { role: Role }) {
             key={project.id}
             project={project}
             canPay={canPay}
+            canOrderMaterials={canOrderMaterials}
             onRefresh={() => mutate()}
           />
         ))}

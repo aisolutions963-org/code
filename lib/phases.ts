@@ -26,7 +26,7 @@ export const PHASE_CONFIG = {
 
 export const TASK_MARKERS = {
   GATE_PREFIX: '[gate]',
-  AUTO_MARKER: '(auto)',
+  AUTO_MARKER: '(auto',
   HEADLINE_PREFIX: 'to follow tasks progress',
   CALL_CLIENT_PREFIX: 'call the client',
   TAKE_APPROVAL_PREFIX: 'take approval from client',

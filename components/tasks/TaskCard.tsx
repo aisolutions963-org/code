@@ -209,6 +209,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     role === 'superadmin' &&
     task.taskName.toLowerCase().includes(FOLLOW_UP_KEYWORD)
 
+  const isSystemAutoTask =
+    task.taskName.toLowerCase().startsWith('to follow tasks progress') ||
+    task.taskName.toLowerCase().includes('(auto')
+
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
   const isDecisionTask = isCallClientDecisionTask(task, role)
@@ -723,49 +727,62 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
-          {/* Editable fields */}
-          <FieldEditor
-            taskId={task.id}
-            role={role}
-            fields={isF2ProductionTask
-              ? Object.fromEntries(
-                  Object.entries(localFields).filter(
-                    ([k]) => k !== 'plannedProdStartDate' && k !== 'expectedFabEndDate',
-                  ),
-                ) as typeof localFields
-              : localFields}
-            onChange={handleChange}
-            onDocLinkAdded={handleDocLinkAdded}
-            onDocLinkRemoved={handleDocLinkRemoved}
-            existingAttachments={{
-              taskDocuments: task.taskDocuments,
-              fillersAndMissingList: task.fillersAndMissingList,
-            }}
-          />
+          {/* System auto-task — no editable fields, just a status indicator */}
+          {isSystemAutoTask ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
+              <span className="text-gray-400 text-sm">⚡</span>
+              <p className="text-xs text-gray-500">
+                {task.status === 'Completed'
+                  ? 'Completed automatically by the system'
+                  : 'Will be completed automatically by the system'}
+              </p>
+            </div>
+          ) : (
+            <FieldEditor
+              taskId={task.id}
+              role={role}
+              fields={isF2ProductionTask
+                ? Object.fromEntries(
+                    Object.entries(localFields).filter(
+                      ([k]) => k !== 'plannedProdStartDate' && k !== 'expectedFabEndDate',
+                    ),
+                  ) as typeof localFields
+                : localFields}
+              onChange={handleChange}
+              onDocLinkAdded={handleDocLinkAdded}
+              onDocLinkRemoved={handleDocLinkRemoved}
+              existingAttachments={{
+                taskDocuments: task.taskDocuments,
+                fillersAndMissingList: task.fillersAndMissingList,
+              }}
+            />
+          )}
 
-          {/* Save state */}
-          <div className="flex items-center gap-2 min-h-[20px]">
-            {saving && (
-              <span className="text-xs text-gray-400 flex items-center gap-1">
-                <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                {ar ? 'جاري الحفظ…' : 'Saving…'}
-              </span>
-            )}
-            {saveSuccess && !saving && (
-              <span className="text-xs text-green-600 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                {ar ? 'تم الحفظ' : 'Saved'}
-              </span>
-            )}
-            {saveError && (
-              <span className="text-xs text-red-600">{saveError}</span>
-            )}
-          </div>
+          {/* Save state — not shown for system auto tasks */}
+          {!isSystemAutoTask && (
+            <div className="flex items-center gap-2 min-h-[20px]">
+              {saving && (
+                <span className="text-xs text-gray-400 flex items-center gap-1">
+                  <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  {ar ? 'جاري الحفظ…' : 'Saving…'}
+                </span>
+              )}
+              {saveSuccess && !saving && (
+                <span className="text-xs text-green-600 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {ar ? 'تم الحفظ' : 'Saved'}
+                </span>
+              )}
+              {saveError && (
+                <span className="text-xs text-red-600">{saveError}</span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
