@@ -27,34 +27,49 @@ export const PATCH = requireRole('superadmin')(
       )
     }
 
-    const { name, email, password, role, active } = parsed.data
-    const identityChanged = existing.airtable_member_id && (
-      (name  !== undefined && name  !== existing.name)  ||
-      (email !== undefined && email !== existing.email) ||
-      (role  !== undefined && role  !== existing.role)
-    )
+    const { name, email, password, role, active, airtable_member_id: providedAirtableId } = parsed.data
 
-    // Step 1: sync identity changes to Airtable
+    const resolvedAirtableId = existing.airtable_member_id ?? undefined
+    const syncName  = name  ?? existing.name
+    const syncEmail = email ?? existing.email
+    const syncRole  = role  ?? existing.role
+
+    // Step 1: sync to Airtable
     let newAirtableId: string | undefined
-    if (identityChanged) {
-      const syncName  = name  ?? existing.name
-      const syncEmail = email ?? existing.email
-      const syncRole  = role  ?? existing.role
-      try {
-        await updateTeamMember(existing.airtable_member_id!, { name: syncName, email: syncEmail, role: syncRole })
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        // 403 means the stored record ID is stale (deleted in Airtable) — recreate it
-        if (msg.includes('403')) {
-          try {
-            newAirtableId = await createTeamMember({ name: syncName, email: syncEmail, role: syncRole })
-          } catch (createErr) {
-            const createMsg = createErr instanceof Error ? createErr.message : 'Airtable error'
-            return NextResponse.json({ error: `Failed to sync team member: ${createMsg}` }, { status: 502 })
+    if (providedAirtableId) {
+      // Caller explicitly linked to an existing Airtable record — just store it
+      newAirtableId = providedAirtableId
+    } else if (resolvedAirtableId) {
+      // User already has an Airtable record — update it if identity fields changed
+      const identityChanged =
+        (name  !== undefined && name  !== existing.name)  ||
+        (email !== undefined && email !== existing.email) ||
+        (role  !== undefined && role  !== existing.role)
+      if (identityChanged) {
+        try {
+          await updateTeamMember(resolvedAirtableId, { name: syncName, email: syncEmail, role: syncRole })
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          if (msg.includes('403')) {
+            // Stale record ID — recreate in Airtable
+            try {
+              newAirtableId = await createTeamMember({ name: syncName, email: syncEmail, role: syncRole })
+            } catch (createErr) {
+              const createMsg = createErr instanceof Error ? createErr.message : 'Airtable error'
+              return NextResponse.json({ error: `Failed to sync team member: ${createMsg}` }, { status: 502 })
+            }
+          } else {
+            return NextResponse.json({ error: `Failed to sync team member: ${msg}` }, { status: 502 })
           }
-        } else {
-          return NextResponse.json({ error: `Failed to sync team member: ${msg}` }, { status: 502 })
         }
+      }
+    } else {
+      // No Airtable record yet — create one now so this user becomes assignable
+      try {
+        newAirtableId = await createTeamMember({ name: syncName, email: syncEmail, role: syncRole })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Airtable error'
+        return NextResponse.json({ error: `Failed to create team member: ${msg}` }, { status: 502 })
       }
     }
 
@@ -70,8 +85,9 @@ export const PATCH = requireRole('superadmin')(
     try {
       await updateUser(id, updates)
     } catch (error) {
-      if (identityChanged && !newAirtableId) {
-        await updateTeamMember(existing.airtable_member_id!, {
+      // Best-effort rollback: if we updated Airtable but the DB write fails, revert Airtable
+      if (resolvedAirtableId && !newAirtableId) {
+        await updateTeamMember(resolvedAirtableId, {
           name: existing.name,
           email: existing.email,
           role: existing.role,

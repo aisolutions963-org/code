@@ -19,6 +19,7 @@ export const UpdateUserSchema = z.object({
   password: z.string().min(8).max(128).optional(),
   role: z.enum(['superadmin', 'manager', 'sed', 'fabrication', 'installation']).optional(),
   active: z.number().int().min(0).max(1).optional(),
+  airtable_member_id: z.string().optional(),
 })
 
 export const UpdateTaskSchema = z.object({
