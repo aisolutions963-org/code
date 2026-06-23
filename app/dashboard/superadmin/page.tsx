@@ -1599,6 +1599,8 @@ function PaymentsPage() {
         <MetricCard label="Collection Rate" value={`${collectionRate}%`} color={collectionRate >= 70 ? 'text-green-600' : 'text-orange-500'} />
       </div>
 
+      <UnifiedCalendar filterTypes={['payment-received', 'payment-due']} />
+
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -2339,12 +2341,12 @@ function CalendarPage() {
   const { name } = useSession()
 
   const tabs: TabDef[] = [
-    { id: 'all',          label: 'All',               dot: 'bg-gray-400',   types: null,                                                  noAdd: true },
-    { id: 'activity',     label: 'Project Activity',  dot: 'bg-amber-400',  types: ['activity', 'fabrication'],                           canAddEvent: true },
-    { id: 'payments',     label: 'Payments',          dot: 'bg-green-500',  types: ['payment-received', 'payment-due', 'delivery'],        noAdd: true },
-    { id: 'personal',     label: 'My Activities',     dot: 'bg-purple-400', types: ['activity'], creatorFilter: name ?? undefined,         canAddEvent: true },
-    { id: 'installation', label: 'Installation',      dot: 'bg-blue-500',   types: ['installation', 'fabrication', 'delivery'],            showInstallAssign: true, canAddEvent: true },
-    { id: 'materials',    label: 'Material Delivery', dot: 'bg-yellow-400', types: ['delivery'],                                          noAdd: true },
+    { id: 'all',          label: 'All',               dot: 'bg-gray-400',    types: null,                                                                    noAdd: true },
+    { id: 'activity',     label: 'Project Activity',  dot: 'bg-blue-500',    types: ['activity', 'fabrication'],                                             canAddEvent: true },
+    { id: 'payments',     label: 'Payments',          dot: 'bg-red-500',     types: ['payment-received', 'payment-due'],                                      noAdd: true },
+    { id: 'personal',     label: 'My Activities',     dot: 'bg-yellow-400',  types: ['personal'], creatorFilter: name ?? undefined, personalMode: true,       canAddEvent: true },
+    { id: 'installation', label: 'Installation',      dot: 'bg-purple-500',  types: ['installation', 'fabrication', 'delivery'], showInstallAssign: true,     canAddEvent: true },
+    { id: 'materials',    label: 'Material Delivery', dot: 'bg-orange-400',  types: ['delivery'],                                                             noAdd: true },
   ]
 
   return (

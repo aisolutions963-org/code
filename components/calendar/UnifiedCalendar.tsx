@@ -13,12 +13,13 @@ const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 type EventType = CalendarEvent['type']
 
 const TYPE_CFG: Record<EventType, { label: string; dot: string; pill: string; border: string }> = {
-  activity:           { label: 'Activity',     dot: 'bg-amber-400',   pill: 'bg-amber-50 text-amber-700 border-amber-200',      border: 'border-l-amber-400'   },
-  fabrication:        { label: 'Fabrication',  dot: 'bg-emerald-500', pill: 'bg-emerald-50 text-emerald-700 border-emerald-200', border: 'border-l-emerald-500' },
-  delivery:           { label: 'Delivery',     dot: 'bg-yellow-400',  pill: 'bg-yellow-50 text-yellow-700 border-yellow-200',   border: 'border-l-yellow-400'  },
-  installation:       { label: 'Installation', dot: 'bg-blue-500',    pill: 'bg-blue-50 text-blue-700 border-blue-200',         border: 'border-l-blue-500'    },
-  'payment-received': { label: 'Received',     dot: 'bg-green-500',   pill: 'bg-green-50 text-green-700 border-green-200',      border: 'border-l-green-500'   },
-  'payment-due':      { label: 'Due',          dot: 'bg-red-500',     pill: 'bg-red-50 text-red-700 border-red-200',            border: 'border-l-red-500'     },
+  activity:           { label: 'Activity',     dot: 'bg-blue-500',    pill: 'bg-blue-50 text-blue-700 border-blue-200',         border: 'border-l-blue-500'    },
+  fabrication:        { label: 'Fabrication',  dot: 'bg-green-500',   pill: 'bg-green-50 text-green-700 border-green-200',      border: 'border-l-green-500'   },
+  delivery:           { label: 'Delivery',     dot: 'bg-orange-400',  pill: 'bg-orange-50 text-orange-700 border-orange-200',   border: 'border-l-orange-400'  },
+  installation:       { label: 'Installation', dot: 'bg-purple-500',  pill: 'bg-purple-50 text-purple-700 border-purple-200',   border: 'border-l-purple-500'  },
+  'payment-received': { label: 'Received',     dot: 'bg-red-400',     pill: 'bg-red-50 text-red-600 border-red-200',            border: 'border-l-red-400'     },
+  'payment-due':      { label: 'Payment Due',  dot: 'bg-red-600',     pill: 'bg-red-100 text-red-800 border-red-300',           border: 'border-l-red-600'     },
+  personal:           { label: 'My Activity',  dot: 'bg-yellow-400',  pill: 'bg-yellow-50 text-yellow-700 border-yellow-200',   border: 'border-l-yellow-400'  },
 }
 
 export interface TabDef {
@@ -30,6 +31,7 @@ export interface TabDef {
   canAddEvent?: boolean       // show inline add form
   showInstallAssign?: boolean
   noAdd?: boolean             // hide add button even if parent canAddEvent/onDayClick set
+  personalMode?: boolean      // personal tab — posts type:personal events
 }
 
 interface Props {
@@ -39,6 +41,7 @@ interface Props {
   showInstallAssign?: boolean
   creatorFilter?: string
   onDayClick?: (date: string, tabId: string) => void
+  personalMode?: boolean
 }
 
 function isoToLocal(d: string) {
@@ -92,7 +95,7 @@ function AssignTeamInline({ projectId, onDone }: { projectId: string; onDone: ()
   )
 }
 
-type CalendarEventType = 'activity' | 'installation' | 'fabrication' | 'delivery'
+type CalendarEventType = 'activity' | 'installation' | 'fabrication' | 'delivery' | 'personal'
 const EVENT_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
   { value: 'activity',     label: 'Activity'     },
   { value: 'installation', label: 'Installation' },
@@ -106,25 +109,30 @@ const INSTALL_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
 interface CalendarProject { id: string; name: string; projectRef: string }
 
 // ─── Inline Add Form ──────────────────────────────────────────────────────────
-function AddEventForm({ defaultDate, onDone, mutate, showFactory }: {
+function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }: {
   defaultDate: string
   onDone: () => void
   mutate: () => void
   showFactory?: boolean
+  personalMode?: boolean
 }) {
   const [title, setTitle]             = useState('')
   const [date, setDate]               = useState(defaultDate)
   const [notes, setNotes]             = useState('')
   const [projectId, setProject]       = useState('')
-  const [eventType, setType]          = useState<CalendarEventType>(showFactory ? 'installation' : 'activity')
+  const [eventType, setType]          = useState<CalendarEventType>(
+    showFactory ? 'installation' : personalMode ? 'personal' : 'activity'
+  )
   const [saving, setSaving]           = useState(false)
   const [selectedMembers, setMembers] = useState<string[]>([])
 
   const isFactory = eventType === 'fabrication'
 
-  const { data: projData } = useSWR<{ projects: CalendarProject[] }>('/api/calendar/projects', fetcher, {
-    revalidateOnFocus: false,
-  })
+  const { data: projData } = useSWR<{ projects: CalendarProject[] }>(
+    !personalMode ? '/api/calendar/projects' : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  )
   const { data: teamData } = useSWR<{ members: { id: string; name: string }[] }>(
     showFactory ? '/api/team/installation' : null,
     fetcher,
@@ -151,7 +159,7 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory }: {
         title: title.trim(),
         date,
         notes: finalNotes || undefined,
-        projectId: !isFactory ? (projectId || undefined) : undefined,
+        projectId: !isFactory && !personalMode ? (projectId || undefined) : undefined,
         eventType,
         teamMemberIds: showFactory && selectedMembers.length > 0 ? selectedMembers : undefined,
       }),
@@ -164,34 +172,36 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory }: {
   return (
     <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-3">
       <p className="text-sm font-semibold text-gray-800">
-        {showFactory ? 'Assign Installation Task' : 'New Activity'}
+        {personalMode ? 'New Personal Note' : showFactory ? 'Assign Installation Task' : 'New Activity'}
       </p>
 
-      {/* Type selector */}
-      <div className="flex gap-1.5 flex-wrap">
-        {typeOpts.map(opt => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => { setType(opt.value); setMembers([]) }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-              eventType === opt.value
-                ? 'bg-gray-800 text-white border-gray-800'
-                : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700 bg-white'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      {/* Type selector — hidden for personal and install tabs */}
+      {!personalMode && (
+        <div className="flex gap-1.5 flex-wrap">
+          {typeOpts.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { setType(opt.value); setMembers([]) }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                eventType === opt.value
+                  ? 'bg-gray-800 text-white border-gray-800'
+                  : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700 bg-white'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <input
         autoFocus
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-        placeholder={isFactory ? 'Factory work description…' : showFactory ? 'Project or task description…' : 'Activity title…'}
+        placeholder={personalMode ? 'Note or reminder…' : isFactory ? 'Factory work description…' : showFactory ? 'Project or task description…' : 'Activity title…'}
         value={title}
         onChange={e => setTitle(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && !showFactory) save() }}
+        onKeyDown={e => { if (e.key === 'Enter' && (personalMode || !showFactory)) save() }}
       />
 
       <input type="date"
@@ -200,8 +210,8 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory }: {
         onChange={e => setDate(e.target.value)}
       />
 
-      {/* Project picker (not for factory) */}
-      {!isFactory && (
+      {/* Project picker (activity tab only — not for factory or personal) */}
+      {!isFactory && !personalMode && (
         <select
           value={projectId}
           onChange={e => setProject(e.target.value)}
@@ -336,11 +346,12 @@ export default function UnifiedCalendar({
   })
 
   const activeTab = tabs?.find(t => t.id === activeTabId)
-  const effectiveTypes  = activeTab?.types  ?? filterTypes  ?? null
-  const effectiveCreator = activeTab?.creatorFilter ?? creatorFilter ?? null
-  const effectiveCanAdd  = activeTab?.canAddEvent ?? canAddEvent ?? false
-  const effectiveAssign  = activeTab?.showInstallAssign ?? showInstallAssign ?? false
-  const noAdd            = activeTab?.noAdd ?? false
+  const effectiveTypes    = activeTab?.types  ?? filterTypes  ?? null
+  const effectiveCreator  = activeTab?.creatorFilter ?? creatorFilter ?? null
+  const effectiveCanAdd   = activeTab?.canAddEvent ?? canAddEvent ?? false
+  const effectiveAssign   = activeTab?.showInstallAssign ?? showInstallAssign ?? false
+  const effectivePersonal = activeTab?.personalMode ?? personalMode ?? false
+  const noAdd             = activeTab?.noAdd ?? false
 
   const allEvents = useMemo(() => {
     let evs = data?.events ?? []
@@ -431,7 +442,7 @@ export default function UnifiedCalendar({
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                {effectiveAssign ? 'Assign Task' : 'Add Activity'}
+                {effectiveAssign ? 'Assign Task' : effectivePersonal ? '+ Note' : 'Add Activity'}
               </button>
             )}
           </div>
@@ -488,6 +499,7 @@ export default function UnifiedCalendar({
             onDone={() => setShowAddForm(false)}
             mutate={mutate}
             showFactory={effectiveAssign}
+            personalMode={effectivePersonal}
           />
         </div>
       )}

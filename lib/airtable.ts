@@ -2021,7 +2021,7 @@ export interface CalendarEvent {
   title: string
   date: string
   endDate?: string
-  type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication'
+  type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication' | 'personal'
   projectId?: string
   projectName?: string
   itemName?: string
@@ -2151,6 +2151,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     else if (customTask?.startsWith('type:installation')) evType = 'installation'
     else if (customTask?.startsWith('type:fabrication'))  evType = 'fabrication'
     else if (customTask?.startsWith('type:delivery'))     evType = 'delivery'
+    else if (customTask?.startsWith('type:personal'))     evType = 'personal'
     events.push({
       id: r.id,
       title,
