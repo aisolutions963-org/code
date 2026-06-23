@@ -4,7 +4,7 @@ import { useState, useCallback, Fragment, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate as globalMutate } from 'swr'
-import { todayUAE } from '@/lib/dateUtils'
+import { todayUAE, getWoodWingsQuarter, getWoodWingsQuarterRange } from '@/lib/dateUtils'
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
@@ -521,28 +521,20 @@ function ClientsReportView() {
 
 // ─── Reports Section ─────────────────────────────────────────────────────────
 
-function quarterBounds(year: number, q: number): { from: string; to: string; label: string } {
-  const startMonth = (q - 1) * 3
-  const from = new Date(year, startMonth, 1)
-  const to   = new Date(year, startMonth + 3, 0) // last day of last month
-  const fmt  = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  const label = `${months[startMonth]} – ${months[startMonth + 2]} ${year}`
-  return { from: fmt(from), to: fmt(to), label }
-}
-
 function ReportsSection() {
-  const now = new Date()
-  const curYear = now.getFullYear()
-  const curQ    = Math.ceil((now.getMonth() + 1) / 3)
+  const fmt = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
+  const current = getWoodWingsQuarter()
 
   const [activeTab, setActiveTab] = useState<ReportCategory>('Sales')
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
-  const [year, setYear] = useState(curYear)
-  const [q, setQ] = useState(curQ)
+  const [fiscalYear, setFiscalYear] = useState(current.fiscalYear)
+  const [q, setQ] = useState(current.quarter)
 
-  const { from, to, label } = quarterBounds(year, q)
+  const info = getWoodWingsQuarterRange(q as 1 | 2 | 3 | 4, fiscalYear)
+  const from  = fmt(info.start)
+  const to    = fmt(info.end)
+  const label = info.label
 
   async function downloadReport(route: string, name: string) {
     setDownloading(route)
@@ -554,7 +546,7 @@ function ReportsSection() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${name.replace(/\s+/g, '_')}_Q${q}_${year}.xlsx`
+      a.download = `${name.replace(/\s+/g, '_')}_Q${q}_FY${fiscalYear}.xlsx`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -583,9 +575,9 @@ function ReportsSection() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Year */}
           <div className="flex items-center gap-1">
-            <button onClick={() => setYear(y => y - 1)} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xs">‹</button>
-            <span className="text-xs font-semibold text-gray-700 w-10 text-center">{year}</span>
-            <button onClick={() => setYear(y => y + 1)} disabled={year >= curYear} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xs disabled:opacity-30">›</button>
+            <button onClick={() => setFiscalYear(y => y - 1)} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xs">‹</button>
+            <span className="text-xs font-semibold text-gray-700 w-10 text-center">{fiscalYear}</span>
+            <button onClick={() => setFiscalYear(y => y + 1)} disabled={fiscalYear >= current.fiscalYear} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xs disabled:opacity-30">›</button>
           </div>
           {/* Quarter buttons */}
           <div className="flex gap-1">
