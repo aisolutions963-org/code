@@ -50,7 +50,7 @@ export const PATCH = requireRole('superadmin')(
           await updateTeamMember(resolvedAirtableId, { name: syncName, email: syncEmail, role: syncRole })
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          if (msg.includes('403')) {
+          if (msg.includes('403') || msg.includes('ROW_DOES_NOT_EXIST')) {
             // Stale record ID — recreate in Airtable
             try {
               newAirtableId = await createTeamMember({ name: syncName, email: syncEmail, role: syncRole })

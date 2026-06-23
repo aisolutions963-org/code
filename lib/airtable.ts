@@ -832,16 +832,35 @@ export async function createProject(input: ProjectCreateInput): Promise<Project>
     fields[PROJECTS.CLIENT] = [client.id]
   }
 
-  const res = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
-    method: 'POST',
-    headers: airtableHeaders(),
-    body: JSON.stringify({ fields }),
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Airtable error ${res.status}: ${body}`)
+  const tryCreate = async (f: Record<string, unknown>): Promise<RawRecord> => {
+    const res = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ fields: f }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error ${res.status}: ${body}`)
+    }
+    return res.json() as Promise<RawRecord>
   }
-  const record: RawRecord = await res.json()
+
+  let record: RawRecord
+  try {
+    record = await tryCreate(fields)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.includes('ROW_DOES_NOT_EXIST')) {
+      // One or more linked team member IDs are stale — retry without SED links
+      const safeFields = { ...fields }
+      delete safeFields[PROJECTS.SALES_OWNER]
+      delete safeFields[PROJECTS.COMMUN_SEDS]
+      console.warn('[createProject] Stale team member ID detected — project created without SED assignment')
+      record = await tryCreate(safeFields)
+    } else {
+      throw err
+    }
+  }
   return transformProject(record)
 }
 
