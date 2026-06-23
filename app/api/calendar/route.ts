@@ -29,9 +29,13 @@ export const POST = requireRole('manager', 'superadmin', 'sed', 'installation', 
     const { teamMemberIds, ...eventData } = parsed.data
     await createCalendarEvent({ ...eventData, createdBy: session.name })
 
-    if (teamMemberIds && teamMemberIds.length > 0 && parsed.data.eventType === 'fabrication') {
-      const notifTitle = `Factory work assigned — ${parsed.data.title}`
-      const notifBody  = `Assigned by ${session.name} on ${parsed.data.date}`
+    if (teamMemberIds && teamMemberIds.length > 0 &&
+        (parsed.data.eventType === 'fabrication' || parsed.data.eventType === 'installation')) {
+      const isInstall  = parsed.data.eventType === 'installation'
+      const notifTitle = isInstall
+        ? `Installation assigned — ${parsed.data.title}`
+        : `Factory work assigned — ${parsed.data.title}`
+      const notifBody  = `${parsed.data.date} — Assigned by ${session.name}`
       await Promise.all(
         teamMemberIds.map(async (airtableId) => {
           const user = await getUserByAirtableMemberId(airtableId)

@@ -8,6 +8,7 @@ import TaskList from '@/components/tasks/TaskList'
 import HandoverModal from '@/components/projects/HandoverModal'
 import InstallationLogModal from '@/components/projects/InstallationLogModal'
 import AllMaterialsView from '@/components/materials/AllMaterialsView'
+import UnifiedCalendar from '@/components/calendar/UnifiedCalendar'
 
 interface AssignmentNote { id: number; title: string; body: string; created_at: string; read: number }
 
@@ -38,7 +39,10 @@ export default function FixDashboard() {
   )
 
   const assignmentNotes = (notifData?.notifications ?? []).filter(
-    (n) => n.title === 'Installation team assigned',
+    (n) =>
+      n.title === 'Installation team assigned' ||
+      n.title.startsWith('Installation assigned') ||
+      n.title.startsWith('Factory work assigned'),
   )
 
   const tasks = data?.tasks ?? []
@@ -93,12 +97,17 @@ export default function FixDashboard() {
       {/* Materials view */}
       {view === 'materials' && <AllMaterialsView role="installation" />}
 
+      {/* Calendar view */}
+      {view === 'calendar' && (
+        <UnifiedCalendar filterTypes={['installation', 'fabrication', 'delivery']} />
+      )}
+
       {/* Installation Logs view */}
       {view === 'logs' && (
         <LogsView projects={projects} onNewLog={(p) => setLogProject(p)} />
       )}
 
-      {view !== 'logs' && view !== 'materials' && (
+      {view !== 'logs' && view !== 'materials' && view !== 'calendar' && (
         <>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">

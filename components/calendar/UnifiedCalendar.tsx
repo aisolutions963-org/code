@@ -98,13 +98,16 @@ const EVENT_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
   { value: 'installation', label: 'Installation' },
   { value: 'delivery',     label: 'Delivery'     },
 ]
+const INSTALL_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
+  { value: 'installation', label: 'Project Visit' },
+  { value: 'fabrication',  label: 'Factory'       },
+]
 
 interface CalendarProject { id: string; name: string; projectRef: string }
 
 // ─── Inline Add Form ──────────────────────────────────────────────────────────
-function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }: {
+function AddEventForm({ defaultDate, onDone, mutate, showFactory }: {
   defaultDate: string
-  defaultType?: CalendarEventType
   onDone: () => void
   mutate: () => void
   showFactory?: boolean
@@ -113,7 +116,7 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }:
   const [date, setDate]               = useState(defaultDate)
   const [notes, setNotes]             = useState('')
   const [projectId, setProject]       = useState('')
-  const [eventType, setType]          = useState<CalendarEventType>(defaultType ?? 'activity')
+  const [eventType, setType]          = useState<CalendarEventType>(showFactory ? 'installation' : 'activity')
   const [saving, setSaving]           = useState(false)
   const [selectedMembers, setMembers] = useState<string[]>([])
 
@@ -123,22 +126,19 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }:
     revalidateOnFocus: false,
   })
   const { data: teamData } = useSWR<{ members: { id: string; name: string }[] }>(
-    isFactory ? '/api/team/installation' : null,
+    showFactory ? '/api/team/installation' : null,
     fetcher,
   )
   const projects    = projData?.projects ?? []
   const teamMembers = teamData?.members  ?? []
-
-  const allTypeOpts = showFactory
-    ? [...EVENT_TYPE_OPTS, { value: 'fabrication' as CalendarEventType, label: 'Factory' }]
-    : EVENT_TYPE_OPTS
+  const typeOpts    = showFactory ? INSTALL_TYPE_OPTS : EVENT_TYPE_OPTS
 
   async function save() {
     if (!title.trim() || !date) return
     setSaving(true)
 
     let finalNotes = notes.trim()
-    if (isFactory && selectedMembers.length > 0) {
+    if (showFactory && selectedMembers.length > 0) {
       const names = teamMembers.filter(m => selectedMembers.includes(m.id)).map(m => m.name)
       const prefix = `Assigned: ${names.join(', ')}`
       finalNotes = finalNotes ? `${prefix}\n${finalNotes}` : prefix
@@ -151,9 +151,9 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }:
         title: title.trim(),
         date,
         notes: finalNotes || undefined,
-        projectId: isFactory ? undefined : (projectId || undefined),
+        projectId: !isFactory ? (projectId || undefined) : undefined,
         eventType,
-        teamMemberIds: isFactory && selectedMembers.length > 0 ? selectedMembers : undefined,
+        teamMemberIds: showFactory && selectedMembers.length > 0 ? selectedMembers : undefined,
       }),
     })
     setSaving(false)
@@ -163,11 +163,13 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }:
 
   return (
     <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-3">
-      <p className="text-sm font-semibold text-gray-800">New Activity</p>
+      <p className="text-sm font-semibold text-gray-800">
+        {showFactory ? 'Assign Installation Task' : 'New Activity'}
+      </p>
 
       {/* Type selector */}
       <div className="flex gap-1.5 flex-wrap">
-        {allTypeOpts.map(opt => (
+        {typeOpts.map(opt => (
           <button
             key={opt.value}
             type="button"
@@ -186,10 +188,10 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }:
       <input
         autoFocus
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-        placeholder={isFactory ? 'Factory work description…' : 'Activity title…'}
+        placeholder={isFactory ? 'Factory work description…' : showFactory ? 'Project or task description…' : 'Activity title…'}
         value={title}
         onChange={e => setTitle(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') save() }}
+        onKeyDown={e => { if (e.key === 'Enter' && !showFactory) save() }}
       />
 
       <input type="date"
@@ -214,8 +216,8 @@ function AddEventForm({ defaultDate, defaultType, onDone, mutate, showFactory }:
         </select>
       )}
 
-      {/* Team member selection (factory only) */}
-      {isFactory && (
+      {/* Team member selection (install tab only) */}
+      {showFactory && (
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-gray-600">Assign Team Members</p>
           {teamMembers.length === 0 ? (
@@ -429,7 +431,7 @@ export default function UnifiedCalendar({
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Activity
+                {effectiveAssign ? 'Assign Task' : 'Add Activity'}
               </button>
             )}
           </div>
@@ -483,7 +485,6 @@ export default function UnifiedCalendar({
         <div className="px-5 py-4 border-b border-gray-100">
           <AddEventForm
             defaultDate={selectedDateStr}
-            defaultType={(effectiveTypes?.[0] as CalendarEventType | undefined) ?? 'activity'}
             onDone={() => setShowAddForm(false)}
             mutate={mutate}
             showFactory={effectiveAssign}
@@ -542,7 +543,12 @@ export default function UnifiedCalendar({
               return (
                 <button
                   key={dateStr}
-                  onClick={() => setSelectedDay(isSel ? null : day)}
+                  onClick={() => {
+                    const next = isSel ? null : day
+                    setSelectedDay(next)
+                    if (next && effectiveAssign && effectiveCanAdd) setShowAddForm(true)
+                    else if (!next) setShowAddForm(false)
+                  }}
                   className={`min-h-[88px] p-2 border-r border-b border-gray-100 text-left align-top transition-colors
                     ${isSel  ? 'bg-brand-50 ring-1 ring-inset ring-brand-300' :
                       fabBg  ? 'bg-emerald-50/70 hover:bg-emerald-100/60' :
