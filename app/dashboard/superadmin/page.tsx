@@ -584,7 +584,7 @@ function ReportsSection() {
             {[1, 2, 3, 4].map((n) => (
               <button
                 key={n}
-                onClick={() => setQ(n)}
+                onClick={() => setQ(n as 1 | 2 | 3 | 4)}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-md border transition-colors ${
                   q === n ? 'bg-gray-800 text-white border-gray-800' : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700'
                 }`}

@@ -331,6 +331,7 @@ export default function UnifiedCalendar({
   showInstallAssign,
   creatorFilter,
   onDayClick,
+  personalMode,
 }: Props) {
   const now = new Date()
   const todayStr = todayUAE()
