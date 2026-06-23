@@ -168,6 +168,7 @@ function CreateModal({
   const [clientPhone, setClientPhone] = useState('')
   const [description, setDescription] = useState('')
   const [refInput, setRefInput] = useState('')       // trade reference (trx) OR variance reference (vrx)
+  const [tradeQuotNum, setTradeQuotNum] = useState('') // trade quotation number (4+ digits), Trade only
   const [selectedSedId, setSelectedSedId] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -205,8 +206,8 @@ function CreateModal({
 
   let fullRef = ''
   if (requestType === 'Trade') {
-    // {projQuotNum}{tradeRef}{projQuotRef}  e.g. 2341Tr1R3
-    fullRef = [quotNum, refInputClean, quotRef].filter(Boolean).join('')
+    // {projQuotNum}{tradeRef}{projQuotRef}{tradeQuotNum}  e.g. 2341Tr1R354327
+    fullRef = [quotNum, refInputClean, quotRef, tradeQuotNum.trim()].filter(Boolean).join('')
   } else if (requestType === 'Variance') {
     // {projQuotNum}{varianceRef}{projQuotRef}  e.g. 2341VR1R3
     fullRef = [quotNum, refInputClean, quotRef].filter(Boolean).join('')
@@ -220,6 +221,7 @@ function CreateModal({
     setClientName('')
     setClientPhone('')
     setRefInput('')
+    setTradeQuotNum('')
   }
 
   const inp =
@@ -244,6 +246,15 @@ function CreateModal({
     }
     if (requestType === 'Trade' && !refInputClean) {
       setErr('Trade reference is required (e.g. Tr1)')
+      return
+    }
+    const tqn = tradeQuotNum.trim()
+    if (requestType === 'Trade' && !tqn) {
+      setErr('Trade Quotation Number is required')
+      return
+    }
+    if (requestType === 'Trade' && !/^\d{4,}$/.test(tqn)) {
+      setErr('Trade Quotation Number must be 4 or more digits')
       return
     }
 
@@ -401,18 +412,32 @@ function CreateModal({
                   </div>
                 </div>
               )}
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-medium">
-                  Trade Reference <span className="text-red-500">*</span>
-                </label>
-                <input
-                  className={inp}
-                  value={refInput}
-                  onChange={(e) => setRefInput(e.target.value)}
-                  placeholder="e.g. Tr1"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1 font-medium">
+                    Trade Reference <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    className={inp}
+                    value={refInput}
+                    onChange={(e) => setRefInput(e.target.value)}
+                    placeholder="e.g. Tr1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1 font-medium">
+                    Trade Quotation No. <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    className={inp}
+                    value={tradeQuotNum}
+                    onChange={(e) => setTradeQuotNum(e.target.value)}
+                    placeholder="e.g. 54327"
+                    inputMode="numeric"
+                  />
+                </div>
               </div>
-              {refInputClean && !quotNum && (
+              {(refInputClean || tradeQuotNum.trim()) && !quotNum && (
                 <p className="text-[11px] text-orange-500">Select a project first to include the quotation number in the reference</p>
               )}
               {fullRef && (
