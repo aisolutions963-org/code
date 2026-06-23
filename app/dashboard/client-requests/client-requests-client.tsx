@@ -168,7 +168,6 @@ function CreateModal({
   const [clientPhone, setClientPhone] = useState('')
   const [description, setDescription] = useState('')
   const [refInput, setRefInput] = useState('')       // trade reference (trx) OR variance reference (vrx)
-  const [tradeQuotNum, setTradeQuotNum] = useState('') // trade quotation number (4+ digits), Trade only
   const [selectedSedId, setSelectedSedId] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -206,9 +205,8 @@ function CreateModal({
 
   let fullRef = ''
   if (requestType === 'Trade') {
-    // {projQuotNum}{tradeRef}{projQuotRef}{tradeQuotNum}  e.g. 2341Tr1R35678
-    const tradeQuotNumClean = tradeQuotNum.trim()
-    fullRef = [quotNum, refInputClean, quotRef, tradeQuotNumClean].filter(Boolean).join('')
+    // {projQuotNum}{tradeRef}{projQuotRef}  e.g. 2341Tr1R3
+    fullRef = [quotNum, refInputClean, quotRef].filter(Boolean).join('')
   } else if (requestType === 'Variance') {
     // {projQuotNum}{varianceRef}{projQuotRef}  e.g. 2341VR1R3
     fullRef = [quotNum, refInputClean, quotRef].filter(Boolean).join('')
@@ -222,7 +220,6 @@ function CreateModal({
     setClientName('')
     setClientPhone('')
     setRefInput('')
-    setTradeQuotNum('')
   }
 
   const inp =
@@ -247,15 +244,6 @@ function CreateModal({
     }
     if (requestType === 'Trade' && !refInputClean) {
       setErr('Trade reference is required (e.g. Tr1)')
-      return
-    }
-    const tqn = tradeQuotNum.trim()
-    if (requestType === 'Trade' && !tqn) {
-      setErr('Trade Quotation Number is required')
-      return
-    }
-    if (requestType === 'Trade' && !/^\d{4,}$/.test(tqn)) {
-      setErr('Trade Quotation Number must be 4 or more digits')
       return
     }
 
@@ -393,9 +381,26 @@ function CreateModal({
             </div>
           )}
 
-          {/* Trade Reference + Trade Quotation Number — Trade only */}
+          {/* Trade Reference — Trade only */}
           {requestType === 'Trade' && (
             <div className="space-y-3">
+              {/* Auto-filled from project */}
+              {parentProjectId && (
+                <div className="grid grid-cols-2 gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+                  <div>
+                    <p className="text-[10px] text-blue-400 font-medium uppercase tracking-wide mb-0.5">Quotation No. (auto)</p>
+                    <p className="text-sm font-mono font-semibold text-blue-800">
+                      {quotNum || <span className="text-orange-500 font-normal text-xs">Not set on project</span>}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-blue-400 font-medium uppercase tracking-wide mb-0.5">Quotation Ref. (auto)</p>
+                    <p className="text-sm font-mono font-semibold text-blue-800">
+                      {quotRef || <span className="text-orange-500 font-normal text-xs">Not set on project</span>}
+                    </p>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-gray-500 mb-1 font-medium">
                   Trade Reference <span className="text-red-500">*</span>
@@ -407,20 +412,8 @@ function CreateModal({
                   placeholder="e.g. Tr1"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1 font-medium">
-                  Trade Quotation Number <span className="text-red-500">*</span>
-                </label>
-                <input
-                  className={inp}
-                  value={tradeQuotNum}
-                  onChange={(e) => setTradeQuotNum(e.target.value)}
-                  placeholder="4+ digit quotation number"
-                  inputMode="numeric"
-                />
-              </div>
-              {(refInputClean || tradeQuotNum.trim()) && !quotNum && (
-                <p className="text-[11px] text-orange-500">Select a project to auto-generate the full reference</p>
+              {refInputClean && !quotNum && (
+                <p className="text-[11px] text-orange-500">Select a project first to include the quotation number in the reference</p>
               )}
               {fullRef && (
                 <p className="text-[11px] text-gray-400">
