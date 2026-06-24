@@ -922,7 +922,10 @@ export async function generateItemTasksForProject(
     if (t.templateOrder === null || isGate) {
       status = 'To Do'
     } else if (t.pathCondition !== null) {
-      status = 'To Do'
+      // Sample Branch tasks stay Locked until SED picks "Send to Fabrication"
+      // Other path tasks (Make Quotation, Select Sample, etc.) start To Do immediately
+      const isSampleBranch = t.taskName.toLowerCase().startsWith('sample branch:')
+      status = isSampleBranch ? 'Locked' : 'To Do'
     } else {
       const pathMin = pathMinMap.get(null)!
       status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
