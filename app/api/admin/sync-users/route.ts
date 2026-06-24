@@ -11,7 +11,7 @@ const ROLE_MAP: Record<string, string> = {
   'Installation':  'installation',
 }
 
-const DEFAULT_PASSWORD = 'WoodWings2025!'
+const DEFAULT_PASSWORD = process.env.DEFAULT_USER_PASSWORD ?? 'WoodWings2025!'
 
 export const GET = requireRole('superadmin')(async () => {
   const members = await getActiveTeamMembersForSync()

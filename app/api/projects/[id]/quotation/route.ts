@@ -62,7 +62,7 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
 
     try {
       const { created: tasksCreated, todoTemplates } = await generateItemTasksForProject(id, projectItem.id, item.actions)
-      console.log(`[QUOTATION] Item ${projectItem.id} (${item.itemName}): generated ${tasksCreated} tasks, ${todoTemplates.length} To Do`)
+
       if (todoTemplates.length > 0) {
         await notifyTasksReady(
           todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),

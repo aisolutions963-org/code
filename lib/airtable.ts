@@ -3182,7 +3182,6 @@ export async function createClientRequest(
   for (let i = 0; i < taskRecords.length; i += 10) {
     const chunk = taskRecords.slice(i, i + 10)
     const reqBody = JSON.stringify({ records: chunk.map((fields) => ({ fields })) })
-    console.log('[createClientRequest] task POST body:', reqBody)
     const res = await fetchWithRetry(tblUrl(TASKS.TABLE_ID), {
       method: 'POST',
       headers: airtableHeaders(),
