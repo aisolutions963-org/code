@@ -99,7 +99,7 @@ export default function PhasesPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-gray-900">Phase Gates</h2>
-        <p className="text-sm text-gray-500">Advance projects through stages. All tasks in the current stage must be completed.</p>
+        <p className="text-sm text-gray-500">Advance projects through stages. Incomplete tasks are shown for reference but do not block advancement.</p>
       </div>
       {projects.length === 0 && (
         <p className="text-sm text-gray-400 text-center py-10">No active projects.</p>

@@ -3,7 +3,6 @@ import { requireRole } from '@/lib/apiHandler'
 import {
   getProjectById,
   updateProject,
-  getIncompleteTasksForProject,
   generateTasksForProject,
 } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
@@ -21,38 +20,6 @@ export const POST = requireRole('superadmin')(async (_req, _session, { params })
   }
   if (currentIndex >= STAGE_ORDER.length - 1) {
     return NextResponse.json({ error: 'Project is already at the final stage' }, { status: 400 })
-  }
-
-  const incompleteTasks = await getIncompleteTasksForProject(id)
-
-  let blocking: typeof incompleteTasks
-  if (project.projectStage === 'Preparing') {
-    blocking = incompleteTasks.filter(
-      (t) =>
-        t.taskName.toLowerCase().startsWith('[gate]') ||
-        t.taskName.toLowerCase().startsWith('call the client'),
-    )
-  } else {
-    blocking = incompleteTasks.filter(
-      (t) =>
-        (t.templateOrder ?? []).length > 0 &&
-        !t.taskName.toLowerCase().startsWith('to follow tasks progress'),
-    )
-  }
-
-  if (blocking.length > 0) {
-    return NextResponse.json(
-      {
-        error: 'Cannot advance: incomplete tasks remain',
-        blockingTasks: blocking.map((t) => ({
-          id: t.id,
-          taskName: t.taskName,
-          status: t.status,
-          department: t.department,
-        })),
-      },
-      { status: 400 },
-    )
   }
 
   const nextStage = STAGE_ORDER[currentIndex + 1]
