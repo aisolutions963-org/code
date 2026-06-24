@@ -3,6 +3,12 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput, Role, DocLink } from '@/lib/types'
+
+const DATE_TASK_KEYWORDS = ['site visit', 'visit site', 'installation date', 'fixing date', 'visit date']
+function isDateRequiredTask(name: string) {
+  const lower = name.toLowerCase()
+  return DATE_TASK_KEYWORDS.some((kw) => lower.includes(kw))
+}
 import { EDITABLE_FIELDS } from '@/lib/permissions'
 import TaskStatusBadge from './TaskStatusBadge'
 import FieldEditor from './FieldEditor'
@@ -55,6 +61,41 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
   const isOrderSample = task.taskName === 'Order Sample' && !task.projectItem?.length
   const isPerItemOrderSample =
     !!task.projectItem?.length && task.pathCondition === 'Select Sample (item)'
+  const isDateTask = isDateRequiredTask(task.taskName) &&
+    (role === 'manager' || role === 'sed' || role === 'superadmin' || role === 'installation')
+
+  const [calendarDate, setCalendarDate] = useState(task.taskStartDate ?? '')
+  const [calendarSaving, setCalendarSaving] = useState(false)
+  const [calendarSaved, setCalendarSaved] = useState(!!task.taskStartDate)
+
+  async function handleAddToCalendar() {
+    if (!calendarDate) { toast.error('Select a date first'); return }
+    setCalendarSaving(true)
+    try {
+      const projectLabel = task.projectNickname
+        ? task.projectName ? `${task.projectNickname} — ${task.projectName}` : task.projectNickname
+        : (task.projectName ?? task.projectRef ?? '')
+      const title = projectLabel ? `${task.taskName} — ${projectLabel}` : task.taskName
+      const res = await fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          date: calendarDate,
+          projectId: task.projectRecordId,
+          eventType: 'activity',
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      await onUpdate(task.id, { taskStartDate: calendarDate })
+      setCalendarSaved(true)
+      toast.success('Added to activity calendar')
+    } catch {
+      toast.error('Failed to add to calendar')
+    } finally {
+      setCalendarSaving(false)
+    }
+  }
 
   async function handleChange(key: keyof TaskUpdateInput, value: unknown) {
     if (isMakeQuotation && key === 'status' && value === 'Completed') return
@@ -126,6 +167,31 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
     <div className="space-y-3">
       {instructions && (
         <p className="text-sm text-gray-600 whitespace-pre-wrap">{instructions}</p>
+      )}
+
+      {/* Date picker — site visit tasks → adds to activity calendar */}
+      {isDateTask && task.status !== 'Completed' && (
+        <div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-3 space-y-2">
+          <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Visit / Site Date</p>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input
+              type="date"
+              value={calendarDate}
+              onChange={(e) => { setCalendarDate(e.target.value); setCalendarSaved(false) }}
+              className="text-sm border border-violet-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+            />
+            <button
+              onClick={handleAddToCalendar}
+              disabled={!calendarDate || calendarSaving || calendarSaved}
+              className="text-xs font-medium px-3 py-1.5 rounded-md bg-violet-600 text-white disabled:opacity-40 hover:bg-violet-700 transition-colors"
+            >
+              {calendarSaving ? '…' : calendarSaved ? '✓ Saved' : 'Add to Calendar'}
+            </button>
+          </div>
+          <p className="text-[11px] text-violet-500">
+            {calendarSaved ? 'Date saved — added to the activity calendar' : 'Will be added to the activity calendar'}
+          </p>
+        </div>
       )}
 
       {/* Quotation panel for Make Quotation path */}
