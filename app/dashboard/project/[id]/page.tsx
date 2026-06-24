@@ -387,8 +387,8 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {/* Docs bar — only on tasks tab */}
-      {tab === 'tasks' && !tasksLoading && allTasks.length > 0 && (
+      {/* Docs bar — always visible when attachments exist */}
+      {!tasksLoading && allTasks.length > 0 && (
         <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-start gap-6 flex-wrap">
           <ProjectAttachmentsSection tasks={allTasks} />
           <ProjectFormsSection projectId={id} role={role} />
