@@ -111,7 +111,7 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
         const d = await res.json().catch(() => ({}))
         throw new Error((d as { error?: string }).error ?? 'Failed')
       }
-      toast.success(hasMaterial ? 'Branch: We have material' : 'Branch: Ordering material')
+      toast.success(hasMaterial ? 'Fabrication notified — sample in progress' : 'Recorded: ordering material')
       await onUpdate(task.id, {})
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed')
@@ -137,25 +137,30 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
       {(isOrderSample || isPerItemOrderSample) && task.status !== 'Completed' && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 space-y-2">
           <p className="text-xs font-semibold text-green-800">
-            Sample Branch{' '}
-            <span className="font-normal text-green-700">— does the team have the material?</span>
+            Order Sample —{' '}
+            <span className="font-normal text-green-700">select the current situation</span>
           </p>
+          {task.status === 'In Progress' && (
+            <p className="text-[11px] text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-1.5">
+              Material is being ordered. Once it arrives, come back here and select <strong>Send to Fabrication</strong>.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               onClick={() => completeOrderSampleBranch(true)}
               disabled={saving}
               className="border border-green-400 bg-green-100 text-green-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-60 text-left"
             >
-              <div className="font-bold">✓ We Have It</div>
-              <div className="font-normal text-green-700 mt-0.5">Send to Fabrication</div>
+              <div className="font-bold">✓ Send to Fabrication</div>
+              <div className="font-normal text-green-700 mt-0.5">Material is available — notify fabrication to make the sample</div>
             </button>
             <button
               onClick={() => completeOrderSampleBranch(false)}
               disabled={saving}
               className="border border-orange-300 bg-orange-50 text-orange-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-60 text-left"
             >
-              <div className="font-bold">✗ Need to Order</div>
-              <div className="font-normal text-orange-700 mt-0.5">Request F3 material order</div>
+              <div className="font-bold">⏳ Order Material</div>
+              <div className="font-normal text-orange-700 mt-0.5">No material yet — records that you are ordering it</div>
             </button>
           </div>
         </div>

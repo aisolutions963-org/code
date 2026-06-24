@@ -651,39 +651,30 @@ export async function handleOrderSampleBranch(
       const projectId = task.project?.[0] ?? task.projectRecordId
       if (!projectId) throw new Error('Task has no linked project')
 
-      // hasMaterial=true → task is done, fabrication starts immediately
-      // hasMaterial=false → waiting for ordered material to arrive; stays In Progress
       const newStatus: TaskStatus = hasMaterial ? 'Completed' : 'In Progress'
       const updateFields: Record<string, unknown> = { [TASKS.STATUS]: newStatus }
       if (hasMaterial) updateFields[TASKS.COMPLETED_AT] = new Date().toISOString()
       await updateTaskRaw(taskId, updateFields)
 
-      // Scope branch lookup: per-item tasks use the same item; general tasks use project-level only
+      // "Order Material" is a status marker only — no tasks unlocked, SED will come back
+      // when material arrives and select "Send to Fabrication" at that point.
+      if (!hasMaterial) return { finalStatus: newStatus }
+
+      // "Send to Fabrication" — unlock the fabrication branch tasks
       const allBranchTasks = await getLockedBranchTasksForProject(projectId)
       const itemId = task.projectItem?.[0]
       const branchTasks = itemId
         ? allBranchTasks.filter((t) => t.projectItem?.[0] === itemId)
         : allBranchTasks.filter((t) => !t.projectItem?.length)
 
-      if (branchTasks.length === 0) {
-        // Branches already unlocked or don't exist yet — Order Sample status already updated, proceed
-        return { finalStatus: newStatus }
-      }
+      if (branchTasks.length === 0) return { finalStatus: newStatus }
 
-      // Match by keyword — case-insensitive, apostrophe-independent
-      const chosenKeyword = hasMaterial ? 'we have material' : 'have material'
-      const excludeKeyword = hasMaterial ? undefined : 'we have material'
-      const toUnlock = branchTasks.filter((t) => {
-        const lower = t.taskName.toLowerCase()
-        if (!lower.includes(chosenKeyword)) return false
-        if (excludeKeyword && lower.includes(excludeKeyword)) return false
-        return true
-      })
+      const toUnlock = branchTasks.filter((t) =>
+        t.taskName.toLowerCase().includes('we have material') ||
+        t.taskName.toLowerCase().includes('fabricat'),
+      )
 
-      if (toUnlock.length === 0) {
-        // No matching project-level branch found — proceed without unlocking
-        return { finalStatus: newStatus }
-      }
+      if (toUnlock.length === 0) return { finalStatus: newStatus }
 
       await Promise.all(
         toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
@@ -695,13 +686,13 @@ export async function handleOrderSampleBranch(
         const roles = depts
           .map((d) => DEPT_ROLE_MAP[d])
           .filter((r): r is string => Boolean(r))
-        const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
+        const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['fabrication']))
         for (const role of uniqueRoles) {
           await createNotification({
             recipientRole: role,
-            title: `New task ready: ${t.taskName}`,
-            body: `Completed: ${task.taskName} (${projectLabel})`,
-            link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
+            title: `Sample ready to fabricate — ${projectLabel}`,
+            body: `SED confirmed material is available. Please fabricate the sample.`,
+            link: ROLE_DASHBOARD[role] ?? '/dashboard/fab',
           })
         }
       }

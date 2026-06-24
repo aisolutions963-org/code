@@ -834,8 +834,12 @@ export async function generateTasksForProject(
       else if (t.templateOrder === activeOrder) status = 'To Do'
       else status = 'Locked'
     } else {
+      // Sample Branch tasks stay Locked until SED explicitly picks "Send to Fabrication"
+      // on the Order Sample task. All other path chips (Make Quotation, Select Sample, etc.)
+      // start as To Do so SED can choose them immediately in the gateway.
+      const isSampleBranch = t.taskName.toLowerCase().startsWith('sample branch:')
       const pathMin = pathMinMap.get(t.pathCondition)!
-      status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
+      status = (!isSampleBranch && t.templateOrder === pathMin) ? 'To Do' : 'Locked'
     }
     if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {

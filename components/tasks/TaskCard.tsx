@@ -262,7 +262,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         ...prev,
         status: hasMaterial ? 'Completed' : 'In Progress',
       }))
-      toast.success(hasMaterial ? 'Branch: We have material' : 'Branch: Ordering material')
+      toast.success(hasMaterial ? 'Fabrication notified — sample in progress' : 'Recorded: ordering material')
       await onUpdate(task.id, {})
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed')
