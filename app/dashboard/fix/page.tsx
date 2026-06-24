@@ -79,16 +79,16 @@ export default function FixDashboard() {
         <p className="text-sm text-gray-500 mt-0.5">إدارة مهام التركيب والتنفيذ</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-4 text-center shadow-sm">
+      <div className="grid grid-cols-3 gap-2 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-2 sm:p-4 text-center shadow-sm">
           <p className="text-2xl font-bold text-gray-900">{open.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">المهام المفتوحة</p>
         </div>
-        <div className="bg-white rounded-xl border border-red-200 p-4 text-center shadow-sm">
+        <div className="bg-white rounded-xl border border-red-200 p-2 sm:p-4 text-center shadow-sm">
           <p className="text-2xl font-bold text-red-600">{urgent.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">عاجل</p>
         </div>
-        <div className="bg-white rounded-xl border border-green-200 p-4 text-center shadow-sm">
+        <div className="bg-white rounded-xl border border-green-200 p-2 sm:p-4 text-center shadow-sm">
           <p className="text-2xl font-bold text-green-600">{completed.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">مكتمل</p>
         </div>

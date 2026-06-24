@@ -429,7 +429,7 @@ export default function UnifiedCalendar({
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="px-5 py-4 border-b border-gray-100 space-y-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           {/* Left: Add button */}
           <div>
             {showAddBtn && (
@@ -454,7 +454,7 @@ export default function UnifiedCalendar({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <span className="text-sm font-semibold text-gray-800 min-w-[140px] text-center">
+            <span className="text-sm font-semibold text-gray-800 min-w-[100px] text-center">
               {MONTHS[month]} {year}
             </span>
             <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
