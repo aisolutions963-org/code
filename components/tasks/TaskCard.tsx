@@ -17,6 +17,7 @@ import OrderSamplePanel from './panels/OrderSamplePanel'
 import FabricateMissingPanel from './panels/FabricateMissingPanel'
 import F2ProductionPanel from './panels/F2ProductionPanel'
 import CallClientDecisionPanelComponent from './panels/CallClientDecisionPanel'
+import MeasurementTeamPanel from './panels/MeasurementTeamPanel'
 
 
 interface TaskCardProps {
@@ -48,7 +49,8 @@ const FOLLOW_UP_OUTCOMES = [
   'SED to Follow Up',
   'Manager to Follow Up',
 ] as const
-const DATE_TASK_KEYWORDS = ['site visit', 'visit site', 'installation date', 'fixing date', 'visit date']
+const DATE_TASK_KEYWORDS = ['site visit', 'visit site', 'installation date', 'fixing date', 'visit date', 'take measurement']
+const MEASUREMENT_KEYWORDS = ['take measurement']
 
 function isCallClientDecisionTask(task: Task, role: Role): boolean {
   return (
@@ -216,9 +218,16 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
   const isDecisionTask = isCallClientDecisionTask(task, role)
+  const isPerItem = !!task.projectItem?.length
+  const isMeasurementTask =
+    task.taskName.toLowerCase().includes('take measurement') &&
+    (!task.pathCondition || isPerItem) &&
+    (role === 'manager' || role === 'sed' || role === 'superadmin')
   const isDateTask =
     isDateRequiredTask(task.taskName) &&
-    (role === 'manager' || role === 'sed' || role === 'superadmin' || role === 'installation')
+    (!task.pathCondition || isPerItem) &&
+    !isMeasurementTask &&
+    (role === 'manager' || role === 'sed' || role === 'superadmin')
 
   const scheduleUpdate = useCallback(
     (key: keyof TaskUpdateInput, value: unknown) => {
@@ -324,7 +333,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     }
     setCalendarSaving(true)
     try {
-      const eventType = role === 'installation' ? 'installation' : 'activity'
+      const eventType = MEASUREMENT_KEYWORDS.some((kw) => task.taskName.toLowerCase().includes(kw)) ? 'installation' : 'activity'
       const title = projectLabel
         ? `${task.taskName} — ${projectLabel}`
         : task.taskName
@@ -665,10 +674,21 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
               <p className="text-[11px] text-violet-500">
                 {calendarSaved
                   ? (ar ? 'تم إضافة الموعد — يمكنك الآن إتمام المهمة' : 'Date saved — you can now complete this task')
-                  : role === 'installation'
-                    ? (ar ? 'سيُضاف لتقويم التركيب' : 'Will be added to the installation calendar')
-                    : (ar ? 'سيُضاف لتقويم النشاطات' : 'Will be added to the activity calendar')}
+                  : (ar ? 'سيُضاف لتقويم النشاطات' : 'Will be added to the activity calendar')}
               </p>
+            </div>
+          )}
+
+          {/* Measurement team picker — assigns installation member + sends notification */}
+          {isMeasurementTask && task.status !== 'Completed' && (
+            <MeasurementTeamPanel task={task} onUpdate={onUpdate} />
+          )}
+
+          {/* Installation user: read-only scheduled date */}
+          {task.taskName.toLowerCase().includes('take measurement') && role === 'installation' && task.taskStartDate && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2.5">
+              <p className="text-xs font-semibold text-indigo-800">Measurement Scheduled</p>
+              <p className="text-xs text-indigo-600 mt-0.5">{task.taskStartDate}</p>
             </div>
           )}
 

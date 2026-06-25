@@ -529,6 +529,21 @@ export async function getAllTasksForProject(projectId: string): Promise<Task[]> 
   return tasks
 }
 
+export async function getProjectAttachments(projectId: string): Promise<Task[]> {
+  const formula = `{${TASKS.PROJECT}} = "${projectId}"`
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [
+      TASKS.TASK_NAME,
+      TASKS.TASK_DOC_LINKS,
+      TASKS.FILLERS_DOC_LINKS,
+      TASKS.TASK_DOCUMENTS,
+      TASKS.FILLERS_MISSING_ITEMS_LIST,
+    ],
+  })
+  return records.map(transformTask)
+}
+
 export async function getIncompleteTasksForProject(projectId: string): Promise<Task[]> {
   const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.STATUS}} != "Completed", {${TASKS.STATUS}} != "Locked")`
   const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })

@@ -68,15 +68,26 @@ function renderTasksInOrder(
   const itemTasks = tasks.filter((t) => t.projectItem && t.projectItem.length > 0)
   const projectLevelTasks = tasks.filter((t) => !t.projectItem || t.projectItem.length === 0)
 
+  // Manager-department path tasks render as standalone cards, not as gateway chips
+  const isManagerOnlyPathTask = (t: Task) =>
+    (t.pathCondition != null && t.pathCondition !== '') &&
+    t.department != null && t.department.length > 0 &&
+    t.department.every((d) => d === 'Manager' || d === 'Management' || d === 'Purchase')
+
+  const standalonePathTasks = projectLevelTasks.filter(isManagerOnlyPathTask)
+  const standalonePathIds = new Set(standalonePathTasks.map((t) => t.id))
+
   const pathTaskIds = new Set(
-    projectLevelTasks.filter((t) => t.pathCondition != null && t.pathCondition !== '').map((t) => t.id),
+    projectLevelTasks.filter(
+      (t) => t.pathCondition != null && t.pathCondition !== '' && !standalonePathIds.has(t.id),
+    ).map((t) => t.id),
   )
   const allPathTasks = projectLevelTasks.filter((t) => pathTaskIds.has(t.id))
 
   const gateTasks = projectLevelTasks.filter((t) => isGateTask(t.taskName))
   const gateTaskIds = new Set(gateTasks.map((t) => t.id))
 
-  const mainTasks = projectLevelTasks.filter((t) => !pathTaskIds.has(t.id) && !gateTaskIds.has(t.id))
+  const mainTasks = projectLevelTasks.filter((t) => !pathTaskIds.has(t.id) && !gateTaskIds.has(t.id) && !standalonePathIds.has(t.id))
 
   let gatewayRendered = false
   const mainNodes: React.ReactNode[] = mainTasks.map((task) => {
@@ -110,6 +121,11 @@ function renderTasksInOrder(
     mainNodes.push(
       <GateGroupCard key="gate-group" tasks={gateTasks} role={role} onUpdate={onUpdate} />,
     )
+  }
+
+  // Manager-department path tasks rendered as standalone cards (not gateway chips)
+  for (const t of standalonePathTasks) {
+    mainNodes.push(<TaskCard key={t.id} task={t} role={role} onUpdate={onUpdate} />)
   }
 
   // Group per-item tasks by item ID and render each as an ItemGroupSection

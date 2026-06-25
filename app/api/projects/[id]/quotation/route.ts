@@ -36,7 +36,9 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     [PROJECTS.QUOTATION_REFERENCE]: parsed.data.quotationReference,
   }
   if (parsed.data.totalAmountToPay !== undefined) {
-    projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = parsed.data.totalAmountToPay
+    const existing = await getProjectById(id)
+    const previousTotal = existing.projectTotalCost ?? 0
+    projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = previousTotal + parsed.data.totalAmountToPay
   }
   await updateProject(id, projectUpdate)
 

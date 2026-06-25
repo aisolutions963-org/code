@@ -56,7 +56,15 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const parsed = body as { quotationNumber?: string; quotationReference?: string; notes?: string; assignedInstallationTeam?: string }
+  const parsed = body as {
+    quotationNumber?: string
+    quotationReference?: string
+    notes?: string
+    assignedInstallationTeam?: string
+    emirate?: string
+    location?: string
+    detailedLocation?: string
+  }
 
   // Installation team assignment
   if ('assignedInstallationTeam' in parsed) {
@@ -71,6 +79,24 @@ export async function PATCH(
     } catch (error) {
       console.error('PATCH /api/projects/[id] assignedInstallationTeam error:', error)
       return NextResponse.json({ error: 'Failed to assign installation team' }, { status: 500 })
+    }
+  }
+
+  // Address update
+  if ('emirate' in parsed || 'location' in parsed || 'detailedLocation' in parsed) {
+    if (parsed.emirate !== undefined && (!parsed.emirate || typeof parsed.emirate !== 'string')) {
+      return NextResponse.json({ error: 'Emirate must be a non-empty string' }, { status: 400 })
+    }
+    const fields: Record<string, unknown> = {}
+    if (parsed.emirate) fields[PROJECTS.EMIRATE] = parsed.emirate
+    if ('detailedLocation' in parsed) fields[PROJECTS.DETAILED_LOCATION] = (parsed.detailedLocation ?? '').trim()
+    if ('location' in parsed) fields[PROJECTS.LOCATION] = (parsed.location ?? '').trim()
+    try {
+      const updated = await updateProject(id, fields)
+      return NextResponse.json({ project: updated })
+    } catch (error) {
+      console.error('PATCH /api/projects/[id] address error:', error)
+      return NextResponse.json({ error: 'Failed to update address' }, { status: 500 })
     }
   }
 

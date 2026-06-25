@@ -4,15 +4,25 @@ import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput, Role, DocLink } from '@/lib/types'
 
-const DATE_TASK_KEYWORDS = ['site visit', 'visit site', 'installation date', 'fixing date', 'visit date']
+const DATE_TASK_KEYWORDS = ['site visit', 'visit site', 'installation date', 'fixing date', 'visit date', 'take measurement']
+const MEASUREMENT_KEYWORDS = ['take measurement']
 function isDateRequiredTask(name: string) {
   const lower = name.toLowerCase()
   return DATE_TASK_KEYWORDS.some((kw) => lower.includes(kw))
+}
+function calendarEventType(name: string): 'installation' | 'activity' {
+  const lower = name.toLowerCase()
+  return MEASUREMENT_KEYWORDS.some((kw) => lower.includes(kw)) ? 'installation' : 'activity'
+}
+function calendarDateLabel(name: string): string {
+  const lower = name.toLowerCase()
+  return MEASUREMENT_KEYWORDS.some((kw) => lower.includes(kw)) ? 'Measurement Date' : 'Visit / Site Date'
 }
 import { EDITABLE_FIELDS } from '@/lib/permissions'
 import TaskStatusBadge from './TaskStatusBadge'
 import FieldEditor from './FieldEditor'
 import QuotationPanel from './panels/QuotationPanel'
+import MeasurementTeamPanel from './panels/MeasurementTeamPanel'
 
 function gatewayDisplayName(name: string): string {
   return name.replace(/^\[GATEWAY\]\s*/i, '').trim()
@@ -61,8 +71,11 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
   const isOrderSample = task.taskName === 'Order Sample' && !task.projectItem?.length
   const isPerItemOrderSample =
     !!task.projectItem?.length && task.pathCondition === 'Select Sample (item)'
-  const isDateTask = isDateRequiredTask(task.taskName) &&
-    (role === 'manager' || role === 'sed' || role === 'superadmin' || role === 'installation')
+  const isMeasurementTask =
+    task.taskName.toLowerCase().includes('take measurement') &&
+    (role === 'manager' || role === 'sed' || role === 'superadmin')
+  const isDateTask = isDateRequiredTask(task.taskName) && !isMeasurementTask &&
+    (role === 'manager' || role === 'sed' || role === 'superadmin')
 
   const [calendarDate, setCalendarDate] = useState(task.taskStartDate ?? '')
   const [calendarSaving, setCalendarSaving] = useState(false)
@@ -83,7 +96,7 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
           title,
           date: calendarDate,
           projectId: task.projectRecordId,
-          eventType: 'activity',
+          eventType: calendarEventType(task.taskName),
         }),
       })
       if (!res.ok) throw new Error('Failed')
@@ -172,7 +185,7 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
       {/* Date picker — site visit tasks → adds to activity calendar */}
       {isDateTask && task.status !== 'Completed' && (
         <div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-3 space-y-2">
-          <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Visit / Site Date</p>
+          <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">{calendarDateLabel(task.taskName)}</p>
           <div className="flex gap-2 items-center flex-wrap">
             <input
               type="date"
@@ -191,6 +204,19 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
           <p className="text-[11px] text-violet-500">
             {calendarSaved ? 'Date saved — added to the activity calendar' : 'Will be added to the activity calendar'}
           </p>
+        </div>
+      )}
+
+      {/* Measurement team picker — assigns installation member + sends notification */}
+      {isMeasurementTask && task.status !== 'Completed' && (
+        <MeasurementTeamPanel task={task} onUpdate={onUpdate} />
+      )}
+
+      {/* Installation user: read-only scheduled date */}
+      {task.taskName.toLowerCase().includes('take measurement') && role === 'installation' && task.taskStartDate && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2.5">
+          <p className="text-xs font-semibold text-indigo-800">Measurement Scheduled</p>
+          <p className="text-xs text-indigo-600 mt-0.5">{task.taskStartDate}</p>
         </div>
       )}
 

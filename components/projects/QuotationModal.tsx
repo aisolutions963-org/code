@@ -35,7 +35,7 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
   const [totalOverride, setTotalOverride] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
-  const [result, setResult] = useState<{ created: number; reference: string; totalPaid: number } | null>(null)
+  const [result, setResult] = useState<{ created: number; reference: string; totalPaid: number; newContractTotal: number } | null>(null)
 
   function updateRow(i: number, patch: Partial<QuotationRow>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
@@ -96,7 +96,8 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
       const parsedOv = totalOverride !== '' ? parseFloat(totalOverride) : undefined
       const finalTotal = parsedOv !== undefined && !isNaN(parsedOv) ? parsedOv : grandTotal
       const finalRef = hasExistingRef ? (referenceInput.trim() || (project.quotationReference ?? '')) : 'R0'
-      setResult({ created: data.created, reference: finalRef, totalPaid: finalTotal })
+      const newContractTotal = (project.projectTotalCost ?? 0) + finalTotal
+      setResult({ created: data.created, reference: finalRef, totalPaid: finalTotal, newContractTotal })
       onCreated()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to save')
@@ -123,7 +124,10 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
             {quotationNumber} · {result.reference}
           </p>
           <p className="text-center text-xs text-gray-500">
-            Quotation date: {quotationDate} · Total: AED {result.totalPaid.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Quotation date: {quotationDate} · Added: AED {result.totalPaid.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <p className="text-center text-sm font-bold text-brand-700">
+            New contract total: AED {result.newContractTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <div className="pt-2 flex justify-center">
             <Button onClick={onClose}>Done</Button>
@@ -335,9 +339,17 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
               </span>
             </div>
           )}
+          {(project.projectTotalCost ?? 0) > 0 && (
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>Previous contract total</span>
+              <span className="tabular-nums font-mono">
+                AED {(project.projectTotalCost!).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-gray-700 whitespace-nowrap">
-              Total Amount to be Paid (AED)
+              Amount to Add (AED)
             </label>
             <input
               type="number"
@@ -354,6 +366,18 @@ export default function QuotationModal({ project, onClose, onCreated }: Props) {
               Differs from subtotal by AED {Math.abs(parseFloat(totalOverride) - grandTotal).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           )}
+          {(project.projectTotalCost ?? 0) > 0 && (() => {
+            const adding = totalOverride !== '' ? (parseFloat(totalOverride) || 0) : grandTotal
+            const newTotal = (project.projectTotalCost ?? 0) + adding
+            return adding > 0 ? (
+              <div className="flex items-center justify-between text-sm font-bold text-gray-900 pt-1 border-t border-gray-100">
+                <span>New contract total</span>
+                <span className="tabular-nums font-mono text-brand-700">
+                  AED {newTotal.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            ) : null
+          })()}
         </div>
       </div>
     </Modal>

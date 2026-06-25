@@ -14,6 +14,24 @@ import ProjectFormsSection from '@/components/projects/ProjectFormsSection'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+const UAE_EMIRATES = [
+  'Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah',
+]
+
+const DUBAI_LOCATIONS = [
+  'Abu Hail', 'Al Baraha', 'Al Barsha', 'Al Bastakiya', 'Al Buteen', 'Al Dhagaya',
+  'Al Garhoud', 'Al Hamriya', 'Al Hudaiba', 'Al Jaddaf', 'Al Jafilia', 'Al Karama',
+  'Al Mamzar', 'Al Manara', 'Al Mankhool', 'Al Mizhar', 'Al Muntazah', 'Al Quoz',
+  'Al Qusais', 'Arjan', 'Arabian Ranches', 'Bluewaters Island', 'Bur Dubai',
+  'Business Bay', 'City Walk', 'DAMAC Lagoons', 'Deira', 'Discovery Gardens',
+  'District City', 'Downtown Dubai', 'Dubai Creek Harbour', 'Dubai Hills Estate',
+  'Dubai Marina', 'Dubai Silicon Oasis', 'Emaar South', 'Al Furjan', 'Green Community',
+  'Jumeirah', 'Jumeirah Lake Towers (JLT)', 'Jumeirah Village Circle (JVC)',
+  'MBR City (Meydan)', 'Marina', 'Marsa Dubai', 'Motor City', 'Palm Jumeirah',
+  'Port de La Mer', 'Rashidiya', 'Satwa', 'Sobha Hartland', 'Sport City',
+  'The Springs', 'Tilal Al Ghaf', 'Town Square', 'Umm Suqeim',
+]
+
 interface ItemsProgressResponse {
   projectId: string
   projectName: string
@@ -75,25 +93,150 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   )
 }
 
-function ProjectOverview({ project }: { project: Project }) {
+function ProjectOverview({
+  project,
+  role,
+  projectId,
+  onSaved,
+}: {
+  project: Project
+  role?: string
+  projectId?: string
+  onSaved?: () => void
+}) {
+  const canEdit = (role === 'sed' || role === 'manager' || role === 'superadmin') && !!projectId
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({
+    emirate: project.emirate ?? '',
+    location: project.location ?? '',
+    detailedLocation: project.detailedLocation ?? '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const showLocationDropdown = form.emirate === 'Dubai' || form.emirate === ''
+
+  async function handleSave() {
+    if (!form.emirate) { setErr('Emirate is required'); return }
+    setSaving(true); setErr('')
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emirate: form.emirate,
+          location: form.location,
+          detailedLocation: form.detailedLocation,
+        }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error((d as { error?: string }).error ?? 'Failed')
+      }
+      setEditing(false)
+      onSaved?.()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const inp = 'w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white'
+
   return (
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
       <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Project info</h2>
 
       <div className="space-y-2">
-        <InfoRow label="Client"          value={project.clientName} />
-        <InfoRow label="Phone"           value={project.clientPhone} />
-        <InfoRow label="SED"             value={project.salesOwner?.name} />
-        <InfoRow label="Quotation #"     value={project.quotationNumber} />
-        <InfoRow label="Reference"       value={project.quotationReference} />
-        <InfoRow label="Emirate"         value={project.emirate} />
-        <InfoRow label="Location"        value={project.location} />
-        <InfoRow label="Detail location" value={project.detailedLocation} />
-        <InfoRow label="Payment mode"    value={project.paymentMode} />
+        <InfoRow label="Client"       value={project.clientName} />
+        <InfoRow label="Phone"        value={project.clientPhone} />
+        <InfoRow label="SED"          value={project.salesOwner?.name} />
+        <InfoRow label="Quotation #"  value={project.quotationNumber} />
+        <InfoRow label="Reference"    value={project.quotationReference} />
+        <InfoRow label="Payment mode" value={project.paymentMode} />
+      </div>
+
+      {/* Address block */}
+      <div className="pt-1 border-t border-gray-100">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Address</p>
+          {canEdit && !editing && (
+            <button
+              onClick={() => {
+                setForm({ emirate: project.emirate ?? '', location: project.location ?? '', detailedLocation: project.detailedLocation ?? '' })
+                setErr('')
+                setEditing(true)
+              }}
+              className="text-xs text-brand-600 hover:underline font-medium"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+
+        {editing ? (
+          <div className="space-y-2.5">
+            {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{err}</p>}
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Emirate *</label>
+              <select value={form.emirate} onChange={(e) => { setForm((f) => ({ ...f, emirate: e.target.value, location: '' })) }} className={inp}>
+                <option value="">— select —</option>
+                {UAE_EMIRATES.map((em) => <option key={em}>{em}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Area {!showLocationDropdown && <span className="text-gray-400">(Dubai only)</span>}</label>
+              {showLocationDropdown ? (
+                <select value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} className={inp}>
+                  <option value="">— select area —</option>
+                  {DUBAI_LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+                </select>
+              ) : (
+                <input disabled className="w-full border border-gray-100 rounded-lg px-2.5 py-1.5 text-sm bg-gray-50 text-gray-400" placeholder="Select Dubai to pick an area" />
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Exact location</label>
+              <input
+                type="text"
+                value={form.detailedLocation}
+                onChange={(e) => setForm((f) => ({ ...f, detailedLocation: e.target.value }))}
+                className={inp}
+                placeholder="Building, floor, unit…"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-3 py-1.5 text-xs rounded-lg bg-brand-600 text-white font-medium hover:bg-brand-700 disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => { setEditing(false); setErr('') }}
+                className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-600 font-medium hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <InfoRow label="Emirate"         value={project.emirate} />
+            <InfoRow label="Location"        value={project.location} />
+            <InfoRow label="Detail location" value={project.detailedLocation} />
+          </div>
+        )}
       </div>
 
       {project.projectDescription && (
-        <div className="pt-1">
+        <div className="pt-1 border-t border-gray-100">
           <p className="text-xs text-gray-400 mb-1">Description</p>
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{project.projectDescription}</p>
         </div>
@@ -296,7 +439,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
   )
 
   // Report
-  const { data: reportData, isLoading: reportLoading } = useSWR<ReportResponse>(
+  const { data: reportData, isLoading: reportLoading, mutate: mutateReport } = useSWR<ReportResponse>(
     tab === 'report' ? `/api/projects/${id}/report` : null,
     fetcher,
   )
@@ -326,6 +469,14 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
   const itemCount = data?.items.length ?? 0
 
   const allTasks = tasksData?.tasks ?? []
+
+  // Separate fetch for docs bar — not role-filtered, so all teams see all attachments
+  const { data: docsData } = useSWR<{ tasks: Task[] }>(
+    `/api/projects/${id}/attachments`,
+    fetcher,
+    { revalidateOnFocus: false },
+  )
+  const docsTasks = docsData?.tasks ?? []
   const projectLevelTasks = allTasks.filter((t) => !t.projectItem?.length)
   const hasItems = !isLoading && !error && (data?.items.length ?? 0) > 0
   const hasProjectTasks = !tasksLoading && projectLevelTasks.length > 0
@@ -387,13 +538,11 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {/* Docs bar — always visible when attachments exist */}
-      {!tasksLoading && allTasks.length > 0 && (
-        <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-start gap-6 flex-wrap">
-          <ProjectAttachmentsSection tasks={allTasks} />
-          <ProjectFormsSection projectId={id} role={role} />
-        </div>
-      )}
+      {/* Docs bar — visible to all roles; attachments fetched without role filter */}
+      <div className="px-6 py-3 bg-white border-b border-gray-100 flex items-start gap-6 flex-wrap">
+        <ProjectAttachmentsSection tasks={docsTasks} />
+        <ProjectFormsSection projectId={id} role={role} />
+      </div>
 
       {/* ── Tasks & Items tab ── */}
       {tab === 'tasks' && (
@@ -503,7 +652,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
                   </a>
                 </div>
               )}
-              <ProjectOverview project={reportData.project} />
+              <ProjectOverview project={reportData.project} role={role} projectId={id} onSaved={mutateReport} />
               {reportData.payments && (
                 <PaymentsSection project={reportData.project} payments={reportData.payments} />
               )}
