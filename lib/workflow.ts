@@ -466,6 +466,28 @@ export async function handleTaskCompletion(
         }
       }
 
+      // After "Order Material & Notification" task — notify superadmin, manager + email accountant
+      const taskNameLower = task.taskName.toLowerCase()
+      if (taskNameLower.includes('order material') && taskNameLower.includes('notification')) {
+        const projectLabel = await resolveProjectLabel(task)
+        for (const role of ['superadmin', 'manager'] as const) {
+          await createNotification({
+            recipientRole: role,
+            title: `Material ordered — ${projectLabel}`,
+            body: `A material order has been placed. Review in the materials dashboard.`,
+            link: ROLE_DASHBOARD[role],
+          })
+        }
+        if (process.env.RESEND_API_KEY) {
+          notifyAccountantEvent({
+            eventName: 'Material Ordered',
+            projectLabel,
+            link: '/dashboard/superadmin?view=materials',
+            linkLabel: 'View Material Orders',
+          }).catch((err) => console.error('[MaterialOrder] notifyAccountantEvent failed:', err))
+        }
+      }
+
       return { finalStatus: 'Completed' as TaskStatus }
     })(),
   )

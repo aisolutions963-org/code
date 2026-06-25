@@ -122,8 +122,8 @@ const PRIMARY_NAV: Record<Role, MobileNavItem[]> = {
   manager: [
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
     { label: 'My Tasks', href: '/dashboard/mgr', icon: (a) => <TasksSvg active={a} /> },
+    { label: 'Forms', href: '/dashboard/forms', icon: (a) => <FormsSvg active={a} /> },
     { label: 'Payments', href: '/dashboard/mgr?view=payments', icon: (a) => <CashSvg active={a} /> },
-    { label: 'Projects', href: '/dashboard/mgr?view=projects', icon: (a) => <FolderSvg active={a} /> },
   ],
   superadmin: [
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },

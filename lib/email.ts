@@ -78,9 +78,16 @@ export async function notifyCallClient(project: {
 export async function notifyAccountantEvent(params: {
   eventName: string
   projectLabel: string
+  link?: string
+  linkLabel?: string
 }): Promise<void> {
   const accountantEmail = await getSetting('accountant_email')
   if (!accountantEmail) return
+  const baseUrl = process.env.APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+  const fullLink = params.link && baseUrl ? `${baseUrl}${params.link}` : null
+  const linkHtml = fullLink
+    ? `<p><a href="${fullLink}" style="display:inline-block;padding:8px 16px;background:#1a1a2e;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">${params.linkLabel ?? 'View in Dashboard'}</a></p>`
+    : `<p>Log in to the WoodWings dashboard to review.</p>`
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
     to: accountantEmail,
@@ -88,7 +95,7 @@ export async function notifyAccountantEvent(params: {
     html: `
       <h2>${params.eventName}</h2>
       <p><strong>Project:</strong> ${params.projectLabel}</p>
-      <p>Log in to the WoodWings dashboard to review payment details.</p>
+      ${linkHtml}
     `,
   })
 }
