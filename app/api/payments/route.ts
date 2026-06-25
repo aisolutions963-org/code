@@ -150,7 +150,7 @@ async function closeProjectAfterFinalPayment(projectId: string, recordedBy: stri
   notifyAccountantEvent({
     eventName: 'Final Payment Received — Project Closed',
     projectLabel,
-  }).catch(() => {})
+  }).catch((err: unknown) => console.error('[Payment] notifyAccountantEvent failed:', err))
 
   // In-app notifications
   for (const role of ['sed', 'manager', 'superadmin'] as const) {
