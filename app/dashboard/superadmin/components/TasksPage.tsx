@@ -14,13 +14,14 @@ export default function MyTasksPage() {
   )
   const allTasks = data?.tasks ?? []
 
-  // Superadmin sees: tasks pending their approval, Call the Client decisions, Follow Up decisions.
-  // Manager/Purchase department tasks belong to the manager role — excluded here.
+  // Superadmin sees: tasks pending their approval, Call the Client decisions, Follow Up decisions,
+  // and any task explicitly assigned to the Superadmin department (e.g. payment/account tasks).
   const tasks = allTasks.filter(
     (t) =>
       t.status === 'Pending Approval' ||
       t.taskName.toLowerCase().includes('call the client') ||
-      t.taskName === 'Follow Up',
+      t.taskName === 'Follow Up' ||
+      (t.department.includes('Superadmin') && (t.status === 'To Do' || t.status === 'In Progress')),
   )
 
   const callClientReady = allTasks.filter(
