@@ -192,7 +192,8 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const isPerItemOrderSample =
     !!task.projectItem?.length &&
     task.pathCondition === 'Select Sample (item)' &&
-    !task.taskName.toLowerCase().startsWith('sample branch:')
+    !task.taskName.toLowerCase().startsWith('sample branch:') &&
+    !task.taskName.toLowerCase().includes('follow up til material')
   const isAttachDocsTask = task.taskName.toLowerCase().startsWith('click done: attach 7 items')
   const isChooseInstallTeamTask = task.taskName
     .toLowerCase()
