@@ -80,6 +80,9 @@ function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unkno
   return result
 }
 
+// Template orders for "Take Measurement" tasks — installation team only, not auto-assigned to SED
+const SED_EXCLUDED_TEMPLATE_ORDERS = [4, 24]
+
 function buildDepartmentFormula(role: Role): string {
   if (role === 'superadmin') {
     return `{${TASKS.STATUS}} != "Locked"`
@@ -90,7 +93,16 @@ function buildDepartmentFormula(role: Role): string {
     .join(', ')
   const deptOr = departments.length > 1 ? `OR(${deptChecks})` : deptChecks
 
-  return `AND(${deptOr}, NOT(FIND("Superadmin", ARRAYJOIN({${TASKS.DEPARTMENT}}, ","))), {${TASKS.STATUS}} != "Locked")`
+  let base = `AND(${deptOr}, NOT(FIND("Superadmin", ARRAYJOIN({${TASKS.DEPARTMENT}}, ","))), {${TASKS.STATUS}} != "Locked")`
+
+  if (role === 'sed') {
+    const excludeOrders = SED_EXCLUDED_TEMPLATE_ORDERS
+      .map((n) => `{${TASKS.TEMPLATE_ORDER}} = ${n}`)
+      .join(', ')
+    base = `AND(${base}, NOT(OR(${excludeOrders})))`
+  }
+
+  return base
 }
 
 // ─── Enrichment helpers ──────────────────────────────────────────────────────
