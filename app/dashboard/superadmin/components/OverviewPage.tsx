@@ -56,6 +56,23 @@ export default function OverviewPage() {
     '/api/tasks', fetcher, { refreshInterval: 300_000 },
   )
   const [showNewProject, setShowNewProject] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
+  const [cleanResult, setCleanResult] = useState<{ total: number; deleted: Record<string, number> } | null>(null)
+
+  async function runCleanup() {
+    setCleaning(true)
+    setCleanResult(null)
+    try {
+      const res = await fetch('/api/admin/cleanup', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Cleanup failed')
+      setCleanResult(data)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Cleanup failed')
+    } finally {
+      setCleaning(false)
+    }
+  }
 
   const kpi = kpiData
   const allTasks = tasksData?.tasks ?? []
@@ -182,6 +199,40 @@ export default function OverviewPage() {
 
       {/* ── Section 5: Work Hours by Project ───────────────── */}
       <WorkHoursChart />
+
+      {/* ── Section 6: Database Cleanup ────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Database Cleanup</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Remove read notifications, stale project references, and expired inactivity alerts
+            </p>
+          </div>
+          <button
+            onClick={runCleanup}
+            disabled={cleaning}
+            className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {cleaning ? 'Cleaning…' : 'Clean Up'}
+          </button>
+        </div>
+        {cleanResult && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-xs font-semibold text-green-700 mb-1.5">
+              Done — {cleanResult.total} row{cleanResult.total !== 1 ? 's' : ''} removed
+            </p>
+            <ul className="space-y-0.5">
+              {Object.entries(cleanResult.deleted).map(([key, count]) => (
+                <li key={key} className="text-xs text-gray-500 flex justify-between">
+                  <span>{key.replaceAll('_', ' ')}</span>
+                  <span className="font-semibold text-gray-700">{count}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
       {showNewProject && (
         <NewProjectModalComponent
