@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
+import useSWR from 'swr'
 import { Role } from '@/lib/types'
 
 // ─── Mobile nav items: 4-5 primary destinations per role ─────────────────────
@@ -171,7 +172,6 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'Home', href: '/home' },
     { label: 'My Tasks', href: '/dashboard/sed' },
     { label: 'Forms', href: '/dashboard/forms' },
-    { label: 'Client Approvals', href: '/dashboard/sed?view=approvals' },
     { label: 'Site Visits', href: '/dashboard/sed?view=site-visits' },
     { label: 'QC Checks', href: '/dashboard/sed?view=qc' },
     { label: 'My Projects', href: '/dashboard/sed?view=projects' },
@@ -225,6 +225,23 @@ export default function MobileBottomNav({ role, name }: { role: Role; name: stri
   const activeText = ROLE_ACTIVE_TEXT[role]
   const accentBg = ROLE_ACCENT_BG[role]
   const allNav = ALL_NAV[role] ?? []
+
+  // SED only — count pending client-approval gate tasks for badge on My Tasks
+  const { data: sedTasksData } = useSWR<{ tasks: Array<{ taskName: string; status: string }> }>(
+    role === 'sed' ? '/api/tasks' : null,
+    (url: string) => fetch(url).then((r) => r.json()),
+    { refreshInterval: 120_000 },
+  )
+  const pendingApprovals =
+    role === 'sed'
+      ? (sedTasksData?.tasks ?? []).filter((t) => {
+          const n = t.taskName.toLowerCase()
+          return (
+            (n.startsWith('[gate]') || n.includes('take approval from client')) &&
+            (t.status === 'To Do' || t.status === 'In Progress')
+          )
+        }).length
+      : 0
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -330,15 +347,24 @@ export default function MobileBottomNav({ role, name }: { role: Role; name: stri
       >
         {tabs.map((tab) => {
           const active = tab.href === currentHref
+          const showApprovalDot = tab.href === '/dashboard/sed' && pendingApprovals > 0
           return (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] transition-all ${
+              className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] transition-all ${
                 active ? activeText : 'text-white/35'
               }`}
             >
-              {tab.icon(active)}
+              <div className="relative">
+                {tab.icon(active)}
+                {showApprovalDot && (
+                  <span className="absolute -top-1 -right-1.5 min-w-[16px] h-4 flex items-center justify-center
+                    text-[9px] font-bold bg-orange-500 text-white rounded-full px-0.5 leading-none">
+                    {pendingApprovals}
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] font-medium leading-none">{tab.label}</span>
               {active && (
                 <span className={`absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b ${accentBg}`} />

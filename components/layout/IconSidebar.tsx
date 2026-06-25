@@ -330,7 +330,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
     {
       label: 'Client Work',
       items: [
-        { label: 'Client Approvals', href: '/dashboard/sed?view=approvals', icon: <ApprovalIcon /> },
         { label: 'Site Visits', href: '/dashboard/sed?view=site-visits', icon: <LocationIcon /> },
         { label: 'QC Checks', href: '/dashboard/sed?view=qc', icon: <InspectIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
@@ -445,6 +444,23 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
   )
   const pendingMaterials = materialsData?.pendingCount ?? 0
 
+  // SED only — count pending client-approval gate tasks so we can badge "My Tasks"
+  const { data: sedTasksData } = useSWR<{ tasks: Array<{ taskName: string; status: string }> }>(
+    role === 'sed' ? '/api/tasks' : null,
+    sidebarFetcher,
+    { refreshInterval: 120_000 },
+  )
+  const pendingApprovals =
+    role === 'sed'
+      ? (sedTasksData?.tasks ?? []).filter((t) => {
+          const n = t.taskName.toLowerCase()
+          return (
+            (n.startsWith('[gate]') || n.includes('take approval from client')) &&
+            (t.status === 'To Do' || t.status === 'In Progress')
+          )
+        }).length
+      : 0
+
   const groups = NAV_GROUPS[role] ?? []
   const currentHref = pathname + (searchParams.toString() ? '?' + searchParams.toString() : '')
 
@@ -511,6 +527,12 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
                       <span className="ml-auto shrink-0 min-w-[18px] h-[18px] flex items-center justify-center
                         text-[10px] font-bold bg-amber-500 text-white rounded-full px-1 leading-none">
                         {pendingMaterials}
+                      </span>
+                    )}
+                    {item.href === '/dashboard/sed' && pendingApprovals > 0 && (
+                      <span className="ml-auto shrink-0 min-w-[18px] h-[18px] flex items-center justify-center
+                        text-[10px] font-bold bg-orange-500 text-white rounded-full px-1 leading-none">
+                        {pendingApprovals}
                       </span>
                     )}
                   </Link>
