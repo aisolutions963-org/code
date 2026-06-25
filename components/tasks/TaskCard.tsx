@@ -204,6 +204,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     task.taskName.toLowerCase().startsWith('how many days') ||
     task.taskName.toLowerCase().startsWith('installation day')
   const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
+  // Carpentry / Paint per-item tasks: shown alongside Fabrication Done — team marks In Progress if applicable
+  const isFabItemPath =
+    !!task.projectItem?.length &&
+    (task.pathCondition === 'Carpentry' || task.pathCondition === 'Paint')
 
   const isFollowUpTask =
     role === 'superadmin' &&
@@ -582,6 +586,18 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                 </div>
               )}
             </>
+          )}
+
+          {/* Carpentry / Paint path hint — fabrication team */}
+          {isFabItemPath && task.status !== 'Completed' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5" dir="rtl">
+              <p className="text-xs font-semibold text-amber-800 mb-0.5">
+                {task.pathCondition === 'Carpentry' ? 'نجارة (لكل قطعة)' : 'دهان (لكل قطعة)'}
+              </p>
+              <p className="text-xs text-amber-700">
+                إذا كانت هذه القطعة تحتاج {task.pathCondition === 'Carpentry' ? 'نجارة' : 'دهان'}، قم بتغيير الحالة إلى <strong>جاري</strong> للإشارة إلى أن العمل جارٍ عليها. وإذا لم تكن مطلوبة، اتركها كما هي.
+              </p>
+            </div>
           )}
 
           {/* Quotation panel (Make Quotation + F4) */}

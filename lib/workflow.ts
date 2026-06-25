@@ -210,10 +210,20 @@ async function unlockNextTasks(task: Task): Promise<void> {
   )
   if (lockedTasks.length === 0) return
 
-  // Only unlock tasks in the same path (universal tasks form their own "null" path).
+  // Fabrication item paths (Carpentry, Paint) at Phase 3 orders are shown alongside
+  // the universal Fabrication Done task. The team marks applicable ones In Progress.
+  const FAB_ITEM_PATHS = new Set(['Carpentry', 'Paint'])
+  const isPhase3PerItem =
+    !!task.projectItem?.[0] && completedOrder >= PHASE_CONFIG.Working.perItemOrderMin
+
+  // Unlock tasks in the same path (universal tasks use null path).
+  // For Phase 3 per-item completions, also include Carpentry/Paint path tasks so
+  // they surface alongside Fabrication Done — instruction text on the card guides
+  // the team to mark whichever ones apply as In Progress.
   const samePath = lockedTasks.filter(
     (t) =>
-      (t.pathCondition ?? null) === taskPath &&
+      ((t.pathCondition ?? null) === taskPath ||
+        (isPhase3PerItem && FAB_ITEM_PATHS.has(t.pathCondition ?? ''))) &&
       (t.templateOrder?.[0] ?? 0) > completedOrder,
   )
   if (samePath.length === 0) return
@@ -820,3 +830,4 @@ export async function handleCallCountEscalation(task: Task): Promise<void> {
     }).catch((err) => console.error('[A8] Escalation notify failed:', err))
   }
 }
+
