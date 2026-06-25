@@ -331,7 +331,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       label: 'Client Work',
       items: [
         { label: 'Site Visits', href: '/dashboard/sed?view=site-visits', icon: <LocationIcon /> },
-        { label: 'QC Checks', href: '/dashboard/sed?view=qc', icon: <InspectIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
         { label: 'Materials', href: '/dashboard/sed?view=materials', icon: <HammerIcon /> },
       ],
@@ -444,8 +443,10 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
   )
   const pendingMaterials = materialsData?.pendingCount ?? 0
 
-  // SED only — count pending client-approval gate tasks so we can badge "My Tasks"
-  const { data: sedTasksData } = useSWR<{ tasks: Array<{ taskName: string; status: string }> }>(
+  // SED only — count pending client-approval + QC tasks for "My Tasks" badge
+  const { data: sedTasksData } = useSWR<{
+    tasks: Array<{ taskName: string; status: string; qcCheckAtSiteDone?: boolean }>
+  }>(
     role === 'sed' ? '/api/tasks' : null,
     sidebarFetcher,
     { refreshInterval: 120_000 },
@@ -454,10 +455,11 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
     role === 'sed'
       ? (sedTasksData?.tasks ?? []).filter((t) => {
           const n = t.taskName.toLowerCase()
-          return (
+          const isApproval =
             (n.startsWith('[gate]') || n.includes('take approval from client')) &&
             (t.status === 'To Do' || t.status === 'In Progress')
-          )
+          const isQc = t.qcCheckAtSiteDone === false && t.status !== 'Completed'
+          return isApproval || isQc
         }).length
       : 0
 

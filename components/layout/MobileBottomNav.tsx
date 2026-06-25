@@ -173,7 +173,6 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'My Tasks', href: '/dashboard/sed' },
     { label: 'Forms', href: '/dashboard/forms' },
     { label: 'Site Visits', href: '/dashboard/sed?view=site-visits' },
-    { label: 'QC Checks', href: '/dashboard/sed?view=qc' },
     { label: 'My Projects', href: '/dashboard/sed?view=projects' },
   ],
   fabrication: [
@@ -226,8 +225,10 @@ export default function MobileBottomNav({ role, name }: { role: Role; name: stri
   const accentBg = ROLE_ACCENT_BG[role]
   const allNav = ALL_NAV[role] ?? []
 
-  // SED only — count pending client-approval gate tasks for badge on My Tasks
-  const { data: sedTasksData } = useSWR<{ tasks: Array<{ taskName: string; status: string }> }>(
+  // SED only — count pending client-approval + QC tasks for badge on My Tasks
+  const { data: sedTasksData } = useSWR<{
+    tasks: Array<{ taskName: string; status: string; qcCheckAtSiteDone?: boolean }>
+  }>(
     role === 'sed' ? '/api/tasks' : null,
     (url: string) => fetch(url).then((r) => r.json()),
     { refreshInterval: 120_000 },
@@ -236,10 +237,11 @@ export default function MobileBottomNav({ role, name }: { role: Role; name: stri
     role === 'sed'
       ? (sedTasksData?.tasks ?? []).filter((t) => {
           const n = t.taskName.toLowerCase()
-          return (
+          const isApproval =
             (n.startsWith('[gate]') || n.includes('take approval from client')) &&
             (t.status === 'To Do' || t.status === 'In Progress')
-          )
+          const isQc = t.qcCheckAtSiteDone === false && t.status !== 'Completed'
+          return isApproval || isQc
         }).length
       : 0
 
