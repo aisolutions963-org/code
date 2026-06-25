@@ -151,10 +151,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showHint, setShowHint] = useState(false)
   const [localFields, setLocalFields] = useState<Partial<TaskUpdateInput>>(
-    () => ({
-      ...getInitialFieldValues(task, getEditableFieldsForRole(role)),
-      ...(role === 'superadmin' ? { superadminNote: task.superadminNote ?? '' } : {}),
-    }),
+    () => getInitialFieldValues(task, getEditableFieldsForRole(role)),
   )
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -702,7 +699,31 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
-          {/* Admin follow-up note — visible to all roles, editable only by superadmin */}
+          {/* Admin note — editable for superadmin, read-only banner for all other roles */}
+          {role === 'superadmin' && !isFollowUpTask && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">📌 Admin Note</p>
+              <textarea
+                value={followUpNote}
+                onChange={(e) => setFollowUpNote(e.target.value)}
+                rows={2}
+                placeholder="Add a note visible to all team members on this task…"
+                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={saveFollowUpOutcomeNote}
+                  disabled={followUpSaving || followUpNote === (task.superadminNote ?? '')}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50"
+                >
+                  {followUpSaving ? 'Saving…' : 'Save Note'}
+                </button>
+                {followUpNote !== (task.superadminNote ?? '') && (
+                  <span className="text-xs text-amber-600">Unsaved</span>
+                )}
+              </div>
+            </div>
+          )}
           {task.superadminNote && role !== 'superadmin' && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 space-y-1">
               <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">📌 Admin Follow-up Note</p>

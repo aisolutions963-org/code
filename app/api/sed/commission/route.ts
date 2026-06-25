@@ -6,15 +6,32 @@ import { todayUAE } from '@/lib/dateUtils'
 
 function getQuarter(dateStr: string): { label: string; start: string; end: string } {
   const d = new Date(dateStr)
-  const year = d.getFullYear()
-  const q = Math.floor(d.getMonth() / 3) + 1
-  const startMonth = (q - 1) * 3
-  const endMonth = startMonth + 2
-  const lastDay = new Date(year, endMonth + 1, 0).getDate()
+  const m = d.getMonth() // 0-indexed
+  const y = d.getFullYear()
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  // Fiscal quarters: Q1 = Dec–Feb, Q2 = Mar–May, Q3 = Jun–Aug, Q4 = Sep–Nov
+  // December belongs to Q1 of the *next* fiscal year
+  let fy: number, q: number
+  let startY: number, startM: number, endY: number, endM: number
+
+  if (m === 11) {       // December
+    fy = y + 1; q = 1; startY = y; startM = 11; endY = y + 1; endM = 1
+  } else if (m <= 1) {  // Jan–Feb
+    fy = y; q = 1; startY = y - 1; startM = 11; endY = y; endM = 1
+  } else if (m <= 4) {  // Mar–May
+    fy = y; q = 2; startY = y; startM = 2; endY = y; endM = 4
+  } else if (m <= 7) {  // Jun–Aug
+    fy = y; q = 3; startY = y; startM = 5; endY = y; endM = 7
+  } else {              // Sep–Nov
+    fy = y; q = 4; startY = y; startM = 8; endY = y; endM = 10
+  }
+
+  const lastDay = new Date(endY, endM + 1, 0).getDate()
   return {
-    label: `Q${q} ${year}`,
-    start: `${year}-${String(startMonth + 1).padStart(2, '0')}-01`,
-    end: `${year}-${String(endMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+    label: `Q${q} ${fy}`,
+    start: `${startY}-${pad(startM + 1)}-01`,
+    end: `${endY}-${pad(endM + 1)}-${pad(lastDay)}`,
   }
 }
 
