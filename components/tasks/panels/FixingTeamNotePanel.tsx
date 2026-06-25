@@ -1,32 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import useSWR from 'swr'
 import toast from 'react-hot-toast'
-import { Task, TaskUpdateInput, InstallationLog } from '@/lib/types'
+import { Task, TaskUpdateInput } from '@/lib/types'
 
 interface FixingTeamNotePanelProps {
   task: Task
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
 export default function FixingTeamNotePanel({ task, onUpdate }: FixingTeamNotePanelProps) {
-  const projectRecordId = task.projectRecordId ?? task.project?.[0] ?? ''
-
-  const { data, mutate } = useSWR<{ logs: InstallationLog[] }>(
-    projectRecordId ? `/api/installation-logs?projectRecordId=${projectRecordId}` : null,
-    fetcher,
-    { revalidateOnFocus: false },
-  )
-  const logs = data?.logs ?? []
-
-  const [date, setDate] = useState('')
+  const [days, setDays] = useState(task.teamDaysRequired ? String(task.teamDaysRequired) : '')
+  const [workers, setWorkers] = useState(task.noOfLaborsPerDay ? String(task.noOfLaborsPerDay) : '')
   const [notes, setNotes] = useState('')
-  const [workers, setWorkers] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [completing, setCompleting] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   if (task.status === 'Pending Approval') {
@@ -40,95 +27,62 @@ export default function FixingTeamNotePanel({ task, onUpdate }: FixingTeamNotePa
 
   if (task.status === 'Completed') {
     return (
-      <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 space-y-1.5" dir="rtl">
-        <p className="text-xs font-semibold text-green-800">✓ تم إتمام مرحلة التركيب</p>
-        {logs.length > 0 && (
-          <div className="space-y-1">
-            {logs.map((log) => (
-              <div key={log.id} className="flex items-start gap-2 text-xs text-green-700">
-                <span className="font-medium shrink-0">{log.date}</span>
-                {log.numberOfLaborers != null && (
-                  <span className="shrink-0">{log.numberOfLaborers} عمال</span>
-                )}
-                {log.workDescription && (
-                  <span className="text-green-600">{log.workDescription}</span>
-                )}
-              </div>
-            ))}
-          </div>
+      <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 space-y-1" dir="rtl">
+        <p className="text-xs font-semibold text-green-800">✓ تم تسجيل متطلبات التركيب</p>
+        {task.teamDaysRequired != null && (
+          <p className="text-xs text-green-700">الأيام المطلوبة: <span className="font-semibold">{task.teamDaysRequired} يوم</span></p>
+        )}
+        {task.noOfLaborsPerDay != null && (
+          <p className="text-xs text-green-700">عدد العمال في اليوم: <span className="font-semibold">{task.noOfLaborsPerDay}</span></p>
         )}
       </div>
     )
   }
 
-  async function handleAddDay() {
-    if (!date) { setError('اختر تاريخاً'); return }
-    if (!projectRecordId) { setError('لا يوجد مشروع مرتبط'); return }
+  async function handleSubmit() {
+    const daysNum = days ? parseInt(days, 10) : null
+    if (!daysNum || daysNum < 1) { setError('أدخل عدد الأيام المطلوبة'); return }
     setError('')
-    setAdding(true)
+    setSaving(true)
     try {
-      const res = await fetch('/api/installation-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectRecordId,
-          date,
-          workDescription: notes.trim() || undefined,
-          numberOfLaborers: workers ? parseInt(workers, 10) : undefined,
-        }),
+      await onUpdate(task.id, {
+        teamDaysRequired: daysNum,
+        ...(workers ? { noOfLaborsPerDay: parseInt(workers, 10) } : {}),
+        status: 'Completed',
       })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error((d as { error?: string }).error ?? 'فشل الإضافة')
-      }
-      await mutate()
-      setDate('')
-      setNotes('')
-      setWorkers('')
-      toast.success('تمت إضافة اليوم')
+      toast.success('تم تسجيل المتطلبات')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'فشل الإضافة')
-      toast.error('فشل الإضافة')
+      setError(e instanceof Error ? e.message : 'فشل الحفظ')
+      toast.error('فشل الحفظ')
     } finally {
-      setAdding(false)
-    }
-  }
-
-  async function handleComplete() {
-    setError('')
-    setCompleting(true)
-    try {
-      await onUpdate(task.id, { status: 'Completed' })
-      toast.success('تم إتمام مهمة التركيب')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'فشل الإتمام')
-      toast.error('فشل الإتمام')
-    } finally {
-      setCompleting(false)
+      setSaving(false)
     }
   }
 
   return (
     <div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-3 space-y-3" dir="rtl">
-      <p className="text-xs font-semibold text-violet-800">سجّل أيام التركيب</p>
+      <p className="text-xs font-semibold text-violet-800">أدخل متطلبات التركيب</p>
 
-      {/* Add day form */}
       <div className="bg-white border border-violet-200 rounded-lg px-3 py-2.5 space-y-2.5">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">التاريخ <span className="text-red-500">*</span></label>
+            <label className="text-xs text-gray-500 block mb-1">عدد الأيام المطلوبة <span className="text-red-500">*</span></label>
             <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+              type="number"
+              min={1}
+              max={365}
+              value={days}
+              onChange={(e) => setDays(e.target.value)}
+              placeholder="مثال: 3"
               className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 text-right"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">عدد العمال</label>
+            <label className="text-xs text-gray-500 block mb-1">عدد العمال في اليوم</label>
             <input
               type="number"
               min={1}
+              max={100}
               value={workers}
               onChange={(e) => setWorkers(e.target.value)}
               placeholder="مثال: 4"
@@ -136,54 +90,20 @@ export default function FixingTeamNotePanel({ task, onUpdate }: FixingTeamNotePa
             />
           </div>
         </div>
-        <div>
-          <label className="text-xs text-gray-500 block mb-1">ملاحظات اليوم</label>
-          <textarea
-            rows={2}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="وصف الأعمال المنجزة في هذا اليوم…"
-            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none text-right"
-          />
-        </div>
-        <button
-          onClick={handleAddDay}
-          disabled={adding || !date}
-          className="w-full py-1.5 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {adding ? 'جاري الإضافة…' : '+ إضافة يوم'}
-        </button>
-      </div>
 
-      {/* Logged days list */}
-      {logs.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-violet-700">الأيام المسجّلة ({logs.length})</p>
-          {logs.map((log) => (
-            <div key={log.id} className="bg-white border border-violet-100 rounded-lg px-3 py-2 text-xs space-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-gray-800">{log.date}</span>
-                {log.numberOfLaborers != null && (
-                  <span className="text-gray-500">{log.numberOfLaborers} عمال</span>
-                )}
-              </div>
-              {log.workDescription && (
-                <p className="text-gray-600 leading-relaxed">{log.workDescription}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+        <p className="text-[10px] text-violet-600 leading-relaxed">
+          سيستخدم المدير هذه المعلومات لتحديد مواعيد التركيب في التقويم.
+        </p>
+      </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 
-      {/* Complete task */}
       <button
-        onClick={handleComplete}
-        disabled={completing}
+        onClick={handleSubmit}
+        disabled={saving || !days}
         className="w-full py-2 rounded-lg text-sm font-semibold bg-violet-700 text-white hover:bg-violet-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
-        {completing ? 'جاري الإتمام…' : '✓ إتمام مهمة التركيب'}
+        {saving ? 'جاري الحفظ…' : '✓ إتمام مهمة التركيب'}
       </button>
     </div>
   )
