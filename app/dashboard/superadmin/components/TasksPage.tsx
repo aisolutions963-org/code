@@ -15,13 +15,19 @@ export default function MyTasksPage() {
   const allTasks = data?.tasks ?? []
 
   // Superadmin sees: tasks pending their approval, Call the Client decisions, Follow Up decisions,
-  // and any task explicitly assigned to the Superadmin department (e.g. payment/account tasks).
+  // payment tasks (F4 / any task with "payment" in the name), and tasks in the
+  // Superadmin or Management department.
   const tasks = allTasks.filter(
-    (t) =>
-      t.status === 'Pending Approval' ||
-      t.taskName.toLowerCase().includes('call the client') ||
-      t.taskName === 'Follow Up' ||
-      (t.department.includes('Superadmin') && (t.status === 'To Do' || t.status === 'In Progress')),
+    (t) => {
+      if (t.status === 'Pending Approval') return true
+      if (t.taskName.toLowerCase().includes('call the client')) return true
+      if (t.taskName === 'Follow Up') return true
+      const active = t.status === 'To Do' || t.status === 'In Progress'
+      if (!active) return false
+      const name = t.taskName.toLowerCase()
+      if (name.startsWith('f4 —') || name.includes('payment')) return true
+      return t.department.some((d) => d.toLowerCase() === 'superadmin' || d === 'Management')
+    },
   )
 
   const callClientReady = allTasks.filter(

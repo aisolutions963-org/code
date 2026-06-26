@@ -151,7 +151,24 @@ function ProjectOverview({
       <div className="space-y-2">
         <InfoRow label="Client"       value={project.clientName} />
         <InfoRow label="Phone"        value={project.clientPhone} />
-        <InfoRow label="SED"          value={project.salesOwner?.name} />
+        {(() => {
+          const allSeds = [
+            ...(project.salesOwner?.name ? [project.salesOwner.name] : []),
+            ...(project.communSeds ?? []),
+          ]
+          if (allSeds.length === 0) return null
+          if (allSeds.length === 1) return <InfoRow label="SED" value={allSeds[0]} />
+          return (
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-400 w-36 shrink-0">SEDs</span>
+              <div className="flex flex-wrap gap-1.5">
+                {allSeds.map((n) => (
+                  <span key={n} className="bg-gray-100 text-gray-700 font-medium px-2 py-0.5 rounded-full text-xs">{n}</span>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
         <InfoRow label="Quotation #"  value={project.quotationNumber} />
         <InfoRow label="Reference"    value={project.quotationReference} />
         <InfoRow label="Payment mode" value={project.paymentMode} />

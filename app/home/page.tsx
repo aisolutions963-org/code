@@ -106,10 +106,12 @@ function HomeCalendar({
 
 function AddActivityModal({
   date,
+  role,
   onClose,
   onSuccess,
 }: {
   date: string
+  role?: string
   onClose: () => void
   onSuccess: () => void
 }) {
@@ -118,11 +120,26 @@ function AddActivityModal({
   const [notes, setNotes] = useState('')
   const [customTask, setCustomTask] = useState('')
   const [projectId, setProjectId] = useState('')
+  const [eventType, setEventType] = useState<'activity' | 'fabrication'>('activity')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const isManager = role === 'manager'
+
   const { data: projectData } = useSWR<{ projects: Project[] }>('/api/projects', fetcher, { revalidateOnFocus: false })
   const projects = projectData?.projects ?? []
+
+  const { data: teamData } = useSWR<{ members: { id: string; name: string }[] }>(
+    isManager ? '/api/team/installation' : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  )
+
+  const selectedProject = projects.find((p) => p.id === projectId)
+  const assignedTeamIds = selectedProject?.assignedInstallationTeam ?? []
+  const assignedTeamNames = isManager && teamData
+    ? teamData.members.filter((m) => assignedTeamIds.includes(m.id)).map((m) => m.name)
+    : []
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -139,6 +156,7 @@ function AddActivityModal({
           notes: notes.trim() || undefined,
           customTask: customTask.trim() || undefined,
           projectId: projectId || undefined,
+          eventType,
         }),
       })
       if (!res.ok) {
@@ -169,6 +187,24 @@ function AddActivityModal({
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
+          </button>
+        </div>
+
+        {/* Event type toggle */}
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-4 text-xs">
+          <button
+            type="button"
+            onClick={() => setEventType('activity')}
+            className={`flex-1 py-2 font-medium transition-colors ${eventType === 'activity' ? 'bg-amber-50 text-amber-700' : 'text-gray-500 hover:text-gray-700'} border-r border-gray-200`}
+          >
+            Activity
+          </button>
+          <button
+            type="button"
+            onClick={() => setEventType('fabrication')}
+            className={`flex-1 py-2 font-medium transition-colors ${eventType === 'fabrication' ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Factory
           </button>
         </div>
 
@@ -215,6 +251,25 @@ function AddActivityModal({
               ))}
             </select>
           </div>
+
+          {/* Installation team — shown for manager when a project is selected */}
+          {isManager && projectId && (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+              <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider mb-1.5">Installation Team</p>
+              {assignedTeamNames.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {assignedTeamNames.map((n) => (
+                    <span key={n} className="text-xs bg-white border border-blue-200 text-blue-700 px-2 py-0.5 rounded-full">{n}</span>
+                  ))}
+                </div>
+              ) : assignedTeamIds.length > 0 ? (
+                <p className="text-xs text-blue-400">Loading…</p>
+              ) : (
+                <p className="text-xs text-gray-400">No installation team assigned yet</p>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
             <input
@@ -225,16 +280,18 @@ function AddActivityModal({
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Custom Task</label>
-            <input
-              type="text"
-              value={customTask}
-              onChange={(e) => setCustomTask(e.target.value)}
-              placeholder="e.g. Follow up with supplier…"
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-          </div>
+          {!isManager && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Custom Task</label>
+              <input
+                type="text"
+                value={customTask}
+                onChange={(e) => setCustomTask(e.target.value)}
+                placeholder="e.g. Follow up with supplier…"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          )}
         </div>
 
         <div className="mt-4 flex gap-2 justify-end">
@@ -250,7 +307,7 @@ function AddActivityModal({
             disabled={saving}
             className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Saving…' : 'Save Activity'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </form>
@@ -499,7 +556,7 @@ export default function HomePage() {
 
   const announcements = data?.announcements ?? []
 
-  const canAddActivity = ['sed', 'superadmin'].includes(role)
+  const canAddActivity = ['sed', 'superadmin', 'manager'].includes(role)
   const canAddInstallation = ['manager', 'superadmin'].includes(role)
 
   const dashboardHref = `/dashboard/${
@@ -575,6 +632,7 @@ export default function HomePage() {
       {activityDate && (
         <AddActivityModal
           date={activityDate}
+          role={role}
           onClose={() => setActivityDate(null)}
           onSuccess={() => { mutate() }}
         />
