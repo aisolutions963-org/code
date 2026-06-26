@@ -120,6 +120,14 @@ async function getFabricationActiveProjectIds(): Promise<Set<string>> {
   return ids
 }
 
+export async function getProjectIdsForSedByEmail(email: string): Promise<string[]> {
+  const records = await fetchAll(PROJECTS.TABLE_ID, {
+    filterByFormula: `{${PROJECTS.SALES_OWNER}} = "${email}"`,
+    fields: [PROJECTS.SALES_OWNER],
+  })
+  return records.map((r) => r.id)
+}
+
 export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[] } = {}): Promise<Project[]> {
   const requestTypeFieldReady = !PROJECTS.REQUEST_TYPE.startsWith('REPLACE')
   const noRequests = requestTypeFieldReady ? `{${PROJECTS.REQUEST_TYPE}} = ""` : null

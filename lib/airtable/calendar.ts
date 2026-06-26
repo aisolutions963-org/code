@@ -32,6 +32,7 @@ export interface CalendarEvent {
   customTask?: string
   createdBy?: string
   createdAt?: string
+  teamMemberIds?: string[]
 }
 
 export type CalendarEventType = CalendarEvent['type']
@@ -148,12 +149,15 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const title = str(f[CALENDAR_EVENTS.TITLE])
     if (!date || !title) continue
     const customTask = str(f[CALENDAR_EVENTS.CUSTOM_TASK])
+    const typePart = customTask?.split('|')[0]
     let evType: CalendarEvent['type'] = 'activity'
-    if (customTask?.startsWith('f2:')) evType = 'delivery'
-    else if (customTask?.startsWith('type:installation')) evType = 'installation'
-    else if (customTask?.startsWith('type:fabrication'))  evType = 'fabrication'
-    else if (customTask?.startsWith('type:delivery'))     evType = 'delivery'
-    else if (customTask?.startsWith('type:personal'))     evType = 'personal'
+    if (typePart?.startsWith('f2:')) evType = 'delivery'
+    else if (typePart?.startsWith('type:installation')) evType = 'installation'
+    else if (typePart?.startsWith('type:fabrication'))  evType = 'fabrication'
+    else if (typePart?.startsWith('type:delivery'))     evType = 'delivery'
+    else if (typePart?.startsWith('type:personal'))     evType = 'personal'
+    const teamPart = customTask?.split('|').find((p) => p.startsWith('team:'))
+    const teamMemberIds = teamPart ? teamPart.slice(5).split(',').filter(Boolean) : undefined
     events.push({
       id: r.id,
       title,
@@ -164,6 +168,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
       projectName: getProjectName(f[CALENDAR_EVENTS.PROJECT]),
       createdAt: r.createdTime,
+      teamMemberIds,
     })
   }
 
@@ -196,6 +201,7 @@ export async function createCalendarEvent(input: {
   createdBy?: string
   customTask?: string
   eventType?: string
+  teamMemberIds?: string[]
 }): Promise<void> {
   const fields: Record<string, unknown> = {
     [CALENDAR_EVENTS.TITLE]: input.title,
@@ -204,8 +210,10 @@ export async function createCalendarEvent(input: {
   if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
   if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
   if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
-  const taskKey = input.customTask
+  const baseKey = input.customTask
     ?? (input.eventType && input.eventType !== 'activity' ? `type:${input.eventType}` : undefined)
+  const teamSuffix = input.teamMemberIds?.length ? `|team:${input.teamMemberIds.join(',')}` : ''
+  const taskKey = baseKey ? `${baseKey}${teamSuffix}` : undefined
   if (taskKey) fields[CALENDAR_EVENTS.CUSTOM_TASK] = taskKey
   const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
     method: 'POST',

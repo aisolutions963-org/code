@@ -121,10 +121,12 @@ function AddActivityModal({
   const [customTask, setCustomTask] = useState('')
   const [projectId, setProjectId] = useState('')
   const [eventType, setEventType] = useState<'activity' | 'fabrication'>('activity')
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const isManager = role === 'manager'
+  const isFactory = eventType === 'fabrication'
 
   const { data: projectData } = useSWR<{ projects: Project[] }>('/api/projects', fetcher, { revalidateOnFocus: false })
   const projects = projectData?.projects ?? []
@@ -135,11 +137,39 @@ function AddActivityModal({
     { revalidateOnFocus: false },
   )
 
+  const { data: conflictsData } = useSWR<{ busyMemberIds: string[] }>(
+    isManager && isFactory && selectedDate ? `/api/calendar/conflicts?date=${selectedDate}` : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  )
+
+  const busyMemberIds = new Set(conflictsData?.busyMemberIds ?? [])
+  const allTeamMembers = teamData?.members ?? []
+
   const selectedProject = projects.find((p) => p.id === projectId)
   const assignedTeamIds = selectedProject?.assignedInstallationTeam ?? []
   const assignedTeamNames = isManager && teamData
     ? teamData.members.filter((m) => assignedTeamIds.includes(m.id)).map((m) => m.name)
     : []
+
+  // Pre-populate selected members from project's assigned team when switching to factory + project
+  useEffect(() => {
+    if (isFactory && selectedProject?.assignedInstallationTeam?.length) {
+      setSelectedMemberIds(selectedProject.assignedInstallationTeam)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, eventType])
+
+  // Reset member selection when date changes
+  useEffect(() => {
+    setSelectedMemberIds([])
+  }, [selectedDate])
+
+  function toggleMember(id: string) {
+    setSelectedMemberIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -157,6 +187,7 @@ function AddActivityModal({
           customTask: customTask.trim() || undefined,
           projectId: projectId || undefined,
           eventType,
+          teamMemberIds: isFactory ? selectedMemberIds : [],
         }),
       })
       if (!res.ok) {
@@ -177,7 +208,7 @@ function AddActivityModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
       <form
-        className="relative bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl"
+        className="relative bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
@@ -202,7 +233,7 @@ function AddActivityModal({
           <button
             type="button"
             onClick={() => setEventType('fabrication')}
-            className={`flex-1 py-2 font-medium transition-colors ${eventType === 'fabrication' ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 py-2 font-medium transition-colors ${isFactory ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Factory
           </button>
@@ -252,10 +283,10 @@ function AddActivityModal({
             </select>
           </div>
 
-          {/* Installation team — shown for manager when a project is selected */}
-          {isManager && projectId && (
+          {/* Project's assigned installation team — info only */}
+          {isManager && isFactory && projectId && (
             <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
-              <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider mb-1.5">Installation Team</p>
+              <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider mb-1.5">Project Team</p>
               {assignedTeamNames.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
                   {assignedTeamNames.map((n) => (
@@ -267,6 +298,47 @@ function AddActivityModal({
               ) : (
                 <p className="text-xs text-gray-400">No installation team assigned yet</p>
               )}
+            </div>
+          )}
+
+          {/* Factory: team member multi-select */}
+          {isManager && isFactory && allTeamMembers.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Assign Team Members
+                {selectedMemberIds.length > 0 && (
+                  <span className="ml-1.5 text-green-600">({selectedMemberIds.length} selected)</span>
+                )}
+              </label>
+              <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 overflow-hidden">
+                {allTeamMembers.map((m) => {
+                  const isBusy = busyMemberIds.has(m.id)
+                  const isChecked = selectedMemberIds.includes(m.id)
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => toggleMember(m.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors
+                        ${isBusy ? 'opacity-40 cursor-not-allowed bg-gray-50' : isChecked ? 'bg-green-50' : 'hover:bg-gray-50'}`}
+                    >
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
+                        ${isChecked ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                        {isChecked && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className={`text-sm ${isBusy ? 'line-through text-gray-400' : isChecked ? 'text-green-700 font-medium' : 'text-gray-700'}`}>
+                        {m.name}
+                      </span>
+                      {isBusy && <span className="ml-auto text-[10px] text-red-400 font-medium">Booked</span>}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 

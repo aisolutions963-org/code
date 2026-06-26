@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getSedQuarterlyRevenue } from '@/lib/airtable'
+import { getSedQuarterlyRevenue, getProjectIdsForSedByEmail } from '@/lib/airtable'
 import { getUserById, getSedProjectIdsByUserId } from '@/lib/db'
 import { todayUAE } from '@/lib/dateUtils'
 
@@ -55,7 +55,14 @@ export const GET = requireRole('sed')(async (_req, session) => {
   const dbUser = await getUserById(session.id)
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const projectIds = await getSedProjectIdsByUserId(session.id)
+  // Merge SQLite-mapped projects with Airtable projects owned by this SED
+  // (SQLite may miss projects created directly in Airtable or before the mapping was introduced)
+  const [sqliteIds, airtableIds] = await Promise.all([
+    getSedProjectIdsByUserId(session.id),
+    getProjectIdsForSedByEmail(session.email),
+  ])
+  const projectIds = [...new Set([...sqliteIds, ...airtableIds])]
+
   const { label, start, end } = getQuarter(todayUAE())
   const revenue = await getSedQuarterlyRevenue(projectIds, start, end)
   const commission = calcCommission(revenue)

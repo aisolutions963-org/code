@@ -1,15 +1,22 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getCalendarEvents, createCalendarEvent } from '@/lib/airtable'
 import { CreateCalendarEventSchema } from '@/lib/validation'
-import { getUserByAirtableMemberId } from '@/lib/db'
+import { getUserByAirtableMemberId, getUserById } from '@/lib/db'
 import { createNotification } from '@/lib/notifications'
 
 const PAYMENT_EVENT_TYPES = new Set(['payment-due', 'payment-received'])
 
-export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async (_req, session) => {
+export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async (req: NextRequest, session) => {
   try {
     const all = await getCalendarEvents()
+    const mine = req.nextUrl.searchParams.get('mine') === 'true'
+    if (mine && session.role === 'installation') {
+      const dbUser = await getUserById(session.id)
+      const memberId = dbUser?.airtable_member_id
+      const events = memberId ? all.filter((e) => e.teamMemberIds?.includes(memberId)) : []
+      return NextResponse.json({ events })
+    }
     const canSeePayments = session.role === 'manager' || session.role === 'superadmin'
     const events = canSeePayments ? all : all.filter((e) => !PAYMENT_EVENT_TYPES.has(e.type))
     return NextResponse.json({ events })
@@ -27,7 +34,7 @@ export const POST = requireRole('manager', 'superadmin', 'sed', 'installation', 
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
     }
     const { teamMemberIds, ...eventData } = parsed.data
-    await createCalendarEvent({ ...eventData, createdBy: session.name })
+    await createCalendarEvent({ ...eventData, createdBy: session.name, teamMemberIds })
 
     if (teamMemberIds && teamMemberIds.length > 0 &&
         (parsed.data.eventType === 'fabrication' || parsed.data.eventType === 'installation')) {
