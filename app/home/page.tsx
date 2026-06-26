@@ -16,10 +16,10 @@ interface HomeData {
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const ROLE_LABELS: Record<string, string> = {
-  fix: 'Installation Team',
+  installation: 'Installation Team',
   sed: 'SED',
-  fab: 'Fabrication',
-  mgr: 'Manager',
+  fabrication: 'Fabrication',
+  manager: 'Manager',
   superadmin: 'Superadmin',
 }
 

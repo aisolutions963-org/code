@@ -9,6 +9,16 @@ export { hashPassword, verifyPassword }
 const COOKIE_NAME = 'ww_session'
 export { COOKIE_NAME }
 
+const ROLE_MAP: Record<string, Role> = {
+  mgr: 'manager',
+  fab: 'fabrication',
+  fix: 'installation',
+}
+
+function normalizeRole(raw: string): Role {
+  return ROLE_MAP[raw] ?? (raw as Role)
+}
+
 function getSecret(): Uint8Array {
   const secret = process.env.SESSION_SECRET
   if (!secret || secret.length < 32) {
@@ -28,7 +38,8 @@ export async function createSession(user: SessionPayload): Promise<string> {
 export async function verifySession(token: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret())
-    return payload as unknown as SessionPayload
+    const session = payload as unknown as SessionPayload
+    return { ...session, role: normalizeRole(session.role) }
   } catch {
     return null
   }
@@ -57,7 +68,7 @@ export async function login(
       .sign(getSecret())
     return { requiresPasswordChange: true, tempToken }
   }
-  return { id: user.id, name: user.name, email: user.email, role: user.role as Role }
+  return { id: user.id, name: user.name, email: user.email, role: normalizeRole(user.role) }
 }
 
 export async function verifyTempToken(token: string): Promise<number | null> {
