@@ -11,6 +11,7 @@ interface AppNotification {
   body: string
   link: string
   read: number
+  category: string
   created_at: string
 }
 
@@ -242,40 +243,49 @@ export default function NotificationsPage() {
       {/* Notification list */}
       {!isLoading && shown.length > 0 && (
         <div className="space-y-1.5">
-          {shown.map((n) => (
-            <div
-              key={n.id}
-              onClick={() => n.read === 0 && markRead(n.id)}
-              className={`rounded-xl border transition-all ${n.read === 0 ? 'cursor-pointer' : ''} ${
-                n.read === 0
-                  ? 'bg-blue-50 border-blue-100 hover:bg-blue-100/60'
-                  : 'bg-white border-gray-200'
-              }`}
-            >
-              <div className="px-4 py-3.5 flex items-start gap-3">
-                {n.read === 0 && (
-                  <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
-                )}
-                <div className={`min-w-0 flex-1 ${n.read !== 0 ? 'pl-5' : ''}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <p className={`text-sm leading-snug ${n.read === 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-600'}`}>
-                      {n.title}
-                    </p>
-                    <span className="text-[11px] text-gray-400 shrink-0 mt-0.5 whitespace-nowrap">{timeAgo(n.created_at)}</span>
-                  </div>
-                  {n.body && (
-                    <p className="text-xs text-gray-500 mt-1 leading-relaxed whitespace-pre-wrap">{n.body}</p>
+          {shown.map((n) => {
+            const isInstall = n.category === 'installation'
+            const unreadBg = isInstall ? 'bg-orange-50 border-orange-100 hover:bg-orange-100/60' : 'bg-blue-50 border-blue-100 hover:bg-blue-100/60'
+            const dotColor = isInstall ? 'bg-orange-400' : 'bg-blue-500'
+            return (
+              <div
+                key={n.id}
+                onClick={() => n.read === 0 && markRead(n.id)}
+                className={`rounded-xl border transition-all ${n.read === 0 ? 'cursor-pointer' : ''} ${
+                  n.read === 0 ? unreadBg : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className="px-4 py-3.5 flex items-start gap-3">
+                  {n.read === 0 && (
+                    <span className={`w-2 h-2 rounded-full ${dotColor} mt-1.5 shrink-0`} />
                   )}
-                  <p className="text-[11px] text-gray-300 mt-1.5">
-                    {parseDate(n.created_at).toLocaleDateString('en-AE', {
-                      weekday: 'short', month: 'short', day: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
-                    })}
-                  </p>
+                  <div className={`min-w-0 flex-1 ${n.read !== 0 ? 'pl-5' : ''}`}>
+                    {isInstall && (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-orange-500 mb-1">
+                        <span className="w-1 h-1 rounded-full bg-orange-400 inline-block" />
+                        Installation Team
+                      </span>
+                    )}
+                    <div className="flex items-start justify-between gap-3">
+                      <p className={`text-sm leading-snug ${n.read === 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-600'}`}>
+                        {n.title}
+                      </p>
+                      <span className="text-[11px] text-gray-400 shrink-0 mt-0.5 whitespace-nowrap">{timeAgo(n.created_at)}</span>
+                    </div>
+                    {n.body && (
+                      <p className="text-xs text-gray-500 mt-1 leading-relaxed whitespace-pre-wrap">{n.body}</p>
+                    )}
+                    <p className="text-[11px] text-gray-300 mt-1.5">
+                      {parseDate(n.created_at).toLocaleDateString('en-AE', {
+                        weekday: 'short', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

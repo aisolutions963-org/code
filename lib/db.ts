@@ -74,6 +74,7 @@ async function initDB(): Promise<void> {
   const migrations = [
     `ALTER TABLE notifications ADD COLUMN recipient_user_id INTEGER`,
     `ALTER TABLE users ADD COLUMN force_password_change INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE notifications ADD COLUMN category TEXT NOT NULL DEFAULT 'default'`,
   ]
   for (const sql of migrations) {
     try {

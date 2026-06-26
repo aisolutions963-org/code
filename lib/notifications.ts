@@ -26,6 +26,7 @@ export interface DBNotification {
   body: string
   link: string
   read: number
+  category: string
   created_at: string
 }
 
@@ -37,12 +38,13 @@ export async function createNotification(opts: {
   title: string
   body?: string
   link?: string
+  category?: string
 }): Promise<void> {
   try {
     const c = await db()
     await c.execute({
-      sql: `INSERT INTO notifications (recipient_role, recipient_user_id, title, body, link) VALUES (?, ?, ?, ?, ?)`,
-      args: [opts.recipientRole, opts.recipientUserId ?? null, opts.title, opts.body ?? '', opts.link ?? ''],
+      sql: `INSERT INTO notifications (recipient_role, recipient_user_id, title, body, link, category) VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [opts.recipientRole, opts.recipientUserId ?? null, opts.title, opts.body ?? '', opts.link ?? '', opts.category ?? 'default'],
     })
     await c.execute({
       sql: `DELETE FROM notifications WHERE created_at < datetime('now', '-${RETENTION_DAYS} days')`,

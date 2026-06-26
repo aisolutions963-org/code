@@ -122,7 +122,10 @@ export const PATCH = requireRole()(
         }
       }
       await handleTaskCompletion(params.id, session.name)
-      if (taskForValidation.taskName.toLowerCase().startsWith('fixing team note')) {
+      const isFixingTeamNote =
+        taskForValidation.taskName.toLowerCase().startsWith('fixing team note') ||
+        taskForValidation.taskName.startsWith('ملاحظة فريق التركيب')
+      if (isFixingTeamNote) {
         const projectRef = taskForValidation.projectRef ?? taskForValidation.project?.[0] ?? ''
         const projectLabel = taskForValidation.projectName
           ? `${projectRef} — ${taskForValidation.projectName}`
@@ -136,6 +139,7 @@ export const PATCH = requireRole()(
             title: `Fixing team handover note — ${projectRef}`,
             body,
             link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
+            category: 'installation',
           })
         }
       }

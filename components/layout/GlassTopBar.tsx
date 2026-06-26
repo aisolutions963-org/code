@@ -50,6 +50,7 @@ interface AppNotification {
   body: string
   link: string
   read: number
+  category: string
   created_at: string
 }
 
@@ -331,25 +332,36 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                         </button>
                       )}
                     </div>
-                    {appNotifications.slice(0, 10).map((n) => (
-                      <Link
-                        key={n.id}
-                        href="/dashboard/notifications"
-                        onClick={() => { handleMarkRead(n.id); setBellOpen(false) }}
-                        className={`block px-4 py-3 hover:bg-white/[0.04] transition-colors border-b border-white/[0.04] last:border-0 ${n.read === 0 ? 'bg-blue-500/5' : ''}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          {n.read === 0 && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0 animate-pulse-glow" />}
-                          <div className={`min-w-0 ${n.read === 0 ? '' : 'ml-3.5'}`}>
-                            <p className="text-xs font-semibold text-white/80 leading-snug">{n.title}</p>
-                            {n.body && <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2 whitespace-pre-wrap">{n.body}</p>}
-                            <p className="text-[10px] text-white/25 mt-0.5">
-                              {new Date(n.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}
-                            </p>
+                    {appNotifications.slice(0, 10).map((n) => {
+                      const isInstall = n.category === 'installation'
+                      const unreadBg = isInstall ? 'bg-orange-500/10' : 'bg-blue-500/5'
+                      const dotColor = isInstall ? 'bg-orange-400' : 'bg-blue-500'
+                      return (
+                        <Link
+                          key={n.id}
+                          href="/dashboard/notifications"
+                          onClick={() => { handleMarkRead(n.id); setBellOpen(false) }}
+                          className={`block px-4 py-3 hover:bg-white/[0.04] transition-colors border-b border-white/[0.04] last:border-0 ${n.read === 0 ? unreadBg : ''}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {n.read === 0 && <span className={`w-1.5 h-1.5 rounded-full ${dotColor} mt-1.5 shrink-0 animate-pulse-glow`} />}
+                            <div className={`min-w-0 ${n.read === 0 ? '' : 'ml-3.5'}`}>
+                              {isInstall && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-orange-400 mb-0.5">
+                                  <span className="w-1 h-1 rounded-full bg-orange-400 inline-block" />
+                                  Installation Team
+                                </span>
+                              )}
+                              <p className="text-xs font-semibold text-white/80 leading-snug">{n.title}</p>
+                              {n.body && <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2 whitespace-pre-wrap">{n.body}</p>}
+                              <p className="text-[10px] text-white/25 mt-0.5">
+                                {new Date(n.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' })}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </Link>
-                    ))}
+                        </Link>
+                      )
+                    })}
                   </div>
                 )}
 

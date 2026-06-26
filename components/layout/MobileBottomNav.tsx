@@ -163,6 +163,7 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
   installation: [
     { label: 'Home', href: '/home' },
     { label: 'My Tasks', href: '/dashboard/fix' },
+    { label: 'Forms', href: '/dashboard/forms' },
     { label: 'Team Tasks', href: '/dashboard/fix?view=team' },
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries' },
     { label: 'Inspections', href: '/dashboard/fix?view=inspections' },
