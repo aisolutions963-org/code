@@ -102,8 +102,8 @@ const EVENT_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
   { value: 'delivery',     label: 'Delivery'     },
 ]
 const INSTALL_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
-  { value: 'installation', label: 'Project Visit' },
-  { value: 'fabrication',  label: 'Factory'       },
+  { value: 'installation', label: 'Installation' },
+  { value: 'fabrication',  label: 'Fabrication'  },
 ]
 
 interface CalendarProject { id: string; name: string; projectRef: string }
@@ -178,20 +178,24 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }
       {/* Type selector — hidden for personal and install tabs */}
       {!personalMode && (
         <div className="flex gap-1.5 flex-wrap">
-          {typeOpts.map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => { setType(opt.value); setMembers([]) }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                eventType === opt.value
-                  ? 'bg-gray-800 text-white border-gray-800'
-                  : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700 bg-white'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {typeOpts.map(opt => {
+            const dotColor = TYPE_CFG[opt.value as EventType]?.dot ?? 'bg-gray-400'
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { setType(opt.value); setMembers([]) }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                  eventType === opt.value
+                    ? 'bg-gray-800 text-white border-gray-800'
+                    : 'text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700 bg-white'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${eventType === opt.value ? 'bg-white opacity-80' : dotColor}`} />
+                {opt.label}
+              </button>
+            )
+          })}
         </div>
       )}
 

@@ -20,7 +20,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const MGR_CALENDAR_TABS: TabDef[] = [
   { id: 'activity',     label: 'Activity',      dot: 'bg-blue-500',   types: ['activity', 'fabrication'],               canAddEvent: true },
-  { id: 'payments',     label: 'Payments',      dot: 'bg-red-500',    types: ['payment-received', 'payment-due'],        noAdd: true },
+  { id: 'payments',     label: 'Payments',      dot: 'bg-red-400',    types: ['payment-received', 'payment-due'],        noAdd: true },
   { id: 'personal',     label: 'My Activities', dot: 'bg-yellow-400', types: ['personal'], personalMode: true,           canAddEvent: true },
   { id: 'installation', label: 'Installation',  dot: 'bg-purple-500', types: ['installation', 'fabrication', 'delivery'], showInstallAssign: true, canAddEvent: true },
 ]

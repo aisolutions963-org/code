@@ -106,7 +106,7 @@ const PRIMARY_NAV: Record<Role, MobileNavItem[]> = {
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
     { label: 'My Tasks', href: '/dashboard/fix', icon: (a) => <TasksSvg active={a} /> },
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries', icon: (a) => <TruckSvg active={a} /> },
-    { label: 'Logs', href: '/dashboard/fix?view=logs', icon: (a) => <FolderSvg active={a} /> },
+    { label: 'Materials', href: '/dashboard/fix?view=materials', icon: (a) => <FolderSvg active={a} /> },
   ],
   sed: [
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
@@ -166,7 +166,6 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'Team Tasks', href: '/dashboard/fix?view=team' },
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries' },
     { label: 'Inspections', href: '/dashboard/fix?view=inspections' },
-    { label: 'Install Logs', href: '/dashboard/fix?view=logs' },
   ],
   sed: [
     { label: 'Home', href: '/home' },

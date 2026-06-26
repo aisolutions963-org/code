@@ -380,7 +380,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       label: 'Site Work',
       items: [
         { label: 'Inspections', href: '/dashboard/fix?view=inspections', icon: <InspectIcon /> },
-        { label: 'Install Logs', href: '/dashboard/fix?view=logs', icon: <ClipboardIcon /> },
         { label: 'Materials', href: '/dashboard/fix?view=materials', icon: <HammerIcon /> },
       ],
     },

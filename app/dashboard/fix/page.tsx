@@ -1,12 +1,11 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, Project, InstallationLog } from '@/lib/types'
+import { Task, TaskUpdateInput, Project } from '@/lib/types'
 import TaskList from '@/components/tasks/TaskList'
 import HandoverModal from '@/components/projects/HandoverModal'
-import InstallationLogModal from '@/components/projects/InstallationLogModal'
 import AllMaterialsView from '@/components/materials/AllMaterialsView'
 import UnifiedCalendar from '@/components/calendar/UnifiedCalendar'
 
@@ -18,7 +17,6 @@ export default function FixDashboard() {
   const searchParams = useSearchParams()
   const view = searchParams.get('view') ?? 'tasks'
   const [handoverProject, setHandoverProject] = useState<Project | null>(null)
-  const [logProject, setLogProject] = useState<Project | null>(null)
 
   const { data, error, isLoading, mutate } = useSWR<{ tasks: Task[] }>(
     '/api/tasks?role=installation',
@@ -102,12 +100,7 @@ export default function FixDashboard() {
         <UnifiedCalendar filterTypes={['installation', 'fabrication', 'delivery']} />
       )}
 
-      {/* Installation Logs view */}
-      {view === 'logs' && (
-        <LogsView projects={projects} tasks={tasks} onNewLog={(p) => setLogProject(p)} />
-      )}
-
-      {view !== 'logs' && view !== 'materials' && view !== 'calendar' && (
+      {view !== 'materials' && view !== 'calendar' && (
         <>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
@@ -185,129 +178,6 @@ export default function FixDashboard() {
           onCreated={() => mutateProjects()}
         />
       )}
-
-      {logProject && (
-        <InstallationLogModal
-          project={logProject}
-          onClose={() => setLogProject(null)}
-          onCreated={() => setLogProject(null)}
-        />
-      )}
     </div>
   )
 }
-
-function LogsView({ projects, tasks, onNewLog }: { projects: Project[]; tasks: Task[]; onNewLog: (p: Project) => void }) {
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null
-
-  const requirementTask = selectedProjectId
-    ? tasks.find(
-        (t) =>
-          (t.projectRecordId === selectedProjectId || t.project?.[0] === selectedProjectId) &&
-          (t.taskName.toLowerCase().startsWith('fixing team note') ||
-            t.taskName.toLowerCase().startsWith('how many days') ||
-            t.taskName.toLowerCase().startsWith('installation day') ||
-            t.taskName.startsWith('ملاحظة فريق التركيب')),
-      )
-    : null
-
-  const { data, isLoading, mutate } = useSWR<{ logs: InstallationLog[] }>(
-    selectedProjectId ? `/api/projects/${selectedProjectId}/installation-logs` : null,
-    fetcher,
-    { refreshInterval: 300_000 },
-  )
-
-  const logs = data?.logs ?? []
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-3">
-        <p className="text-sm font-semibold text-gray-700">سجلات التركيب</p>
-        <div className="flex flex-wrap gap-2">
-          {projects.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedProjectId(p.id)}
-              className={`text-xs border rounded-lg px-3 py-1.5 font-medium transition-colors ${
-                selectedProjectId === p.id
-                  ? 'bg-blue-600 border-blue-600 text-white'
-                  : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-              }`}
-            >
-              {p.projectId} — {p.projectName}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {selectedProject && (
-        <div className="flex justify-between items-center">
-          <p className="text-sm font-medium text-gray-700">{selectedProject.projectName}</p>
-          <button
-            onClick={() => onNewLog(selectedProject)}
-            className="text-xs bg-blue-600 text-white hover:bg-blue-700 rounded-lg px-3 py-1.5 font-medium"
-          >
-            + تسجيل زيارة
-          </button>
-        </div>
-      )}
-
-      {requirementTask?.status === 'Completed' && (requirementTask.teamDaysRequired != null || requirementTask.noOfLaborsPerDay != null) && (
-        <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-center gap-6" dir="rtl">
-          <div className="text-xs font-semibold text-violet-700 shrink-0">متطلبات التركيب</div>
-          {requirementTask.teamDaysRequired != null && (
-            <div className="text-center">
-              <p className="text-xl font-bold text-violet-900">{requirementTask.teamDaysRequired}</p>
-              <p className="text-[10px] text-violet-600">أيام</p>
-            </div>
-          )}
-          {requirementTask.noOfLaborsPerDay != null && (
-            <div className="text-center">
-              <p className="text-xl font-bold text-violet-900">{requirementTask.noOfLaborsPerDay}</p>
-              <p className="text-[10px] text-violet-600">عمال / يوم</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {isLoading && <div className="flex justify-center py-8"><div className="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full" /></div>}
-
-      {!isLoading && selectedProjectId && logs.length === 0 && (
-        <p className="text-center py-8 text-sm text-gray-400">لا توجد سجلات لهذا المشروع بعد.</p>
-      )}
-
-      {logs.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          <div className="divide-y divide-gray-50">
-            {logs.map((log) => (
-              <div key={log.id} className="px-4 py-3 space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-900">{log.date}</p>
-                  {log.installationTeam && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{log.installationTeam}</span>
-                  )}
-                </div>
-                {log.workDescription && (
-                  <p className="text-xs text-gray-600 whitespace-pre-line">{log.workDescription}</p>
-                )}
-                <div className="flex gap-3 text-xs text-gray-400">
-                  {log.numberOfLaborers != null && <span>{log.numberOfLaborers} عمال</span>}
-                  {log.expectedFinishDate && <span>توقع الانتهاء: {log.expectedFinishDate}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="px-4 py-2 border-t border-gray-100 flex justify-end">
-            <button onClick={() => mutate()} className="text-xs text-gray-400 hover:text-gray-600">تحديث</button>
-          </div>
-        </div>
-      )}
-
-      {!selectedProjectId && (
-        <p className="text-center py-10 text-sm text-gray-400">اختر مشروعًا لعرض سجلاته.</p>
-      )}
-    </div>
-  )
-}
-
