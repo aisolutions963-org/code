@@ -421,7 +421,7 @@ function HandoverSection({ project, onCreated }: { project: Project; onCreated: 
   )
 }
 
-function ProjectCard({ project, canPay, onRefresh }: { project: Project; canPay: boolean; onRefresh: () => void }) {
+function ProjectCard({ project, canPay, canHandover, onRefresh }: { project: Project; canPay: boolean; canHandover: boolean; onRefresh: () => void }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
       <div>
@@ -431,7 +431,7 @@ function ProjectCard({ project, canPay, onRefresh }: { project: Project; canPay:
         </p>
       </div>
       {canPay && <PaymentForm project={project} />}
-      <HandoverSection project={project} onCreated={onRefresh} />
+      {canHandover && <HandoverSection project={project} onCreated={onRefresh} />}
     </div>
   )
 }
@@ -455,7 +455,8 @@ export default function FormsClient({ role }: { role: Role }) {
   const [f3Saved, setF3Saved] = useState(false)
 
   const canPay = role === 'manager' || role === 'superadmin'
-  const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'superadmin'
+  const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'fabrication' || role === 'superadmin'
+  const canHandover = role === 'installation' || role === 'manager' || role === 'superadmin'
   const projects = data?.projects ?? []
 
   return (
@@ -517,6 +518,7 @@ export default function FormsClient({ role }: { role: Role }) {
             key={project.id}
             project={project}
             canPay={canPay}
+            canHandover={canHandover}
             onRefresh={() => mutate()}
           />
         ))}
