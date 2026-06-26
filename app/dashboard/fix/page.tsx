@@ -104,7 +104,7 @@ export default function FixDashboard() {
 
       {/* Installation Logs view */}
       {view === 'logs' && (
-        <LogsView projects={projects} onNewLog={(p) => setLogProject(p)} />
+        <LogsView projects={projects} tasks={tasks} onNewLog={(p) => setLogProject(p)} />
       )}
 
       {view !== 'logs' && view !== 'materials' && view !== 'calendar' && (
@@ -197,9 +197,20 @@ export default function FixDashboard() {
   )
 }
 
-function LogsView({ projects, onNewLog }: { projects: Project[]; onNewLog: (p: Project) => void }) {
+function LogsView({ projects, tasks, onNewLog }: { projects: Project[]; tasks: Task[]; onNewLog: (p: Project) => void }) {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null
+
+  const requirementTask = selectedProjectId
+    ? tasks.find(
+        (t) =>
+          (t.projectRecordId === selectedProjectId || t.project?.[0] === selectedProjectId) &&
+          (t.taskName.toLowerCase().startsWith('fixing team note') ||
+            t.taskName.toLowerCase().startsWith('how many days') ||
+            t.taskName.toLowerCase().startsWith('installation day') ||
+            t.taskName.startsWith('ملاحظة فريق التركيب')),
+      )
+    : null
 
   const { data, isLoading, mutate } = useSWR<{ logs: InstallationLog[] }>(
     selectedProjectId ? `/api/projects/${selectedProjectId}/installation-logs` : null,
@@ -239,6 +250,24 @@ function LogsView({ projects, onNewLog }: { projects: Project[]; onNewLog: (p: P
           >
             + تسجيل زيارة
           </button>
+        </div>
+      )}
+
+      {requirementTask?.status === 'Completed' && (requirementTask.teamDaysRequired != null || requirementTask.noOfLaborsPerDay != null) && (
+        <div className="bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-center gap-6" dir="rtl">
+          <div className="text-xs font-semibold text-violet-700 shrink-0">متطلبات التركيب</div>
+          {requirementTask.teamDaysRequired != null && (
+            <div className="text-center">
+              <p className="text-xl font-bold text-violet-900">{requirementTask.teamDaysRequired}</p>
+              <p className="text-[10px] text-violet-600">أيام</p>
+            </div>
+          )}
+          {requirementTask.noOfLaborsPerDay != null && (
+            <div className="text-center">
+              <p className="text-xl font-bold text-violet-900">{requirementTask.noOfLaborsPerDay}</p>
+              <p className="text-[10px] text-violet-600">عمال / يوم</p>
+            </div>
+          )}
         </div>
       )}
 

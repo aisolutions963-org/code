@@ -202,7 +202,8 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const isFixingTeamNoteTask =
     task.taskName.toLowerCase().startsWith('fixing team note') ||
     task.taskName.toLowerCase().startsWith('how many days') ||
-    task.taskName.toLowerCase().startsWith('installation day')
+    task.taskName.toLowerCase().startsWith('installation day') ||
+    task.taskName.startsWith('ملاحظة فريق التركيب')
   const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
   // Carpentry / Paint per-item tasks: shown alongside Fabrication Done — team marks In Progress if applicable
   const isFabItemPath =
