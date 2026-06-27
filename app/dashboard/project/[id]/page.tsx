@@ -296,7 +296,7 @@ function PaymentsSection({ project, payments }: { project: Project; payments: Pa
         </>
       )}
 
-      {payments.length === 0 ? (
+      {activePayments.length === 0 ? (
         <p className="text-sm text-gray-400">No payments recorded yet.</p>
       ) : (
         <div className="overflow-x-auto">

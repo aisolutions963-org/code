@@ -122,6 +122,24 @@ export async function notifyRejection(params: {
   })
 }
 
+export async function notifyAutoTaskEvent(params: {
+  taskName: string
+  projectLabel: string
+}): Promise<void> {
+  const to = process.env.MANAGER_EMAIL
+  if (!to || !process.env.RESEND_API_KEY) return
+  await getResend().emails.send({
+    from: 'WoodWings <notifications@woodwings.ae>',
+    to,
+    subject: `${params.taskName} — ${params.projectLabel}`,
+    html: `
+      <h2>${params.taskName}</h2>
+      <p><strong>Project:</strong> ${params.projectLabel}</p>
+      <p>This event completed automatically. Log in to the dashboard to review.</p>
+    `,
+  })
+}
+
 export async function notifyAccountant(payment: {
   projectName: string
   projectId: string

@@ -15,7 +15,7 @@ import {
   createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
-import { notifyManager, notifyManagerEscalation, notifyCallClient, notifyRejection, notifyAccountantEvent } from './email'
+import { notifyManager, notifyManagerEscalation, notifyCallClient, notifyRejection, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
 import { getUsersByRole } from './db'
 import { PHASE_CONFIG, TASK_MARKERS } from './phases'
@@ -305,6 +305,9 @@ async function unlockNextTasks(task: Task): Promise<void> {
       if (t.taskName.toLowerCase().includes('accountant') && process.env.RESEND_API_KEY) {
         notifyAccountantEvent({ eventName: title, projectLabel })
           .catch((err) => console.error('[A15] notifyAccountantEvent failed:', err))
+      } else {
+        notifyAutoTaskEvent({ taskName: title, projectLabel })
+          .catch((err) => console.error('[AUTO-EMAIL]', err))
       }
     }
     // Trigger chain continuation once — all auto tasks are Completed so the

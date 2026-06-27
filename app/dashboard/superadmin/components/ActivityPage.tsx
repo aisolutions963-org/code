@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts'
 import { Task } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
@@ -15,6 +15,13 @@ const DEPTS: Dept[] = ['All', 'SED', 'Fabrication', 'Installation', 'Management'
 
 const ROLE_LABELS: Record<string, string> = { superadmin: 'Superadmin', manager: 'Manager', sed: 'SED', fabrication: 'Fabrication', installation: 'Installation' }
 const ROLE_COLORS: Record<string, string> = { superadmin: 'bg-brand-100 text-brand-700', manager: 'bg-green-100 text-green-700', sed: 'bg-purple-100 text-purple-700', fabrication: 'bg-amber-100 text-amber-700', installation: 'bg-blue-100 text-blue-700' }
+const DEPT_COLORS: Record<string, string> = {
+  SED:          'bg-purple-100 text-purple-700',
+  Fabrication:  'bg-amber-100 text-amber-700',
+  Installation: 'bg-blue-100 text-blue-700',
+  Management:   'bg-green-100 text-green-700',
+  Superadmin:   'bg-brand-100 text-brand-700',
+}
 
 function PersonSection({ group }: { group: TeamGroup }) {
   const [expanded, setExpanded] = useState(false)
@@ -61,7 +68,13 @@ function PersonSection({ group }: { group: TeamGroup }) {
                   <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef || '—'}</td>
                     <td className="px-4 py-2.5 text-gray-800 max-w-xs truncate">{t.taskName}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') || '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {(t.department ?? []).length === 0 ? <span className="text-xs text-gray-400">—</span> : t.department!.map(d => (
+                          <span key={d} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${DEPT_COLORS[d] ?? 'bg-gray-100 text-gray-600'}`}>{d}</span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-2.5">
                       <Badge variant={({ 'In Progress': 'blue', 'Completed': 'green', 'Pending Approval': 'orange', 'To Do': 'gray', 'Locked': 'gray' } as Record<string, 'blue'|'green'|'orange'|'gray'|'red'>)[t.status] ?? 'gray'} size="sm">{t.status}</Badge>
                     </td>
@@ -100,19 +113,11 @@ export default function ActivityPage() {
     mutate()
   }
 
-  const monthlyData = (() => {
-    const map: Record<string, number> = {}
-    for (const t of tasks) {
-      if (!t.completedAt) continue
-      const d = new Date(t.completedAt)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      map[key] = (map[key] ?? 0) + 1
-    }
-    return Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6)
-      .map(([key, count]) => ({ month: key.slice(5), count }))
-  })()
+  const deptData = ['SED', 'Fabrication', 'Installation', 'Management'].map(dept => ({
+    dept,
+    active:    tasks.filter(t => t.department?.includes(dept) && t.status !== 'Completed' && t.status !== 'Locked').length,
+    completed: tasks.filter(t => t.department?.includes(dept) && t.status === 'Completed').length,
+  }))
 
   if (isLoading) return <Spinner />
 
@@ -131,20 +136,20 @@ export default function ActivityPage() {
 
       {viewMode === 'task' ? (
         <>
-          {monthlyData.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Monthly Completions (last 6 months)</p>
-              <ResponsiveContainer width="100%" height={140}>
-                <BarChart data={monthlyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="count" fill="#6366f1" radius={[3, 3, 0, 0]} name="Completed" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Tasks by Department</p>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={deptData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }} barCategoryGap="30%">
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="dept" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="active"    fill="#f59e0b" radius={[3, 3, 0, 0]} name="Active"    />
+                <Bar dataKey="completed" fill="#22c55e" radius={[3, 3, 0, 0]} name="Completed" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
           <div className="flex gap-1 bg-gray-100 p-1 rounded-lg overflow-x-auto">
             {DEPTS.map((d) => (
               <button key={d} onClick={() => setDept(d)} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${dept === d ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{d}</button>
@@ -185,7 +190,13 @@ export default function ActivityPage() {
                             <span className="text-gray-800">{t.taskName}</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-xs text-gray-500">{t.department?.join(', ') ?? '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-wrap gap-1">
+                            {(t.department ?? []).length === 0 ? <span className="text-xs text-gray-400">—</span> : t.department!.map(d => (
+                              <span key={d} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${DEPT_COLORS[d] ?? 'bg-gray-100 text-gray-600'}`}>{d}</span>
+                            ))}
+                          </div>
+                        </td>
                         <td className="px-4 py-2.5"><TaskStatusBadge status={t.status} /></td>
                         <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{t.projectRef ?? t.project?.[0] ?? '—'}</td>
                       </tr>

@@ -80,8 +80,10 @@ function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unkno
   return result
 }
 
-// Template orders for "Take Measurement" tasks — installation team only, not auto-assigned to SED
+// Template orders for "Take Measurement" tasks — excluded from SED's query and from auto-generation.
+// These tasks are created on-demand via the "Request Measurements" button, not at project creation.
 const SED_EXCLUDED_TEMPLATE_ORDERS = [4, 24]
+const GLOBALLY_EXCLUDED_TEMPLATE_ORDERS = [4, 24]
 
 function buildDepartmentFormula(role: Role): string {
   if (role === 'superadmin') {
@@ -814,7 +816,7 @@ export async function generateTasksForProject(
   if (fetchedTemplates.length === 0) return { created: 0, skipped: 0, todoTemplates: [] }
 
   const openCfg = PHASE_CONFIG.Open
-  const allTemplates = stage === 'Open'
+  const allTemplates = (stage === 'Open'
     ? fetchedTemplates.filter(
         (t) =>
           t.templateOrder !== null &&
@@ -822,6 +824,7 @@ export async function generateTasksForProject(
           (t.phaseLabel === null || t.phaseLabel === openCfg.phaseLabel),
       )
     : fetchedTemplates
+  ).filter(t => t.templateOrder == null || !GLOBALLY_EXCLUDED_TEMPLATE_ORDERS.includes(t.templateOrder))
 
   if (allTemplates.length === 0) return { created: 0, skipped: 0, todoTemplates: [] }
 
