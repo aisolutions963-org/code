@@ -100,7 +100,7 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
           ))}
         </div>
 
-        <ResponsiveContainer width="100%" height={Math.max(120, (selectedSed ? 4 : data.length) * 40)}>
+        <ResponsiveContainer width="100%" height={Math.max(160, (selectedSed ? 4 : data.length) * 68)}>
           {selectedSed ? (
             <BarChart
               layout="vertical"
@@ -109,7 +109,7 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
               <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
               <Bar dataKey="value" radius={[0, 3, 3, 0]} name="Projects">
                 {(chartData as { name: string; value: number; fill: string }[]).map((entry, idx) => (
@@ -125,7 +125,7 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
               <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
               <Bar dataKey="preparing" fill="#3b82f6" radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
               <Bar dataKey="open" fill="#16a34a" radius={[0, 0, 0, 0]} name="Open" stackId="a" />
@@ -137,17 +137,24 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
 
         {/* Commission summary table */}
         <div className="mt-4 border-t border-gray-100 pt-3">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Commission (1.5% of paid)</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Commission (tiered — 1.5% silver · 2% gold)</p>
           <div className="space-y-1">
-            {(selectedSed ? data.filter((d) => d.sedName === selectedSed) : data).map((d) => (
+            {(selectedSed ? data.filter((d) => d.sedName === selectedSed) : data).map((d) => {
+              const tier = d.totalPaid >= 600_000 ? 'gold' : d.totalPaid >= 300_000 ? 'silver' : null
+              return (
               <div key={d.sedName} className="flex items-start flex-wrap justify-between gap-1 text-xs">
                 <span className="text-gray-600 font-medium truncate">{d.sedName}</span>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {tier && (
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${tier === 'gold' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {tier}
+                    </span>
+                  )}
                   <span className="text-gray-400">Paid: AED {d.totalPaid.toLocaleString()}</span>
                   <span className="font-semibold text-emerald-600">AED {d.commission.toLocaleString()}</span>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       </div>

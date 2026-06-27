@@ -11,6 +11,7 @@ const API_KEY = process.env.AIRTABLE_API_KEY!
 interface AirtableProject {
   stage: string
   ownerId: string
+  communIds: string[]
   totalPaid: number
 }
 
@@ -21,6 +22,7 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
     const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
     params.append('fields[]', PROJECTS.PROJECT_STAGE)
     params.append('fields[]', PROJECTS.SALES_OWNER)
+    params.append('fields[]', PROJECTS.COMMUN_SEDS)
     params.append('fields[]', PROJECTS.TOTAL_PAID)
     if (offset) params.set('offset', offset)
     const res = await fetch(
@@ -34,16 +36,23 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
     }
     for (const r of data.records) {
       const rawOwner = r.fields[PROJECTS.SALES_OWNER]
-      // SALES_OWNER is a linked record field — returns array of record IDs or objects
       const ownerArr = Array.isArray(rawOwner) ? rawOwner : (rawOwner ? [rawOwner] : [])
       const ownerEntry = ownerArr[0]
       const ownerId =
         typeof ownerEntry === 'string'
           ? ownerEntry
           : (ownerEntry as { id?: string } | undefined)?.id ?? ''
+
+      const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
+      const communArr: Array<string | { id?: string }> = Array.isArray(rawCommun) ? rawCommun : []
+      const communIds = communArr
+        .map((c) => (typeof c === 'string' ? c : (c.id ?? '')))
+        .filter(Boolean)
+
       results.push({
         stage: (r.fields[PROJECTS.PROJECT_STAGE] as string) ?? '',
         ownerId,
+        communIds,
         totalPaid:
           typeof r.fields[PROJECTS.TOTAL_PAID] === 'number'
             ? (r.fields[PROJECTS.TOTAL_PAID] as number)
@@ -82,6 +91,22 @@ async function fetchTeamMemberMap(): Promise<Map<string, string>> {
   return map
 }
 
+type SedEntry = { preparing: number; open: number; closed: number; notApproved: number; totalPaid: number }
+
+function ensureSed(map: Record<string, SedEntry>, sedNames: string[], name: string) {
+  if (!map[name]) {
+    map[name] = { preparing: 0, open: 0, closed: 0, notApproved: 0, totalPaid: 0 }
+    sedNames.push(name)
+  }
+}
+
+function incrementStage(entry: SedEntry, stage: string) {
+  if (stage === 'Preparing') entry.preparing++
+  else if (stage === 'Open') entry.open++
+  else if (stage === 'Closed' || stage === 'Closed and active warranty' || stage === 'Warranty expired') entry.closed++
+  else if (stage === 'Not-Approved') entry.notApproved++
+}
+
 export const GET = requireRole('superadmin')(async () => {
   const [projects, teamMemberMap] = await Promise.all([
     fetchProjectsForStats(),
@@ -89,27 +114,27 @@ export const GET = requireRole('superadmin')(async () => {
   ])
 
   const sedNames: string[] = []
-  const map: Record<string, { preparing: number; open: number; closed: number; notApproved: number; totalPaid: number }> = {}
+  const map: Record<string, SedEntry> = {}
 
   for (const p of projects) {
-    if (!p.ownerId) continue
-    const name = teamMemberMap.get(p.ownerId)
-    if (!name) continue
-
-    if (!map[name]) {
-      map[name] = { preparing: 0, open: 0, closed: 0, notApproved: 0, totalPaid: 0 }
-      sedNames.push(name)
+    // Primary owner — gets stage count + revenue
+    if (p.ownerId) {
+      const name = teamMemberMap.get(p.ownerId)
+      if (name) {
+        ensureSed(map, sedNames, name)
+        incrementStage(map[name], p.stage)
+        map[name].totalPaid += p.totalPaid
+      }
     }
-    const entry = map[name]
-    if (p.stage === 'Preparing') entry.preparing++
-    else if (p.stage === 'Open') entry.open++
-    else if (
-      p.stage === 'Closed' ||
-      p.stage === 'Closed and active warranty' ||
-      p.stage === 'Warranty expired'
-    ) entry.closed++
-    else if (p.stage === 'Not-Approved') entry.notApproved++
-    entry.totalPaid += p.totalPaid
+
+    // Commun SEDs — get stage count only (revenue stays with primary owner)
+    for (const communId of p.communIds) {
+      const communName = teamMemberMap.get(communId)
+      if (communName) {
+        ensureSed(map, sedNames, communName)
+        incrementStage(map[communName], p.stage)
+      }
+    }
   }
 
   const data = sedNames.map((name) => ({
