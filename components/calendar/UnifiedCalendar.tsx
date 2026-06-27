@@ -103,10 +103,16 @@ const EVENT_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
 ]
 const INSTALL_TYPE_OPTS: { value: CalendarEventType; label: string }[] = [
   { value: 'installation', label: 'Installation' },
-  { value: 'fabrication',  label: 'Fabrication'  },
+  { value: 'fabrication',  label: 'Factory'      },
 ]
 
-interface CalendarProject { id: string; name: string; projectRef: string }
+interface CalendarProject {
+  id: string
+  name: string
+  quotationNumber?: string
+  quotationReference?: string
+  assignedTeamIds?: string[]
+}
 
 // ─── Inline Add Form ──────────────────────────────────────────────────────────
 function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }: {
@@ -134,7 +140,7 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }
     { revalidateOnFocus: false },
   )
   const { data: teamData } = useSWR<{ members: { id: string; name: string }[] }>(
-    showFactory ? '/api/team/installation' : null,
+    '/api/team/installation',
     fetcher,
   )
   const projects    = projData?.projects ?? []
@@ -214,7 +220,7 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }
         onChange={e => setDate(e.target.value)}
       />
 
-      {/* Project picker (activity tab only — not for factory or personal) */}
+      {/* Project picker (not for factory or personal) */}
       {!isFactory && !personalMode && (
         <select
           value={projectId}
@@ -222,13 +228,31 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">— No project —</option>
-          {projects.map(p => (
-            <option key={p.id} value={p.id}>
-              {p.projectRef ? `${p.projectRef} — ` : ''}{p.name}
-            </option>
-          ))}
+          {projects.map(p => {
+            const label = [p.quotationNumber, p.quotationReference].filter(Boolean).join(' — ') || p.name
+            return <option key={p.id} value={p.id}>{label}</option>
+          })}
         </select>
       )}
+
+      {/* Assigned installation team — read-only info when project selected on installation tab */}
+      {!isFactory && !personalMode && projectId && (() => {
+        const proj = projects.find(p => p.id === projectId)
+        const assigned = teamMembers.filter(m => proj?.assignedTeamIds?.includes(m.id))
+        if (!assigned.length) return null
+        return (
+          <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+            <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider mb-1.5">Assigned Team</p>
+            <div className="flex flex-wrap gap-1.5">
+              {assigned.map(m => (
+                <span key={m.id} className="text-xs bg-white border border-blue-200 text-blue-700 px-2 py-0.5 rounded-full">
+                  {m.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Team member selection (install tab only) */}
       {showFactory && (

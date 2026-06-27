@@ -36,7 +36,14 @@ export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', '
   const [projects, expiredMaint] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, {
       returnFieldsByFieldId: 'true',
-      'fields[]': [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME],
+      'fields[]': [
+        PROJECTS.PROJECT_ID,
+        PROJECTS.PROJECT_NAME,
+        PROJECTS.NICKNAME,
+        PROJECTS.QUOTATION_NUMBER,
+        PROJECTS.QUOTATION_REFERENCE,
+        PROJECTS.INSTALLATION_TEAM_MEMBERS,
+      ],
     }),
     fetchAll(MAINTENANCE.TABLE_ID, {
       returnFieldsByFieldId: 'true',
@@ -61,7 +68,9 @@ export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', '
         (p.fields[PROJECTS.PROJECT_ID] as string | undefined) ??
         p.id
       ),
-      projectRef: (p.fields[PROJECTS.PROJECT_ID] as string | undefined) ?? '',
+      quotationNumber:   (p.fields[PROJECTS.QUOTATION_NUMBER]         as string | undefined) ?? undefined,
+      quotationReference:(p.fields[PROJECTS.QUOTATION_REFERENCE]      as string | undefined) ?? undefined,
+      assignedTeamIds:   (p.fields[PROJECTS.INSTALLATION_TEAM_MEMBERS] as string[] | undefined) ?? undefined,
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
 

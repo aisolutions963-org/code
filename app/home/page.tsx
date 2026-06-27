@@ -77,25 +77,22 @@ function HomeCalendar({
   canAddActivity,
   canAddInstallation,
   onActivityDate,
-  onInstallationDate,
 }: {
   canAddActivity: boolean
   canAddInstallation: boolean
   onActivityDate: (date: string) => void
-  onInstallationDate: (date: string) => void
 }) {
   const tabs: TabDef[] = [
-    { id: 'all',          label: 'All',                   dot: 'bg-gray-400',   types: null,                                          noAdd: true },
-    { id: 'installation', label: 'Installation & Delivery', dot: 'bg-blue-500',   types: ['installation', 'delivery', 'fabrication'],  noAdd: !canAddInstallation },
-    { id: 'activity',     label: 'Activity',              dot: 'bg-amber-400',  types: ['activity'],                                  noAdd: !canAddActivity },
+    { id: 'all',          label: 'All',                     dot: 'bg-gray-400',  types: null,                                         noAdd: true },
+    { id: 'installation', label: 'Installation & Delivery', dot: 'bg-blue-500',  types: ['installation', 'delivery', 'fabrication'],  canAddEvent: canAddInstallation, showInstallAssign: canAddInstallation },
+    { id: 'activity',     label: 'Activity',                dot: 'bg-amber-400', types: ['activity'],                                 noAdd: !canAddActivity },
   ]
 
   return (
     <UnifiedCalendar
       tabs={tabs}
       onDayClick={(date, tabId) => {
-        if (tabId === 'installation' && canAddInstallation) onInstallationDate(date)
-        if (tabId === 'activity'    && canAddActivity)      onActivityDate(date)
+        if (tabId === 'activity' && canAddActivity) onActivityDate(date)
       }}
     />
   )
@@ -618,7 +615,6 @@ export default function HomePage() {
   const { role, name } = useSession()
   const router = useRouter()
   const [activityDate, setActivityDate] = useState<string | null>(null)
-  const [installationDate, setInstallationDate] = useState<string | null>(null)
 
   const { data, isLoading, mutate } = useSWR<HomeData>(
     '/api/home',
@@ -697,7 +693,6 @@ export default function HomePage() {
           canAddActivity={canAddActivity}
           canAddInstallation={canAddInstallation}
           onActivityDate={setActivityDate}
-          onInstallationDate={setInstallationDate}
         />
       </div>
 
@@ -710,13 +705,7 @@ export default function HomePage() {
         />
       )}
 
-      {installationDate && (
-        <AddInstallationModal
-          date={installationDate}
-          onClose={() => setInstallationDate(null)}
-          onSuccess={() => { mutate() }}
-        />
-      )}
+
     </div>
   )
 }
