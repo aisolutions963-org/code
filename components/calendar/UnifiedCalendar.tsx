@@ -59,7 +59,7 @@ function AssignTeamInline({ projectId, onDone }: { projectId: string; onDone: ()
   async function save() {
     setSaving(true)
     await fetch(`/api/projects/${projectId}/assign-installation`, {
-      method: 'POST',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamMemberIds: selected }),
     })

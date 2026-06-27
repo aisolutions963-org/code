@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS, TEAM_MEMBERS } from '@/lib/fieldMap'
+import { calcCommission } from '@/lib/commission'
 
 export const dynamic = 'force-dynamic'
 
 const BASE_ID = process.env.AIRTABLE_BASE_ID!
 const API_KEY = process.env.AIRTABLE_API_KEY!
-
-const COMMISSION_RATE = 0.015
 
 interface AirtableProject {
   stage: string
@@ -116,7 +115,7 @@ export const GET = requireRole('superadmin')(async () => {
   const data = sedNames.map((name) => ({
     sedName: name,
     ...map[name],
-    commission: Math.round(map[name].totalPaid * COMMISSION_RATE),
+    commission: Math.round(calcCommission(map[name].totalPaid).amount),
   }))
 
   return NextResponse.json({ seds: sedNames, data })

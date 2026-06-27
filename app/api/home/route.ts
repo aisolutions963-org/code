@@ -9,10 +9,14 @@ export async function GET() {
   }
 
   try {
-    const [announcements, events] = await Promise.all([
+    const canSeePayments = session.role === 'manager' || session.role === 'superadmin'
+    const [announcements, allEvents] = await Promise.all([
       getAnnouncements(session.role),
       getCalendarEvents(),
     ])
+    const events = canSeePayments
+      ? allEvents
+      : allEvents.filter(e => e.type !== 'payment-received' && e.type !== 'payment-due')
     return NextResponse.json({ announcements, events })
   } catch (error) {
     console.error('GET /api/home error:', error)

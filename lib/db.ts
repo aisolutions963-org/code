@@ -144,7 +144,7 @@ export async function getUserById(id: number): Promise<DBUser | undefined> {
 export async function getAllUsers(): Promise<Omit<DBUser, 'hashed_password'>[]> {
   const c = await db()
   const result = await c.execute(
-    'SELECT id, name, email, role, active, airtable_member_id, created_at, updated_at FROM users',
+    'SELECT id, name, email, role, active, force_password_change, airtable_member_id, created_at, updated_at FROM users',
   )
   return rows<Omit<DBUser, 'hashed_password'>>(result)
 }
@@ -152,7 +152,7 @@ export async function getAllUsers(): Promise<Omit<DBUser, 'hashed_password'>[]> 
 export async function getUsersByRole(role: string): Promise<Omit<DBUser, 'hashed_password'>[]> {
   const c = await db()
   const result = await c.execute({
-    sql: 'SELECT id, name, email, role, active, airtable_member_id, created_at, updated_at FROM users WHERE role = ? AND active = 1',
+    sql: 'SELECT id, name, email, role, active, force_password_change, airtable_member_id, created_at, updated_at FROM users WHERE role = ? AND active = 1',
     args: [role],
   })
   return rows<Omit<DBUser, 'hashed_password'>>(result)
@@ -200,7 +200,8 @@ export async function updateUser(
     airtable_member_id?: string
   },
 ): Promise<void> {
-  const entries = Object.entries(fields).filter(([, v]) => v !== undefined)
+  const ALLOWED_COLUMNS = new Set(['name', 'email', 'hashed_password', 'role', 'active', 'force_password_change', 'airtable_member_id'])
+  const entries = Object.entries(fields).filter(([k, v]) => v !== undefined && ALLOWED_COLUMNS.has(k))
   if (!entries.length) return
   const c = await db()
   const setClauses = entries.map(([k]) => `${k} = ?`).join(', ')

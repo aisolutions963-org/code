@@ -88,7 +88,7 @@ export async function setSessionCookie(token: string): Promise<void> {
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict',
     maxAge: 60 * 60 * 24,
     path: '/',
   })

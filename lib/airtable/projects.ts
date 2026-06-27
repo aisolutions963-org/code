@@ -197,6 +197,21 @@ export async function getProjectById(id: string): Promise<Project> {
   return transformProject(record)
 }
 
+export async function getProjectNamesByIds(ids: string[]): Promise<Record<string, string>> {
+  if (ids.length === 0) return {}
+  const formula = `OR(${ids.map((id) => `RECORD_ID()='${id}'`).join(',')})`
+  const records = await fetchAll(PROJECTS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [PROJECTS.PROJECT_NAME],
+  })
+  const map: Record<string, string> = {}
+  for (const r of records) {
+    const name = r.fields[PROJECTS.PROJECT_NAME] as string | undefined
+    if (name) map[r.id] = name
+  }
+  return map
+}
+
 export async function updateProject(
   id: string,
   fields: Record<string, unknown>,

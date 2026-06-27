@@ -3,7 +3,7 @@ import { verifyTempToken, createSession, setSessionCookie, getUserById } from '@
 import { updateUser, hashPassword } from '@/lib/db'
 
 const MIN_LENGTH = 8
-const DEFAULT_PASSWORD = process.env.DEFAULT_USER_PASSWORD ?? 'WoodWings2025!'
+const DEFAULT_PASSWORD = process.env.DEFAULT_USER_PASSWORD ?? ''
 
 export async function POST(req: NextRequest) {
   let body: unknown

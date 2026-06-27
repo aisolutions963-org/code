@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { createProjectItem, createQuotation, generateItemTasksForProject, getProjectById, getQuotationsByProject, updateProject } from '@/lib/airtable'
+import { createProjectItem, createQuotation, generateItemTasksForProject, getQuotationsByProject, updateProject } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
 import { CreateQuotationItemsSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
@@ -36,9 +36,7 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     [PROJECTS.QUOTATION_REFERENCE]: parsed.data.quotationReference,
   }
   if (parsed.data.totalAmountToPay !== undefined) {
-    const existing = await getProjectById(id)
-    const previousTotal = existing.projectTotalCost ?? 0
-    projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = previousTotal + parsed.data.totalAmountToPay
+    projectUpdate[PROJECTS.PROJECT_TOTAL_COST] = parsed.data.totalAmountToPay
   }
   await updateProject(id, projectUpdate)
 

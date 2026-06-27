@@ -115,9 +115,12 @@ export async function getUnreadCountForRole(role: string): Promise<number> {
   return r ? Number(r[0]) : 0
 }
 
-export async function markNotificationRead(id: number): Promise<void> {
+export async function markNotificationRead(id: number, role: string): Promise<void> {
   const c = await db()
-  await c.execute({ sql: `UPDATE notifications SET read = 1 WHERE id = ?`, args: [id] })
+  await c.execute({
+    sql: `UPDATE notifications SET read = 1 WHERE id = ? AND recipient_role = ?`,
+    args: [id, role],
+  })
 }
 
 export async function markAllReadForRole(role: string): Promise<void> {

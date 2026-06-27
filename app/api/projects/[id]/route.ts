@@ -100,8 +100,11 @@ export async function PATCH(
     }
   }
 
-  // Notes-only update
+  // Notes-only update — manager/superadmin only
   if ('notes' in parsed && !parsed.quotationNumber) {
+    if (!['manager', 'superadmin'].includes(session.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     if (typeof parsed.notes !== 'string') {
       return NextResponse.json({ error: 'notes must be a string' }, { status: 400 })
     }

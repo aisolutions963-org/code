@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import {
   getMaintenanceRecords,
-  getProjectById,
+  getProjectNamesByIds,
   expireMaintenanceRecord,
   updateProject,
 } from '@/lib/airtable'
@@ -39,19 +39,7 @@ async function buildResponse(records: Awaited<ReturnType<typeof getMaintenanceRe
   )
 
   const allProjectIds = Array.from(new Set(sorted.flatMap((r) => r.projects ?? [])))
-  const projectNames: Record<string, string> = {}
-  if (allProjectIds.length > 0) {
-    await Promise.all(
-      allProjectIds.map(async (id) => {
-        try {
-          const p = await getProjectById(id)
-          projectNames[id] = p.projectName
-        } catch {
-          projectNames[id] = id
-        }
-      }),
-    )
-  }
+  const projectNames = allProjectIds.length > 0 ? await getProjectNamesByIds(allProjectIds) : {}
 
   const enriched = sorted.map((r) => ({
     ...r,

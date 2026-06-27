@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireRole } from '@/lib/apiHandler'
 import { getMetrics, getSystemStatus } from '@/lib/metrics'
 import { SYSTEM_LOGS } from '@/lib/fieldMap'
 
@@ -18,7 +19,7 @@ async function checkAirtable(): Promise<'ok' | 'failing'> {
   }
 }
 
-export async function GET() {
+export const GET = requireRole('superadmin')(async () => {
   const [airtableStatus, metrics] = await Promise.all([
     checkAirtable(),
     Promise.resolve(getMetrics()),
@@ -38,4 +39,4 @@ export async function GET() {
     },
     lastError: metrics.lastErrorAt,
   })
-}
+}) as () => Promise<NextResponse>
