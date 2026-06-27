@@ -243,7 +243,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Pipeline', href: '/dashboard/pipeline', icon: <PipelineIcon /> },
         { label: 'All Projects', href: '/dashboard/superadmin?view=projects', icon: <FolderIcon /> },
-        { label: 'Timeline', href: '/dashboard/superadmin?view=timeline', icon: <TimelineIcon /> },
         { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases', icon: <PhaseGateIcon /> },
         { label: 'Activity', href: '/dashboard/superadmin?view=activity', icon: <ActivityIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
@@ -365,7 +364,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
     {
       items: [
         HOME_ITEM,
-        { label: 'My Tasks', href: '/dashboard/fix', icon: <TasksIcon /> },
         { label: 'Forms', href: '/dashboard/forms', icon: <FormsIcon /> },
       ],
     },
@@ -373,13 +371,12 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       label: 'Team',
       items: [
         { label: 'Team Tasks', href: '/dashboard/fix?view=team', icon: <TeamIcon /> },
-        { label: 'Deliveries', href: '/dashboard/fix?view=deliveries', icon: <TruckIcon /> },
       ],
     },
     {
       label: 'Site Work',
       items: [
-        { label: 'Inspections', href: '/dashboard/fix?view=inspections', icon: <InspectIcon /> },
+        { label: 'Deliveries', href: '/dashboard/fix?view=deliveries', icon: <TruckIcon /> },
         { label: 'Materials', href: '/dashboard/fix?view=materials', icon: <HammerIcon /> },
       ],
     },

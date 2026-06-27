@@ -17,7 +17,27 @@ export async function GET(request: NextRequest) {
 
   try {
     let projects
-    if (all) {
+    if (all && session.role === 'sed') {
+      // SED with all=true: include all stages (for pipeline view) but still filter to their projects
+      const [dbUser, sqliteIds] = await Promise.all([
+        getUserById(session.id),
+        getSedProjectIdsByUserId(session.id),
+      ])
+      const airtableProjects = await getProjects({
+        sedAirtableMemberId: dbUser?.airtable_member_id ?? undefined,
+        sedEmail: session.email,
+        includeAllStages: true,
+      })
+      const airtableProjectIds = new Set(airtableProjects.map((p) => p.id))
+      const missingIds = sqliteIds.filter((id) => !airtableProjectIds.has(id))
+      const extra = missingIds.length > 0
+        ? await Promise.all(missingIds.map((id) => getProjectById(id).catch(() => null)))
+        : []
+      projects = [
+        ...airtableProjects,
+        ...extra.filter((p): p is NonNullable<typeof p> => p !== null),
+      ]
+    } else if (all) {
       projects = await getAllProjects()
     } else if (session.role === 'sed') {
       const [dbUser, sqliteIds] = await Promise.all([
@@ -41,9 +61,6 @@ export async function GET(request: NextRequest) {
         ...extra.filter((p): p is NonNullable<typeof p> => p !== null && !CLOSED_STAGES.has(p.projectStage ?? '')),
       ]
     } else {
-      // fabrication, installation, manager — get all active projects
-      // (default formula already excludes Closed, Closed and active warranty,
-      //  and Warranty expired)
       projects = await getProjects({ stage })
     }
     return NextResponse.json({ projects })

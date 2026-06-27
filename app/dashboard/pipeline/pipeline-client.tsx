@@ -16,11 +16,10 @@ const COLUMNS: { title: string; stages: string[] }[] = [
   { title: 'Warranty',   stages: ['Closed and active warranty', 'Warranty expired'] },
 ]
 
-export default function PipelineClient({ role }: { role: string }) {
+export default function PipelineClient({ role: _role }: { role: string }) {
   const [search, setSearch] = useState('')
-  const isWideRole = role === 'superadmin' || role === 'manager'
   const { data, isLoading } = useSWR<{ projects: Project[] }>(
-    isWideRole ? '/api/projects?all=true' : '/api/projects',
+    '/api/projects?all=true',
     fetcher,
     { refreshInterval: 300_000 },
   )

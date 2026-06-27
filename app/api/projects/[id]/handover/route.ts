@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import {
   createHandoverSheet,
+  updateHandoverSheet,
   getHandoverSheetForProject,
   getInstallationLogsByProject,
   getProjectById,
@@ -53,9 +54,10 @@ export const POST = requireRole('installation', 'manager', 'superadmin')(
     ])
 
     // Upsert: update the draft sheet built up from installation logs, or create one fresh
+    const sheetData = { ...parsed.data, recordedBy: session.name }
     const sheet = existingSheets.length > 0
-      ? existingSheets[0]
-      : await createHandoverSheet(params.id, parsed.data)
+      ? await updateHandoverSheet(existingSheets[0].id, sheetData)
+      : await createHandoverSheet(params.id, sheetData)
 
     // Handover submitted → project is now Closed.
     await updateProject(params.id, { [PROJECTS.PROJECT_STAGE]: 'Closed' })

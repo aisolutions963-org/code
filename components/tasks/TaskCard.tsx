@@ -183,7 +183,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const isMakeQuotation =
     task.pathCondition === 'Make Quotation' ||
     task.taskName.toLowerCase().includes('make quotation')
-  const isF4Task = task.taskName.toLowerCase().startsWith('f4 —') || task.taskName.toLowerCase().startsWith('f4 form —')
+  const isF4Task = task.taskName.toLowerCase().startsWith('f4 —') || task.taskName.toLowerCase().startsWith('f4 form —') || task.templateOrder.includes(62)
   const isF5Task = task.taskName.toLowerCase().startsWith('f5 —')
   const isF3Task =
     task.taskName.toLowerCase().startsWith('f3 —') ||

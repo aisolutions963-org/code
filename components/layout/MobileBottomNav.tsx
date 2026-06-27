@@ -103,10 +103,10 @@ function MenuSvg() {
 // Primary tabs per role (max 4 + "More")
 const PRIMARY_NAV: Record<Role, MobileNavItem[]> = {
   installation: [
-    { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
-    { label: 'My Tasks', href: '/dashboard/fix', icon: (a) => <TasksSvg active={a} /> },
+    { label: 'Home',       href: '/home',                          icon: (a) => <HomeSvg active={a} /> },
+    { label: 'Team',       href: '/dashboard/fix?view=team',       icon: (a) => <TasksSvg active={a} /> },
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries', icon: (a) => <TruckSvg active={a} /> },
-    { label: 'Materials', href: '/dashboard/fix?view=materials', icon: (a) => <FolderSvg active={a} /> },
+    { label: 'Materials',  href: '/dashboard/fix?view=materials',  icon: (a) => <FolderSvg active={a} /> },
   ],
   sed: [
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
@@ -161,12 +161,11 @@ const ROLE_LABELS: Record<Role, string> = {
 // All nav items (reused from sidebar) — used in the drawer
 const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
   installation: [
-    { label: 'Home', href: '/home' },
-    { label: 'My Tasks', href: '/dashboard/fix' },
-    { label: 'Forms', href: '/dashboard/forms' },
+    { label: 'Home',       href: '/home' },
+    { label: 'Forms',      href: '/dashboard/forms' },
     { label: 'Team Tasks', href: '/dashboard/fix?view=team' },
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries' },
-    { label: 'Inspections', href: '/dashboard/fix?view=inspections' },
+    { label: 'Materials',  href: '/dashboard/fix?view=materials' },
   ],
   sed: [
     { label: 'Home', href: '/home' },
@@ -201,7 +200,6 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'Forms', href: '/dashboard/forms' },
     { label: 'Overview', href: '/dashboard/superadmin' },
     { label: 'Pipeline', href: '/dashboard/pipeline' },
-    { label: 'Timeline', href: '/dashboard/superadmin?view=timeline' },
     { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases' },
     { label: 'Activity', href: '/dashboard/superadmin?view=activity' },
     { label: 'Payments', href: '/dashboard/superadmin?view=payments' },

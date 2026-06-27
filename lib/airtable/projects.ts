@@ -128,15 +128,19 @@ export async function getProjectIdsForSedByEmail(email: string): Promise<string[
   return records.map((r) => r.id)
 }
 
-export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[] } = {}): Promise<Project[]> {
+export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[]; includeAllStages?: boolean } = {}): Promise<Project[]> {
   const requestTypeFieldReady = !PROJECTS.REQUEST_TYPE.startsWith('REPLACE')
   const noRequests = requestTypeFieldReady ? `{${PROJECTS.REQUEST_TYPE}} = ""` : null
   const withNoReq = (f: string) => noRequests ? `AND(${f}, ${noRequests})` : f
-  let formula = withNoReq(`NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Closed and active warranty", {${PROJECTS.PROJECT_STAGE}}="Warranty expired"))`)
-  if (options.stage) {
-    formula = withNoReq(`{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`)
-  } else if (options.allowedStages?.length) {
-    formula = withNoReq(`OR(${options.allowedStages.map((s) => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')})`)
+  let formula = options.includeAllStages
+    ? (noRequests ?? undefined)
+    : withNoReq(`NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Closed and active warranty", {${PROJECTS.PROJECT_STAGE}}="Warranty expired"))`)
+  if (!options.includeAllStages) {
+    if (options.stage) {
+      formula = withNoReq(`{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`)
+    } else if (options.allowedStages?.length) {
+      formula = withNoReq(`OR(${options.allowedStages.map((s) => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')})`)
+    }
   }
   const [records, fabActiveIds] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, {
@@ -369,6 +373,39 @@ export async function createHandoverSheet(
   const data2 = (await res.json()) as { records: RawRecord[] }
   if (!data2.records[0]) throw new Error('Airtable returned empty records for handover sheet creation')
   return transformHandoverSheet(data2.records[0])
+}
+
+export async function updateHandoverSheet(
+  sheetId: string,
+  data: {
+    finalInstallationDate: string
+    customerSatisfaction: string
+    installationDifficulty: string
+    newsletterOptIn?: boolean
+    notes?: string
+    recordedBy?: string
+  },
+): Promise<HandoverSheet> {
+  const fields: Record<string, unknown> = {
+    [HANDOVER_SHEETS.STATUS]: 'Generated',
+    [HANDOVER_SHEETS.FINAL_INSTALLATION_DATE]: data.finalInstallationDate,
+    [HANDOVER_SHEETS.CUSTOMER_SATISFACTION]: data.customerSatisfaction,
+    [HANDOVER_SHEETS.INSTALLATION_DIFFICULTY]: data.installationDifficulty,
+  }
+  if (data.notes) fields[HANDOVER_SHEETS.NOTES] = data.notes
+  if (data.newsletterOptIn !== undefined) fields[HANDOVER_SHEETS.NEWSLETTER_OPT_IN] = data.newsletterOptIn
+  if (data.recordedBy) fields[HANDOVER_SHEETS.RECORDED_BY] = data.recordedBy
+  const res = await fetchWithRetry(`${tblUrl(HANDOVER_SHEETS.TABLE_ID)}/${sheetId}`, {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+  const updated = (await res.json()) as RawRecord
+  return transformHandoverSheet(updated)
 }
 
 export async function getHandoverSheetForProject(projectId: string): Promise<HandoverSheet[]> {

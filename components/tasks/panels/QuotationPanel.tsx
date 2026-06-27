@@ -130,7 +130,10 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     try {
       const qn = quotationInput.trim()
       const ref = referenceInput.trim()
-      if (!alreadyHasQN && qn) await patchProjectQuotation(qn, ref)
+      const needsPatch = (!alreadyHasQN && qn) || (!alreadyHasRef && ref)
+      if (needsPatch) {
+        await patchProjectQuotation(alreadyHasQN ? (task.projectQuotationNumber ?? '') : qn, ref)
+      }
 
       const body: Record<string, unknown> = {
         project: [projectId],
@@ -291,13 +294,21 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
         <label className={lbl}>
           Quotation Number <span className="text-red-500">*</span>
         </label>
-        {task.projectQuotationNumber ? (
+        {task.projectQuotationNumber && task.projectQuotationReference ? (
           <p className="text-sm font-mono font-medium text-blue-700 py-1">
             {task.projectQuotationNumber}
-            {task.projectQuotationReference && (
-              <span className="ml-2 font-normal text-blue-400">{task.projectQuotationReference}</span>
-            )}
+            <span className="ml-2 font-normal text-blue-400">{task.projectQuotationReference}</span>
           </p>
+        ) : task.projectQuotationNumber ? (
+          <div>
+            <p className="text-sm font-mono font-medium text-blue-700 py-1">{task.projectQuotationNumber}</p>
+            <input
+              className={inp + ' font-mono mt-1'}
+              placeholder="Ref e.g. R0 *"
+              value={referenceInput}
+              onChange={(e) => setReferenceInput(e.target.value)}
+            />
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             <input

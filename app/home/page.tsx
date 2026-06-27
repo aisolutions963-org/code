@@ -545,11 +545,10 @@ const HOME_COLUMNS: { title: string; stages: string[] }[] = [
   { title: 'Warranty',   stages: ['Closed and active warranty', 'Warranty expired'] },
 ]
 
-function HomePipeline({ role }: { role: string }) {
+function HomePipeline({ role: _role }: { role: string }) {
   const [search, setSearch] = useState('')
-  const isWideRole = role === 'superadmin' || role === 'manager'
   const { data, isLoading } = useSWR<{ projects: Project[] }>(
-    isWideRole ? '/api/projects?all=true' : '/api/projects',
+    '/api/projects?all=true',
     fetcher,
     { refreshInterval: 300_000 },
   )

@@ -66,7 +66,7 @@ export const POST = requireRole('manager', 'superadmin')(
       (p) =>
         p.paymentType === body.paymentType &&
         p.amount === body.amount &&
-        (body.receivedDate !== undefined ? p.receivedDate === body.receivedDate : false) &&
+        (body.receivedDate === undefined || p.receivedDate === body.receivedDate) &&
         p.paymentStatus !== 'Cancelled',
     )
     if (isDuplicate) {
