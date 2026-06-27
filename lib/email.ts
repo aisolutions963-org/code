@@ -5,6 +5,97 @@ function getResend() {
   return new Resend(process.env.RESEND_API_KEY)
 }
 
+const BASE_URL =
+  process.env.APP_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://woodwings.ae')
+
+const LOGO_URL = `${BASE_URL}/logo.png`
+
+function emailWrapper(content: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WoodWings Notification</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#1a1a2e;padding:28px 40px;text-align:center;">
+            <img src="${LOGO_URL}" alt="WoodWings" height="48" style="display:inline-block;max-height:48px;" />
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 40px 28px;">
+            ${content}
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8f8fa;border-top:1px solid #e5e7eb;padding:20px 40px;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#9ca3af;">
+              This is an automated notification from <strong style="color:#6b7280;">WoodWings Project Management</strong>.<br/>
+              Please do not reply to this email. Log in at
+              <a href="${BASE_URL}" style="color:#1a1a2e;text-decoration:none;">${BASE_URL}</a>
+              to take action.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+function heading(text: string): string {
+  return `<h2 style="margin:0 0 20px;font-size:20px;font-weight:700;color:#1a1a2e;">${text}</h2>`
+}
+
+function infoTable(rows: [string, string | undefined][]): string {
+  const filtered = rows.filter((r): r is [string, string] => Boolean(r[1]))
+  if (filtered.length === 0) return ''
+  return `
+  <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:0 0 24px;">
+    ${filtered
+      .map(
+        ([label, value]) => `
+    <tr>
+      <td style="padding:10px 14px;background:#f8f8fa;border:1px solid #e5e7eb;width:36%;font-size:13px;font-weight:600;color:#374151;">${label}</td>
+      <td style="padding:10px 14px;background:#ffffff;border:1px solid #e5e7eb;font-size:13px;color:#111827;">${value}</td>
+    </tr>`,
+      )
+      .join('')}
+  </table>`
+}
+
+function ctaButton(label: string, href: string): string {
+  return `<p style="margin:24px 0 0;">
+    <a href="${href}" style="display:inline-block;padding:12px 28px;background:#1a1a2e;color:#ffffff;border-radius:7px;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:0.3px;">${label}</a>
+  </p>`
+}
+
+function bodyText(text: string): string {
+  return `<p style="margin:0 0 16px;font-size:14px;line-height:1.7;color:#374151;">${text}</p>`
+}
+
+function alertBadge(label: string, color: string): string {
+  return `<p style="margin:0 0 20px;">
+    <span style="display:inline-block;padding:4px 12px;background:${color}20;color:${color};border:1px solid ${color}50;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">${label}</span>
+  </p>`
+}
+
+// ─── Notification functions ──────────────────────────────────────────────────
+
 export async function notifyManager(task: {
   taskName: string
   projectId?: string
@@ -12,19 +103,26 @@ export async function notifyManager(task: {
 }): Promise<void> {
   const to = process.env.MANAGER_EMAIL
   if (!to) return
+
+  const projectLabel = task.projectId ?? '—'
+  const dashboardUrl = `${BASE_URL}/dashboard/mgr`
+
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
     to,
-    subject: `Task pending review — ${task.projectId ?? 'WoodWings'}`,
-    html: `
-      <h2>Task awaiting your approval</h2>
-      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
-        <tr><td><strong>Task</strong></td><td>${task.taskName}</td></tr>
-        ${task.projectId ? `<tr><td><strong>Project</strong></td><td>${task.projectId}</td></tr>` : ''}
-        ${task.submittedBy ? `<tr><td><strong>Submitted by</strong></td><td>${task.submittedBy}</td></tr>` : ''}
-      </table>
-      <p>Log in to the WoodWings dashboard to approve or reject.</p>
-    `,
+    subject: `Action required — Task pending review | ${projectLabel}`,
+    html: emailWrapper(`
+      ${alertBadge('Pending Review', '#f59e0b')}
+      ${heading('A task is awaiting your approval')}
+      ${bodyText('A team member has submitted the following task for manager review. Please log in to approve or reject it.')}
+      ${infoTable([
+        ['Task', task.taskName],
+        ['Project', task.projectId],
+        ['Submitted by', task.submittedBy],
+        ['Submitted at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
+      ])}
+      ${ctaButton('Review Task → Approve or Reject', dashboardUrl)}
+    `),
   })
 }
 
@@ -35,19 +133,26 @@ export async function notifyManagerEscalation(project: {
 }): Promise<void> {
   const to = process.env.MANAGER_EMAIL
   if (!to) return
+
+  const dashboardUrl = `${BASE_URL}/dashboard/mgr`
+
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
     to,
-    subject: `3-call escalation — ${project.projectId} — Client not responding`,
-    html: `
-      <h2>Client not responding — 3 call attempts reached</h2>
-      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
-        <tr><td><strong>Project</strong></td><td>${project.projectName} (${project.projectId})</td></tr>
-        <tr><td><strong>Client</strong></td><td>${project.clientName}</td></tr>
-      </table>
-      <p>The project has been automatically marked as <strong>Not-Approved</strong>.</p>
-      <p>Log in to the WoodWings dashboard to review and decide next steps.</p>
-    `,
+    subject: `Escalation — Client not responding after 3 attempts | ${project.projectId}`,
+    html: emailWrapper(`
+      ${alertBadge('Escalation', '#ef4444')}
+      ${heading('Client unreachable — 3 call attempts reached')}
+      ${bodyText('The sales team has made three unsuccessful attempts to contact this client. The project has been automatically marked as <strong>Not-Approved</strong>. Your review and decision on next steps is required.')}
+      ${infoTable([
+        ['Project Name', project.projectName],
+        ['Project ID', project.projectId],
+        ['Client', project.clientName],
+        ['Status set to', 'Not-Approved (automatic)'],
+        ['Escalated at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
+      ])}
+      ${ctaButton('View Project & Decide Next Steps', dashboardUrl)}
+    `),
   })
 }
 
@@ -58,20 +163,26 @@ export async function notifyCallClient(project: {
 }): Promise<void> {
   const to = process.env.MANAGER_EMAIL
   if (!to) return
+
+  const dashboardUrl = `${BASE_URL}/dashboard/mgr`
+
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
     to,
-    subject: `All gates cleared — call client now — ${project.projectId}`,
-    html: `
-      <h2>All approval gates cleared — client call required</h2>
-      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
-        <tr><td><strong>Project</strong></td><td>${project.projectName} (${project.projectId})</td></tr>
-        <tr><td><strong>Client</strong></td><td>${project.clientName}</td></tr>
-      </table>
-      <p>Concept design, sample, and quotation have all been approved.<br>
-      Call the client now to get final confirmation and advance the project.</p>
-      <p>Log in to the WoodWings dashboard to complete the <strong>Call the Client — All Approvals</strong> task.</p>
-    `,
+    subject: `All approvals cleared — call client now | ${project.projectId}`,
+    html: emailWrapper(`
+      ${alertBadge('Ready to Proceed', '#22c55e')}
+      ${heading('All approval gates cleared — client call required')}
+      ${bodyText('The concept design, material sample, and quotation have all been approved internally. The next step is to contact the client to obtain final confirmation and advance the project to the production phase.')}
+      ${infoTable([
+        ['Project Name', project.projectName],
+        ['Project ID', project.projectId],
+        ['Client', project.clientName],
+        ['Cleared at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
+        ['Next action', 'Call the Client — All Approvals task'],
+      ])}
+      ${ctaButton('Open Dashboard & Complete Task', dashboardUrl)}
+    `),
   })
 }
 
@@ -83,20 +194,25 @@ export async function notifyAccountantEvent(params: {
 }): Promise<void> {
   const accountantEmail = await getSetting('accountant_email')
   if (!accountantEmail) return
-  const baseUrl = process.env.APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
-  const fullLink = params.link && baseUrl ? `${baseUrl}${params.link}` : null
-  const linkHtml = fullLink
-    ? `<p><a href="${fullLink}" style="display:inline-block;padding:8px 16px;background:#1a1a2e;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">${params.linkLabel ?? 'View in Dashboard'}</a></p>`
-    : `<p>Log in to the WoodWings dashboard to review.</p>`
+
+  const fullLink = params.link ? `${BASE_URL}${params.link}` : null
+
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
     to: accountantEmail,
-    subject: `${params.eventName} — ${params.projectLabel}`,
-    html: `
-      <h2>${params.eventName}</h2>
-      <p><strong>Project:</strong> ${params.projectLabel}</p>
-      ${linkHtml}
-    `,
+    subject: `Finance action required — ${params.eventName} | ${params.projectLabel}`,
+    html: emailWrapper(`
+      ${alertBadge('Finance', '#8b5cf6')}
+      ${heading(params.eventName)}
+      ${infoTable([
+        ['Project', params.projectLabel],
+        ['Event', params.eventName],
+        ['Triggered at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
+      ])}
+      ${fullLink
+        ? ctaButton(params.linkLabel ?? 'View in Dashboard', fullLink)
+        : ctaButton('Open Finance Dashboard', `${BASE_URL}/dashboard/mgr`)}
+    `),
   })
 }
 
@@ -106,19 +222,24 @@ export async function notifyRejection(params: {
   managerComment?: string
   recipientEmail: string
 }): Promise<void> {
+  const dashboardUrl = `${BASE_URL}/dashboard`
+
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
     to: params.recipientEmail,
-    subject: `Task rejected — ${params.projectId ?? 'WoodWings'}`,
-    html: `
-      <h2>Task was not approved</h2>
-      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
-        <tr><td><strong>Task</strong></td><td>${params.taskName}</td></tr>
-        ${params.projectId ? `<tr><td><strong>Project</strong></td><td>${params.projectId}</td></tr>` : ''}
-        ${params.managerComment ? `<tr><td><strong>Comment</strong></td><td>${params.managerComment}</td></tr>` : ''}
-      </table>
-      <p>Log in to the WoodWings dashboard to review and resubmit.</p>
-    `,
+    subject: `Task not approved — action required | ${params.projectId ?? 'WoodWings'}`,
+    html: emailWrapper(`
+      ${alertBadge('Not Approved', '#ef4444')}
+      ${heading('Your submitted task was not approved')}
+      ${bodyText('A manager has reviewed your submission and it was not approved. Please review the feedback below, make the necessary changes, and resubmit.')}
+      ${infoTable([
+        ['Task', params.taskName],
+        ['Project', params.projectId],
+        ['Manager feedback', params.managerComment ?? 'No comment provided'],
+        ['Reviewed at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
+      ])}
+      ${ctaButton('Go to Dashboard & Resubmit', dashboardUrl)}
+    `),
   })
 }
 
@@ -128,15 +249,24 @@ export async function notifyAutoTaskEvent(params: {
 }): Promise<void> {
   const to = process.env.MANAGER_EMAIL
   if (!to || !process.env.RESEND_API_KEY) return
+
+  const dashboardUrl = `${BASE_URL}/dashboard/mgr`
+
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
     to,
-    subject: `${params.taskName} — ${params.projectLabel}`,
-    html: `
-      <h2>${params.taskName}</h2>
-      <p><strong>Project:</strong> ${params.projectLabel}</p>
-      <p>This event completed automatically. Log in to the dashboard to review.</p>
-    `,
+    subject: `Workflow update — ${params.taskName} | ${params.projectLabel}`,
+    html: emailWrapper(`
+      ${alertBadge('Automated Event', '#3b82f6')}
+      ${heading('A workflow step completed automatically')}
+      ${bodyText('The following task was completed automatically by the WoodWings workflow engine as part of the project lifecycle. No manual action is required unless you need to make corrections.')}
+      ${infoTable([
+        ['Task completed', params.taskName],
+        ['Project', params.projectLabel],
+        ['Completed at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
+      ])}
+      ${ctaButton('View Project in Dashboard', dashboardUrl)}
+    `),
   })
 }
 
@@ -152,21 +282,29 @@ export async function notifyAccountant(payment: {
 }): Promise<void> {
   const accountantEmail = await getSetting('accountant_email')
   if (!accountantEmail) return
+
+  const formatted = `AED ${payment.amount.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
     to: accountantEmail,
-    subject: `Payment recorded — ${payment.projectId} — AED ${payment.amount.toLocaleString()}`,
-    html: `
-      <h2>Payment recorded on WoodWings</h2>
-      <table cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
-        <tr><td><strong>Project</strong></td><td>${payment.projectName} (${payment.projectId})</td></tr>
-        <tr><td><strong>Amount</strong></td><td>AED ${payment.amount.toLocaleString()}</td></tr>
-        <tr><td><strong>Type</strong></td><td>${payment.paymentType}</td></tr>
-        <tr><td><strong>Method</strong></td><td>${payment.method}</td></tr>
-        <tr><td><strong>Reference</strong></td><td>${payment.reference}</td></tr>
-        <tr><td><strong>Date received</strong></td><td>${payment.receivedDate}</td></tr>
-        <tr><td><strong>Recorded by</strong></td><td>${payment.recordedBy}</td></tr>
-      </table>
-    `,
+    subject: `Payment recorded — ${formatted} | ${payment.projectId}`,
+    html: emailWrapper(`
+      ${alertBadge('Payment Received', '#22c55e')}
+      ${heading('A new payment has been recorded')}
+      ${bodyText('The following payment has been logged in the WoodWings system. Please verify the details and update your records accordingly.')}
+      ${infoTable([
+        ['Project Name', payment.projectName],
+        ['Project ID', payment.projectId],
+        ['Amount', formatted],
+        ['Payment Type', payment.paymentType],
+        ['Method', payment.method],
+        ['Reference No.', payment.reference || '—'],
+        ['Date Received', payment.receivedDate],
+        ['Recorded by', payment.recordedBy],
+        ['Recorded at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
+      ])}
+      ${ctaButton('View Payment in Dashboard', `${BASE_URL}/dashboard/mgr`)}
+    `),
   })
 }
