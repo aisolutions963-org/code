@@ -11,10 +11,12 @@ const ROLE_MAP: Record<string, string> = {
   'Installation':  'installation',
 }
 
-const DEFAULT_PASSWORD = process.env.DEFAULT_USER_PASSWORD
-if (!DEFAULT_PASSWORD) throw new Error('DEFAULT_USER_PASSWORD env var is required')
-
 export const GET = requireRole('superadmin')(async () => {
+  const DEFAULT_PASSWORD = process.env.DEFAULT_USER_PASSWORD
+  if (!DEFAULT_PASSWORD) {
+    return NextResponse.json({ error: 'DEFAULT_USER_PASSWORD env var is not configured' }, { status: 500 })
+  }
+
   const members = await getActiveTeamMembersForSync()
 
   const existingUsers = await getAllUsers()
