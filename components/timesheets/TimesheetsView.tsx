@@ -154,7 +154,7 @@ function LogEntryForm({
           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white"
         >
           <option value="">Select supervisor…</option>
-          {workers.map((w) => (
+          {workers.filter((w) => w.workerType === 'Supervisor').map((w) => (
             <option key={w.id} value={w.id}>
               {workerLabel(w)}{w.hourlyRate ? ` — AED ${w.hourlyRate}/hr` : ''}
             </option>
