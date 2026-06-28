@@ -466,7 +466,7 @@ export default function FormsClient({ role }: { role: Role }) {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Forms</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {isLoading ? 'Loading…' : `${projects.length} project${projects.length !== 1 ? 's' : ''}`}
+              {isLoading ? 'Loading…' : (canPay || canHandover) ? `${projects.length} project${projects.length !== 1 ? 's' : ''}` : 'Submit forms and orders'}
             </p>
           </div>
           <button
@@ -506,14 +506,14 @@ export default function FormsClient({ role }: { role: Role }) {
           </div>
         )}
 
-        {!isLoading && !error && projects.length === 0 && (
+        {(canPay || canHandover) && !isLoading && !error && projects.length === 0 && (
           <div className="text-center py-16">
             <p className="text-sm font-semibold text-gray-700">No active projects</p>
             <p className="text-xs text-gray-400 mt-1">Projects will appear here once created.</p>
           </div>
         )}
 
-        {!isLoading && projects.map((project) => (
+        {(canPay || canHandover) && !isLoading && projects.map((project) => (
           <ProjectCard
             key={project.id}
             project={project}

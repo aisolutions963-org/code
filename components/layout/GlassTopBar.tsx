@@ -24,6 +24,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/pipeline': 'Pipeline',
   '/dashboard/notifications': 'Notifications',
   '/dashboard/forms': 'Forms',
+  '/dashboard/client-requests': 'Client Requests',
 }
 
 interface OverduePayment {

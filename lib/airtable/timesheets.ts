@@ -40,8 +40,8 @@ function transformTimesheetEntry(rec: RawRecord): TimesheetEntry {
 
 export async function getTimesheetEntries(filters: TimesheetFilters = {}): Promise<TimesheetEntry[]> {
   const conditions: string[] = []
-  if (filters.from) conditions.push(`{${PRODUCTION_TIMESHEETS.WORK_DATE}} >= "${filters.from}"`)
-  if (filters.to) conditions.push(`{${PRODUCTION_TIMESHEETS.WORK_DATE}} <= "${filters.to}"`)
+  if (filters.from) conditions.push(`DATESTR({${PRODUCTION_TIMESHEETS.WORK_DATE}}) >= "${filters.from}"`)
+  if (filters.to) conditions.push(`DATESTR({${PRODUCTION_TIMESHEETS.WORK_DATE}}) <= "${filters.to}"`)
   if (filters.workerId) conditions.push(`FIND("${filters.workerId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.WORKER}}, ","))`)
   if (filters.projectId) conditions.push(`FIND("${filters.projectId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.PROJECT}}, ","))`)
   const filterByFormula = conditions.length > 0
@@ -113,7 +113,7 @@ export async function checkTimesheetDuplicate(
   supervisorId: string,
   workDate: string,
 ): Promise<boolean> {
-  const formula = `AND({${PRODUCTION_TIMESHEETS.WORK_DATE}}="${workDate}", FIND("${supervisorId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.SUPERVISOR}}, ",")))`
+  const formula = `AND(DATESTR({${PRODUCTION_TIMESHEETS.WORK_DATE}})="${workDate}", FIND("${supervisorId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.SUPERVISOR}}, ",")))`
   const records = await fetchAll(PRODUCTION_TIMESHEETS.TABLE, {
     filterByFormula: formula,
     fields: [PRODUCTION_TIMESHEETS.ENTRY_LABEL],
