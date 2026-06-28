@@ -60,7 +60,7 @@ async function initDB(): Promise<void> {
         UNIQUE(project_airtable_id, user_id),
         FOREIGN KEY(user_id) REFERENCES users(id)
       )`,
-      `INSERT OR IGNORE INTO settings (key, value) VALUES ('accountant_email', 'aisolutions963@gmail.com')`,
+      `INSERT OR IGNORE INTO settings (key, value) VALUES ('accountant_email', '')`,
       `CREATE TABLE IF NOT EXISTS inactivity_alerts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id TEXT NOT NULL,

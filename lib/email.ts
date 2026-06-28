@@ -194,7 +194,7 @@ export async function notifyAccountantEvent(params: {
   eventName: string
   projectLabel: string
 }): Promise<void> {
-  const accountantEmail = await getSetting('accountant_email')
+  const accountantEmail = process.env.ACCOUNTANT_EMAIL ?? await getSetting('accountant_email')
   if (!accountantEmail) return
 
   await getResend().emails.send({
@@ -277,7 +277,7 @@ export async function notifyAccountant(payment: {
   receivedDate: string
   recordedBy: string
 }): Promise<void> {
-  const accountantEmail = await getSetting('accountant_email')
+  const accountantEmail = process.env.ACCOUNTANT_EMAIL ?? await getSetting('accountant_email')
   if (!accountantEmail) return
 
   const formatted = `AED ${payment.amount.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`

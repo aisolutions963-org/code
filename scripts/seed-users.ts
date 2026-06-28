@@ -14,7 +14,7 @@ const FIELD_SYSTEM_ROLE = 'fldv7Nx8RtYK7IJeq'
 const FIELD_ACTIVE      = 'fldtcuYm3JoaSAaRc'
 const FIELD_EMAIL       = 'fldblbST8aaAd93ZQ'
 
-const DEFAULT_PASSWORD = 'WoodWings2025!'
+const DEFAULT_PASSWORD = 'TestPass2025'
 
 const ROLE_MAP: Record<string, string> = {
   'SED':           'sed',
