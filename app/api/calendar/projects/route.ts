@@ -1,78 +1,16 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { PROJECTS, MAINTENANCE } from '@/lib/fieldMap'
-import { todayUAE } from '@/lib/dateUtils'
+import { getCalendarProjects } from '@/lib/airtable'
 
 export const dynamic = 'force-dynamic'
 
-const BASE_ID = process.env.AIRTABLE_BASE_ID!
-const API_KEY = process.env.AIRTABLE_API_KEY!
-
-async function fetchAll(tableId: string, params: Record<string, string | string[]>) {
-  const records: { id: string; fields: Record<string, unknown> }[] = []
-  let offset: string | undefined
-  do {
-    const p = new URLSearchParams()
-    for (const [k, v] of Object.entries(params)) {
-      if (Array.isArray(v)) v.forEach(f => p.append(k, f))
-      else p.set(k, v)
-    }
-    if (offset) p.set('offset', offset)
-    const res = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${p}`,
-      { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
-    )
-    if (!res.ok) break
-    const data = await res.json() as { records: typeof records; offset?: string }
-    records.push(...data.records)
-    offset = data.offset
-  } while (offset)
-  return records
-}
-
 export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async () => {
-  const today = todayUAE()
-
-  const [projects, expiredMaint] = await Promise.all([
-    fetchAll(PROJECTS.TABLE_ID, {
-      returnFieldsByFieldId: 'true',
-      'fields[]': [
-        PROJECTS.PROJECT_ID,
-        PROJECTS.PROJECT_NAME,
-        PROJECTS.NICKNAME,
-        PROJECTS.QUOTATION_NUMBER,
-        PROJECTS.QUOTATION_REFERENCE,
-        PROJECTS.INSTALLATION_TEAM_MEMBERS,
-      ],
-    }),
-    fetchAll(MAINTENANCE.TABLE_ID, {
-      returnFieldsByFieldId: 'true',
-      filterByFormula: `AND(NOT({${MAINTENANCE.END_DATE}}=BLANK()),IS_BEFORE({${MAINTENANCE.END_DATE}},"${today}"))`,
-      'fields[]': [MAINTENANCE.PROJECTS],
-    }),
-  ])
-
-  const expiredProjectIds = new Set<string>()
-  for (const m of expiredMaint) {
-    const linked = m.fields[MAINTENANCE.PROJECTS]
-    if (Array.isArray(linked)) linked.forEach(id => expiredProjectIds.add(id as string))
+  try {
+    const projects = await getCalendarProjects()
+    return NextResponse.json({ projects })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to load projects'
+    console.error('[calendar/projects]', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
-
-  const result = projects
-    .filter(p => !expiredProjectIds.has(p.id))
-    .map(p => ({
-      id: p.id,
-      name: (
-        (p.fields[PROJECTS.NICKNAME] as string | undefined) ??
-        (p.fields[PROJECTS.PROJECT_NAME] as string | undefined) ??
-        (p.fields[PROJECTS.PROJECT_ID] as string | undefined) ??
-        p.id
-      ),
-      quotationNumber:   (p.fields[PROJECTS.QUOTATION_NUMBER]         as string | undefined) ?? undefined,
-      quotationReference:(p.fields[PROJECTS.QUOTATION_REFERENCE]      as string | undefined) ?? undefined,
-      assignedTeamIds:   (p.fields[PROJECTS.INSTALLATION_TEAM_MEMBERS] as string[] | undefined) ?? undefined,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-
-  return NextResponse.json({ projects: result })
 }) as () => Promise<NextResponse>

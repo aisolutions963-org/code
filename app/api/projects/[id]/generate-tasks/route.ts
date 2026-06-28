@@ -30,10 +30,9 @@ export const POST = requireRole('superadmin')(async (req, _session, { params }) 
       const { created } = await generatePhase3TasksForItem(id, item.id)
       totalCreated += created
     }
-    // Advance project to Production stage
+    // Advance project to Production stage (only if still at Open or Preparing)
     const project = await getProjectById(id)
-    const preProductionStages = ['Preparing', 'Open', 'Not-Approved']
-    if (preProductionStages.includes(project.projectStage)) {
+    if (project.projectStage === 'Preparing' || project.projectStage === 'Open') {
       await updateProject(id, { [PROJECTS.PROJECT_STAGE]: 'Production' })
     }
     return NextResponse.json({ success: true, created: totalCreated, items: items.length })

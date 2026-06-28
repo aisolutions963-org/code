@@ -988,12 +988,17 @@ export async function generatePhase3TasksForItem(
   )
   if (templates.length === 0) return { created: 0, todoTemplates: [] }
 
+  // Fetch all tasks for this project, then filter by item client-side.
+  // ARRAYJOIN on a linked-record field returns primary field values (names), not record IDs,
+  // so we cannot reliably filter by itemId inside a formula.
   const existingRaw = await fetchAll(TASKS.TABLE_ID, {
-    filterByFormula: `AND(FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}})), FIND("${itemId}", ARRAYJOIN({${TASKS.PROJECT_ITEM}})))`,
-    fields: [TASKS.TASK_TEMPLATES_LINK],
+    filterByFormula: `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}))`,
+    fields: [TASKS.TASK_TEMPLATES_LINK, TASKS.PROJECT_ITEM],
   })
   const existingTemplateIds = new Set<string>()
   for (const r of existingRaw) {
+    const itemIds = strArr(r.fields[TASKS.PROJECT_ITEM])
+    if (!itemIds.includes(itemId)) continue
     const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
     if (Array.isArray(links)) links.forEach((id) => existingTemplateIds.add(id as string))
   }

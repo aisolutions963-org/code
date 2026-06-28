@@ -7,6 +7,7 @@ import {
   TASKS,
   END_USERS,
   HANDOVER_SHEETS,
+  MAINTENANCE,
   fetchAll,
   fetchWithRetry,
   airtableHeaders,
@@ -21,6 +22,7 @@ import {
   firstLinkedRecord,
   transformProject,
 } from './_client'
+import { todayUAE } from '../dateUtils'
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
@@ -415,4 +417,56 @@ export async function getHandoverSheetForProject(projectId: string): Promise<Han
   return records
     .filter((r) => strArr(r.fields[HANDOVER_SHEETS.PROJECT]).includes(projectId))
     .map(transformHandoverSheet)
+}
+
+// ─── Calendar project picker ──────────────────────────────────────────────────
+
+export interface CalendarProject {
+  id: string
+  name: string
+  quotationNumber?: string
+  quotationReference?: string
+  assignedTeamIds?: string[]
+}
+
+export async function getCalendarProjects(): Promise<CalendarProject[]> {
+  const today = todayUAE()
+
+  const [projects, expiredMaint] = await Promise.all([
+    fetchAll(PROJECTS.TABLE_ID, {
+      fields: [
+        PROJECTS.PROJECT_ID,
+        PROJECTS.PROJECT_NAME,
+        PROJECTS.NICKNAME,
+        PROJECTS.QUOTATION_NUMBER,
+        PROJECTS.QUOTATION_REFERENCE,
+        PROJECTS.INSTALLATION_TEAM_MEMBERS,
+      ],
+    }),
+    fetchAll(MAINTENANCE.TABLE_ID, {
+      filterByFormula: `AND(NOT({${MAINTENANCE.END_DATE}}=BLANK()),IS_BEFORE({${MAINTENANCE.END_DATE}},"${today}"))`,
+      fields: [MAINTENANCE.PROJECTS],
+    }).catch(() => [] as RawRecord[]),
+  ])
+
+  const expiredProjectIds = new Set<string>()
+  for (const m of expiredMaint) {
+    const linked = m.fields[MAINTENANCE.PROJECTS]
+    if (Array.isArray(linked)) linked.forEach((id) => expiredProjectIds.add(id as string))
+  }
+
+  return projects
+    .filter((p) => !expiredProjectIds.has(p.id))
+    .map((p) => ({
+      id: p.id,
+      name:
+        str(p.fields[PROJECTS.NICKNAME]) ??
+        str(p.fields[PROJECTS.PROJECT_NAME]) ??
+        str(p.fields[PROJECTS.PROJECT_ID]) ??
+        p.id,
+      quotationNumber: str(p.fields[PROJECTS.QUOTATION_NUMBER]),
+      quotationReference: str(p.fields[PROJECTS.QUOTATION_REFERENCE]),
+      assignedTeamIds: strArr(p.fields[PROJECTS.INSTALLATION_TEAM_MEMBERS]) || undefined,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
