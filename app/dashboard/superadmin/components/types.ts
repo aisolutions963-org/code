@@ -12,6 +12,7 @@ export type Page =
   | 'projects'
   | 'tasks'
   | 'materials'
+  | 'deliveries'
 
 export interface SedMember { id: string; name: string }
 

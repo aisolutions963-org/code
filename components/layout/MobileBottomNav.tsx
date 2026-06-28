@@ -172,6 +172,7 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'My Tasks', href: '/dashboard/sed' },
     { label: 'Forms', href: '/dashboard/forms' },
     { label: 'Site Visits', href: '/dashboard/sed?view=site-visits' },
+    { label: 'Deliveries', href: '/dashboard/sed?view=deliveries' },
     { label: 'My Projects', href: '/dashboard/sed?view=projects' },
   ],
   fabrication: [
@@ -207,6 +208,7 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'Warranty', href: '/dashboard/superadmin?view=warranty' },
     { label: 'Announcements', href: '/dashboard/superadmin?view=announcements' },
     { label: 'All Projects', href: '/dashboard/superadmin?view=projects' },
+    { label: 'Deliveries', href: '/dashboard/superadmin?view=deliveries' },
     { label: 'Users', href: '/dashboard/superadmin?view=users' },
   ],
 }

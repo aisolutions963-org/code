@@ -1,16 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getProjectById, getPaymentsByProject, getTimesheetEntries } from '@/lib/airtable'
+import { getUserByAirtableMemberId } from '@/lib/db'
 
 export const GET = requireRole('superadmin', 'manager', 'sed', 'fabrication', 'installation')(
   async (req: NextRequest, session, context) => {
     const { id } = (context as { params: { id: string } }).params
 
     try {
-      const project = await getProjectById(id)
-      if (!project) {
+      const rawProject = await getProjectById(id)
+      if (!rawProject) {
         return NextResponse.json({ error: 'Project not found' }, { status: 404 })
       }
+
+      // Resolve commun SED names from SQLite — Airtable linked-record fields return only
+      // record IDs, not names, so we need to look them up ourselves.
+      let resolvedCommunSeds = rawProject.communSeds
+      if (rawProject.communSedIds && rawProject.communSedIds.length > 0) {
+        const dbUsers = await Promise.all(
+          rawProject.communSedIds.map((id) => getUserByAirtableMemberId(id).catch(() => undefined)),
+        )
+        const names = dbUsers.filter(Boolean).map((u) => u!.name).filter(Boolean)
+        if (names.length > 0) resolvedCommunSeds = names
+      }
+
+      // Resolve salesOwner name if Airtable returned only the record ID (no name)
+      let resolvedOwner = rawProject.salesOwner
+      if (resolvedOwner && !resolvedOwner.name && resolvedOwner.id) {
+        const dbOwner = await getUserByAirtableMemberId(resolvedOwner.id).catch(() => undefined)
+        if (dbOwner) resolvedOwner = { ...resolvedOwner, name: dbOwner.name, email: dbOwner.email }
+      }
+
+      const project = { ...rawProject, communSeds: resolvedCommunSeds, salesOwner: resolvedOwner }
 
       const canSeeFinancials = session.role === 'manager' || session.role === 'superadmin'
 

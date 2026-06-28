@@ -252,6 +252,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       label: 'Operations',
       items: [
         { label: 'Materials', href: '/dashboard/superadmin?view=materials', icon: <HammerIcon /> },
+        { label: 'Deliveries', href: '/dashboard/superadmin?view=deliveries', icon: <TruckIcon /> },
       ],
     },
     {
@@ -330,6 +331,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       label: 'Client Work',
       items: [
         { label: 'Site Visits', href: '/dashboard/sed?view=site-visits', icon: <LocationIcon /> },
+        { label: 'Deliveries', href: '/dashboard/sed?view=deliveries', icon: <TruckIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
         { label: 'Materials', href: '/dashboard/sed?view=materials', icon: <HammerIcon /> },
       ],

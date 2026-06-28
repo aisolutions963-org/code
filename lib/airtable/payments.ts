@@ -82,21 +82,19 @@ export async function getSedQuarterlyRevenue(
 ): Promise<number> {
   if (projectIds.length === 0) return 0
 
-  const CHUNK = 15
-  let total = 0
+  // Airtable linked-record fields in formulas resolve to primary field values (names),
+  // not record IDs — so project-ID filtering must happen client-side.
+  const projectIdSet = new Set(projectIds)
+  const formula = `AND({${PAYMENTS.PAYMENT_STATUS}}="Received", {${PAYMENTS.RECEIVED_DATE}}>="${quarterStart}", {${PAYMENTS.RECEIVED_DATE}}<="${quarterEnd}")`
+  const records = await fetchAll(PAYMENTS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [PAYMENTS.AMOUNT, PAYMENTS.PROJECT],
+  })
 
-  for (let i = 0; i < projectIds.length; i += CHUNK) {
-    const chunk = projectIds.slice(i, i + CHUNK)
-    const projectFilter = chunk
-      .map((id) => `{${PAYMENTS.PROJECT}} = "${id}"`)
-      .join(',')
-    const formula = `AND(OR(${projectFilter}), {${PAYMENTS.PAYMENT_STATUS}}="Received", {${PAYMENTS.RECEIVED_DATE}}>="${quarterStart}", {${PAYMENTS.RECEIVED_DATE}}<="${quarterEnd}")`
-    const records = await fetchAll(PAYMENTS.TABLE_ID, {
-      filterByFormula: formula,
-      fields: [PAYMENTS.AMOUNT],
+  return records
+    .filter((r) => {
+      const proj = r.fields[PAYMENTS.PROJECT]
+      return Array.isArray(proj) && (proj as string[]).some((id) => projectIdSet.has(id))
     })
-    total += records.reduce((s, r) => s + ((r.fields[PAYMENTS.AMOUNT] as number) || 0), 0)
-  }
-
-  return total
+    .reduce((s, r) => s + ((r.fields[PAYMENTS.AMOUNT] as number) || 0), 0)
 }

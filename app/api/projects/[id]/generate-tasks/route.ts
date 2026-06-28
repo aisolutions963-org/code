@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskCountForProject, generateTasksForProject, generatePhase3TasksForItem, getProjectItemsForProject, getProjectById } from '@/lib/airtable'
+import { getTaskCountForProject, generateTasksForProject, generatePhase3TasksForItem, getProjectItemsForProject, getProjectById, updateProject } from '@/lib/airtable'
 import { getUserByAirtableMemberId, addSedProjectMapping } from '@/lib/db'
+import { PROJECTS } from '@/lib/fieldMap'
 
 export const POST = requireRole('superadmin')(async (req, _session, { params }) => {
   const { id } = params
@@ -28,6 +29,12 @@ export const POST = requireRole('superadmin')(async (req, _session, { params }) 
     for (const item of items) {
       const { created } = await generatePhase3TasksForItem(id, item.id)
       totalCreated += created
+    }
+    // Advance project to Production stage
+    const project = await getProjectById(id)
+    const preProductionStages = ['Preparing', 'Open', 'Not-Approved']
+    if (preProductionStages.includes(project.projectStage)) {
+      await updateProject(id, { [PROJECTS.PROJECT_STAGE]: 'Production' })
     }
     return NextResponse.json({ success: true, created: totalCreated, items: items.length })
   }

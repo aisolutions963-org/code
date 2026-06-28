@@ -367,6 +367,14 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
   if (!itemId || !projectId) return
 
   const { todoTemplates } = await generatePhase3TasksForItem(projectId, itemId)
+
+  // Advance project stage to Production on first P3 trigger (idempotent: only if still at Open or earlier)
+  const project = await getProjectById(projectId)
+  const preProductionStages = ['Preparing', 'Open', 'Not-Approved']
+  if (preProductionStages.includes(project.projectStage)) {
+    await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Production' })
+  }
+
   const projectLabel = await resolveProjectLabel(task)
   await notifyTasksReady(
     todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
