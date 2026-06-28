@@ -363,56 +363,6 @@ export const MATERIALS_NEEDED = {
   MATERIAL_NOTES:   'fldxIa7g7XPqdcIeD',
 } as const
 
-export const FOLLOW_UP_LOG = {
-  TABLE_ID:            'tbloyXruGKM4VJhsi',
-  NAME:                'fldqJKgBhQQwh6PG7',
-  FOLLOW_UP_NAME:      'fldEJqA9hOXsUyp1h',
-  QUOTATION:           'fldqpsdXOWNGddjzw',
-  FOLLOW_UP_DATE:      'fld7tbHGA5kMAYKOp',
-  FOLLOW_UP_METHOD:    'fldoOkHz17lkLuvKk',
-  OUTCOME:             'fldM1QIXljeB038GW',
-  NEXT_FOLLOW_UP_DATE: 'fldbEMeT0g26vqVFb',
-  DONE_BY:             'fldwEgy6NCYdH6zt8',
-  FOLLOW_UP_NOTES:     'fldSUPUuEIfz13VrT',
-  STATUS:              'fldYkfxNiuesvEQhm',
-} as const
-
-export const PAYABLES = {
-  TABLE_ID:       'tbl50T2ukWjUWJtww',
-  NAME:           'fld7bxxWoAkgefaOs',
-  PAYABLE_NAME:   'fldc9TrZ8razEs4gP',
-  PAYABLE_TO:     'flddfxRKEBYUYy9p7',
-  LINKED_PROJECT: 'fldkGPIxdTxT2CHJS',
-  CATEGORY:       'fldDz9Aeut9TCIE5s',
-  INVOICE_NUMBER: 'fld47cxej2D5VqJ9a',
-  INVOICE_DATE:   'fldBzhUm0X1obiq38',
-  DUE_DATE:       'fldGKWP1KnrgbCC5l',
-  TOTAL_AMOUNT:   'fldDTHinxbdlfU7A1',
-  AMOUNT_PAID:    'fldZor4x9u3Eh1DXn',
-  AMOUNT_PAYABLE: 'fldeoexT3aIGrPg4V',
-  PAYMENT_STATUS: 'fldzbZurCeMAmJGzm',
-  APPROVED_BY:    'fld3DUC9eTBvukztP',
-  NOTES:          'fldZ3hjfKk1ZSoB7W',
-} as const
-
-export const RECEIVABLES = {
-  TABLE_ID:            'tbl9n8LxU2UwOsn1v',
-  NAME:                'fldyzSj0MbtVYOqtr',
-  RECEIVABLE_NAME:     'fld2WmGJvl5Hyodgc',
-  CLIENT_COMPANY:      'fld8Wn4dfJBU4OcXf',
-  LINKED_PROJECT:      'fldhTGARMKWPWq26Y',
-  INVOICE_REFERENCE:   'fldEApwVTIiPgZrPA',
-  ORIGINAL_AMOUNT:     'fldKTkxyIk59sXXgg',
-  AMOUNT_COLLECTED:    'fldzRetnZPD6kaJzN',
-  BALANCE_DUE:         'fldJ1xEd4ARABSMgs',
-  INVOICE_DATE:        'fldffF46WRVYDj0XR',
-  LAST_PAYMENT_DATE:   'fld5nEdUnVjildhOb',
-  LAST_CONTACT_DATE:   'fld9VGgs4EgscN06j',
-  AGREED_PAYMENT_DATE: 'fldYsq4QytAJQyp9J',
-  DEBT_AGE_DAYS:       'fld21qgwSsC5QTfOD',
-  DEBT_STATUS:         'fldteei657lxVdpsm',
-  NOTES:               'fldL1EnUraSAAzGcg',
-} as const
 
 export const QUOTATION_LINE_ITEMS = {
   TABLE_ID:       'tblWyMblevTrABWb4',
