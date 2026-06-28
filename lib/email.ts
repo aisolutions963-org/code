@@ -9,9 +9,15 @@ const BASE_URL =
   process.env.APP_URL ??
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://woodwings.ae')
 
-const LOGO_URL = `${BASE_URL}/logo.png`
+// Hardcoded production domain — email clients need a stable absolute URL for assets,
+// not a Vercel preview URL that changes per deployment.
+const LOGO_URL = 'https://woodwings.ae/logo.png'
 
-function emailWrapper(content: string): string {
+function emailWrapper(content: string, showLoginHint = true): string {
+  const footerNote = showLoginHint
+    ? `Please do not reply to this email. Log in at <a href="${BASE_URL}" style="color:#1a1a2e;text-decoration:none;">${BASE_URL}</a> to take action.`
+    : 'Please do not reply to this email.'
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -43,9 +49,7 @@ function emailWrapper(content: string): string {
           <td style="background:#f8f8fa;border-top:1px solid #e5e7eb;padding:20px 40px;text-align:center;">
             <p style="margin:0;font-size:12px;color:#9ca3af;">
               This is an automated notification from <strong style="color:#6b7280;">WoodWings Project Management</strong>.<br/>
-              Please do not reply to this email. Log in at
-              <a href="${BASE_URL}" style="color:#1a1a2e;text-decoration:none;">${BASE_URL}</a>
-              to take action.
+              ${footerNote}
             </p>
           </td>
         </tr>
@@ -189,13 +193,9 @@ export async function notifyCallClient(project: {
 export async function notifyAccountantEvent(params: {
   eventName: string
   projectLabel: string
-  link?: string
-  linkLabel?: string
 }): Promise<void> {
   const accountantEmail = await getSetting('accountant_email')
   if (!accountantEmail) return
-
-  const fullLink = params.link ? `${BASE_URL}${params.link}` : null
 
   await getResend().emails.send({
     from: 'WoodWings <notifications@woodwings.ae>',
@@ -209,10 +209,7 @@ export async function notifyAccountantEvent(params: {
         ['Event', params.eventName],
         ['Triggered at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
       ])}
-      ${fullLink
-        ? ctaButton(params.linkLabel ?? 'View in Dashboard', fullLink)
-        : ctaButton('Open Finance Dashboard', `${BASE_URL}/dashboard/mgr`)}
-    `),
+    `, false),
   })
 }
 
@@ -304,7 +301,6 @@ export async function notifyAccountant(payment: {
         ['Recorded by', payment.recordedBy],
         ['Recorded at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
       ])}
-      ${ctaButton('View Payment in Dashboard', `${BASE_URL}/dashboard/mgr`)}
-    `),
+    `, false),
   })
 }

@@ -503,8 +503,6 @@ export async function handleTaskCompletion(
           notifyAccountantEvent({
             eventName: 'Material Ordered',
             projectLabel,
-            link: '/dashboard/superadmin?view=materials',
-            linkLabel: 'View Material Orders',
           }).catch((err) => console.error('[MaterialOrder] notifyAccountantEvent failed:', err))
         }
       }
