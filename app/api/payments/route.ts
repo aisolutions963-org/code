@@ -159,6 +159,6 @@ async function closeProjectAfterFinalPayment(projectId: string, recordedBy: stri
       title: `Project closed — ${projectRef}`,
       body: `Final payment received for ${projectLabel}. Status: Closed and active warranty. Warranty active until ${warrantyEnd}. Recorded by ${recordedBy}.`,
       link: ROLE_DASHBOARD[role],
-    })
+    }).catch((err: unknown) => console.error('[Payment] createNotification failed:', err))
   }
 }
