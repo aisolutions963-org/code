@@ -102,7 +102,10 @@ function buildDepartmentFormula(role: Role): string {
     const excludeOrders = SED_EXCLUDED_TEMPLATE_ORDERS
       .map((n) => `{${TASKS.TEMPLATE_ORDER}} = ${n}`)
       .join(', ')
-    base = `AND(${base}, NOT(OR(${excludeOrders})))`
+    // Only exclude the standalone "Take Measurement" task (no path condition) — gateway
+    // path choices (Order Sample, Site Visit, Design (item), etc.) share the same order
+    // numbers but must remain visible to SED.
+    base = `AND(${base}, NOT(AND(OR(${excludeOrders}), {${TASKS.PATH_CONDITION}} = BLANK())))`
   }
 
   return base
@@ -825,7 +828,7 @@ export async function generateTasksForProject(
           (t.phaseLabel === null || t.phaseLabel === openCfg.phaseLabel),
       )
     : fetchedTemplates
-  ).filter(t => t.templateOrder == null || !GLOBALLY_EXCLUDED_TEMPLATE_ORDERS.includes(t.templateOrder))
+  ).filter(t => t.templateOrder == null || t.pathCondition !== null || !GLOBALLY_EXCLUDED_TEMPLATE_ORDERS.includes(t.templateOrder))
 
   if (allTemplates.length === 0) return { created: 0, skipped: 0, todoTemplates: [] }
 
