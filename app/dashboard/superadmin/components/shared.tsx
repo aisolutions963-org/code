@@ -46,6 +46,7 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
     ? [
         { name: 'Preparing', value: data.find((d) => d.sedName === selectedSed)?.preparing ?? 0, fill: '#3b82f6' },
         { name: 'Open', value: data.find((d) => d.sedName === selectedSed)?.open ?? 0, fill: '#16a34a' },
+        { name: 'Production', value: data.find((d) => d.sedName === selectedSed)?.production ?? 0, fill: '#f59e0b' },
         { name: 'Closed', value: data.find((d) => d.sedName === selectedSed)?.closed ?? 0, fill: '#f9a8d4' },
         { name: 'Not Approved', value: data.find((d) => d.sedName === selectedSed)?.notApproved ?? 0, fill: '#dc2626' },
       ]
@@ -53,13 +54,14 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
         name: d.sedName,
         preparing: d.preparing,
         open: d.open,
+        production: d.production,
         closed: d.closed,
         notApproved: d.notApproved,
       }))
 
   const maxVal = selectedSed
     ? Math.max(...(chartData as { value: number }[]).map((d) => d.value), 1)
-    : Math.max(...data.map((d) => d.preparing + d.open + d.closed + d.notApproved), 1)
+    : Math.max(...data.map((d) => d.preparing + d.open + d.production + d.closed + d.notApproved), 1)
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -90,6 +92,7 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
           {[
             { label: 'Preparing', color: '#3b82f6' },
             { label: 'Open', color: '#16a34a' },
+            { label: 'Production', color: '#f59e0b' },
             { label: 'Closed', color: '#f9a8d4' },
             { label: 'Not Approved', color: '#dc2626' },
           ].map((l) => (
@@ -120,7 +123,7 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
           ) : (
             <BarChart
               layout="vertical"
-              data={chartData as { name: string; preparing: number; open: number; closed: number; notApproved: number }[]}
+              data={chartData as { name: string; preparing: number; open: number; production: number; closed: number; notApproved: number }[]}
               margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
@@ -129,6 +132,7 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
               <Bar dataKey="preparing" fill="#3b82f6" radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
               <Bar dataKey="open" fill="#16a34a" radius={[0, 0, 0, 0]} name="Open" stackId="a" />
+              <Bar dataKey="production" fill="#f59e0b" radius={[0, 0, 0, 0]} name="Production" stackId="a" />
               <Bar dataKey="closed" fill="#f9a8d4" radius={[0, 0, 0, 0]} name="Closed" stackId="a" />
               <Bar dataKey="notApproved" fill="#dc2626" radius={[0, 3, 3, 0]} name="Not Approved" stackId="a" />
             </BarChart>

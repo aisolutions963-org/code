@@ -32,6 +32,7 @@ export interface KpiCounts {
   total: number
   preparing: number
   open: number
+  production: number
   notApproved: number
   finished: number
   maintenanceActive: number
@@ -42,6 +43,7 @@ export interface SedStat {
   sedName: string
   preparing: number
   open: number
+  production: number
   closed: number
   notApproved: number
   totalPaid: number

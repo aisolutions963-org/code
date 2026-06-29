@@ -382,7 +382,7 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
 }
 
 async function maybeGeneratePhase4(task: Task): Promise<void> {
-  // Phase 4 triggers when ALL per-item (Phase 2/3) tasks across every item are Completed.
+  // Phase 4 triggers when all meaningful per-item (Phase 2/3) tasks are done.
   // Only evaluate on per-item task completions — project-level tasks never trigger this.
   if (!(task.projectItem?.length)) return
   const projectId = task.project?.[0]
@@ -391,7 +391,19 @@ async function maybeGeneratePhase4(task: Task): Promise<void> {
   const allProjectTasks = await getAllTasksForProjectAll(projectId)
   const perItemTasks = allProjectTasks.filter((t) => (t.projectItem?.length ?? 0) > 0)
   if (perItemTasks.length === 0) return
-  if (!perItemTasks.every((t) => t.status === 'Completed')) return
+
+  // Unchosen path tasks (Carpentry/Paint not selected) remain "To Do" below the
+  // completing task's order. Don't let them block the Closing phase from starting.
+  // Only block on: tasks actively in progress/pending, OR "To Do" tasks at or above
+  // the completing task's order (AND-join partners or future steps that still need work).
+  const completedTaskOrder = task.templateOrder?.[0] ?? 0
+  const blockingTasks = perItemTasks.filter(
+    (t) =>
+      t.status === 'In Progress' ||
+      t.status === 'Pending Approval' ||
+      (t.status === 'To Do' && (t.templateOrder?.[0] ?? 0) >= completedTaskOrder),
+  )
+  if (blockingTasks.length > 0) return
 
   const { todoTemplates } = await generatePhase4Tasks(projectId)
 

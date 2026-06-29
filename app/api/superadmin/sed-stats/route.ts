@@ -91,11 +91,11 @@ async function fetchTeamMemberMap(): Promise<Map<string, string>> {
   return map
 }
 
-type SedEntry = { preparing: number; open: number; closed: number; notApproved: number; totalPaid: number }
+type SedEntry = { preparing: number; open: number; production: number; closed: number; notApproved: number; totalPaid: number }
 
 function ensureSed(map: Record<string, SedEntry>, sedNames: string[], name: string) {
   if (!map[name]) {
-    map[name] = { preparing: 0, open: 0, closed: 0, notApproved: 0, totalPaid: 0 }
+    map[name] = { preparing: 0, open: 0, production: 0, closed: 0, notApproved: 0, totalPaid: 0 }
     sedNames.push(name)
   }
 }
@@ -103,6 +103,7 @@ function ensureSed(map: Record<string, SedEntry>, sedNames: string[], name: stri
 function incrementStage(entry: SedEntry, stage: string) {
   if (stage === 'Preparing') entry.preparing++
   else if (stage === 'Open') entry.open++
+  else if (stage === 'Production') entry.production++
   else if (stage === 'Closed' || stage === 'Closed and active warranty' || stage === 'Warranty expired') entry.closed++
   else if (stage === 'Not-Approved') entry.notApproved++
 }

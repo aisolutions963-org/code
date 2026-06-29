@@ -39,13 +39,14 @@ async function fetchAllProjectStages(): Promise<{ stage: string; remaining: numb
 export const GET = requireRole('superadmin')(async () => {
   const projects = await fetchAllProjectStages()
 
-  let total = 0, preparing = 0, open = 0, notApproved = 0
+  let total = 0, preparing = 0, open = 0, production = 0, notApproved = 0
   let finished = 0, maintenanceActive = 0, maintenanceExpired = 0
 
   for (const p of projects) {
     total++
     if (p.stage === 'Preparing') preparing++
     else if (p.stage === 'Open') open++
+    else if (p.stage === 'Production') production++
     else if (p.stage === 'Not-Approved') notApproved++
     else if (p.stage === 'Closed') finished++
     else if (p.stage === 'Closed and active warranty') maintenanceActive++
@@ -53,7 +54,7 @@ export const GET = requireRole('superadmin')(async () => {
   }
 
   return NextResponse.json({
-    total, preparing, open, notApproved,
+    total, preparing, open, production, notApproved,
     finished, maintenanceActive, maintenanceExpired,
   })
 })

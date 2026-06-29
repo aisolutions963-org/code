@@ -1057,12 +1057,16 @@ export async function generatePhase4Tasks(
   const records = newTemplates.map((t) => {
     const status: TaskStatus = t.templateOrder === minOrder ? 'To Do' : 'Locked'
     if (status === 'To Do') todoTemplates.push(t)
-    return {
+    const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
       [TASKS.PROJECT]: projectId,
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }
+    if (t.pathCondition !== null) {
+      record[TASKS.PATH_CONDITION] = t.pathCondition
+    }
+    return record
   })
 
   const ids = await createTasksBatch(records)
