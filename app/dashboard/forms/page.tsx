@@ -1,11 +1,9 @@
-import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+'use client'
+
+import { useSession } from '@/app/dashboard/layout-client'
 import FormsClient from './FormsClient'
 
-export const dynamic = 'force-dynamic'
-
-export default async function FormsPage() {
-  const session = await getSession()
-  if (!session) redirect('/login')
-  return <FormsClient role={session.role} />
+export default function FormsPage() {
+  const { role } = useSession()
+  return <FormsClient role={role} />
 }
