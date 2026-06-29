@@ -35,7 +35,6 @@ export interface KpiCounts {
   notApproved: number
   finished: number
   maintenanceActive: number
-  finishedUnpaid: number
   maintenanceExpired: number
 }
 

@@ -40,22 +40,20 @@ export const GET = requireRole('superadmin')(async () => {
   const projects = await fetchAllProjectStages()
 
   let total = 0, preparing = 0, open = 0, notApproved = 0
-  let finished = 0, maintenanceActive = 0, finishedUnpaid = 0, maintenanceExpired = 0
+  let finished = 0, maintenanceActive = 0, maintenanceExpired = 0
 
   for (const p of projects) {
     total++
     if (p.stage === 'Preparing') preparing++
     else if (p.stage === 'Open') open++
     else if (p.stage === 'Not-Approved') notApproved++
-    else if (p.stage === 'Closed') {
-      finished++
-      if (p.remaining > 0) finishedUnpaid++
-    } else if (p.stage === 'Closed and active warranty') maintenanceActive++
+    else if (p.stage === 'Closed') finished++
+    else if (p.stage === 'Closed and active warranty') maintenanceActive++
     else if (p.stage === 'Warranty expired') maintenanceExpired++
   }
 
   return NextResponse.json({
     total, preparing, open, notApproved,
-    finished, maintenanceActive, finishedUnpaid, maintenanceExpired,
+    finished, maintenanceActive, maintenanceExpired,
   })
 })
