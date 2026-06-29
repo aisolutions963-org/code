@@ -47,6 +47,8 @@ export interface SedStat {
   open: number
   production: number
   closed: number
+  warranty: number
+  warrantyExpired: number
   notApproved: number
   totalPaid: number
   commission: number

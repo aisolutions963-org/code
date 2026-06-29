@@ -41,10 +41,12 @@ export const POST = requireRole('superadmin')(async (_req, _session, { params })
           const { todoTemplates: tt } = await generatePhase3TasksForItem(id, item.id)
           todoTemplates.push(...tt)
         }
-      } else if (nextStage === 'Closed') {
-        // Phase 4: closing tasks
+      } else if (nextStage === 'Closed and active warranty') {
+        // Phase 4: closing tasks — now triggered when warranty phase begins
         const result = await generatePhase4Tasks(id)
         todoTemplates = result.todoTemplates
+      } else if (nextStage === 'Warranty expired') {
+        // Terminal stage — no task generation
       } else {
         // Preparing / Open: standard project-level templates
         const result = await generateTasksForProject(id, nextStage)
