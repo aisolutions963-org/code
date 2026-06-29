@@ -311,6 +311,7 @@ export function transformTask(record: RawRecord): Task {
     teamDaysRequired: num(f[TASKS.TEAM_DAYS_REQUIRED]),
     noOfLaborsPerDay: num(f[TASKS.NO_OF_LABORS_PER_DAY]),
     installationDays: num(f[TASKS.INSTALLATION_DAYS]),
+    installationSchedule: str(f[TASKS.INSTALLATION_SCHEDULE]),
     plannedProdStartDate: str(f[TASKS.PLANNED_PROD_START_DATE]),
     expectedFabEndDate: str(f[TASKS.EXPECTED_FAB_END_DATE]),
     fabricationPath: str(f[TASKS.FABRICATION_PATH]),

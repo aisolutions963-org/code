@@ -4,10 +4,14 @@ import {
   getProjectById,
   updateProject,
   generateTasksForProject,
+  generatePhase3TasksForItem,
+  generatePhase4Tasks,
+  getProjectItemsForProject,
 } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
 import { PROJECTS } from '@/lib/fieldMap'
 import { STAGE_ORDER } from '@/lib/phases'
+import type { TaskTemplate } from '@/lib/airtable/tasks'
 
 export const POST = requireRole('superadmin')(async (_req, _session, { params }) => {
   const { id } = params
@@ -25,10 +29,28 @@ export const POST = requireRole('superadmin')(async (_req, _session, { params })
   const nextStage = STAGE_ORDER[currentIndex + 1]
   const updated = await updateProject(id, { [PROJECTS.PROJECT_STAGE]: nextStage })
 
-  // Fire-and-forget: generate tasks and notify departments for new stage
+  // Fire-and-forget: generate tasks for the new stage using the correct function per phase
   ;(async () => {
     try {
-      const { todoTemplates } = await generateTasksForProject(id, nextStage)
+      let todoTemplates: TaskTemplate[] = []
+
+      if (nextStage === 'Production') {
+        // Phase 3: per-item tasks — generate for every project item
+        const items = await getProjectItemsForProject(id)
+        for (const item of items) {
+          const { todoTemplates: tt } = await generatePhase3TasksForItem(id, item.id)
+          todoTemplates.push(...tt)
+        }
+      } else if (nextStage === 'Closed') {
+        // Phase 4: closing tasks
+        const result = await generatePhase4Tasks(id)
+        todoTemplates = result.todoTemplates
+      } else {
+        // Preparing / Open: standard project-level templates
+        const result = await generateTasksForProject(id, nextStage)
+        todoTemplates = result.todoTemplates
+      }
+
       if (todoTemplates.length > 0) {
         await notifyTasksReady(
           todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),

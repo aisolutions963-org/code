@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById, upsertF2DeliveryEvent } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
-import { canEditField, filterAllowedFields } from '@/lib/permissions'
+import { canEditField, filterAllowedFields, ROLE_TO_DEPARTMENT } from '@/lib/permissions'
 import {
   handleTaskCompletion,
   handleManagerApproval,
@@ -53,6 +53,15 @@ export const PATCH = requireRole()(
           { error: `Role '${session.role}' cannot edit field '${key}'` },
           { status: 403 },
         )
+      }
+    }
+
+    if (session.role !== 'superadmin' && session.role !== 'manager') {
+      const accessTask = await getTaskById(params.id)
+      const allowedDepts = ROLE_TO_DEPARTMENT[session.role] ?? []
+      const taskDepts: string[] = accessTask.department ?? []
+      if (taskDepts.length > 0 && !taskDepts.some((d) => allowedDepts.includes(d))) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
       }
     }
 
@@ -130,9 +139,21 @@ export const PATCH = requireRole()(
         const projectLabel = taskForValidation.projectName
           ? `${projectRef} — ${taskForValidation.projectName}`
           : projectRef
-        const daysVal = otherFields.teamDaysRequired ?? taskForValidation.teamDaysRequired
-        const workersVal = otherFields.noOfLaborsPerDay ?? taskForValidation.noOfLaborsPerDay
-        const body = `${daysVal != null ? `${daysVal} days` : ''}${daysVal != null && workersVal != null ? ', ' : ''}${workersVal != null ? `${workersVal} workers/day` : ''} needed for handover${projectLabel ? ` — ${projectLabel}` : ''}`
+        const scheduleRaw = otherFields.installationSchedule ?? taskForValidation.installationSchedule
+        let body: string
+        if (scheduleRaw) {
+          try {
+            const schedule: { date: string; note: string }[] = JSON.parse(scheduleRaw)
+            const valid = schedule.filter((r) => r.date)
+            const dateList = valid.map((r) => r.note ? `${r.date} (${r.note})` : r.date).join(', ')
+            body = `${valid.length} installation day${valid.length !== 1 ? 's' : ''} scheduled: ${dateList}${projectLabel ? ` — ${projectLabel}` : ''}`
+          } catch {
+            body = `Installation schedule recorded${projectLabel ? ` — ${projectLabel}` : ''}`
+          }
+        } else {
+          const daysVal = otherFields.teamDaysRequired ?? taskForValidation.teamDaysRequired
+          body = `${daysVal != null ? `${daysVal} days` : 'Installation note'} needed for handover${projectLabel ? ` — ${projectLabel}` : ''}`
+        }
         for (const role of ['manager', 'sed', 'superadmin'] as const) {
           createNotification({
             recipientRole: role,

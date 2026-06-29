@@ -49,7 +49,11 @@ export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE_NAME)?.value
   if (!token) return null
-  return verifySession(token)
+  const session = await verifySession(token)
+  if (!session) return null
+  const user = await getUserById(session.id)
+  if (!user || !user.active) return null
+  return session
 }
 
 export async function login(

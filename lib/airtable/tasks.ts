@@ -46,6 +46,7 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   teamDaysRequired: TASKS.TEAM_DAYS_REQUIRED,
   noOfLaborsPerDay: TASKS.NO_OF_LABORS_PER_DAY,
   installationDays: TASKS.INSTALLATION_DAYS,
+  installationSchedule: TASKS.INSTALLATION_SCHEDULE,
   plannedProdStartDate: TASKS.PLANNED_PROD_START_DATE,
   expectedFabEndDate: TASKS.EXPECTED_FAB_END_DATE,
   fabricationPath: TASKS.FABRICATION_PATH,

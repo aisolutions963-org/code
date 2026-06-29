@@ -34,6 +34,7 @@ export const UpdateTaskSchema = z.object({
   teamDaysRequired: z.number().int().min(1).max(365).optional(),
   noOfLaborsPerDay: z.number().int().min(1).max(100).optional(),
   installationDays: z.number().int().min(0).max(365).optional(),
+  installationSchedule: z.string().max(10000).optional(),
   plannedProdStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   expectedFabEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   fabricationPath: z.string().max(100).optional(),

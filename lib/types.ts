@@ -56,6 +56,7 @@ export interface Task {
   teamDaysRequired?: number
   noOfLaborsPerDay?: number
   installationDays?: number
+  installationSchedule?: string
   plannedProdStartDate?: string
   expectedFabEndDate?: string
   fabricationPath?: string
@@ -104,6 +105,7 @@ export interface TaskUpdateInput {
   teamDaysRequired?: number
   noOfLaborsPerDay?: number
   installationDays?: number
+  installationSchedule?: string
   plannedProdStartDate?: string
   expectedFabEndDate?: string
   fabricationPath?: string

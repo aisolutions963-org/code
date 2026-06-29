@@ -1,5 +1,9 @@
 // Projects domain — projects, clients, end users, handover sheets
 
+function escAtStr(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
 import { Client, Project, ProjectCreateInput, HandoverSheet } from '../types'
 import {
   CLIENTS,
@@ -124,7 +128,7 @@ async function getFabricationActiveProjectIds(): Promise<Set<string>> {
 
 export async function getProjectIdsForSedByEmail(email: string): Promise<string[]> {
   const records = await fetchAll(PROJECTS.TABLE_ID, {
-    filterByFormula: `{${PROJECTS.SALES_OWNER}} = "${email}"`,
+    filterByFormula: `{${PROJECTS.SALES_OWNER}} = "${escAtStr(email)}"`,
     fields: [PROJECTS.SALES_OWNER],
   })
   return records.map((r) => r.id)
@@ -139,9 +143,9 @@ export async function getProjects(options: { stage?: string; sedEmail?: string; 
     : withNoReq(`NOT(OR({${PROJECTS.PROJECT_STAGE}}="Closed", {${PROJECTS.PROJECT_STAGE}}="Closed and active warranty", {${PROJECTS.PROJECT_STAGE}}="Warranty expired"))`)
   if (!options.includeAllStages) {
     if (options.stage) {
-      formula = withNoReq(`{${PROJECTS.PROJECT_STAGE}}="${options.stage}"`)
+      formula = withNoReq(`{${PROJECTS.PROJECT_STAGE}}="${escAtStr(options.stage)}"`)
     } else if (options.allowedStages?.length) {
-      formula = withNoReq(`OR(${options.allowedStages.map((s) => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')})`)
+      formula = withNoReq(`OR(${options.allowedStages.map((s) => `{${PROJECTS.PROJECT_STAGE}}="${escAtStr(s)}"`).join(',')})`)
     }
   }
   const [records, fabActiveIds] = await Promise.all([

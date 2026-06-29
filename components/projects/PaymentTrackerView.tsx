@@ -160,6 +160,19 @@ function PaymentDetail({ project: p }: { project: Project }) {
               {['Received', 'Pending', 'Overdue'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
+          {form.paymentType === 'Delivery' && (
+            <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs">
+              <p className="font-semibold text-blue-800 mb-0.5">Quotation</p>
+              {p.quotationNumber ? (
+                <p className="text-blue-700 font-mono">
+                  {p.quotationNumber}
+                  {p.quotationReference && <span className="ml-2 text-blue-500">{p.quotationReference}</span>}
+                </p>
+              ) : (
+                <p className="text-orange-600">No quotation number set on this project yet.</p>
+              )}
+            </div>
+          )}
           <div>
             <label className={lbl}>Method</label>
             <select value={form.paymentMethod} onChange={(e) => setF('paymentMethod', e.target.value)} className={sel}>

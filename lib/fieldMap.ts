@@ -82,6 +82,7 @@ export const TASKS = {
   FILLERS_DOC_LINKS: 'fldxgHjnRVSlYlHbM',
   LAST_MODIFIED: 'fld8PyDkPBIZ0BNO1',
   SUPERADMIN_NOTE: 'fldjVNPzFB76Ik0fh',
+  INSTALLATION_SCHEDULE: 'viwwWuf4eX4jcJBsW/fld6czB3O8VLmirhY',
 } as const
 
 export const PROJECTS = {
