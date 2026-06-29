@@ -15,6 +15,8 @@ import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
 import AllMaterialsView from '@/components/materials/AllMaterialsView'
 import AssignInstallationModal, { TeamMember } from '@/components/projects/AssignInstallationModal'
 import TimesheetsView from '@/components/timesheets/TimesheetsView'
+import PayablesView from '@/components/finance/PayablesView'
+import ReceivablesView from '@/components/finance/ReceivablesView'
 import type { CalendarEvent } from '@/lib/airtable/calendar'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -376,6 +378,12 @@ export default function MgrDashboard() {
       {view === 'timesheets' && (
         <TimesheetsView projects={projects} />
       )}
+
+      {/* Payables view */}
+      {view === 'payables' && <PayablesView />}
+
+      {/* Receivables view */}
+      {view === 'receivables' && <ReceivablesView />}
 
       {assignProject && (
         <AssignInstallationModal

@@ -261,6 +261,8 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Payments', href: '/dashboard/superadmin?view=payments', icon: <CashIcon /> },
         { label: 'Pay Calendar', href: '/dashboard/superadmin?view=calendar', icon: <CalendarIcon /> },
         { label: 'Warranty', href: '/dashboard/superadmin?view=warranty', icon: <WarrantyIcon /> },
+        { label: 'Payables', href: '/dashboard/superadmin?view=payables', icon: <CashIcon /> },
+        { label: 'Receivables', href: '/dashboard/superadmin?view=receivables', icon: <CashIcon /> },
       ],
     },
     {
@@ -309,6 +311,8 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Payments', href: '/dashboard/mgr?view=payments', icon: <CashIcon /> },
         { label: 'Pay Calendar', href: '/dashboard/mgr?view=calendar', icon: <CalendarIcon /> },
+        { label: 'Payables', href: '/dashboard/mgr?view=payables', icon: <CashIcon /> },
+        { label: 'Receivables', href: '/dashboard/mgr?view=receivables', icon: <CashIcon /> },
       ],
     },
     {
@@ -331,6 +335,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       label: 'Client Work',
       items: [
         { label: 'Site Visits', href: '/dashboard/sed?view=site-visits', icon: <LocationIcon /> },
+        { label: 'Follow-Ups', href: '/dashboard/sed?view=follow-ups', icon: <ClipboardIcon /> },
         { label: 'Deliveries', href: '/dashboard/sed?view=deliveries', icon: <TruckIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
         { label: 'Materials', href: '/dashboard/sed?view=materials', icon: <HammerIcon /> },

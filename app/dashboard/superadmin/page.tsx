@@ -14,13 +14,15 @@ import AnnouncementsPage from './components/AnnouncementsPage'
 import ProjectsPage from './components/ProjectsPage'
 import MyTasksPage from './components/TasksPage'
 import MaterialsPage from './components/MaterialsPage'
+import PayablesPage from './components/PayablesPage'
+import ReceivablesPage from './components/ReceivablesPage'
 import type { CalendarEvent } from '@/lib/airtable/calendar'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-const VALID_PAGES = new Set<Page>(['overview','phases','activity','payments','calendar','warranty','users','announcements','projects','tasks','materials','deliveries'])
+const VALID_PAGES = new Set<Page>(['overview','phases','activity','payments','calendar','warranty','users','announcements','projects','tasks','materials','deliveries','payables','receivables'])
 
 function DeliveriesPage() {
   const { data, isLoading } = useSWR<{ events: CalendarEvent[] }>(
@@ -109,6 +111,8 @@ export default function SuperadminDashboard() {
       {page === 'tasks' && <MyTasksPage />}
       {page === 'materials' && <MaterialsPage />}
       {page === 'deliveries' && <DeliveriesPage />}
+      {page === 'payables' && <PayablesPage />}
+      {page === 'receivables' && <ReceivablesPage />}
     </div>
   )
 }

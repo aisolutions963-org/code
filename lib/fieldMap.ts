@@ -381,3 +381,48 @@ export const QUOTATION_LINE_ITEMS = {
   LINE_TOTAL:     'fldV5045Gu12tVJxv',
   PROJECT_ITEM:   'fldBUN8IVwDJ7AWsQ',
 } as const
+
+export const FOLLOW_UP_LOG = {
+  TABLE:          'tblHzJiOoOTqWPUwq',
+  FOLLOW_UP_NAME: 'fldGXvvFmKw0zHAFA',
+  QUOTATION:      'fldYqfBIQ6eLx7O4o',
+  DATE:           'fldnqDwE5a0nktqO1',
+  METHOD:         'fld6s5gxI6qjmHii9',
+  OUTCOME:        'fld2ZoOMCvXeQpAml',
+  NEXT_DATE:      'fldRtzDcV3MoXPYV0',
+  DONE_BY:        'flduFKcUnL4A7pRue',
+  NOTES:          'fldRa9L9ZY87JVihm',
+} as const
+
+export const PAYABLES = {
+  TABLE:          'tblPjIqCwFFVPCsce',
+  PAYABLE_NAME:   'fldYI2whSD6OSymOu',
+  PAYABLE_TO:     'fldUEj2L2nJvrJfjQ',
+  LINKED_PROJECT: 'fldFDS2TD82vuNkEt',
+  CATEGORY:       'fldb6NqSyVw7bwmW7',
+  INVOICE_NUMBER: 'fldRZ4MGVIYGuo3jk',
+  INVOICE_DATE:   'fldM3OC8RQsY5T2PQ',
+  DUE_DATE:       'fldGr8HRruHV9kCCp',
+  TOTAL_AMOUNT:   'fldzb9ckWSmjUV5H3',
+  AMOUNT_PAID:    'fldc4e4tQSYvZPyjy',
+  AMOUNT_PAYABLE: 'fldwMf1ZNMbpJG7to',
+  PAYMENT_STATUS: 'fld07tFBvdCQtk1FR',
+  APPROVED_BY:    'fldguIEJbDG1HkIhc',
+  NOTES:          'fldi33hseD4iKvVFX',
+} as const
+
+export const RECEIVABLES = {
+  TABLE:           'tblpPWR7Xl6Tic8AT',
+  CLIENT_COMPANY:  'fldoJv11zMBfp7FZD',
+  LINKED_PROJECT:  'fldq3VO9mRIxQIEWf',
+  INVOICE_REF:     'fldjbnLZeY7ap0Y9A',
+  ORIGINAL_AMOUNT: 'fldKuI0qeUhNOBTXI',
+  COLLECTED:       'fldbcZImdyDd150py',
+  BALANCE_DUE:     'fldv2CuId6P226OYi',
+  INVOICE_DATE:    'flda547dHl6Anp7te',
+  LAST_CONTACT:    'fldjAwuCpkznkqdf4',
+  AGREED_DATE:     'fldkCH47PwDWWTBBQ',
+  DEBT_AGE:        'fldbS9y117PMRS95o',
+  DEBT_STATUS:     'fldn8oNtrwRMyAV6i',
+  NOTES:           'fldcQS2LXAhho82gF',
+} as const
