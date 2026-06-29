@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, createCalendarEvent } from '@/lib/airtable'
+import { getTaskById, updateTask, createCalendarEvent, createTasksBatch } from '@/lib/airtable'
+import { TASKS } from '@/lib/fieldMap'
 import { createNotification } from '@/lib/notifications'
 import { z } from 'zod'
+
+const TAKE_MEASUREMENT_TEMPLATE_ID = 'recf4HCyQtXyCUAWJ'
 
 const Schema = z.object({
   teamMemberName: z.string().min(1),
@@ -26,22 +29,32 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
       : (task.projectName ?? task.projectRef ?? '')
     const eventTitle = projectLabel ? `Take Measurements — ${projectLabel}` : 'Take Measurements'
 
-    await createCalendarEvent({
-      title: eventTitle,
-      date,
-      projectId,
-      eventType: 'installation',
-      createdBy: session.name,
-    })
+    await Promise.all([
+      createCalendarEvent({
+        title: eventTitle,
+        date,
+        projectId,
+        eventType: 'installation',
+        createdBy: session.name,
+      }),
+      createTasksBatch([{
+        [TASKS.TASK_NAME]: 'Take Measurement',
+        [TASKS.PROJECT]: projectId,
+        [TASKS.STATUS]: 'To Do',
+        [TASKS.DEPARTMENT]: ['Installation'],
+        [TASKS.TASK_START_DATE]: date,
+        [TASKS.TASK_TEMPLATES_LINK]: [TAKE_MEASUREMENT_TEMPLATE_ID],
+      }]),
+      createNotification({
+        recipientRole: 'installation',
+        title: `Measurement scheduled — ${projectLabel || 'project'}`,
+        body: `Date: ${date} · Assigned to: ${teamMemberName} · By: ${session.name}`,
+        link: '/dashboard/fix',
+      }),
+    ])
 
-    await createNotification({
-      recipientRole: 'installation',
-      title: `Measurement scheduled — ${projectLabel || 'project'}`,
-      body: `Date: ${date} · Assigned to: ${teamMemberName} · By: ${session.name}`,
-      link: '/dashboard/fix',
-    })
-
-    await updateTask(params.id, { taskStartDate: date, status: 'In Progress' })
+    // Mark the gateway chip completed — SED's job is done once they've assigned the team.
+    await updateTask(params.id, { taskStartDate: date, status: 'Completed' })
 
     return NextResponse.json({ ok: true })
   },

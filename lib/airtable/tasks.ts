@@ -81,10 +81,14 @@ function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unkno
   return result
 }
 
-// Template orders for "Take Measurement" tasks — excluded from SED's query and from auto-generation.
-// These tasks are created on-demand via the "Request Measurements" button, not at project creation.
-const SED_EXCLUDED_TEMPLATE_ORDERS = [4, 24]
-const GLOBALLY_EXCLUDED_TEMPLATE_ORDERS = [4, 24]
+// Template orders for on-demand-only tasks.
+// Order 5 = standalone "Take Measurement" (Installation dept, Preparing phase) — created when SED
+// assigns via assign-measurement, not at project creation.
+// Order 24 = per-item "Take Measurement " (Installation dept, Open phase) — same rationale.
+// Order 4 is NOT excluded here: the pathCondition filter below handles the gateway path choices
+// at that order (they must pass through), and there are no path=null templates at order 4.
+const SED_EXCLUDED_TEMPLATE_ORDERS = [4, 5, 24]
+const GLOBALLY_EXCLUDED_TEMPLATE_ORDERS = [4, 5, 24]
 
 function buildDepartmentFormula(role: Role): string {
   if (role === 'superadmin') {
