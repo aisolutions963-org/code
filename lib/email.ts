@@ -9,10 +9,6 @@ const BASE_URL =
   process.env.APP_URL ??
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://woodwings.ae')
 
-// Hardcoded production domain — email clients need a stable absolute URL for assets,
-// not a Vercel preview URL that changes per deployment.
-const LOGO_URL = 'https://woodwings.ae/logo.png'
-
 function emailWrapper(content: string, showLoginHint = true): string {
   const footerNote = showLoginHint
     ? `Please do not reply to this email. Log in at <a href="${BASE_URL}" style="color:#1a1a2e;text-decoration:none;">${BASE_URL}</a> to take action.`
@@ -33,7 +29,7 @@ function emailWrapper(content: string, showLoginHint = true): string {
         <!-- Header -->
         <tr>
           <td style="background:#1a1a2e;padding:28px 40px;text-align:center;">
-            <img src="${LOGO_URL}" alt="WoodWings" height="48" style="display:inline-block;max-height:48px;" />
+            <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:2px;font-family:'Segoe UI',Arial,sans-serif;">WoodWings</span>
           </td>
         </tr>
 

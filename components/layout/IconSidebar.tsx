@@ -259,7 +259,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       label: 'Finance',
       items: [
         { label: 'Payments', href: '/dashboard/superadmin?view=payments', icon: <CashIcon /> },
-        { label: 'Pay Calendar', href: '/dashboard/superadmin?view=calendar', icon: <CalendarIcon /> },
         { label: 'Warranty', href: '/dashboard/superadmin?view=warranty', icon: <WarrantyIcon /> },
         { label: 'Payables', href: '/dashboard/superadmin?view=payables', icon: <CashIcon /> },
         { label: 'Receivables', href: '/dashboard/superadmin?view=receivables', icon: <CashIcon /> },

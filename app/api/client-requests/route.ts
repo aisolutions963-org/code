@@ -38,7 +38,10 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     try {
       const parentProject = await getProjectById(data.parentProjectId)
       if (parentProject?.salesOwner?.id) {
-        data.salesOwnerCollaboratorId = parentProject.salesOwner.id
+        // Validate the member exists in DB — stale Airtable record IDs cause a 422
+        const sedUser = await getUserByAirtableMemberId(parentProject.salesOwner.id)
+        if (sedUser) data.salesOwnerCollaboratorId = parentProject.salesOwner.id
+        else data.salesOwnerCollaboratorId = undefined
       }
       if (parentProject?.clientName) {
         data.clientName = parentProject.clientName
@@ -49,6 +52,12 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     } catch {
       // proceed without inheritance if parent lookup fails
     }
+  }
+
+  // Final guard: clear salesOwnerCollaboratorId if not in DB to prevent Airtable 422
+  if (data.salesOwnerCollaboratorId) {
+    const precheck = await getUserByAirtableMemberId(data.salesOwnerCollaboratorId)
+    if (!precheck) data.salesOwnerCollaboratorId = undefined
   }
 
   let project: Awaited<ReturnType<typeof createClientRequest>>['project']
