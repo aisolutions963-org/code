@@ -46,6 +46,9 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
       newTask[TASKS.PROJECT_ITEM] = task.projectItem
     }
 
+    // Create the Installation task first — if this fails, no calendar event is orphaned.
+    await createTasksBatch([newTask])
+
     await Promise.all([
       createCalendarEvent({
         title: eventTitle,
@@ -54,7 +57,6 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
         eventType: 'installation',
         createdBy: session.name,
       }),
-      createTasksBatch([newTask]),
       createNotification({
         recipientRole: 'installation',
         title: `Measurement scheduled — ${projectLabel || 'project'}`,
