@@ -965,7 +965,7 @@ export async function generateItemTasksForProject(
       const isSampleBranch = t.taskName.toLowerCase().startsWith('sample branch:')
       status = isSampleBranch ? 'Locked' : 'To Do'
     } else {
-      const pathMin = pathMinMap.get(null)!
+      const pathMin = pathMinMap.get(null) ?? Infinity
       status = t.templateOrder === pathMin ? 'To Do' : 'Locked'
     }
     if (status === 'To Do') todoTemplates.push(t)
