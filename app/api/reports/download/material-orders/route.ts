@@ -41,8 +41,8 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const dateParts: string[] = []
   if (from) dateParts.push(`IS_AFTER({${MATERIALS_NEEDED.REQUEST_DATE}}, "${from}")`)
   if (to)   dateParts.push(`IS_BEFORE({${MATERIALS_NEEDED.REQUEST_DATE}}, "${to}")`)
-  if (dateParts.length === 1) matParams.set('filterByFormula', encodeURIComponent(dateParts[0]))
-  if (dateParts.length === 2) matParams.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
+  if (dateParts.length === 1) matParams.set('filterByFormula', dateParts[0])
+  if (dateParts.length === 2) matParams.set('filterByFormula', `AND(${dateParts.join(',')})`)
 
   // Prefer extended Material Name field; fall back to legacy Name
   matParams.append('fields[]', MATERIALS_NEEDED.NAME)

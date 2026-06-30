@@ -25,8 +25,8 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const dateParts: string[] = []
   if (from) dateParts.push(`IS_AFTER({${PROJECTS.PROJECT_CREATED_AT}}, "${from}")`)
   if (to)   dateParts.push(`IS_BEFORE({${PROJECTS.PROJECT_CREATED_AT}}, "${to}")`)
-  if (dateParts.length === 1) params.set('filterByFormula', encodeURIComponent(dateParts[0]))
-  if (dateParts.length === 2) params.set('filterByFormula', encodeURIComponent(`AND(${dateParts.join(',')})`))
+  if (dateParts.length === 1) params.set('filterByFormula', dateParts[0])
+  if (dateParts.length === 2) params.set('filterByFormula', `AND(${dateParts.join(',')})`)
 
 
   const records: { id: string; fields: Record<string, unknown> }[] = []

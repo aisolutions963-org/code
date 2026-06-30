@@ -32,7 +32,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const projectParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   const activeStages = ['Preparing', 'Open', 'Fabrication', 'Installation']
   const stageFilter = activeStages.map(s => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')
-  projectParams.set('filterByFormula', encodeURIComponent(`OR(${stageFilter})`))
+  projectParams.set('filterByFormula', `OR(${stageFilter})`)
   projectParams.append('fields[]', PROJECTS.PROJECT_ID)
   projectParams.append('fields[]', PROJECTS.PROJECT_NAME)
   projectParams.append('fields[]', PROJECTS.CLIENT_NAME)

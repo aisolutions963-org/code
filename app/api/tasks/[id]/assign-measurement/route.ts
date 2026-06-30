@@ -5,7 +5,10 @@ import { TASKS } from '@/lib/fieldMap'
 import { createNotification } from '@/lib/notifications'
 import { z } from 'zod'
 
-const TAKE_MEASUREMENT_TEMPLATE_ID = 'recf4HCyQtXyCUAWJ'
+// Preparing-phase standalone task (Installation, order 5)
+const TEMPLATE_PREPARING = 'recf4HCyQtXyCUAWJ'
+// Open-phase per-item task (Installation, order 25)
+const TEMPLATE_PER_ITEM = 'recJwTTBRwS6TYgDk'
 
 const Schema = z.object({
   teamMemberName: z.string().min(1),
@@ -24,10 +27,24 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
 
     const task = await getTaskById(params.id)
     const projectId = task.projectRecordId
+    const isPerItem = (task.projectItem?.length ?? 0) > 0
+    const templateId = isPerItem ? TEMPLATE_PER_ITEM : TEMPLATE_PREPARING
+
     const projectLabel = task.projectNickname
       ? task.projectName ? `${task.projectNickname} — ${task.projectName}` : task.projectNickname
       : (task.projectName ?? task.projectRef ?? '')
     const eventTitle = projectLabel ? `Take Measurements — ${projectLabel}` : 'Take Measurements'
+
+    const newTask: Record<string, unknown> = {
+      [TASKS.TASK_NAME]: isPerItem ? 'Take measurements for item' : 'Take Measurement',
+      [TASKS.PROJECT]: projectId,
+      [TASKS.STATUS]: 'To Do',
+      [TASKS.TASK_START_DATE]: date,
+      [TASKS.TASK_TEMPLATES_LINK]: [templateId],
+    }
+    if (isPerItem && task.projectItem?.length) {
+      newTask[TASKS.PROJECT_ITEM] = task.projectItem
+    }
 
     await Promise.all([
       createCalendarEvent({
@@ -37,14 +54,7 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
         eventType: 'installation',
         createdBy: session.name,
       }),
-      createTasksBatch([{
-        [TASKS.TASK_NAME]: 'Take Measurement',
-        [TASKS.PROJECT]: projectId,
-        [TASKS.STATUS]: 'To Do',
-        [TASKS.DEPARTMENT]: ['Installation'],
-        [TASKS.TASK_START_DATE]: date,
-        [TASKS.TASK_TEMPLATES_LINK]: [TAKE_MEASUREMENT_TEMPLATE_ID],
-      }]),
+      createTasksBatch([newTask]),
       createNotification({
         recipientRole: 'installation',
         title: `Measurement scheduled — ${projectLabel || 'project'}`,

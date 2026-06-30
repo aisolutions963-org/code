@@ -81,14 +81,14 @@ function toAirtableFields(input: Partial<TaskUpdateInput>): Record<string, unkno
   return result
 }
 
-// Template orders for on-demand-only tasks.
-// Order 5 = standalone "Take Measurement" (Installation dept, Preparing phase) — created when SED
-// assigns via assign-measurement, not at project creation.
-// Order 24 = per-item "Take Measurement " (Installation dept, Open phase) — same rationale.
-// Order 4 is NOT excluded here: the pathCondition filter below handles the gateway path choices
-// at that order (they must pass through), and there are no path=null templates at order 4.
-const SED_EXCLUDED_TEMPLATE_ORDERS = [4, 5, 24]
-const GLOBALLY_EXCLUDED_TEMPLATE_ORDERS = [4, 5, 24]
+// Template orders for on-demand-only tasks (excluded from auto-generation).
+// Order 5  = standalone "Take Measurement" (Installation, Preparing) — SED assigns via assign-measurement.
+// Order 24 = per-item "Take Measurement " (SED, Open) — same on-demand rationale.
+// Order 25 = per-item "Take measurements for item" (Installation) + "Manage It" (Manager), Open phase.
+// Order 4 is NOT excluded here: the pathCondition filter handles gateway path choices at that order
+// (they must pass through), and there are no path=null templates at order 4.
+const SED_EXCLUDED_TEMPLATE_ORDERS = [4, 5, 24, 25]
+const GLOBALLY_EXCLUDED_TEMPLATE_ORDERS = [4, 5, 24, 25]
 
 function buildDepartmentFormula(role: Role): string {
   if (role === 'superadmin') {
@@ -912,7 +912,7 @@ export async function generateItemTasksForProject(
       (t.phaseLabel === null || t.phaseLabel === phaseLabel) &&
       (t.templateOrder === null || t.templateOrder >= perItemOrderMin) &&
       (t.pathCondition === null || chosenPaths.includes(t.pathCondition)),
-  )
+  ).filter(t => t.templateOrder == null || t.pathCondition !== null || !GLOBALLY_EXCLUDED_TEMPLATE_ORDERS.includes(t.templateOrder))
   if (itemTemplates.length === 0) return { created: 0, todoTemplates: [] }
 
   const allProjectItemTasks = await fetchAll(TASKS.TABLE_ID, {

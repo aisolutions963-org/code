@@ -67,7 +67,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     if (from) dateParts.push(`IS_AFTER({${QUOTATIONS.SENT_DATE}}, "${from}")`)
     if (to)   dateParts.push(`IS_BEFORE({${QUOTATIONS.SENT_DATE}}, "${to}")`)
     const formula = dateParts.length === 2 ? `AND(${dateParts.join(',')})` : dateParts[0]
-    quotParams.set('filterByFormula', encodeURIComponent(formula))
+    quotParams.set('filterByFormula', formula)
   }
 
   const [lineItems, allQuotations, allProjects] = await Promise.all([
