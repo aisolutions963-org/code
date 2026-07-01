@@ -1044,9 +1044,12 @@ export async function generatePhase3TasksForItem(
 export async function generatePhase4Tasks(
   projectId: string,
 ): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
-  const allTemplates = await getTaskTemplates('Closing')
-  const templates = allTemplates.filter(
-    (t) => t.phaseLabel === PHASE_CONFIG.Closing.phaseLabel && t.templateOrder !== null,
+  const [closingTemplates, maintTemplates] = await Promise.all([
+    getTaskTemplates('Closing'),
+    getTaskTemplates('Closed & Valid Maintenance'),
+  ])
+  const templates = [...closingTemplates, ...maintTemplates].filter(
+    (t) => t.templateOrder !== null,
   )
   if (templates.length === 0) return { created: 0, todoTemplates: [] }
 
