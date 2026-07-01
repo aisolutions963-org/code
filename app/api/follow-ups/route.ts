@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { FOLLOW_UP_LOG, QUOTATIONS, PROJECTS } from '@/lib/fieldMap'
+import { z } from 'zod'
+
+const CreateFollowUpSchema = z.object({
+  quotationId: z.string().min(1).optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date'),
+  method: z.string().min(1).max(100),
+  outcome: z.string().min(1).max(500),
+  nextDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  notes: z.string().max(2000).optional(),
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -181,14 +191,13 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req: Next
 })
 
 export const POST = requireRole('sed', 'manager', 'superadmin')(async (req: NextRequest, session) => {
-  const body = (await req.json()) as {
-    quotationId?: string
-    date: string
-    method: string
-    outcome: string
-    nextDate?: string
-    notes?: string
+  let raw: unknown
+  try { raw = await req.json() } catch { raw = {} }
+  const parsed = CreateFollowUpSchema.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 400 })
   }
+  const body = parsed.data
 
   const fields: Record<string, unknown> = {
     [FOLLOW_UP_LOG.DATE]: body.date,

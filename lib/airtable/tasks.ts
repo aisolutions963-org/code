@@ -803,6 +803,7 @@ export async function createAdHocTask(fields: {
     [TASKS.TASK_NAME]: fields.taskName,
     [TASKS.PROJECT]: [fields.projectId],
     [TASKS.STATUS]: fields.status ?? 'To Do',
+    [TASKS.DEPARTMENT]: fields.departments,
   }
   const ids = await createTasksBatch([record])
   return ids[0]
@@ -886,7 +887,7 @@ export async function generateTasksForProject(
     if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
-      [TASKS.PROJECT]: projectId,
+      [TASKS.PROJECT]: [projectId],
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }
@@ -975,7 +976,7 @@ export async function generateItemTasksForProject(
     if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
-      [TASKS.PROJECT]: projectId,
+      [TASKS.PROJECT]: [projectId],
       [TASKS.PROJECT_ITEM]: [itemId],
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
@@ -1030,7 +1031,7 @@ export async function generatePhase3TasksForItem(
     if (status === 'To Do') todoTemplates.push(t)
     return {
       [TASKS.TASK_NAME]: t.taskName,
-      [TASKS.PROJECT]: projectId,
+      [TASKS.PROJECT]: [projectId],
       [TASKS.PROJECT_ITEM]: [itemId],
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
@@ -1073,7 +1074,7 @@ export async function generatePhase4Tasks(
     if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
-      [TASKS.PROJECT]: projectId,
+      [TASKS.PROJECT]: [projectId],
       [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }

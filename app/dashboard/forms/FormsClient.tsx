@@ -70,17 +70,6 @@ function PaymentForm({ project }: { project: Project }) {
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
 
-      // Create a calendar event on the date entered in the form
-      fetch('/api/calendar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: `${form.paymentType} — ${project.projectName}`,
-          date: form.receivedDate,
-          projectId: project.id,
-        }),
-      }).catch(() => undefined)
-
       setSaved(true)
       setShowForm(false)
       setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: '', receivedDate: today, payerType: '', payerName: '', commission: '', notes: '' })

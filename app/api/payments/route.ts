@@ -10,6 +10,7 @@ import {
   activateMaintenanceRecord,
   createMaintenanceRecord,
   updateProject,
+  createCalendarEvent,
 } from '@/lib/airtable'
 import { notifyAccountant, notifyAccountantEvent } from '@/lib/email'
 import { CreatePaymentSchema } from '@/lib/validation'
@@ -105,6 +106,19 @@ export const POST = requireRole('manager', 'superadmin')(
         : undefined
 
     const payment = await createPayment({ ...body, recordedBy: session.name, stageAtPayment, ...(name ? { name } : {}) })
+
+    if (body.receivedDate && project) {
+      const projectLabel = project.projectNickname
+        ? `${project.projectNickname} — ${project.projectName}`
+        : project.projectName
+      createCalendarEvent({
+        title: `${body.paymentType} — ${projectLabel}`,
+        date: body.receivedDate,
+        projectId: body.project[0],
+        eventType: 'activity',
+        createdBy: session.name,
+      }).catch((err: unknown) => console.error('[Payment] createCalendarEvent failed:', err))
+    }
 
     if (process.env.RESEND_API_KEY && project) {
       notifyAccountant({
