@@ -18,6 +18,7 @@ import FabricateMissingPanel from './panels/FabricateMissingPanel'
 import F2ProductionPanel from './panels/F2ProductionPanel'
 import CallClientDecisionPanelComponent from './panels/CallClientDecisionPanel'
 import MeasurementTeamPanel from './panels/MeasurementTeamPanel'
+import MaintenanceTeamPanel from './panels/MaintenanceTeamPanel'
 
 
 interface TaskCardProps {
@@ -225,6 +226,9 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const isMeasurementTask =
     task.taskName.toLowerCase().includes('take measurement') &&
     (!task.pathCondition || isPerItem) &&
+    (role === 'manager' || role === 'sed' || role === 'superadmin')
+  const isMaintenanceTask =
+    task.taskName.toLowerCase().includes('carry out maintenance work') &&
     (role === 'manager' || role === 'sed' || role === 'superadmin')
   const isDateTask =
     isDateRequiredTask(task.taskName) &&
@@ -697,6 +701,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           {/* Measurement team picker — assigns installation member + sends notification */}
           {isMeasurementTask && task.status !== 'Completed' && (
             <MeasurementTeamPanel task={task} onUpdate={onUpdate} />
+          )}
+
+          {/* Maintenance team picker — assigns installation member + sends notification */}
+          {isMaintenanceTask && (
+            <MaintenanceTeamPanel task={task} onUpdate={onUpdate} />
           )}
 
           {/* Installation user: read-only scheduled date */}
