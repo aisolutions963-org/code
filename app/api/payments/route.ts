@@ -108,8 +108,8 @@ export const POST = requireRole('manager', 'superadmin')(
     const payment = await createPayment({ ...body, recordedBy: session.name, stageAtPayment, ...(name ? { name } : {}) })
 
     if (body.receivedDate && project) {
-      const projectLabel = project.projectNickname
-        ? `${project.projectNickname} — ${project.projectName}`
+      const projectLabel = project.nickname
+        ? `${project.nickname} — ${project.projectName}`
         : project.projectName
       createCalendarEvent({
         title: `${body.paymentType} — ${projectLabel}`,
