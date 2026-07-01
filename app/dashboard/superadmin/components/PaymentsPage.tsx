@@ -25,12 +25,13 @@ function PaymentDetail({
   const payments = data?.project?.payments ?? []
 
   const today = todayUAE()
+  const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variance'
   const [form, setForm] = useState({
     amount: '',
     paymentType: 'Advance',
     paymentStatus: 'Received',
     paymentMethod: 'Bank Transfer',
-    referenceNo: '',
+    referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : '',
     receivedDate: today,
     dueDate: '',
     payerType: '',
@@ -159,7 +160,7 @@ function PaymentDetail({
         throw new Error(d.error ?? 'Failed')
       }
       setSaved(true)
-      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
+      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
       mutate()
       globalMutate('/api/projects?all=true')
     } catch (e) {
@@ -238,7 +239,7 @@ function PaymentDetail({
                           <label className="text-xs text-gray-500 block mb-1">Type</label>
                           <select value={editForm.paymentType} onChange={(e) => setEF('paymentType', e.target.value)}
                             className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment'].map((v) => <option key={v}>{v}</option>)}
+                            {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
                           </select>
                         </div>
                         <div>
@@ -315,7 +316,16 @@ function PaymentDetail({
       {showForm && (
         <form onSubmit={submitPayment} className="grid grid-cols-2 gap-3 mt-2 p-3 bg-white rounded-lg border border-gray-200">
           {ferr && <p className="col-span-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{ferr}</p>}
-
+          {isTradeOrVariance && (
+            <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs">
+              <p className="font-semibold text-blue-800 mb-0.5">{p.requestType} Reference</p>
+              {p.tradeReference ? (
+                <p className="text-blue-700 font-mono">{p.tradeReference}</p>
+              ) : (
+                <p className="text-orange-600">No trade reference set on this request yet.</p>
+              )}
+            </div>
+          )}
           <div>
             <label className="text-xs text-gray-500 block mb-1">Date *</label>
             <input type="date" value={form.receivedDate} onChange={(e) => setF('receivedDate', e.target.value)}
@@ -330,7 +340,7 @@ function PaymentDetail({
             <label className="text-xs text-gray-500 block mb-1">Type *</label>
             <select value={form.paymentType} onChange={(e) => setF('paymentType', e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment'].map((v) => <option key={v}>{v}</option>)}
+              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>

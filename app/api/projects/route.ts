@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const stage = searchParams.get('stage') ?? undefined
   const all = searchParams.get('all') === 'true'
+  const includeRequests = searchParams.get('includeRequests') === 'true'
 
   try {
     let projects
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
         ...extra.filter((p): p is NonNullable<typeof p> => p !== null),
       ]
     } else if (all) {
-      projects = await getAllProjects()
+      projects = await getAllProjects({ includeClientRequests: includeRequests })
     } else if (session.role === 'sed') {
       const [dbUser, sqliteIds] = await Promise.all([
         getUserById(session.id),
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
         ...extra.filter((p): p is NonNullable<typeof p> => p !== null && !CLOSED_STAGES.has(p.projectStage ?? '')),
       ]
     } else {
-      projects = await getProjects({ stage })
+      projects = await getProjects({ stage, includeClientRequests: includeRequests })
     }
     return NextResponse.json({ projects })
   } catch (error) {

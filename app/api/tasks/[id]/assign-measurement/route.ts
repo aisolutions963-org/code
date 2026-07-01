@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, createCalendarEvent, createTasksBatch } from '@/lib/airtable'
+import { getTaskById, updateTask, createCalendarEvent, createTasksBatch, getTaskTemplates } from '@/lib/airtable'
 import { TASKS } from '@/lib/fieldMap'
 import { createNotification } from '@/lib/notifications'
 import { z } from 'zod'
-
-// Preparing-phase standalone task (Installation, order 5)
-const TEMPLATE_PREPARING = 'recf4HCyQtXyCUAWJ'
-// Open-phase per-item task (Installation, order 25)
-const TEMPLATE_PER_ITEM = 'recJwTTBRwS6TYgDk'
 
 const Schema = z.object({
   teamMemberName: z.string().min(1),
@@ -28,7 +23,22 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
     const task = await getTaskById(params.id)
     const projectId = task.projectRecordId
     const isPerItem = (task.projectItem?.length ?? 0) > 0
-    const templateId = isPerItem ? TEMPLATE_PER_ITEM : TEMPLATE_PREPARING
+
+    // Look up the correct template by order + department to avoid stale hard-coded IDs.
+    // Order 5  = standalone "Take Measurement"       (Installation, Preparing phase)
+    // Order 25 = per-item "Take measurements for item" (Installation, Open phase)
+    const targetOrder = isPerItem ? 25 : 5
+    const targetStage = isPerItem ? 'Open' : 'Preparing'
+    const templates = await getTaskTemplates(targetStage)
+    const template = templates.find(
+      (t) => t.templateOrder === targetOrder && t.department.includes('Installation'),
+    )
+    if (!template) {
+      return NextResponse.json(
+        { error: `Template not found (order ${targetOrder}, Installation, ${targetStage})` },
+        { status: 500 },
+      )
+    }
 
     const projectLabel = task.projectNickname
       ? task.projectName ? `${task.projectNickname} — ${task.projectName}` : task.projectNickname
@@ -40,7 +50,7 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
       [TASKS.PROJECT]: projectId,
       [TASKS.STATUS]: 'To Do',
       [TASKS.TASK_START_DATE]: date,
-      [TASKS.TASK_TEMPLATES_LINK]: [templateId],
+      [TASKS.TASK_TEMPLATES_LINK]: [template.id],
     }
     if (isPerItem && task.projectItem?.length) {
       newTask[TASKS.PROJECT_ITEM] = task.projectItem

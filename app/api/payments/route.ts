@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/apiHandler'
 import {
   createPayment,
   getPaymentsByProject,
+  getAllPayments,
   getProjectById,
   getMaintenanceRecordForProject,
   activateMaintenanceRecord,
@@ -16,8 +17,15 @@ import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
 export const GET = requireRole('manager', 'superadmin')(async (req: NextRequest) => {
   const projectId = req.nextUrl.searchParams.get('projectId')
+  const all = req.nextUrl.searchParams.get('all') === 'true'
+
+  if (all) {
+    const payments = await getAllPayments()
+    return NextResponse.json({ payments })
+  }
+
   if (!projectId) {
-    return NextResponse.json({ error: 'projectId query param required' }, { status: 400 })
+    return NextResponse.json({ error: 'projectId or all=true query param required' }, { status: 400 })
   }
   const payments = await getPaymentsByProject(projectId)
   return NextResponse.json({ payments })
@@ -81,7 +89,14 @@ export const POST = requireRole('manager', 'superadmin')(
     // Auto-capture the current project stage at time of payment
     const stageAtPayment = project?.projectStage ?? body.stageAtPayment
 
-    const payment = await createPayment({ ...body, recordedBy: session.name, stageAtPayment })
+    // For Trade/Variance sub-projects, auto-set the payment name to the trade reference
+    // so the calendar event title shows the reference instead of the generic payment type.
+    const name =
+      (project?.requestType === 'Trade' || project?.requestType === 'Variance') && project.tradeReference
+        ? project.tradeReference
+        : undefined
+
+    const payment = await createPayment({ ...body, recordedBy: session.name, stageAtPayment, ...(name ? { name } : {}) })
 
     if (process.env.RESEND_API_KEY && project) {
       notifyAccountant({

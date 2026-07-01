@@ -134,9 +134,10 @@ export async function getProjectIdsForSedByEmail(email: string): Promise<string[
   return records.map((r) => r.id)
 }
 
-export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[]; includeAllStages?: boolean } = {}): Promise<Project[]> {
+export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[]; includeAllStages?: boolean; includeClientRequests?: boolean } = {}): Promise<Project[]> {
   const requestTypeFieldReady = !PROJECTS.REQUEST_TYPE.startsWith('REPLACE')
-  const noRequests = requestTypeFieldReady ? `{${PROJECTS.REQUEST_TYPE}} = ""` : null
+  // When includeClientRequests=true, include Trade/Variance projects alongside regular ones
+  const noRequests = requestTypeFieldReady && !options.includeClientRequests ? `{${PROJECTS.REQUEST_TYPE}} = ""` : null
   const withNoReq = (f: string) => noRequests ? `AND(${f}, ${noRequests})` : f
   let formula = options.includeAllStages
     ? (noRequests ?? undefined)
@@ -173,11 +174,14 @@ export async function getProjects(options: { stage?: string; sedEmail?: string; 
   return projects
 }
 
-export async function getAllProjects(): Promise<Project[]> {
+export async function getAllProjects(options?: { includeClientRequests?: boolean }): Promise<Project[]> {
   const requestTypeFieldReady = !PROJECTS.REQUEST_TYPE.startsWith('REPLACE')
+  const filter = requestTypeFieldReady && !options?.includeClientRequests
+    ? `{${PROJECTS.REQUEST_TYPE}} = ""`
+    : undefined
   const [records, fabActiveIds] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, {
-      ...(requestTypeFieldReady ? { filterByFormula: `{${PROJECTS.REQUEST_TYPE}} = ""` } : {}),
+      ...(filter ? { filterByFormula: filter } : {}),
       sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
     }),
     getFabricationActiveProjectIds(),

@@ -259,6 +259,7 @@ export interface PaymentCreateInput {
   commissionAmount?: number
   notes?: string
   recordedBy?: string
+  name?: string
 }
 
 export interface PaymentUpdateInput {

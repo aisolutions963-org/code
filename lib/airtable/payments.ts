@@ -18,6 +18,13 @@ export async function getPaymentsByProject(projectId: string): Promise<Payment[]
   return records.map(transformPayment)
 }
 
+export async function getAllPayments(): Promise<Payment[]> {
+  const records = await fetchAll(PAYMENTS.TABLE_ID, {
+    sort: [{ field: PAYMENTS.RECEIVED_DATE, direction: 'desc' }],
+  })
+  return records.map(transformPayment)
+}
+
 export async function createPayment(input: PaymentCreateInput): Promise<Payment> {
   const fields: Record<string, unknown> = {
     [PAYMENTS.PROJECT]: input.project,
@@ -33,6 +40,7 @@ export async function createPayment(input: PaymentCreateInput): Promise<Payment>
   if (input.payerType) fields[PAYMENTS.PAYER_TYPE] = input.payerType
   if (input.payerName) fields[PAYMENTS.PAYER_NAME] = input.payerName
   if (input.commissionAmount != null) fields[PAYMENTS.COMMISSION_AMOUNT] = input.commissionAmount
+  if (input.name) fields[PAYMENTS.NAME] = input.name
   if (input.notes) fields[PAYMENTS.NOTES] = input.notes
   if (input.recordedBy) fields[PAYMENTS.RECORDED_BY] = input.recordedBy
 

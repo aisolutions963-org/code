@@ -105,7 +105,7 @@ function PaymentForm({ project }: { project: Project }) {
           <div>
             <label className={lbl}>Type</label>
             <select value={form.paymentType} onChange={(e) => setF('paymentType', e.target.value)} className={sel}>
-              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment'].map((v) => <option key={v}>{v}</option>)}
+              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>

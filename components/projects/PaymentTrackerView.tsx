@@ -21,13 +21,14 @@ function PaymentDetail({ project: p }: { project: Project }) {
   const payments = data?.project?.payments ?? []
 
   const today = todayUAE()
+  const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variance'
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     amount: '',
     paymentType: 'Advance',
     paymentStatus: 'Received',
     paymentMethod: 'Bank Transfer',
-    referenceNo: '',
+    referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : '',
     receivedDate: today,
     dueDate: '',
     payerType: '',
@@ -73,7 +74,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
       setSaved(true)
-      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
+      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
       mutate()
       globalMutate('/api/projects')
       globalMutate('/api/projects?all=true')
@@ -140,6 +141,16 @@ function PaymentDetail({ project: p }: { project: Project }) {
         <form onSubmit={submitPayment} className="grid grid-cols-2 gap-3 mt-2 p-3 bg-white rounded-lg border border-gray-200">
           {ferr && <p className="col-span-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{ferr}</p>}
 
+          {isTradeOrVariance && (
+            <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs">
+              <p className="font-semibold text-blue-800 mb-0.5">{p.requestType} Reference</p>
+              {p.tradeReference ? (
+                <p className="text-blue-700 font-mono">{p.tradeReference}</p>
+              ) : (
+                <p className="text-orange-600">No trade reference set on this request yet.</p>
+              )}
+            </div>
+          )}
           <div>
             <label className={lbl}>Date *</label>
             <input type="date" value={form.receivedDate} onChange={(e) => setF('receivedDate', e.target.value)} className={inp} />
@@ -151,7 +162,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
           <div>
             <label className={lbl}>Type</label>
             <select value={form.paymentType} onChange={(e) => setF('paymentType', e.target.value)} className={sel}>
-              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment'].map((v) => <option key={v}>{v}</option>)}
+              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>
@@ -218,12 +229,95 @@ function PaymentDetail({ project: p }: { project: Project }) {
   )
 }
 
+function AllPaymentsView({ projects }: { projects: Project[] }) {
+  const { data, isLoading } = useSWR<{ payments: Payment[] }>(
+    '/api/payments?all=true',
+    fetcher,
+    { refreshInterval: 300_000 },
+  )
+  const payments = data?.payments ?? []
+
+  const projectMap = Object.fromEntries(projects.map((p) => [p.id, p.projectName]))
+
+  if (isLoading) return (
+    <div className="flex justify-center py-12">
+      <div className="animate-spin w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full" />
+    </div>
+  )
+
+  if (payments.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-10">No payment records found.</p>
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 font-semibold uppercase tracking-wide">
+              <th className="text-left px-3 py-2.5">Project</th>
+              <th className="text-left px-3 py-2.5">Type</th>
+              <th className="text-left px-3 py-2.5">Status</th>
+              <th className="text-right px-3 py-2.5">Amount</th>
+              <th className="text-left px-3 py-2.5">Method</th>
+              <th className="text-left px-3 py-2.5">Ref No.</th>
+              <th className="text-left px-3 py-2.5">Payer Type</th>
+              <th className="text-left px-3 py-2.5">Payer Name</th>
+              <th className="text-left px-3 py-2.5">Date</th>
+              <th className="text-left px-3 py-2.5">Due Date</th>
+              <th className="text-left px-3 py-2.5">Stage</th>
+              <th className="text-left px-3 py-2.5">Commission</th>
+              <th className="text-left px-3 py-2.5">Notes</th>
+              <th className="text-left px-3 py-2.5">By</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {payments.map((pm) => (
+              <tr key={pm.id} className={`hover:bg-gray-50 ${pm.paymentStatus === 'Cancelled' ? 'opacity-40 line-through' : ''}`}>
+                <td className="px-3 py-2.5 text-gray-700 max-w-[140px] truncate">
+                  {(pm.project[0] && projectMap[pm.project[0]]) ?? '—'}
+                </td>
+                <td className="px-3 py-2.5 text-gray-700">{pm.paymentType}</td>
+                <td className="px-3 py-2.5">
+                  <Badge
+                    variant={pm.paymentStatus === 'Received' ? 'green' : pm.paymentStatus === 'Pending' ? 'orange' : 'gray'}
+                    size="sm"
+                  >
+                    {pm.paymentStatus}
+                  </Badge>
+                </td>
+                <td className="px-3 py-2.5 text-right font-mono text-gray-800 whitespace-nowrap">AED {pm.amount.toLocaleString()}</td>
+                <td className="px-3 py-2.5 text-gray-500">{pm.paymentMethod}</td>
+                <td className="px-3 py-2.5 font-mono text-gray-500">{pm.referenceNo ?? '—'}</td>
+                <td className="px-3 py-2.5 text-gray-500">{pm.payerType ?? '—'}</td>
+                <td className="px-3 py-2.5 text-gray-500 max-w-[120px] truncate">{pm.payerName ?? '—'}</td>
+                <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{pm.receivedDate ?? '—'}</td>
+                <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{pm.dueDate ?? '—'}</td>
+                <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{pm.stageAtPayment ?? '—'}</td>
+                <td className="px-3 py-2.5 text-gray-500">
+                  {pm.commissionAmount != null ? `AED ${pm.commissionAmount.toLocaleString()}` : '—'}
+                </td>
+                <td className="px-3 py-2.5 text-gray-400 max-w-[160px] truncate" title={pm.notes ?? undefined}>{pm.notes ?? '—'}</td>
+                <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{pm.recordedBy ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-4 py-2.5 border-t border-gray-100 text-xs text-gray-400">
+        {payments.length} record{payments.length !== 1 ? 's' : ''}
+      </div>
+    </div>
+  )
+}
+
 interface PaymentTrackerViewProps {
   projects: Project[]
 }
 
 export default function PaymentTrackerView({ projects }: PaymentTrackerViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'projects' | 'all'>('projects')
 
   const totalRevenue = projects.reduce((s, p) => s + (p.projectTotalCost ?? 0), 0)
   const totalPaid = projects.reduce((s, p) => s + (p.totalPaid ?? 0), 0)
@@ -234,6 +328,33 @@ export default function PaymentTrackerView({ projects }: PaymentTrackerViewProps
 
   return (
     <div className="space-y-5">
+      {/* View toggle */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setViewMode('projects')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            viewMode === 'projects'
+              ? 'bg-brand-600 text-white'
+              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          By Project
+        </button>
+        <button
+          onClick={() => setViewMode('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            viewMode === 'all'
+              ? 'bg-brand-600 text-white'
+              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          All Records
+        </button>
+      </div>
+
+      {viewMode === 'all' && <AllPaymentsView projects={projects} />}
+
+      {viewMode === 'projects' && (<>
       {/* Summary metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
@@ -319,6 +440,7 @@ export default function PaymentTrackerView({ projects }: PaymentTrackerViewProps
           </table>
         </div>
       </div>
+      </>)}
     </div>
   )
 }

@@ -43,7 +43,9 @@ export default function MgrDashboard() {
 
   const { data: projectData, error: projectError, isLoading: projectLoading, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
-      view === 'projects' || view === 'payments' || view === 'installation' || view === 'timesheets' ? '/api/projects' : null,
+      view === 'projects' || view === 'payments' || view === 'installation' || view === 'timesheets'
+        ? '/api/projects'
+        : null,
       fetcher,
       { refreshInterval: 300_000 },
     )
