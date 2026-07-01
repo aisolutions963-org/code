@@ -28,7 +28,6 @@ function PaymentForm({ project }: { project: Project }) {
     paymentMethod: 'Bank Transfer',
     referenceNo: '',
     receivedDate: today,
-    dueDate: '',
     payerType: '',
     payerName: '',
     commission: '',
@@ -60,7 +59,6 @@ function PaymentForm({ project }: { project: Project }) {
         receivedDate: form.receivedDate,
         payerType: form.payerType,
       }
-      if (form.dueDate) body.dueDate = form.dueDate
       if (form.payerName.trim()) body.payerName = form.payerName.trim()
       if (form.payerType === 'Broker' && form.commission) body.commissionAmount = parseFloat(form.commission)
       if (form.notes.trim()) body.notes = form.notes.trim()
@@ -71,9 +69,21 @@ function PaymentForm({ project }: { project: Project }) {
         body: JSON.stringify(body),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
+
+      // Create a calendar event on the date entered in the form
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `${form.paymentType} — ${project.projectName}`,
+          date: form.receivedDate,
+          projectId: project.id,
+        }),
+      }).catch(() => undefined)
+
       setSaved(true)
       setShowForm(false)
-      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
+      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: '', receivedDate: today, payerType: '', payerName: '', commission: '', notes: '' })
       globalMutate('/api/projects')
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed')
@@ -146,10 +156,6 @@ function PaymentForm({ project }: { project: Project }) {
               <input type="number" min="0" step="0.01" value={form.commission} onChange={(e) => setF('commission', e.target.value)} className={inp} placeholder="0.00" />
             </div>
           )}
-          <div>
-            <label className={lbl}>Due Date</label>
-            <input type="date" value={form.dueDate} onChange={(e) => setF('dueDate', e.target.value)} className={inp} />
-          </div>
           <div>
             <label className={lbl}>Notes</label>
             <input type="text" value={form.notes} onChange={(e) => setF('notes', e.target.value)} className={inp} placeholder="Optional" />

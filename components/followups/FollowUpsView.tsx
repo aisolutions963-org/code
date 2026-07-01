@@ -131,7 +131,7 @@ export default function FollowUpsView({ title = 'Follow-Ups' }: { title?: string
                     </span>
                     {log.quotationNumber && (
                       <span className="font-mono text-[11px] text-gray-400">
-                        #{log.quotationNumber}{log.quotationReference ? `(${log.quotationReference})` : ''}
+                        {log.quotationNumber}{log.quotationReference ?? ''}
                       </span>
                     )}
                     <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${methodColor(log.method)}`}>
@@ -196,7 +196,7 @@ export default function FollowUpsView({ title = 'Follow-Ups' }: { title?: string
                   {quotations.map((q) => (
                     <option key={q.id} value={q.id}>
                       {q.quoteNumber
-                        ? `#${q.quoteNumber}${q.quotationReference ? `(${q.quotationReference})` : ''} — `
+                        ? `${q.quoteNumber}${q.quotationReference ?? ''} — `
                         : ''}
                       {q.clientName || q.id}
                     </option>

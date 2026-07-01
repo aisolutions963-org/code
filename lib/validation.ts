@@ -60,7 +60,7 @@ export const UpdateTaskSchema = z.object({
 export const CreatePaymentSchema = z.object({
   project: z.array(z.string().min(1)).min(1),
   amount: z.number().positive().max(10_000_000),
-  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment']),
+  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance']),
   paymentStatus: z.enum(['Received', 'Pending', 'Overdue']),
   paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Cheque']),
   referenceNo: z.string().max(100).optional(),
@@ -75,7 +75,7 @@ export const CreatePaymentSchema = z.object({
 
 export const UpdatePaymentSchema = z.object({
   amount: z.number().positive().max(10_000_000).optional(),
-  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment']).optional(),
+  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance']).optional(),
   paymentStatus: z.enum(['Received', 'Pending', 'Overdue', 'Cancelled']).optional(),
   paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Cheque']).optional(),
   referenceNo: z.string().max(100).optional(),

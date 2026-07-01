@@ -351,13 +351,19 @@ export function transformProject(record: RawRecord): import('../types').Project 
     .map((c) => (typeof c === 'string' ? c : (c.id ?? '')))
     .filter(Boolean)
   const quotationNumber = str(f[PROJECTS.QUOTATION_NUMBER])
+  const quotationReference = str(f[PROJECTS.QUOTATION_REFERENCE])
+  const projectId =
+    quotationNumber && quotationReference ? `${quotationNumber}${quotationReference}` :
+    quotationNumber ? quotationNumber :
+    quotationReference ? quotationReference :
+    str(f[PROJECTS.PROJECT_ID]) || ''
   return {
     id: record.id,
     projectName: str(f[PROJECTS.PROJECT_NAME]) ?? '',
     nickname: str(f[PROJECTS.NICKNAME]),
-    projectId: quotationNumber || str(f[PROJECTS.PROJECT_ID]) || '',
+    projectId,
     quotationNumber: quotationNumber ?? undefined,
-    quotationReference: str(f[PROJECTS.QUOTATION_REFERENCE]) ?? undefined,
+    quotationReference: quotationReference ?? undefined,
     projectStage: str(f[PROJECTS.PROJECT_STAGE]) ?? '',
     clientName: str(f[PROJECTS.CLIENT_NAME]) ?? '',
     salesOwner: owner,

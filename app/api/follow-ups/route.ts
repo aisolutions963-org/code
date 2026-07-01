@@ -48,11 +48,13 @@ async function fetchQuotations(): Promise<{ id: string; projectId: string; quote
   return results
 }
 
+const INACTIVE_STAGES = new Set(['Closed', 'Closed and active warranty', 'Warranty expired'])
+
 async function fetchProjectsById(
   projectIds: string[],
-): Promise<Map<string, { quotationNumber: string; quotationReference: string; clientName: string }>> {
+): Promise<Map<string, { quotationNumber: string; quotationReference: string; clientName: string; stage: string }>> {
   if (projectIds.length === 0) return new Map()
-  const map = new Map<string, { quotationNumber: string; quotationReference: string; clientName: string }>()
+  const map = new Map<string, { quotationNumber: string; quotationReference: string; clientName: string; stage: string }>()
   for (let i = 0; i < projectIds.length; i += 50) {
     const batch = projectIds.slice(i, i + 50)
     const formula =
@@ -63,6 +65,7 @@ async function fetchProjectsById(
     params.append('fields[]', PROJECTS.QUOTATION_NUMBER)
     params.append('fields[]', PROJECTS.QUOTATION_REFERENCE)
     params.append('fields[]', PROJECTS.CLIENT_NAME)
+    params.append('fields[]', PROJECTS.PROJECT_STAGE)
     const res = await fetch(`${BASE_URL}/${PROJECTS.TABLE_ID}?${params}`, {
       headers: { Authorization: `Bearer ${API_KEY}` },
       cache: 'no-store',
@@ -74,6 +77,7 @@ async function fetchProjectsById(
         quotationNumber: (r.fields[PROJECTS.QUOTATION_NUMBER] as string) ?? '',
         quotationReference: (r.fields[PROJECTS.QUOTATION_REFERENCE] as string) ?? '',
         clientName: (r.fields[PROJECTS.CLIENT_NAME] as string) ?? '',
+        stage: (r.fields[PROJECTS.PROJECT_STAGE] as string) ?? '',
       })
     }
   }
@@ -135,15 +139,21 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req: Next
     }),
   )
 
-  const quotations = quotationsRaw.map((q) => {
-    const proj = projectMap.get(q.projectId)
-    return {
-      id: q.id,
-      quoteNumber: proj?.quotationNumber ?? q.quoteNumber,
-      quotationReference: proj?.quotationReference ?? '',
-      clientName: proj?.clientName ?? q.clientName,
-    }
-  })
+  const quotations = quotationsRaw
+    .filter((q) => {
+      if (!q.projectId) return true
+      const proj = projectMap.get(q.projectId)
+      return !proj || !INACTIVE_STAGES.has(proj.stage)
+    })
+    .map((q) => {
+      const proj = projectMap.get(q.projectId)
+      return {
+        id: q.id,
+        quoteNumber: proj?.quotationNumber ?? q.quoteNumber,
+        quotationReference: proj?.quotationReference ?? '',
+        clientName: proj?.clientName ?? q.clientName,
+      }
+    })
 
   const logs = logsRaw.map((r) => {
     const f = r.fields
