@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { FOLLOW_UP_LOG, QUOTATIONS } from '@/lib/fieldMap'
+import { FOLLOW_UP_LOG, QUOTATIONS, PROJECTS } from '@/lib/fieldMap'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,13 +17,14 @@ interface RawRecord {
   fields: Record<string, unknown>
 }
 
-async function fetchQuotations(): Promise<{ id: string; quoteNumber: string; clientName: string }[]> {
-  const results: { id: string; quoteNumber: string; clientName: string }[] = []
+async function fetchQuotations(): Promise<{ id: string; projectId: string; quoteNumber: string; clientName: string }[]> {
+  const results: { id: string; projectId: string; quoteNumber: string; clientName: string }[] = []
   let offset: string | undefined
   do {
     const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
     params.append('fields[]', QUOTATIONS.QUOTE_NUMBER)
     params.append('fields[]', QUOTATIONS.CLIENT_NAME)
+    params.append('fields[]', QUOTATIONS.PROJECT)
     params.append('sort[0][field]', QUOTATIONS.QUOTE_NUMBER)
     params.append('sort[0][direction]', 'asc')
     if (offset) params.set('offset', offset)
@@ -34,8 +35,10 @@ async function fetchQuotations(): Promise<{ id: string; quoteNumber: string; cli
     if (!res.ok) break
     const data = (await res.json()) as { records: RawRecord[]; offset?: string }
     for (const r of data.records) {
+      const projectIds = r.fields[QUOTATIONS.PROJECT] as string[] | undefined
       results.push({
         id: r.id,
+        projectId: projectIds?.[0] ?? '',
         quoteNumber: (r.fields[QUOTATIONS.QUOTE_NUMBER] as string) ?? '',
         clientName: (r.fields[QUOTATIONS.CLIENT_NAME] as string) ?? '',
       })
@@ -45,9 +48,40 @@ async function fetchQuotations(): Promise<{ id: string; quoteNumber: string; cli
   return results
 }
 
-async function fetchLogs(userName: string): Promise<RawRecord[]> {
+async function fetchProjectsById(
+  projectIds: string[],
+): Promise<Map<string, { quotationNumber: string; quotationReference: string; clientName: string }>> {
+  if (projectIds.length === 0) return new Map()
+  const map = new Map<string, { quotationNumber: string; quotationReference: string; clientName: string }>()
+  for (let i = 0; i < projectIds.length; i += 50) {
+    const batch = projectIds.slice(i, i + 50)
+    const formula =
+      batch.length === 1
+        ? `RECORD_ID() = "${batch[0]}"`
+        : `OR(${batch.map((id) => `RECORD_ID() = "${id}"`).join(',')})`
+    const params = new URLSearchParams({ returnFieldsByFieldId: 'true', filterByFormula: formula })
+    params.append('fields[]', PROJECTS.QUOTATION_NUMBER)
+    params.append('fields[]', PROJECTS.QUOTATION_REFERENCE)
+    params.append('fields[]', PROJECTS.CLIENT_NAME)
+    const res = await fetch(`${BASE_URL}/${PROJECTS.TABLE_ID}?${params}`, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+      cache: 'no-store',
+    })
+    if (!res.ok) continue
+    const data = (await res.json()) as { records: RawRecord[] }
+    for (const r of data.records) {
+      map.set(r.id, {
+        quotationNumber: (r.fields[PROJECTS.QUOTATION_NUMBER] as string) ?? '',
+        quotationReference: (r.fields[PROJECTS.QUOTATION_REFERENCE] as string) ?? '',
+        clientName: (r.fields[PROJECTS.CLIENT_NAME] as string) ?? '',
+      })
+    }
+  }
+  return map
+}
+
+async function fetchLogs(userName: string | null): Promise<RawRecord[]> {
   const records: RawRecord[] = []
-  const escapedName = userName.replace(/"/g, '\\"')
   let offset: string | undefined
   do {
     const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
@@ -58,7 +92,10 @@ async function fetchLogs(userName: string): Promise<RawRecord[]> {
     params.append('fields[]', FOLLOW_UP_LOG.NEXT_DATE)
     params.append('fields[]', FOLLOW_UP_LOG.DONE_BY)
     params.append('fields[]', FOLLOW_UP_LOG.NOTES)
-    params.set('filterByFormula', `{${FOLLOW_UP_LOG.DONE_BY}} = "${escapedName}"`)
+    if (userName) {
+      const escapedName = userName.replace(/"/g, '\\"')
+      params.set('filterByFormula', `{${FOLLOW_UP_LOG.DONE_BY}} = "${escapedName}"`)
+    }
     params.append('sort[0][field]', FOLLOW_UP_LOG.DATE)
     params.append('sort[0][direction]', 'desc')
     if (offset) params.set('offset', offset)
@@ -75,12 +112,38 @@ async function fetchLogs(userName: string): Promise<RawRecord[]> {
 }
 
 export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req: NextRequest, session) => {
-  const [quotations, logsRaw] = await Promise.all([
+  const isSed = session.role === 'sed'
+  const [quotationsRaw, logsRaw] = await Promise.all([
     fetchQuotations(),
-    fetchLogs(session.name),
+    fetchLogs(isSed ? session.name : null),
   ])
 
-  const quotationMap = new Map(quotations.map((q) => [q.id, q]))
+  const uniqueProjectIds = [...new Set(quotationsRaw.map((q) => q.projectId).filter(Boolean))]
+  const projectMap = await fetchProjectsById(uniqueProjectIds)
+
+  const quotationMap = new Map(
+    quotationsRaw.map((q) => {
+      const proj = projectMap.get(q.projectId)
+      return [
+        q.id,
+        {
+          quoteNumber: proj?.quotationNumber ?? q.quoteNumber,
+          quotationReference: proj?.quotationReference ?? '',
+          clientName: proj?.clientName ?? q.clientName,
+        },
+      ]
+    }),
+  )
+
+  const quotations = quotationsRaw.map((q) => {
+    const proj = projectMap.get(q.projectId)
+    return {
+      id: q.id,
+      quoteNumber: proj?.quotationNumber ?? q.quoteNumber,
+      quotationReference: proj?.quotationReference ?? '',
+      clientName: proj?.clientName ?? q.clientName,
+    }
+  })
 
   const logs = logsRaw.map((r) => {
     const f = r.fields
@@ -93,6 +156,7 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req: Next
       id: r.id,
       quotationId,
       quotationNumber: quoteInfo?.quoteNumber ?? '',
+      quotationReference: quoteInfo?.quotationReference ?? '',
       clientName: quoteInfo?.clientName ?? '',
       date: (f[FOLLOW_UP_LOG.DATE] as string) ?? '',
       method: (f[FOLLOW_UP_LOG.METHOD] as string) ?? '',

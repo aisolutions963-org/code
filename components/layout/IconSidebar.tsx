@@ -245,6 +245,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'All Projects', href: '/dashboard/superadmin?view=projects', icon: <FolderIcon /> },
         { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases', icon: <PhaseGateIcon /> },
         { label: 'Activity', href: '/dashboard/superadmin?view=activity', icon: <ActivityIcon /> },
+        { label: 'Follow-Ups', href: '/dashboard/superadmin?view=follow-ups', icon: <ClipboardIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
       ],
     },
@@ -294,6 +295,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Pipeline', href: '/dashboard/pipeline', icon: <PipelineIcon /> },
         { label: 'All Projects', href: '/dashboard/mgr?view=projects', icon: <FolderIcon /> },
+        { label: 'Follow-Ups', href: '/dashboard/mgr?view=follow-ups', icon: <ClipboardIcon /> },
       ],
     },
     {

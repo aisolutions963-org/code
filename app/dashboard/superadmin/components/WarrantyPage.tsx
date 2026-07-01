@@ -62,7 +62,8 @@ export default function WarrantyPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <MetricCard label="Active Warranty" value={warrantyProjects.length} color="text-teal-600" />
         <MetricCard label="Maintenance Records" value={records.length} />
         <MetricCard label="Expiring Soon (< 30d)" value={expiringSoon} color="text-orange-500" />
         <MetricCard label="Expired" value={expired} color="text-red-600" />

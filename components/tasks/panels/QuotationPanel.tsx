@@ -136,6 +136,8 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     try {
       const qn = quotationInput.trim()
       const ref = referenceInput.trim()
+      // client requests (Trade/Variance/Maintenance) already have their reference stored on the
+      // sub-project record — no need to patch the parent project's quotation fields
       const needsPatch = !isClientRequest && ((!alreadyHasQN && qn) || (!alreadyHasRef && ref))
       if (needsPatch) {
         await patchProjectQuotation(alreadyHasQN ? (task.projectQuotationNumber ?? '') : qn, ref)
@@ -295,14 +297,22 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-3">
       <p className="text-xs font-semibold text-blue-800">Record Payment</p>
 
-      {/* Quotation number — skip for Trade/Variance/Maintenance requests */}
+      {/* Quotation / reference context */}
       {isClientRequest ? (
-        task.projectTradeReference && (
-          <div className="bg-blue-100 border border-blue-200 rounded-lg px-3 py-2 text-xs">
-            <span className="font-semibold text-blue-800">{task.projectRequestType} Reference: </span>
-            <span className="font-mono text-blue-700">{task.projectTradeReference}</span>
-          </div>
-        )
+        <div className="bg-blue-100 border border-blue-200 rounded-lg px-3 py-2 text-xs flex flex-wrap gap-x-4 gap-y-1">
+          {task.projectQuotationNumber && (
+            <span>
+              <span className="font-semibold text-blue-800">Quotation: </span>
+              <span className="font-mono text-blue-700">{task.projectQuotationNumber}</span>
+            </span>
+          )}
+          {task.projectTradeReference && (
+            <span>
+              <span className="font-semibold text-blue-800">{task.projectRequestType} Ref: </span>
+              <span className="font-mono text-blue-700">{task.projectTradeReference}</span>
+            </span>
+          )}
+        </div>
       ) : (
         <div>
           <label className={lbl}>

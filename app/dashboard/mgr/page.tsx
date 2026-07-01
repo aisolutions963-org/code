@@ -17,6 +17,7 @@ import AssignInstallationModal, { TeamMember } from '@/components/projects/Assig
 import TimesheetsView from '@/components/timesheets/TimesheetsView'
 import PayablesView from '@/components/finance/PayablesView'
 import ReceivablesView from '@/components/finance/ReceivablesView'
+import FollowUpsView from '@/components/followups/FollowUpsView'
 import type { CalendarEvent } from '@/lib/airtable/calendar'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -386,6 +387,9 @@ export default function MgrDashboard() {
 
       {/* Receivables view */}
       {view === 'receivables' && <ReceivablesView />}
+
+      {/* Follow-Ups view */}
+      {view === 'follow-ups' && <FollowUpsView title="All Follow-Ups" />}
 
       {assignProject && (
         <AssignInstallationModal

@@ -15,6 +15,7 @@ export type Page =
   | 'deliveries'
   | 'payables'
   | 'receivables'
+  | 'follow-ups'
 
 export interface SedMember { id: string; name: string }
 
