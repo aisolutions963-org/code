@@ -102,7 +102,15 @@ export default function ActivityPage() {
   )
 
   const tasks = data?.tasks ?? []
-  const filtered = dept === 'All' ? tasks : tasks.filter((t) => t.department?.includes(dept))
+
+  // Airtable may use 'Manager' or 'Management' depending on the template; treat them as equivalent
+  function matchesDept(task: Task, d: Dept): boolean {
+    if (d === 'All') return true
+    if (d === 'Management') return !!(task.department?.some((x) => x === 'Manager' || x === 'Management'))
+    return !!(task.department?.includes(d))
+  }
+
+  const filtered = tasks.filter((t) => matchesDept(t, dept))
 
   async function toggleFlag(task: Task) {
     await fetch(`/api/tasks/${task.id}`, {
@@ -113,10 +121,10 @@ export default function ActivityPage() {
     mutate()
   }
 
-  const deptData = ['SED', 'Fabrication', 'Installation', 'Management'].map(dept => ({
-    dept,
-    active:    tasks.filter(t => t.department?.includes(dept) && t.status !== 'Completed' && t.status !== 'Locked').length,
-    completed: tasks.filter(t => t.department?.includes(dept) && t.status === 'Completed').length,
+  const deptData = (['SED', 'Fabrication', 'Installation', 'Management'] as Dept[]).map((d) => ({
+    dept: d,
+    active:    tasks.filter(t => matchesDept(t, d) && t.status !== 'Completed' && t.status !== 'Locked').length,
+    completed: tasks.filter(t => matchesDept(t, d) && t.status === 'Completed').length,
   }))
 
   if (isLoading) return <Spinner />
