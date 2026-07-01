@@ -68,11 +68,13 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
   const isMakeQuotation =
     task.pathCondition === 'Make Quotation' ||
     task.taskName.toLowerCase().includes('make quotation')
+  const isPerItem = !!task.projectItem?.length
   const isOrderSample = task.taskName === 'Order Sample' && !task.projectItem?.length
   const isPerItemOrderSample =
     !!task.projectItem?.length && task.pathCondition === 'Select Sample (item)'
   const isMeasurementTask =
     task.taskName.toLowerCase().includes('take measurement') &&
+    !isPerItem &&
     (role === 'manager' || role === 'sed' || role === 'superadmin')
   const isDateTask = isDateRequiredTask(task.taskName) && !isMeasurementTask &&
     (role === 'manager' || role === 'sed' || role === 'superadmin')
@@ -212,8 +214,8 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
         <MeasurementTeamPanel task={task} onUpdate={onUpdate} />
       )}
 
-      {/* Installation user: read-only scheduled date */}
-      {task.taskName.toLowerCase().includes('take measurement') && role === 'installation' && task.taskStartDate && (
+      {/* Installation user: read-only scheduled date (main task only, not per-item) */}
+      {task.taskName.toLowerCase().includes('take measurement') && !isPerItem && role === 'installation' && task.taskStartDate && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2.5">
           <p className="text-xs font-semibold text-indigo-800">Measurement Scheduled</p>
           <p className="text-xs text-indigo-600 mt-0.5">{task.taskStartDate}</p>

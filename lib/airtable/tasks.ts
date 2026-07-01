@@ -801,7 +801,7 @@ export async function createAdHocTask(fields: {
 }): Promise<string> {
   const record: Record<string, unknown> = {
     [TASKS.TASK_NAME]: fields.taskName,
-    [TASKS.PROJECT]: fields.projectId,
+    [TASKS.PROJECT]: [fields.projectId],
     [TASKS.STATUS]: fields.status ?? 'To Do',
   }
   const ids = await createTasksBatch([record])

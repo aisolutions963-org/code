@@ -21,7 +21,7 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
     const { teamMemberName, date } = parsed.data
 
     const task = await getTaskById(params.id)
-    const projectId = task.projectRecordId
+    const projectId = task.projectRecordId ?? task.project?.[0]
     const isPerItem = (task.projectItem?.length ?? 0) > 0
 
     // Look up the correct template by order + department to avoid stale hard-coded IDs.
@@ -33,6 +33,9 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
     const template = templates.find(
       (t) => t.templateOrder === targetOrder && t.department.includes('Installation'),
     )
+    if (!projectId) {
+      return NextResponse.json({ error: 'Task is not linked to a project' }, { status: 400 })
+    }
     if (!template) {
       return NextResponse.json(
         { error: `Template not found (order ${targetOrder}, Installation, ${targetStage})` },
@@ -47,7 +50,7 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
 
     const newTask: Record<string, unknown> = {
       [TASKS.TASK_NAME]: isPerItem ? 'Take measurements for item' : 'Take Measurement',
-      [TASKS.PROJECT]: projectId,
+      [TASKS.PROJECT]: [projectId],
       [TASKS.STATUS]: 'To Do',
       [TASKS.TASK_START_DATE]: date,
       [TASKS.TASK_TEMPLATES_LINK]: [template.id],

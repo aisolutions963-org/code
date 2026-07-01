@@ -226,7 +226,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const isPerItem = !!task.projectItem?.length
   const isMeasurementTask =
     task.taskName.toLowerCase().includes('take measurement') &&
-    (!task.pathCondition || isPerItem) &&
+    !isPerItem &&
     (role === 'manager' || role === 'sed' || role === 'superadmin')
   const isMaintenanceTask =
     task.taskName.toLowerCase().includes('carry out maintenance work') &&
