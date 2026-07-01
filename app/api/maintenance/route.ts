@@ -8,7 +8,7 @@ import {
 } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 
-export const GET = requireRole('superadmin')(async () => {
+export const GET = requireRole('superadmin', 'manager', 'installation')(async () => {
   const records = await getMaintenanceRecords()
   const today = Date.now()
 

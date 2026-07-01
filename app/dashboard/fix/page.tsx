@@ -3,12 +3,178 @@
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, Project } from '@/lib/types'
+import { Task, TaskUpdateInput, Project, ClientRequest } from '@/lib/types'
 import type { CalendarEvent } from '@/lib/airtable/calendar'
 import TaskList from '@/components/tasks/TaskList'
 import HandoverModal from '@/components/projects/HandoverModal'
 import AllMaterialsView from '@/components/materials/AllMaterialsView'
 import UnifiedCalendar from '@/components/calendar/UnifiedCalendar'
+import Badge from '@/components/ui/Badge'
+
+interface MaintenanceRecord {
+  id: string
+  maintenanceId: string
+  warrantyType?: string
+  startDate?: string
+  endDate?: string
+  daysRemaining: number
+  projectNames: string[]
+}
+
+function WarrantyView() {
+  const { data: mData, isLoading: mLoading } = useSWR<{ records: MaintenanceRecord[] }>(
+    '/api/maintenance', fetcher, { refreshInterval: 300_000 },
+  )
+  const { data: pData, isLoading: pLoading } = useSWR<{ projects: Project[] }>(
+    '/api/projects?stage=Closed%20and%20active%20warranty', fetcher, { refreshInterval: 300_000 },
+  )
+  const { data: crData, isLoading: crLoading } = useSWR<{ requests: ClientRequest[] }>(
+    '/api/client-requests', fetcher, { refreshInterval: 300_000 },
+  )
+
+  if (mLoading || pLoading || crLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  const records = mData?.records ?? []
+  const warrantyProjects = pData?.projects ?? []
+  const maintenanceRequests = (crData?.requests ?? []).filter((r) => r.requestType === 'Maintenance')
+  const expiringSoon = records.filter((r) => r.daysRemaining >= 0 && r.daysRemaining < 30).length
+  const expired = records.filter((r) => r.daysRemaining < 0).length
+
+  return (
+    <div className="space-y-5">
+      {/* Summary chips */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: 'Active Warranty', value: warrantyProjects.length, color: 'text-teal-600' },
+          { label: 'Maintenance Jobs', value: maintenanceRequests.length, color: 'text-blue-600' },
+          { label: 'Expiring < 30d', value: expiringSoon, color: 'text-orange-500' },
+          { label: 'Expired', value: expired, color: 'text-red-600' },
+        ].map((m) => (
+          <div key={m.label} className="bg-white rounded-xl border border-gray-200 p-3 text-center shadow-sm">
+            <p className={`text-xl font-bold ${m.color}`}>{m.value}</p>
+            <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{m.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Maintenance client requests */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Maintenance Jobs ({maintenanceRequests.length})
+        </p>
+        {maintenanceRequests.length === 0 ? (
+          <p className="text-sm text-gray-400 py-3">No maintenance jobs.</p>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Reference</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Parent Project</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Stage</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {maintenanceRequests.map((r) => (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{r.tradeReference ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-700">{r.parentProjectName ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{r.clientName}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={r.projectStage === 'Closed' || r.projectStage === 'Closed and active warranty' ? 'green' : 'blue'} size="sm">
+                          {r.projectStage}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Active warranty projects */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Active Warranty Projects ({warrantyProjects.length})
+        </p>
+        {warrantyProjects.length === 0 ? (
+          <p className="text-sm text-gray-400 py-3">No projects currently in active warranty.</p>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {warrantyProjects.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{p.projectName}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{p.clientName ?? '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{p.projectId ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Warranty records */}
+      {records.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Warranty Records ({records.length})
+          </p>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">End Date</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Remaining</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {records.map((r) => {
+                    const d = r.daysRemaining
+                    const color = d < 0 ? 'red' : d < 30 ? 'orange' : 'green'
+                    const label = d < 0 ? `Expired ${Math.abs(d)}d ago` : `${d}d left`
+                    return (
+                      <tr key={r.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.maintenanceId}</td>
+                        <td className="px-4 py-3 text-xs text-gray-700">{r.projectNames.join(', ') || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{r.warrantyType ?? '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{r.endDate ?? '—'}</td>
+                        <td className="px-4 py-3"><Badge variant={color} size="sm">{label}</Badge></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface AssignmentNote { id: number; title: string; body: string; created_at: string; read: number }
 
@@ -106,6 +272,9 @@ export default function FixDashboard() {
         </div>
       </div>
 
+      {/* Warranty / maintenance view */}
+      {view === 'warranty' && <WarrantyView />}
+
       {/* Materials view */}
       {view === 'materials' && <AllMaterialsView role="installation" />}
 
@@ -114,7 +283,7 @@ export default function FixDashboard() {
         <UnifiedCalendar filterTypes={['installation', 'fabrication', 'delivery']} />
       )}
 
-      {view !== 'materials' && view !== 'calendar' && (
+      {view !== 'materials' && view !== 'calendar' && view !== 'warranty' && (
         <>
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">

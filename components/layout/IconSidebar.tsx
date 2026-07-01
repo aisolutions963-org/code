@@ -373,6 +373,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         HOME_ITEM,
         { label: 'Forms', href: '/dashboard/forms', icon: <FormsIcon /> },
+        { label: 'Warranty', href: '/dashboard/fix?view=warranty', icon: <WarrantyIcon /> },
       ],
     },
     {

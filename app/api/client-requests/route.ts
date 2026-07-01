@@ -4,7 +4,7 @@ import { createClientRequest, getClientRequests, getProjectById } from '@/lib/ai
 import { getUserById, getUserByAirtableMemberId, addSedProjectMapping } from '@/lib/db'
 import { CreateClientRequestSchema } from '@/lib/validation'
 
-export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, session) => {
+export const GET = requireRole('sed', 'manager', 'superadmin', 'installation')(async (_req, session) => {
   let sedAirtableMemberId: string | undefined
   if (session.role === 'sed') {
     const dbUser = await getUserById(session.id)

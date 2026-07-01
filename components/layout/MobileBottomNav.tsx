@@ -106,7 +106,7 @@ const PRIMARY_NAV: Record<Role, MobileNavItem[]> = {
     { label: 'Home',       href: '/home',                          icon: (a) => <HomeSvg active={a} /> },
     { label: 'Team',       href: '/dashboard/fix?view=team',       icon: (a) => <TasksSvg active={a} /> },
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries', icon: (a) => <TruckSvg active={a} /> },
-    { label: 'Materials',  href: '/dashboard/fix?view=materials',  icon: (a) => <FolderSvg active={a} /> },
+    { label: 'Forms',      href: '/dashboard/forms',               icon: (a) => <FormsSvg active={a} /> },
   ],
   sed: [
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
@@ -117,8 +117,8 @@ const PRIMARY_NAV: Record<Role, MobileNavItem[]> = {
   fabrication: [
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
     { label: 'My Tasks', href: '/dashboard/fab', icon: (a) => <TasksSvg active={a} /> },
+    { label: 'Forms', href: '/dashboard/forms', icon: (a) => <FormsSvg active={a} /> },
     { label: 'Materials', href: '/dashboard/fab?view=materials', icon: (a) => <FolderSvg active={a} /> },
-    { label: 'Timeline', href: '/dashboard/fab?view=timeline', icon: (a) => <CalendarSvg active={a} /> },
   ],
   manager: [
     { label: 'Home', href: '/home', icon: (a) => <HomeSvg active={a} /> },
@@ -163,6 +163,7 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
   installation: [
     { label: 'Home',       href: '/home' },
     { label: 'Forms',      href: '/dashboard/forms' },
+    { label: 'Warranty',   href: '/dashboard/fix?view=warranty' },
     { label: 'Team Tasks', href: '/dashboard/fix?view=team' },
     { label: 'Deliveries', href: '/dashboard/fix?view=deliveries' },
     { label: 'Materials',  href: '/dashboard/fix?view=materials' },

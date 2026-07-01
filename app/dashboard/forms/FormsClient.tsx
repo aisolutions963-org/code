@@ -13,6 +13,11 @@ const inp = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:
 const sel = `${inp} bg-white`
 const lbl = 'text-xs text-gray-500 block mb-1'
 
+// Stages where a handover form is relevant
+const HANDOVER_STAGES = new Set(['Production', 'Closing'])
+
+// ─── Payment Form ─────────────────────────────────────────────────────────────
+
 function PaymentForm({ project }: { project: Project }) {
   const today = todayUAE()
   const [showForm, setShowForm] = useState(false)
@@ -158,6 +163,8 @@ function PaymentForm({ project }: { project: Project }) {
   )
 }
 
+// ─── F3 Material Order Modal ──────────────────────────────────────────────────
+
 const UNITS = ['pcs', 'm', 'm²', 'kg', 'set', 'box', 'roll'] as const
 type Unit = typeof UNITS[number]
 const PURPOSES = ['Project', 'Office', 'Factory', 'Cars', 'Other'] as const
@@ -242,7 +249,6 @@ function F3Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-sm font-bold text-gray-800">F3 — Material Order</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
@@ -251,7 +257,6 @@ function F3Modal({
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
 
-            {/* ORDER DETAILS */}
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Order Details</p>
               <div className="grid grid-cols-2 gap-3">
@@ -294,7 +299,6 @@ function F3Modal({
               </div>
             </div>
 
-            {/* Order Type */}
             <div className="grid grid-cols-2 gap-3">
               {(['small', 'big'] as const).map((t) => (
                 <button
@@ -317,7 +321,6 @@ function F3Modal({
               ))}
             </div>
 
-            {/* Materials Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">
                 <thead>
@@ -372,7 +375,6 @@ function F3Modal({
             {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
           </div>
 
-          {/* Footer */}
           <div className="border-t border-gray-100 px-5 py-4 flex items-center justify-between shrink-0">
             <p className="text-xs text-gray-400">
               Purpose can be: {PURPOSES.join(' / ')}
@@ -395,6 +397,8 @@ function F3Modal({
     </div>
   )
 }
+
+// ─── Handover Section ─────────────────────────────────────────────────────────
 
 function HandoverSection({ project, onCreated }: { project: Project; onCreated: () => void }) {
   const [open, setOpen] = useState(false)
@@ -423,6 +427,8 @@ function HandoverSection({ project, onCreated }: { project: Project; onCreated: 
   )
 }
 
+// ─── Project Card ─────────────────────────────────────────────────────────────
+
 function ProjectCard({ project, canPay, canHandover, onRefresh }: { project: Project; canPay: boolean; canHandover: boolean; onRefresh: () => void }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
@@ -446,6 +452,8 @@ function Spinner() {
   )
 }
 
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
 export default function FormsClient({ role }: { role: Role }) {
   const { data, isLoading, error, mutate } = useSWR<{ projects: Project[] }>(
     '/api/projects',
@@ -459,7 +467,29 @@ export default function FormsClient({ role }: { role: Role }) {
   const canPay = role === 'manager' || role === 'superadmin'
   const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'fabrication' || role === 'superadmin'
   const canHandover = role === 'installation' || role === 'manager' || role === 'superadmin'
-  const projects = data?.projects ?? []
+
+  const allProjects = data?.projects ?? []
+
+  // For handover: only show projects in active production/closing stages
+  const handoverProjects = canHandover
+    ? allProjects.filter((p) => !p.projectStage || HANDOVER_STAGES.has(p.projectStage))
+    : []
+
+  // For payment: show all active projects
+  const paymentProjects = canPay ? allProjects : []
+
+  // Projects shown as cards: union of handover + payment projects (deduped)
+  const cardProjectIds = new Set([
+    ...handoverProjects.map((p) => p.id),
+    ...paymentProjects.map((p) => p.id),
+  ])
+  const cardProjects = allProjects.filter((p) => cardProjectIds.has(p.id))
+
+  const subtitle = isLoading
+    ? 'Loading…'
+    : canHandover || canPay
+      ? `${cardProjects.length} project${cardProjects.length !== 1 ? 's' : ''}`
+      : 'Submit material orders'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -467,9 +497,7 @@ export default function FormsClient({ role }: { role: Role }) {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Forms</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {isLoading ? 'Loading…' : (canPay || canHandover) ? `${projects.length} project${projects.length !== 1 ? 's' : ''}` : 'Submit forms and orders'}
-            </p>
+            <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
           </div>
           <button
             onClick={() => mutate()}
@@ -482,12 +510,12 @@ export default function FormsClient({ role }: { role: Role }) {
           </button>
         </div>
 
-        {/* F3 Material Order — standalone entry point */}
+        {/* F3 Material Order */}
         {canOrderMaterials && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-gray-800">F3 — Material Order</p>
-              <p className="text-xs text-gray-400 mt-0.5">Order for any project, office, factory or other purpose</p>
+              <p className="text-xs text-gray-400 mt-0.5">Order materials for a project, office, factory or other</p>
               {f3Saved && <p className="text-xs text-green-600 mt-1">Order submitted successfully.</p>}
             </div>
             <button
@@ -508,19 +536,22 @@ export default function FormsClient({ role }: { role: Role }) {
           </div>
         )}
 
-        {(canPay || canHandover) && !isLoading && !error && projects.length === 0 && (
+        {/* Project cards — only for roles that have payment or handover actions */}
+        {(canPay || canHandover) && !isLoading && !error && cardProjects.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-sm font-semibold text-gray-700">No active projects</p>
-            <p className="text-xs text-gray-400 mt-1">Projects will appear here once created.</p>
+            <p className="text-sm font-semibold text-gray-700">
+              {canHandover && !canPay ? 'No projects in Production or Closing stage' : 'No active projects'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">Projects will appear here once they reach the relevant stage.</p>
           </div>
         )}
 
-        {(canPay || canHandover) && !isLoading && projects.map((project) => (
+        {(canPay || canHandover) && !isLoading && cardProjects.map((project) => (
           <ProjectCard
             key={project.id}
             project={project}
             canPay={canPay}
-            canHandover={canHandover}
+            canHandover={canHandover && HANDOVER_STAGES.has(project.projectStage ?? '')}
             onRefresh={() => mutate()}
           />
         ))}
@@ -528,7 +559,7 @@ export default function FormsClient({ role }: { role: Role }) {
 
       {showF3 && (
         <F3Modal
-          projects={projects}
+          projects={allProjects}
           onClose={() => setShowF3(false)}
           onSubmitted={() => { setF3Saved(true); mutate() }}
         />
