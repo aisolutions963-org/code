@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/apiHandler'
 import {
   createPayment,
   getPaymentsByProject,
+  getPaymentsByProjectIds,
   getAllPayments,
   getProjectById,
   getMaintenanceRecordForProject,
@@ -17,6 +18,7 @@ import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
 export const GET = requireRole('manager', 'superadmin')(async (req: NextRequest) => {
   const projectId = req.nextUrl.searchParams.get('projectId')
+  const projectIds = req.nextUrl.searchParams.get('projectIds')
   const all = req.nextUrl.searchParams.get('all') === 'true'
 
   if (all) {
@@ -24,8 +26,14 @@ export const GET = requireRole('manager', 'superadmin')(async (req: NextRequest)
     return NextResponse.json({ payments })
   }
 
+  if (projectIds) {
+    const ids = projectIds.split(',').filter(Boolean)
+    const payments = await getPaymentsByProjectIds(ids)
+    return NextResponse.json({ payments })
+  }
+
   if (!projectId) {
-    return NextResponse.json({ error: 'projectId or all=true query param required' }, { status: 400 })
+    return NextResponse.json({ error: 'projectId, projectIds, or all=true query param required' }, { status: 400 })
   }
   const payments = await getPaymentsByProject(projectId)
   return NextResponse.json({ payments })

@@ -12,10 +12,21 @@ import {
   transformPayment,
 } from './_client'
 
+export async function getPaymentsByProjectIds(projectIds: string[]): Promise<Payment[]> {
+  const idSet = new Set(projectIds)
+  const records = await fetchAll(PAYMENTS.TABLE_ID, {
+    sort: [{ field: PAYMENTS.RECEIVED_DATE, direction: 'desc' }],
+  })
+  return records
+    .filter((r) => {
+      const proj = r.fields[PAYMENTS.PROJECT]
+      return Array.isArray(proj) && (proj as string[]).some((id) => idSet.has(id))
+    })
+    .map(transformPayment)
+}
+
 export async function getPaymentsByProject(projectId: string): Promise<Payment[]> {
-  const formula = `{${PAYMENTS.PROJECT}} = "${projectId}"`
-  const records = await fetchAll(PAYMENTS.TABLE_ID, { filterByFormula: formula })
-  return records.map(transformPayment)
+  return getPaymentsByProjectIds([projectId])
 }
 
 export async function getAllPayments(): Promise<Payment[]> {

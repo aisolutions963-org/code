@@ -9,20 +9,32 @@ import Button from '@/components/ui/Button'
 import UnifiedCalendar from '@/components/calendar/UnifiedCalendar'
 import { fetcher, Spinner, MetricCard, fmt } from './shared'
 
+function SubBadge({ child }: { child: Project }) {
+  const label = child.requestType + (child.tradeReference ? ` · ${child.tradeReference}` : '')
+  return (
+    <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-700 align-middle">
+      {label}
+    </span>
+  )
+}
+
 function PaymentDetail({
   project: p,
+  childProjects,
   showForm,
   setShowForm,
 }: {
   project: Project
+  childProjects: Project[]
   showForm: boolean
   setShowForm: (v: boolean) => void
 }) {
-  const { data, isLoading, mutate } = useSWR<{ project: { payments?: Payment[] } }>(
-    `/api/projects/${p.id}`,
+  const allIds = [p.id, ...childProjects.map((c) => c.id)].join(',')
+  const { data, isLoading, mutate } = useSWR<{ payments: Payment[] }>(
+    `/api/payments?projectIds=${allIds}`,
     fetcher,
   )
-  const payments = data?.project?.payments ?? []
+  const payments = data?.payments ?? []
 
   const today = todayUAE()
   const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variance'
@@ -176,133 +188,149 @@ function PaymentDetail({
     <div className="space-y-3">
       {ferr && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{ferr}</p>}
       {payments.length > 0 && (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-gray-500">
-              <th className="text-left py-1 pr-3">Type</th>
-              <th className="text-left py-1 pr-3">Status</th>
-              <th className="text-right py-1 pr-3">Amount</th>
-              <th className="text-left py-1 pr-3">Method</th>
-              <th className="text-left py-1 pr-3">Date</th>
-              <th className="text-left py-1 pr-3">Stage</th>
-              <th className="text-right py-1">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {payments.map((pm) => (
-              <Fragment key={pm.id}>
-                <tr className={pm.paymentStatus === 'Cancelled' ? 'opacity-50 line-through' : ''}>
-                  <td className="py-1.5 pr-3 text-gray-700">{pm.paymentType}</td>
-                  <td className="py-1.5 pr-3">
-                    <Badge variant={pm.paymentStatus === 'Received' ? 'green' : pm.paymentStatus === 'Pending' ? 'orange' : 'gray'} size="sm">
-                      {pm.paymentStatus}
-                    </Badge>
-                  </td>
-                  <td className="py-1.5 pr-3 text-right font-mono text-gray-800">AED {pm.amount.toLocaleString()}</td>
-                  <td className="py-1.5 pr-3 text-gray-500">{pm.paymentMethod}</td>
-                  <td className="py-1.5 pr-3 text-gray-400">{pm.receivedDate ?? pm.dueDate ?? '—'}</td>
-                  <td className="py-1.5 pr-3 text-gray-400">{pm.stageAtPayment ?? '—'}</td>
-                  <td className="py-1.5 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => editingId === pm.id ? cancelEdit() : startEdit(pm)}
-                      className="text-xs text-blue-600 hover:underline mr-2"
-                    >
-                      {editingId === pm.id ? 'Discard' : 'Edit'}
-                    </button>
-                    {pm.paymentStatus !== 'Cancelled' && (
-                      <button
-                        onClick={() => doVoid(pm)}
-                        disabled={cancelling === pm.id}
-                        className="text-xs text-red-500 hover:underline disabled:opacity-50"
-                      >
-                        {cancelling === pm.id ? '…' : 'Void'}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-                {editingId === pm.id && editForm && (
-                  <tr>
-                    <td colSpan={7} className="pb-3 pt-1 bg-blue-50/50">
-                      <form onSubmit={submitEdit} className="grid grid-cols-2 gap-3 p-3 bg-white rounded-lg border border-blue-200">
-                        {editErr && <p className="col-span-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{editErr}</p>}
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Date</label>
-                          <input type="date" value={editForm.receivedDate} onChange={(e) => setEF('receivedDate', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Amount (AED) *</label>
-                          <input type="number" min="0" step="0.01" value={editForm.amount} onChange={(e) => setEF('amount', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Type</label>
-                          <select value={editForm.paymentType} onChange={(e) => setEF('paymentType', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Status</label>
-                          <select value={editForm.paymentStatus} onChange={(e) => setEF('paymentStatus', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            {['Received', 'Pending', 'Overdue', 'Cancelled'].map((v) => <option key={v}>{v}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Method</label>
-                          <select value={editForm.paymentMethod} onChange={(e) => setEF('paymentMethod', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            {['Bank Transfer', 'Cash', 'Cheque'].map((v) => <option key={v}>{v}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Reference No.</label>
-                          <input type="text" value={editForm.referenceNo} onChange={(e) => setEF('referenceNo', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Payer Type</label>
-                          <select value={editForm.payerType} onChange={(e) => setEF('payerType', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            <option value="">— select —</option>
-                            {['Broker', 'Contractor', 'End User', 'Designer'].map((v) => <option key={v}>{v}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Payer Name</label>
-                          <input type="text" value={editForm.payerName} onChange={(e) => setEF('payerName', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                        </div>
-                        {editForm.payerType === 'Broker' && (
-                          <div className="col-span-2">
-                            <label className="text-xs text-gray-500 block mb-1">Commission Amount (AED)</label>
-                            <input type="number" min="0" step="0.01" value={editForm.commission} onChange={(e) => setEF('commission', e.target.value)}
-                              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs min-w-[900px]">
+            <thead>
+              <tr className="text-gray-400 border-b border-gray-100">
+                <th className="text-left py-1.5 pr-3 font-medium">Type</th>
+                <th className="text-left py-1.5 pr-3 font-medium">Status</th>
+                <th className="text-right py-1.5 pr-3 font-medium">Amount</th>
+                <th className="text-left py-1.5 pr-3 font-medium">Method</th>
+                <th className="text-left py-1.5 pr-3 font-medium">Ref No</th>
+                <th className="text-left py-1.5 pr-3 font-medium">Payer Type</th>
+                <th className="text-left py-1.5 pr-3 font-medium">Payer Name</th>
+                <th className="text-left py-1.5 pr-3 font-medium">Recorded By</th>
+                <th className="text-left py-1.5 pr-3 font-medium">Date</th>
+                <th className="text-left py-1.5 pr-3 font-medium">Stage</th>
+                <th className="text-right py-1.5 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {payments.map((pm) => {
+                const sourceChild = childProjects.find((c) => pm.project.includes(c.id))
+                return (
+                  <Fragment key={pm.id}>
+                    <tr className={pm.paymentStatus === 'Cancelled' ? 'opacity-50 line-through' : ''}>
+                      <td className="py-1.5 pr-3 text-gray-700 whitespace-nowrap">
+                        {pm.paymentType}
+                        {sourceChild && <SubBadge child={sourceChild} />}
+                      </td>
+                      <td className="py-1.5 pr-3">
+                        <Badge variant={pm.paymentStatus === 'Received' ? 'green' : pm.paymentStatus === 'Pending' ? 'orange' : 'gray'} size="sm">
+                          {pm.paymentStatus}
+                        </Badge>
+                      </td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-gray-800 whitespace-nowrap">AED {pm.amount.toLocaleString()}</td>
+                      <td className="py-1.5 pr-3 text-gray-500">{pm.paymentMethod}</td>
+                      <td className="py-1.5 pr-3 text-gray-600 font-mono">{pm.referenceNo ?? '—'}</td>
+                      <td className="py-1.5 pr-3 text-gray-500">{pm.payerType ?? '—'}</td>
+                      <td className="py-1.5 pr-3 text-gray-500">{pm.payerName ?? '—'}</td>
+                      <td className="py-1.5 pr-3 text-gray-400">{pm.recordedBy ?? '—'}</td>
+                      <td className="py-1.5 pr-3 text-gray-400 whitespace-nowrap">{pm.receivedDate ?? pm.dueDate ?? '—'}</td>
+                      <td className="py-1.5 pr-3 text-gray-400 whitespace-nowrap">{pm.stageAtPayment ?? '—'}</td>
+                      <td className="py-1.5 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => editingId === pm.id ? cancelEdit() : startEdit(pm)}
+                          className="text-xs text-blue-600 hover:underline mr-2"
+                        >
+                          {editingId === pm.id ? 'Discard' : 'Edit'}
+                        </button>
+                        {pm.paymentStatus !== 'Cancelled' && (
+                          <button
+                            onClick={() => doVoid(pm)}
+                            disabled={cancelling === pm.id}
+                            className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                          >
+                            {cancelling === pm.id ? '…' : 'Void'}
+                          </button>
                         )}
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Due Date</label>
-                          <input type="date" value={editForm.dueDate} onChange={(e) => setEF('dueDate', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500 block mb-1">Notes</label>
-                          <input type="text" value={editForm.notes} onChange={(e) => setEF('notes', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                        </div>
-                        <div className="col-span-2 flex items-center gap-3">
-                          <Button type="submit" size="sm" loading={editSaving}>Update Payment</Button>
-                          <button type="button" onClick={cancelEdit} className="text-xs text-gray-500 hover:underline">Discard</button>
-                        </div>
-                      </form>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
+                      </td>
+                    </tr>
+                    {editingId === pm.id && editForm && (
+                      <tr>
+                        <td colSpan={11} className="pb-3 pt-1 bg-blue-50/50">
+                          <form onSubmit={submitEdit} className="grid grid-cols-2 gap-3 p-3 bg-white rounded-lg border border-blue-200">
+                            {editErr && <p className="col-span-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{editErr}</p>}
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Date</label>
+                              <input type="date" value={editForm.receivedDate} onChange={(e) => setEF('receivedDate', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Amount (AED) *</label>
+                              <input type="number" min="0" step="0.01" value={editForm.amount} onChange={(e) => setEF('amount', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Type</label>
+                              <select value={editForm.paymentType} onChange={(e) => setEF('paymentType', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Status</label>
+                              <select value={editForm.paymentStatus} onChange={(e) => setEF('paymentStatus', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                {['Received', 'Pending', 'Overdue', 'Cancelled'].map((v) => <option key={v}>{v}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Method</label>
+                              <select value={editForm.paymentMethod} onChange={(e) => setEF('paymentMethod', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                {['Bank Transfer', 'Cash', 'Cheque'].map((v) => <option key={v}>{v}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Reference No.</label>
+                              <input type="text" value={editForm.referenceNo} onChange={(e) => setEF('referenceNo', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Payer Type</label>
+                              <select value={editForm.payerType} onChange={(e) => setEF('payerType', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                <option value="">— select —</option>
+                                {['Broker', 'Contractor', 'End User', 'Designer'].map((v) => <option key={v}>{v}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Payer Name</label>
+                              <input type="text" value={editForm.payerName} onChange={(e) => setEF('payerName', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            </div>
+                            {editForm.payerType === 'Broker' && (
+                              <div className="col-span-2">
+                                <label className="text-xs text-gray-500 block mb-1">Commission Amount (AED)</label>
+                                <input type="number" min="0" step="0.01" value={editForm.commission} onChange={(e) => setEF('commission', e.target.value)}
+                                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                              </div>
+                            )}
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Due Date</label>
+                              <input type="date" value={editForm.dueDate} onChange={(e) => setEF('dueDate', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                              <input type="text" value={editForm.notes} onChange={(e) => setEF('notes', e.target.value)}
+                                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                            </div>
+                            <div className="col-span-2 flex items-center gap-3">
+                              <Button type="submit" size="sm" loading={editSaving}>Update Payment</Button>
+                              <button type="button" onClick={cancelEdit} className="text-xs text-gray-500 hover:underline">Discard</button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
       {payments.length === 0 && <p className="text-xs text-gray-400">No payment records.</p>}
 
@@ -450,50 +478,68 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {sorted.map((p) => (
-                <Fragment key={p.id}>
-                  <tr
-                    className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => {
-                      setSelectedId(selectedId === p.id ? null : p.id)
-                      setShowForm(false)
-                    }}
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-900 truncate max-w-[180px]">{p.projectName}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-gray-700">
-                      {p.projectTotalCost != null ? `AED ${p.projectTotalCost.toLocaleString()}` : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-green-700">
-                      {p.totalPaid != null ? `AED ${p.totalPaid.toLocaleString()}` : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-red-600">
-                      {p.remainingBalance != null ? `AED ${p.remainingBalance.toLocaleString()}` : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-100 rounded-full h-1.5 min-w-16">
-                          <div
-                            className="bg-green-500 h-1.5 rounded-full"
-                            style={{ width: `${Math.min(100, p.paymentProgress ?? 0)}%` }}
-                          />
+              {sorted.map((p) => {
+                const childProjects = projects.filter(
+                  (proj) => proj.parentProjectId === p.id && !!proj.requestType,
+                )
+                return (
+                  <Fragment key={p.id}>
+                    <tr
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => {
+                        setSelectedId(selectedId === p.id ? null : p.id)
+                        setShowForm(false)
+                      }}
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-900 truncate max-w-[180px]">
+                        {p.projectName}
+                        {p.requestType && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-700">
+                            {p.requestType}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-gray-700">
+                        {p.projectTotalCost != null ? `AED ${p.projectTotalCost.toLocaleString()}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-green-700">
+                        {p.totalPaid != null ? `AED ${p.totalPaid.toLocaleString()}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-red-600">
+                        {p.remainingBalance != null ? `AED ${p.remainingBalance.toLocaleString()}` : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-gray-100 rounded-full h-1.5 min-w-16">
+                            <div
+                              className="bg-green-500 h-1.5 rounded-full"
+                              style={{ width: `${Math.min(100, p.paymentProgress ?? 0)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500 shrink-0">{p.paymentProgress ?? 0}%</span>
                         </div>
-                        <span className="text-xs text-gray-500 shrink-0">{p.paymentProgress ?? 0}%</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs text-right">
-                      {selectedId === p.id ? '▲' : '▼'}
-                    </td>
-                  </tr>
-                  {selectedId === p.id && (
-                    <tr>
-                      <td colSpan={7} className="px-4 pb-4 pt-2 bg-gray-50">
-                        <PaymentDetail project={p} showForm={showForm} setShowForm={setShowForm} />
+                      </td>
+                      <td className="px-4 py-3 text-gray-400 text-xs text-right">
+                        {selectedId === p.id ? '▲' : '▼'}
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
+                    {selectedId === p.id && (
+                      <tr>
+                        <td colSpan={7} className="px-4 pb-4 pt-2 bg-gray-50">
+                          {childProjects.length > 0 && (
+                            <p className="text-[10px] text-gray-400 mb-2">
+                              Includes payments from {childProjects.length} sub-project{childProjects.length > 1 ? 's' : ''}{' '}
+                              ({childProjects.map((c) => `${c.requestType}${c.tradeReference ? ` · ${c.tradeReference}` : ''}`).join(', ')})
+                            </p>
+                          )}
+                          <PaymentDetail project={p} childProjects={childProjects} showForm={showForm} setShowForm={setShowForm} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
               {sorted.length === 0 && (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-sm text-gray-400">No projects.</td>
