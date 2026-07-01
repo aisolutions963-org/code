@@ -80,7 +80,13 @@ export default function FabDashboard() {
               <div key={t.id} className="px-4 py-3 flex items-center justify-between text-sm">
                 <div>
                   <p className="font-medium text-gray-900">{t.taskName}</p>
-                  <p className="text-xs text-gray-400 font-mono">{t.projectId}</p>
+                  <p className="text-xs text-gray-500">
+                    {t.projectNickname
+                      ? t.projectName
+                        ? `${t.projectNickname} — ${t.projectName}`
+                        : t.projectNickname
+                      : (t.projectName ?? t.projectRef ?? t.projectId ?? '')}
+                  </p>
                 </div>
                 <div className="text-left text-xs text-gray-500 space-y-0.5">
                   {t.plannedProdStartDate && <p>البداية: {t.plannedProdStartDate}</p>}

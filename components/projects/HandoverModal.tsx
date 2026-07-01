@@ -22,6 +22,8 @@ function openHandoverPrint(
   },
   handoverId: string,
   logs: InstallationLog[] = [],
+  quotationNumber?: string,
+  quotationReference?: string,
 ) {
   const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
   const html = `<!DOCTYPE html>
@@ -61,6 +63,14 @@ function openHandoverPrint(
       <span class="field-label">Handover ID</span>
       <span class="field-value" style="font-family:monospace;font-size:11px;color:#555;">${handoverId}</span>
     </div>
+    ${quotationNumber ? `<div class="field-row">
+      <span class="field-label">Quotation Number</span>
+      <span class="field-value">${quotationNumber}</span>
+    </div>` : ''}
+    ${quotationReference ? `<div class="field-row">
+      <span class="field-label">Quotation Reference</span>
+      <span class="field-value">${quotationReference}</span>
+    </div>` : ''}
     <div class="field-row">
       <span class="field-label">Final Installation Date</span>
       <span class="field-value">${data.finalInstallationDate}</span>
@@ -132,11 +142,15 @@ function openHandoverPrint(
 export default function HandoverModal({
   projectId,
   projectName,
+  quotationNumber,
+  quotationReference,
   onClose,
   onCreated,
 }: {
   projectId: string
   projectName: string
+  quotationNumber?: string
+  quotationReference?: string
   onClose: () => void
   onCreated: () => void
 }) {
@@ -191,7 +205,7 @@ export default function HandoverModal({
       setHandoverId(id)
       setDone(true)
       onCreated()
-      openHandoverPrint(projectName, printData, id, logs)
+      openHandoverPrint(projectName, printData, id, logs, quotationNumber, quotationReference)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to generate')
     } finally {
@@ -215,7 +229,7 @@ export default function HandoverModal({
           </div>
           <p className="text-xs text-gray-400">Print dialog opened — save as PDF or print directly.</p>
           <div className="flex justify-center gap-3">
-            <Button variant="secondary" onClick={() => openHandoverPrint(projectName, savedData, handoverId, savedLogs)}>
+            <Button variant="secondary" onClick={() => openHandoverPrint(projectName, savedData, handoverId, savedLogs, quotationNumber, quotationReference)}>
               Re-open PDF
             </Button>
             <Button onClick={onClose}>Done</Button>
@@ -243,9 +257,19 @@ export default function HandoverModal({
         )}
 
         {/* Project — read-only */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 space-y-0.5">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 space-y-1">
           <p className="text-xs text-gray-500">Project</p>
           <p className="font-medium text-gray-900">{projectName}</p>
+          {(quotationNumber || quotationReference) && (
+            <div className="flex gap-4 mt-1">
+              {quotationNumber && (
+                <p className="text-xs text-gray-500">Quotation No: <span className="font-medium text-gray-700">{quotationNumber}</span></p>
+              )}
+              {quotationReference && (
+                <p className="text-xs text-gray-500">Reference: <span className="font-medium text-gray-700">{quotationReference}</span></p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Final Installation Date */}

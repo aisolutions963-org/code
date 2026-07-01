@@ -244,6 +244,8 @@ export default function FixDashboard() {
         <HandoverModal
           projectId={handoverProject.id}
           projectName={handoverProject.projectName}
+          quotationNumber={handoverProject.quotationNumber}
+          quotationReference={handoverProject.quotationReference}
           onClose={() => setHandoverProject(null)}
           onCreated={() => mutateProjects()}
         />

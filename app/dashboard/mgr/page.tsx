@@ -420,6 +420,8 @@ export default function MgrDashboard() {
         <HandoverModal
           projectId={handoverProject.id}
           projectName={handoverProject.projectName}
+          quotationNumber={handoverProject.quotationNumber}
+          quotationReference={handoverProject.quotationReference}
           onClose={() => setHandoverProject(null)}
           onCreated={() => mutateProjects()}
         />

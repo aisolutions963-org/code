@@ -213,7 +213,8 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
 
   const isFollowUpTask =
     role === 'superadmin' &&
-    task.taskName.toLowerCase().includes(FOLLOW_UP_KEYWORD)
+    task.taskName.toLowerCase().includes(FOLLOW_UP_KEYWORD) &&
+    !task.taskName.toLowerCase().includes('til material')
 
   const isSystemAutoTask =
     task.taskName.toLowerCase().startsWith('to follow tasks progress') ||

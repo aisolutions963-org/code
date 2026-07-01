@@ -413,6 +413,8 @@ function HandoverSection({ project, onCreated }: { project: Project; onCreated: 
         <HandoverModal
           projectId={project.id}
           projectName={project.projectName ?? ''}
+          quotationNumber={project.quotationNumber}
+          quotationReference={project.quotationReference}
           onClose={() => setOpen(false)}
           onCreated={() => { setOpen(false); onCreated() }}
         />
