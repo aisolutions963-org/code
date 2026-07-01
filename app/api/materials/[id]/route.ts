@@ -3,7 +3,7 @@ import { requireRole } from '@/lib/apiHandler'
 import { updateMaterialOrderStatus } from '@/lib/airtable'
 import { MaterialDecisionSchema } from '@/lib/validation'
 
-export const PATCH = requireRole('manager', 'superadmin', 'fabrication')(
+export const PATCH = requireRole('manager', 'superadmin')(
   async (req: NextRequest, _session, { params }) => {
     let rawBody: unknown
     try {

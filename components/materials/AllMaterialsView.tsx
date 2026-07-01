@@ -37,7 +37,7 @@ export default function AllMaterialsView({ role }: { role: string }) {
   const [search, setSearch] = useState('')
   const [updating, setUpdating] = useState<string | null>(null)
 
-  const canEdit = role === 'superadmin' || role === 'manager' || role === 'fabrication'
+  const canEdit = role === 'superadmin' || role === 'manager'
   const projectsUrl =
     role === 'superadmin' || role === 'manager' ? '/api/projects?all=true' : '/api/projects'
 
