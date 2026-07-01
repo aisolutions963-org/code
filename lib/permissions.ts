@@ -42,6 +42,9 @@ export const EDITABLE_FIELDS: Record<Role, (keyof TaskUpdateInput)[]> = {
     'expectedFabEndDate',
     'taskDocLinks',
     'priorityFlag',
+    'teamDaysRequired',
+    'noOfLaborsPerDay',
+    'installationSchedule',
   ],
   superadmin: Object.keys({} as TaskUpdateInput) as (keyof TaskUpdateInput)[],
 }

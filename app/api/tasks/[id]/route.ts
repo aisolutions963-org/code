@@ -57,11 +57,24 @@ export const PATCH = requireRole()(
     }
 
     if (session.role !== 'superadmin' && session.role !== 'manager') {
-      const accessTask = await getTaskById(params.id)
-      const allowedDepts = ROLE_TO_DEPARTMENT[session.role] ?? []
-      const taskDepts: string[] = accessTask.department ?? []
-      if (taskDepts.length > 0 && !taskDepts.some((d) => allowedDepts.includes(d))) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      // Installation may submit installation-specific fields on shared tasks (e.g. FixingTeamNote
+      // task is department=Manager but installation fills in the schedule). Skip the department
+      // check when at least one submitted field is exclusively owned by installation.
+      const INSTALLATION_OWNED = new Set([
+        'installationSchedule', 'teamDaysRequired', 'noOfLaborsPerDay',
+        'installationDays', 'qcCheckAtSiteDone', 'fillersDone', 'fillersDocLinks',
+      ])
+      const hasInstallationOwnedField =
+        session.role === 'installation' &&
+        Object.keys(fields).some((k) => INSTALLATION_OWNED.has(k))
+
+      if (!hasInstallationOwnedField) {
+        const accessTask = await getTaskById(params.id)
+        const allowedDepts = ROLE_TO_DEPARTMENT[session.role] ?? []
+        const taskDepts: string[] = accessTask.department ?? []
+        if (taskDepts.length > 0 && !taskDepts.some((d) => allowedDepts.includes(d))) {
+          return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        }
       }
     }
 
@@ -143,10 +156,16 @@ export const PATCH = requireRole()(
         let body: string
         if (scheduleRaw) {
           try {
-            const schedule: { date: string; note: string }[] = JSON.parse(scheduleRaw)
-            const valid = schedule.filter((r) => r.date)
-            const dateList = valid.map((r) => r.note ? `${r.date} (${r.note})` : r.date).join(', ')
-            body = `${valid.length} installation day${valid.length !== 1 ? 's' : ''} scheduled: ${dateList}${projectLabel ? ` — ${projectLabel}` : ''}`
+            const schedule: Array<{ workers?: string; date?: string; note?: string }> = JSON.parse(scheduleRaw)
+            const days = schedule.length
+            if (schedule[0] && 'workers' in schedule[0]) {
+              const summary = schedule.map((r, i) => `Day ${i + 1}: ${r.workers} workers`).join(', ')
+              body = `${days} installation day${days !== 1 ? 's' : ''} planned: ${summary}${projectLabel ? ` — ${projectLabel}` : ''}`
+            } else {
+              const valid = schedule.filter((r) => r.date)
+              const dateList = valid.map((r) => r.note ? `${r.date} (${r.note})` : r.date).join(', ')
+              body = `${valid.length} installation day${valid.length !== 1 ? 's' : ''} scheduled: ${dateList}${projectLabel ? ` — ${projectLabel}` : ''}`
+            }
           } catch {
             body = `Installation schedule recorded${projectLabel ? ` — ${projectLabel}` : ''}`
           }

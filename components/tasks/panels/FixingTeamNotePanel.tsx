@@ -5,17 +5,21 @@ import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput } from '@/lib/types'
 
 interface DayRow {
-  date: string
-  note: string
+  workers: string
 }
 
 function parseSchedule(raw?: string): DayRow[] {
-  if (!raw) return [{ date: '', note: '' }]
+  if (!raw) return [{ workers: '' }]
   try {
     const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Support old format { date, note } and new format { workers }
+      if ('workers' in parsed[0]) return parsed as DayRow[]
+      // Migrate old format: each old row becomes a workers row (drop date/note)
+      return parsed.map(() => ({ workers: '' }))
+    }
   } catch {}
-  return [{ date: '', note: '' }]
+  return [{ workers: '' }]
 }
 
 interface FixingTeamNotePanelProps {
@@ -39,16 +43,16 @@ export default function FixingTeamNotePanel({ task, onUpdate }: FixingTeamNotePa
 
   if (task.status === 'Completed') {
     const schedule = parseSchedule(task.installationSchedule)
-    const hasRealRows = schedule.some((r) => r.date)
+    const hasRealRows = schedule.some((r) => r.workers && parseInt(r.workers, 10) > 0)
     return (
       <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 space-y-1.5" dir="rtl">
         <p className="text-xs font-semibold text-green-800">✓ تم تسجيل جدول التركيب</p>
         {hasRealRows ? (
           <div className="space-y-1">
-            {schedule.filter((r) => r.date).map((r, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs text-green-700">
-                <span className="font-mono shrink-0">{r.date}</span>
-                {r.note && <span className="text-green-600">{r.note}</span>}
+            {schedule.map((r, i) => (
+              <div key={i} className="flex items-center gap-3 text-xs text-green-700">
+                <span className="font-semibold shrink-0">اليوم {i + 1}</span>
+                <span>{r.workers} عامل</span>
               </div>
             ))}
           </div>
@@ -61,12 +65,12 @@ export default function FixingTeamNotePanel({ task, onUpdate }: FixingTeamNotePa
     )
   }
 
-  function updateRow(index: number, field: keyof DayRow, value: string) {
-    setRows((prev) => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
+  function updateWorkers(index: number, value: string) {
+    setRows((prev) => prev.map((r, i) => i === index ? { workers: value } : r))
   }
 
   function addRow() {
-    setRows((prev) => [...prev, { date: '', note: '' }])
+    setRows((prev) => [...prev, { workers: '' }])
   }
 
   function removeRow(index: number) {
@@ -74,8 +78,8 @@ export default function FixingTeamNotePanel({ task, onUpdate }: FixingTeamNotePa
   }
 
   async function handleSubmit() {
-    const validRows = rows.filter((r) => r.date.trim())
-    if (validRows.length === 0) { setError('أضف يوماً واحداً على الأقل مع تاريخ'); return }
+    const validRows = rows.filter((r) => r.workers.trim() && parseInt(r.workers, 10) > 0)
+    if (validRows.length === 0) { setError('أضف يوماً واحداً على الأقل مع عدد العمال'); return }
     setError('')
     setSaving(true)
     try {
@@ -95,24 +99,23 @@ export default function FixingTeamNotePanel({ task, onUpdate }: FixingTeamNotePa
 
   return (
     <div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-3 space-y-3" dir="rtl">
-      <p className="text-xs font-semibold text-violet-800">أضف أيام التركيب مع ملاحظة لكل يوم</p>
+      <p className="text-xs font-semibold text-violet-800">أضف عدد الأيام والعمال المطلوبين للتسليم</p>
 
       <div className="space-y-2">
         {rows.map((row, i) => (
-          <div key={i} className="flex items-center gap-2 bg-white border border-violet-200 rounded-lg px-2 py-1.5">
-            <input
-              type="date"
-              value={row.date}
-              onChange={(e) => updateRow(i, 'date', e.target.value)}
-              className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-400"
-            />
-            <input
-              type="text"
-              value={row.note}
-              onChange={(e) => updateRow(i, 'note', e.target.value)}
-              placeholder="ملاحظة (اختياري)"
-              className="flex-1 text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-400 text-right"
-            />
+          <div key={i} className="flex items-center gap-3 bg-white border border-violet-200 rounded-lg px-3 py-2">
+            <span className="text-xs font-semibold text-violet-700 shrink-0 w-14">اليوم {i + 1}</span>
+            <div className="flex items-center gap-2 flex-1">
+              <input
+                type="number"
+                min="1"
+                value={row.workers}
+                onChange={(e) => updateWorkers(i, e.target.value)}
+                placeholder="0"
+                className="w-20 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-400 text-center"
+              />
+              <span className="text-xs text-gray-500">عامل</span>
+            </div>
             {rows.length > 1 && (
               <button
                 onClick={() => removeRow(i)}

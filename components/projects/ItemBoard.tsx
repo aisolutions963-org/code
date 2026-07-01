@@ -94,6 +94,8 @@ export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }
         if (!hasPhase3) return true
         const order = t.templateOrder?.[0]
         if (order === undefined) return true
+        // In phase 3+: hide completed phase-2 tasks to reduce clutter, but keep active ones visible
+        if (order >= phase2Min && order < phase3Min) return t.status !== 'Completed'
         return order < phase2Min || order >= phase3Min
       })
           const allTaskPaths = item.allTasks
