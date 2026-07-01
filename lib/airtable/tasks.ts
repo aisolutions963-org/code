@@ -205,7 +205,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
   const projectIds = Array.from(new Set(tasks.flatMap((t) => t.project ?? [])))
   if (projectIds.length === 0) return tasks
 
-  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null; salesOwnerName: string | null; communSeds: string[] }> = {}
+  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null; salesOwnerName: string | null; communSeds: string[]; requestType: string | null; tradeReference: string | null }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) {
     chunks.push(projectIds.slice(i, i + 10))
@@ -216,7 +216,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
       const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const records = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS],
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS, PROJECTS.REQUEST_TYPE, PROJECTS.TRADE_REFERENCE],
       })
       for (const r of records) {
         const ref = str(r.fields[PROJECTS.PROJECT_ID])
@@ -228,7 +228,9 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
         const rawCommun = r.fields[PROJECTS.COMMUN_SEDS]
         const communRaw: Array<string | { name?: string; id?: string }> = Array.isArray(rawCommun) ? rawCommun : []
         const communSeds = communRaw.map((c) => (typeof c === 'string' ? '' : (c.name ?? ''))).filter(Boolean)
-        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference, salesOwnerName: owner?.name ?? null, communSeds }
+        const requestType = str(r.fields[PROJECTS.REQUEST_TYPE]) ?? null
+        const tradeReference = str(r.fields[PROJECTS.TRADE_REFERENCE]) ?? null
+        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference, salesOwnerName: owner?.name ?? null, communSeds, requestType, tradeReference }
       }
     }),
   )
@@ -249,6 +251,8 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
             projectQuotationReference: info.quotationReference ?? undefined,
             projectSalesOwner: info.salesOwnerName ?? undefined,
             projectCommunSeds: info.communSeds.length > 0 ? info.communSeds : undefined,
+            projectRequestType: (info.requestType as 'Trade' | 'Maintenance' | 'Variance' | null) ?? undefined,
+            projectTradeReference: info.tradeReference ?? undefined,
           }
         : {}),
     }

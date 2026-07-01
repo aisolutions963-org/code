@@ -395,7 +395,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         toast.error(ar ? 'استخدم اللوحة أدناه' : 'Use the panel below to complete or skip')
         return
       }
-      if ((isMakeQuotation || isF4Task) && !task.projectQuotationNumber) {
+      if ((isMakeQuotation || isF4Task) && !task.projectQuotationNumber && !task.projectRequestType) {
         toast.error(ar ? 'استكمل بيانات العرض أدناه' : 'Complete the quotation details in the panel below')
         return
       }

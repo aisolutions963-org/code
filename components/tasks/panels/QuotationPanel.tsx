@@ -27,7 +27,11 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
 
   // F4 payment form state
   const [amount, setAmount] = useState('')
+  const isClientRequest = !!(task.projectRequestType)
   const [paymentType, setPaymentType] = useState(() => {
+    if (task.projectRequestType === 'Trade') return 'Trade'
+    if (task.projectRequestType === 'Variance') return 'Variance'
+    if (task.projectRequestType === 'Maintenance') return 'Maintenance'
     const name = task.taskName.toLowerCase()
     if (name.includes('delivery')) return 'Delivery'
     if (name.includes('final')) return 'Final'
@@ -119,18 +123,20 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
 
     const alreadyHasQN = !!task.projectQuotationNumber?.trim()
     const alreadyHasRef = !!task.projectQuotationReference?.trim()
-    if (!alreadyHasQN && !quotationInput.trim()) {
-      setFormError('Quotation number is required before recording payment'); return
-    }
-    if (!alreadyHasRef && !referenceInput.trim()) {
-      setFormError('Quotation reference is required before recording payment'); return
+    if (!isClientRequest) {
+      if (!alreadyHasQN && !quotationInput.trim()) {
+        setFormError('Quotation number is required before recording payment'); return
+      }
+      if (!alreadyHasRef && !referenceInput.trim()) {
+        setFormError('Quotation reference is required before recording payment'); return
+      }
     }
 
     setSaving(true)
     try {
       const qn = quotationInput.trim()
       const ref = referenceInput.trim()
-      const needsPatch = (!alreadyHasQN && qn) || (!alreadyHasRef && ref)
+      const needsPatch = !isClientRequest && ((!alreadyHasQN && qn) || (!alreadyHasRef && ref))
       if (needsPatch) {
         await patchProjectQuotation(alreadyHasQN ? (task.projectQuotationNumber ?? '') : qn, ref)
       }
@@ -289,43 +295,52 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-3">
       <p className="text-xs font-semibold text-blue-800">Record Payment</p>
 
-      {/* Quotation number */}
-      <div>
-        <label className={lbl}>
-          Quotation Number <span className="text-red-500">*</span>
-        </label>
-        {task.projectQuotationNumber && task.projectQuotationReference ? (
-          <p className="text-sm font-mono font-medium text-blue-700 py-1">
-            {task.projectQuotationNumber}
-            <span className="ml-2 font-normal text-blue-400">{task.projectQuotationReference}</span>
-          </p>
-        ) : task.projectQuotationNumber ? (
-          <div>
-            <p className="text-sm font-mono font-medium text-blue-700 py-1">{task.projectQuotationNumber}</p>
-            <input
-              className={inp + ' font-mono mt-1'}
-              placeholder="Ref e.g. R0 *"
-              value={referenceInput}
-              onChange={(e) => setReferenceInput(e.target.value)}
-            />
+      {/* Quotation number — skip for Trade/Variance/Maintenance requests */}
+      {isClientRequest ? (
+        task.projectTradeReference && (
+          <div className="bg-blue-100 border border-blue-200 rounded-lg px-3 py-2 text-xs">
+            <span className="font-semibold text-blue-800">{task.projectRequestType} Reference: </span>
+            <span className="font-mono text-blue-700">{task.projectTradeReference}</span>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className={inp}
-              placeholder="e.g. 2341 *"
-              value={quotationInput}
-              onChange={(e) => setQuotationInput(e.target.value)}
-            />
-            <input
-              className={inp + ' font-mono'}
-              placeholder="Ref e.g. R0 *"
-              value={referenceInput}
-              onChange={(e) => setReferenceInput(e.target.value)}
-            />
-          </div>
-        )}
-      </div>
+        )
+      ) : (
+        <div>
+          <label className={lbl}>
+            Quotation Number <span className="text-red-500">*</span>
+          </label>
+          {task.projectQuotationNumber && task.projectQuotationReference ? (
+            <p className="text-sm font-mono font-medium text-blue-700 py-1">
+              {task.projectQuotationNumber}
+              <span className="ml-2 font-normal text-blue-400">{task.projectQuotationReference}</span>
+            </p>
+          ) : task.projectQuotationNumber ? (
+            <div>
+              <p className="text-sm font-mono font-medium text-blue-700 py-1">{task.projectQuotationNumber}</p>
+              <input
+                className={inp + ' font-mono mt-1'}
+                placeholder="Ref e.g. R0 *"
+                value={referenceInput}
+                onChange={(e) => setReferenceInput(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className={inp}
+                placeholder="e.g. 2341 *"
+                value={quotationInput}
+                onChange={(e) => setQuotationInput(e.target.value)}
+              />
+              <input
+                className={inp + ' font-mono'}
+                placeholder="Ref e.g. R0 *"
+                value={referenceInput}
+                onChange={(e) => setReferenceInput(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Amount + Date */}
       <div className="grid grid-cols-2 gap-2">
@@ -362,6 +377,9 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
             <option>Material</option>
             <option>Progressive Payment</option>
             <option>Final</option>
+            <option>Trade</option>
+            <option>Variance</option>
+            <option>Maintenance</option>
           </select>
         </div>
         <div>

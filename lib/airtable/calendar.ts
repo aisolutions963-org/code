@@ -78,6 +78,15 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     return ids?.[0] ? projectNameMap.get(ids[0]) : undefined
   }
 
+  // Build dedup set from manually created calendar events (title + date) so task-based
+  // events don't show alongside a richer manually created event for the same thing.
+  const calEventDedup = new Set<string>()
+  for (const r of customEvents) {
+    const t = str(r.fields[CALENDAR_EVENTS.TITLE])
+    const d = str(r.fields[CALENDAR_EVENTS.DATE])
+    if (t && d) calEventDedup.add(`${d}|${t}`)
+  }
+
   const events: CalendarEvent[] = []
 
   for (const r of tasks) {
@@ -85,14 +94,18 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const date = str(f[TASKS.TASK_START_DATE]) ?? str(f[TASKS.COMPLETION_DATE])
     const dept = strArr(f[TASKS.DEPARTMENT])
     if (!date) continue
+    const taskName = str(f[TASKS.TASK_NAME]) ?? 'Task'
+    const projectLabel = getProjectName(f[TASKS.PROJECT])
+    const title = projectLabel ? `${taskName} — ${projectLabel}` : taskName
+    if (calEventDedup.has(`${date}|${title}`)) continue
     const type: CalendarEvent['type'] = dept.includes('Installation') ? 'installation' : 'activity'
     events.push({
       id: r.id,
-      title: str(f[TASKS.TASK_NAME]) ?? 'Task',
+      title,
       date,
       type,
       projectId: str(f[TASKS.PROJECT_ID]),
-      projectName: getProjectName(f[TASKS.PROJECT]),
+      projectName: projectLabel,
       createdAt: r.createdTime,
     })
   }

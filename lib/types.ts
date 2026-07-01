@@ -89,6 +89,8 @@ export interface Task {
   projectQuotationReference?: string
   projectSalesOwner?: string
   projectCommunSeds?: string[]
+  projectRequestType?: 'Trade' | 'Maintenance' | 'Variance'
+  projectTradeReference?: string
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
 }
