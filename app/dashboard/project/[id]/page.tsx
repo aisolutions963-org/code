@@ -587,6 +587,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
             </section>
           )}
 
+
           {isLoading && !tasksLoading && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[1, 2, 3, 4].map((n) => (

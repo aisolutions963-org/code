@@ -11,7 +11,7 @@ function PhaseGateCard({ project: p, onAdvance }: { project: Project; onAdvance:
   const [advancing, setAdvancing] = useState(false)
   const [err, setErr] = useState('')
   const [expanded, setExpanded] = useState(false)
-  const { data: detail } = useSWR<{ project: Project & { tasks?: Task[] } }>(
+  const { data: detail } = useSWR<{ project: Project & { tasks?: Task[]; lockedTasks?: Task[] } }>(
     expanded ? `/api/projects/${p.id}` : null,
     fetcher,
   )
@@ -24,6 +24,7 @@ function PhaseGateCard({ project: p, onAdvance }: { project: Project; onAdvance:
   const incompleteTasks = (detail?.project?.tasks ?? []).filter(
     (t) => t.status !== 'Completed' && t.status !== 'Locked',
   )
+  const lockedTasks = (detail?.project?.lockedTasks ?? []).filter((t) => !t.projectItem?.length)
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -49,19 +50,34 @@ function PhaseGateCard({ project: p, onAdvance }: { project: Project; onAdvance:
       </div>
       {err && <div className="px-4 pb-3"><p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">{err}</p></div>}
       {expanded && (
-        <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+        <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-3">
           {!detail && <p className="text-xs text-gray-400">Loading tasks…</p>}
           {detail && incompleteTasks.length === 0 && (
-            <p className="text-xs text-green-600">All tasks complete — ready to advance.</p>
+            <p className="text-xs text-green-600">All active tasks complete — ready to advance.</p>
           )}
           {detail && incompleteTasks.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-gray-500 mb-2">{incompleteTasks.length} blocking task{incompleteTasks.length !== 1 ? 's' : ''}:</p>
               {incompleteTasks.map((t) => (
                 <div key={t.id} className="flex items-center gap-2 text-xs text-gray-700">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.status === 'In Progress' ? 'bg-blue-400' : 'bg-gray-300'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.status === 'In Progress' ? 'bg-blue-400' : t.status === 'Pending Approval' ? 'bg-yellow-400' : 'bg-gray-300'}`} />
                   <span className="truncate">{t.taskName}</span>
                   <span className="shrink-0 text-gray-400">{t.department?.join(', ')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {detail && lockedTasks.length > 0 && (
+            <div className="space-y-1 pt-2 border-t border-gray-200">
+              <p className="text-xs font-medium text-gray-400 mb-2">Coming up ({lockedTasks.length}):</p>
+              {lockedTasks.map((t) => (
+                <div key={t.id} className="flex items-center gap-2 text-xs text-gray-400">
+                  <svg className="w-3 h-3 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span className="truncate">{t.taskName}</span>
+                  <span className="shrink-0 text-gray-300">{t.department?.join(', ')}</span>
                 </div>
               ))}
             </div>
