@@ -1,6 +1,6 @@
 // Timesheets domain
 
-import { TimesheetEntry, CreateTimesheetInput, UpdateTimesheetInput, TimesheetFilters, WeeklySummary } from '../types'
+import { TimesheetEntry, CreateTimesheetBatchInput, CreateTimesheetStatusInput, UpdateTimesheetInput, TimesheetFilters, WeeklySummary } from '../types'
 import {
   PRODUCTION_TIMESHEETS,
   PROJECTS,
@@ -23,6 +23,9 @@ function transformTimesheetEntry(rec: RawRecord): TimesheetEntry {
   const locRaw = selectName(f[PRODUCTION_TIMESHEETS.LOCATION_TYPE])
   const locationType: TimesheetEntry['locationType'] =
     locRaw === 'Factory' ? 'Factory' : locRaw === 'Project' ? 'Project' : undefined
+  const statusRaw = selectName(f[PRODUCTION_TIMESHEETS.DAY_STATUS])
+  const status: TimesheetEntry['status'] =
+    statusRaw === 'Holiday' ? 'Holiday' : statusRaw === 'Absent' ? 'Absent' : 'Working'
   return {
     id: rec.id,
     entryLabel: str(f[PRODUCTION_TIMESHEETS.ENTRY_LABEL]),
@@ -31,6 +34,7 @@ function transformTimesheetEntry(rec: RawRecord): TimesheetEntry {
     workerIds: strArr(f[PRODUCTION_TIMESHEETS.WORKER]),
     projectIds: strArr(f[PRODUCTION_TIMESHEETS.PROJECT]),
     locationType,
+    status,
     regularHours: num(f[PRODUCTION_TIMESHEETS.REGULAR_HOURS]) ?? 0,
     overtimeHours: num(f[PRODUCTION_TIMESHEETS.OVERTIME_HOURS]) ?? 0,
     totalHours: num(f[PRODUCTION_TIMESHEETS.TOTAL_HOURS]) ?? 0,
@@ -72,14 +76,22 @@ export async function getTimesheetEntries(filters: TimesheetFilters = {}): Promi
       .filter(Boolean)
       .map((w) => workerDisplayName(w!))
     entry.workerNames = names
-    entry.workerName = entry.supervisorName ?? names[0]
-    // Estimated cost
-    const people = [
-      entry.supervisorId ? workerMap.get(entry.supervisorId) : undefined,
-      ...entry.workerIds.map((id) => workerMap.get(id)),
-    ].filter(Boolean)
-    const totalRate = people.reduce((s, w) => s + (w!.hourlyRate ?? 0), 0)
-    if (totalRate > 0) entry.estimatedCost = totalRate * entry.totalHours
+    entry.workerName = names[0] ?? entry.supervisorName
+    // Estimated cost — a row with exactly one worker (the current, per-worker shape)
+    // is costed on that worker's own rate only. Legacy rows that still have several
+    // workers grouped into one entry fall back to summing supervisor + all workers,
+    // matching how those rows were originally costed.
+    if (entry.workerIds.length === 1) {
+      const w = workerMap.get(entry.workerIds[0])
+      if (w?.hourlyRate) entry.estimatedCost = w.hourlyRate * entry.totalHours
+    } else {
+      const people = [
+        entry.supervisorId ? workerMap.get(entry.supervisorId) : undefined,
+        ...entry.workerIds.map((id) => workerMap.get(id)),
+      ].filter(Boolean)
+      const totalRate = people.reduce((s, w) => s + (w!.hourlyRate ?? 0), 0)
+      if (totalRate > 0) entry.estimatedCost = totalRate * entry.totalHours
+    }
   }
 
   // Enrich with project refs
@@ -109,31 +121,69 @@ export async function getTimesheetEntries(filters: TimesheetFilters = {}): Promi
   return entries
 }
 
-export async function checkTimesheetDuplicate(
-  supervisorId: string,
+// Given a date, returns every worker who already has a row that day, with a
+// human label describing what they're on — used both to grey them out in the
+// picker and as a server-side guard against double-booking.
+export async function getWorkerAssignmentsForDate(
   workDate: string,
-): Promise<boolean> {
-  const formula = `AND(DATESTR({${PRODUCTION_TIMESHEETS.WORK_DATE}})="${workDate}", FIND("${supervisorId}", ARRAYJOIN({${PRODUCTION_TIMESHEETS.SUPERVISOR}}, ",")))`
-  const records = await fetchAll(PRODUCTION_TIMESHEETS.TABLE, {
-    filterByFormula: formula,
-    fields: [PRODUCTION_TIMESHEETS.ENTRY_LABEL],
-    maxRecords: 1,
-  })
-  return records.length > 0
+): Promise<Map<string, { label: string; entryId: string }>> {
+  const entries = await getTimesheetEntries({ from: workDate, to: workDate })
+  const map = new Map<string, { label: string; entryId: string }>()
+  for (const entry of entries) {
+    const label =
+      entry.status === 'Holiday' ? 'Holiday' :
+      entry.status === 'Absent' ? 'Absent' :
+      entry.locationType === 'Factory' ? 'Factory' :
+      entry.projectRef ?? entry.projectIds[0] ?? 'Assigned'
+    for (const workerId of entry.workerIds) {
+      map.set(workerId, { label, entryId: entry.id })
+    }
+  }
+  return map
 }
 
-export async function createTimesheetEntry(input: CreateTimesheetInput): Promise<TimesheetEntry> {
-  const regular = input.regularHours
-  const overtime = input.overtimeHours ?? 0
+export async function createTimesheetEntries(input: CreateTimesheetBatchInput): Promise<TimesheetEntry[]> {
+  const recordFields = input.workers.map((w) => {
+    const fields: Record<string, unknown> = {
+      [PRODUCTION_TIMESHEETS.WORK_DATE]: input.workDate,
+      [PRODUCTION_TIMESHEETS.SUPERVISOR]: [input.supervisorId],
+      [PRODUCTION_TIMESHEETS.WORKER]: [w.workerId],
+      [PRODUCTION_TIMESHEETS.LOCATION_TYPE]: input.locationType,
+      [PRODUCTION_TIMESHEETS.REGULAR_HOURS]: w.regularHours,
+      [PRODUCTION_TIMESHEETS.OVERTIME_HOURS]: w.overtimeHours ?? 0,
+      [PRODUCTION_TIMESHEETS.DAY_STATUS]: 'Working',
+    }
+    if (input.projectIds.length > 0) fields[PRODUCTION_TIMESHEETS.PROJECT] = input.projectIds
+    if (input.notes) fields[PRODUCTION_TIMESHEETS.NOTES] = input.notes
+    return fields
+  })
+
+  const created: RawRecord[] = []
+  for (let i = 0; i < recordFields.length; i += 10) {
+    const chunk = recordFields.slice(i, i + 10)
+    const res = await fetchWithRetry(tblUrl(PRODUCTION_TIMESHEETS.TABLE), {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ records: chunk.map((fields) => ({ fields })) }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error ${res.status}: ${body}`)
+    }
+    const data = (await res.json()) as { records: RawRecord[] }
+    created.push(...data.records)
+  }
+  return created.map(transformTimesheetEntry)
+}
+
+export async function createTimesheetStatusEntry(input: CreateTimesheetStatusInput): Promise<TimesheetEntry> {
   const fields: Record<string, unknown> = {
     [PRODUCTION_TIMESHEETS.WORK_DATE]: input.workDate,
-    [PRODUCTION_TIMESHEETS.SUPERVISOR]: [input.supervisorId],
-    [PRODUCTION_TIMESHEETS.WORKER]: input.workerIds,
-    [PRODUCTION_TIMESHEETS.LOCATION_TYPE]: input.locationType,
-    [PRODUCTION_TIMESHEETS.REGULAR_HOURS]: regular,
-    [PRODUCTION_TIMESHEETS.OVERTIME_HOURS]: overtime,
+    [PRODUCTION_TIMESHEETS.WORKER]: [input.workerId],
+    [PRODUCTION_TIMESHEETS.DAY_STATUS]: input.status,
+    [PRODUCTION_TIMESHEETS.REGULAR_HOURS]: 0,
+    [PRODUCTION_TIMESHEETS.OVERTIME_HOURS]: 0,
   }
-  if (input.projectIds.length > 0) fields[PRODUCTION_TIMESHEETS.PROJECT] = input.projectIds
   if (input.notes) fields[PRODUCTION_TIMESHEETS.NOTES] = input.notes
   const res = await fetchWithRetry(tblUrl(PRODUCTION_TIMESHEETS.TABLE), {
     method: 'POST',
@@ -201,16 +251,20 @@ export async function getTimesheetWeeklySummary(weekStart: string): Promise<Week
   const entries = await getTimesheetEntries({ from: weekStart, to: weekEnd })
   const workerMap = new Map<string, {
     workerName: string
-    days: Map<string, { regularHours: number; overtimeHours: number; totalHours: number; projectRef?: string; entryId: string }>
+    days: Map<string, { status: TimesheetEntry['status']; regularHours: number; overtimeHours: number; totalHours: number; projectRef?: string; entryId: string }>
   }>()
   for (const entry of entries) {
-    const wId = entry.supervisorId ?? entry.workerIds[0] ?? 'unknown'
-    const displayName = entry.supervisorName ?? entry.workerName ?? wId
+    // Each row is one worker's day — group by the worker themselves, not the
+    // supervisor, so every worker gets their own hours tracked (previously this
+    // grouped by supervisorId, which meant workers never got their own summary row).
+    const wId = entry.workerIds[0] ?? entry.supervisorId ?? 'unknown'
+    const displayName = entry.workerName ?? entry.supervisorName ?? wId
     if (!workerMap.has(wId)) {
       workerMap.set(wId, { workerName: displayName, days: new Map() })
     }
     const worker = workerMap.get(wId)!
     worker.days.set(entry.workDate, {
+      status: entry.status,
       regularHours: entry.regularHours,
       overtimeHours: entry.overtimeHours,
       totalHours: entry.totalHours,

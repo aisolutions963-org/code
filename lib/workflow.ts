@@ -710,53 +710,63 @@ export async function handleOrderSampleBranch(
       const projectId = task.project?.[0] ?? task.projectRecordId
       if (!projectId) throw new Error('Task has no linked project')
 
-      const newStatus: TaskStatus = hasMaterial ? 'Completed' : 'In Progress'
-      const updateFields: Record<string, unknown> = { [TASKS.STATUS]: newStatus }
-      if (hasMaterial) updateFields[TASKS.COMPLETED_AT] = new Date().toISOString()
-      await updateTaskRaw(taskId, updateFields)
-
-      // "Order Material" is a status marker only — no tasks unlocked, SED will come back
-      // when material arrives and select "Send to Fabrication" at that point.
-      if (!hasMaterial) return { finalStatus: newStatus }
-
-      // "Send to Fabrication" — unlock the fabrication branch tasks
-      const allBranchTasks = await getLockedBranchTasksForProject(projectId)
-      const itemId = task.projectItem?.[0]
-      const branchTasks = itemId
-        ? allBranchTasks.filter((t) => t.projectItem?.[0] === itemId)
-        : allBranchTasks.filter((t) => !t.projectItem?.length)
-
-      if (branchTasks.length === 0) return { finalStatus: newStatus }
-
-      const toUnlock = branchTasks.filter((t) =>
-        t.taskName.toLowerCase().includes('we have material') ||
-        t.taskName.toLowerCase().includes('fabricat'),
-      )
-
-      if (toUnlock.length === 0) return { finalStatus: newStatus }
-
-      await Promise.all(
-        toUnlock.map((t) => updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })),
-      )
-
-      const projectLabel = await resolveProjectLabel(task)
-      for (const t of toUnlock) {
-        const depts = t.department ?? []
-        const roles = depts
-          .map((d) => DEPT_ROLE_MAP[d])
-          .filter((r): r is string => Boolean(r))
-        const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['fabrication']))
-        for (const role of uniqueRoles) {
-          await createNotification({
-            recipientRole: role,
-            title: `Sample ready to fabricate — ${projectLabel}`,
-            body: `SED confirmed material is available. Please fabricate the sample.`,
-            link: ROLE_DASHBOARD[role] ?? '/dashboard/fab',
-          })
-        }
+      // Both branches keep the Order Sample task OPEN (In Progress). SED completes it
+      // later, when they physically receive the finished sample back from fabrication.
+      if (!hasMaterial) {
+        // "Order Material" is a status marker only — SED returns and chooses
+        // "Send to Fabrication" once the material has arrived.
+        await updateTaskRaw(taskId, { [TASKS.STATUS]: 'In Progress' as TaskStatus })
+        return { finalStatus: 'In Progress' as TaskStatus }
       }
 
-      return { finalStatus: newStatus }
+      // "Send to Fabrication" — no task is created for fabrication. Instead we flag the
+      // sample so it surfaces as a read-only card on the fabrication dashboard (with the
+      // project details, notes and reference links), and notify them.
+      await updateTaskRaw(taskId, {
+        [TASKS.STATUS]: 'In Progress' as TaskStatus,
+        [TASKS.SENT_TO_FAB_AT]: new Date().toISOString(),
+      })
+
+      // The workflow still has a hidden "Sample Branch: We Have Material — Fabrication"
+      // step. Auto-complete it (Locked → Completed) so it never surfaces as a fabrication
+      // to-do, while keeping the order chain intact — SED drives progression by marking
+      // the Order Sample task complete once the finished sample is received.
+      const itemId = task.projectItem?.[0]
+      const branchTasks = await getLockedBranchTasksForProject(projectId)
+      const fabBranch = branchTasks.filter(
+        (t) =>
+          (itemId ? t.projectItem?.[0] === itemId : !t.projectItem?.length) &&
+          (t.taskName.toLowerCase().includes('we have material') ||
+            t.taskName.toLowerCase().includes('fabricat')),
+      )
+      if (fabBranch.length > 0) {
+        await Promise.all(
+          fabBranch.map((t) =>
+            updateTaskRaw(t.id, {
+              [TASKS.STATUS]: 'Completed' as TaskStatus,
+              [TASKS.COMPLETED_AT]: new Date().toISOString(),
+            }),
+          ),
+        )
+      }
+
+      const projectLabel = await resolveProjectLabel(task)
+      const sampleNote = task.sedNote?.trim()
+      const linkCount = task.taskDocLinks?.length ?? 0
+      const notifyBody =
+        `A sample is ready to build for ${projectLabel}.` +
+        (sampleNote ? `\nNote: ${sampleNote}` : '') +
+        (linkCount > 0 ? `\n${linkCount} reference link${linkCount !== 1 ? 's' : ''} attached — open the fabrication dashboard.` : '')
+
+      await createNotification({
+        recipientRole: 'fabrication',
+        title: `Sample to build — ${projectLabel}`,
+        body: notifyBody,
+        link: ROLE_DASHBOARD['fabrication'] ?? '/dashboard/fab',
+        category: 'fabrication',
+      })
+
+      return { finalStatus: 'In Progress' as TaskStatus }
     })(),
   )
 }

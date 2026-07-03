@@ -83,6 +83,7 @@ export const TASKS = {
   LAST_MODIFIED: 'fld8PyDkPBIZ0BNO1',
   SUPERADMIN_NOTE: 'fldjVNPzFB76Ik0fh',
   INSTALLATION_SCHEDULE: 'fld6czB3O8VLmirhY',
+  SENT_TO_FAB_AT: 'fld8fQFcUHunsOJmb',
 } as const
 
 export const PROJECTS = {
@@ -324,6 +325,7 @@ export const PRODUCTION_TIMESHEETS = {
   TOTAL_HOURS_WEEKLY:  'fldurkfDRjzRysLCX',
   PRODUCTION_NOTES:    'fldAtHxBLem4Pq5sa',
   MANAGER_APPROVED:    'fld7sgT5g03l70en9',
+  DAY_STATUS:          'fldJSWEvqe9EtLACv',  // single select: Working | Holiday | Absent
 } as const
 
 export const WORKERS = {

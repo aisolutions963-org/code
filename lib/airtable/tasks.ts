@@ -602,6 +602,20 @@ export async function getLockedBranchTasksForProject(projectId: string): Promise
   )
 }
 
+// Order-sample tasks that SED has sent to fabrication to build, and which are not yet
+// received/completed. Surfaced as read-only cards on the fabrication dashboard.
+export async function getSamplesSentToFab(): Promise<Task[]> {
+  const formula = `AND(NOT({${TASKS.SENT_TO_FAB_AT}} = BLANK()), {${TASKS.STATUS}} != "Completed")`
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    sort: [{ field: TASKS.SENT_TO_FAB_AT, direction: 'desc' }],
+  })
+  let tasks = records.map(transformTask)
+  tasks = await enrichTasksWithProjectRef(tasks)
+  tasks = await enrichTasksWithProjectItemNames(tasks)
+  return tasks
+}
+
 export async function checkAndUnlockCallClientTask(projectId: string): Promise<void> {
   const pathDoneFormula = `AND({${TASKS.PROJECT}} = "${projectId}", NOT({${TASKS.PATH_CONDITION}} = BLANK()), {${TASKS.STATUS}} = "Completed")`
   const pathDoneRecords = await fetchAll(TASKS.TABLE_ID, {

@@ -93,6 +93,7 @@ export interface Task {
   projectTradeReference?: string
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
+  sentToFabAt?: string
 }
 
 export interface TaskUpdateInput {
@@ -479,6 +480,7 @@ export interface TimesheetEntry {
   projectRef?: string
   projectName?: string
   locationType?: 'Project' | 'Factory'
+  status: 'Working' | 'Holiday' | 'Absent'
   regularHours: number
   overtimeHours: number
   totalHours: number
@@ -486,14 +488,19 @@ export interface TimesheetEntry {
   estimatedCost?: number
 }
 
-export interface CreateTimesheetInput {
+export interface CreateTimesheetBatchInput {
   workDate: string
   supervisorId: string
-  workerIds: string[]
   projectIds: string[]
   locationType: 'Project' | 'Factory'
-  regularHours: number
-  overtimeHours?: number
+  workers: { workerId: string; regularHours: number; overtimeHours?: number }[]
+  notes?: string
+}
+
+export interface CreateTimesheetStatusInput {
+  workerId: string
+  workDate: string
+  status: 'Holiday' | 'Absent'
   notes?: string
 }
 
@@ -538,6 +545,7 @@ export interface WeeklySummaryWorker {
 
 export interface WeeklySummaryDay {
   date: string
+  status: 'Working' | 'Holiday' | 'Absent'
   regularHours: number
   overtimeHours: number
   totalHours: number

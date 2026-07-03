@@ -36,8 +36,10 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   }>()
 
   for (const e of entries) {
-    const key = e.supervisorId ?? e.workerIds[0] ?? 'unknown'
-    const name = e.supervisorName ?? e.workerName ?? key
+    // Each row is one worker's day — group by the worker, not the supervisor,
+    // so every worker gets their own summary line (not just supervisors).
+    const key = e.workerIds[0] ?? e.supervisorId ?? 'unknown'
+    const name = e.workerName ?? e.supervisorName ?? key
     if (!workerSummary.has(key)) {
       workerSummary.set(key, { workerName: name, regularHours: 0, overtimeHours: 0, totalHours: 0, days: new Set() })
     }
@@ -61,8 +63,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   // Sheet 2 — Daily detail: one row per entry
   const detailRows = entries.map((e) => ({
     workDate:     e.workDate,
-    workerName:   e.supervisorName ?? e.workerName ?? e.workerIds[0] ?? '',
-    projectRef:   e.projectRef ?? e.projectIds[0] ?? '',
+    workerName:   e.workerName ?? e.supervisorName ?? e.workerIds[0] ?? '',
+    status:       e.status,
+    projectRef:   e.status === 'Working' ? (e.projectRef ?? e.projectIds[0] ?? '') : '',
     regularHours: e.regularHours,
     overtimeHours:e.overtimeHours,
     totalHours:   e.totalHours,
@@ -86,6 +89,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       columns: [
         { header: 'Date',            key: 'workDate',      width: 14, isDate: true },
         { header: 'Worker',          key: 'workerName',    width: 22 },
+        { header: 'Status',          key: 'status',        width: 12 },
         { header: 'Project',         key: 'projectRef',    width: 24 },
         { header: 'Regular Hrs',     key: 'regularHours',  width: 12 },
         { header: 'Overtime Hrs',    key: 'overtimeHours', width: 12 },

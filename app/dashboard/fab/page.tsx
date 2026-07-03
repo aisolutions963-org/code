@@ -2,11 +2,22 @@
 
 import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput } from '@/lib/types'
+import { Task, TaskUpdateInput, DocLink } from '@/lib/types'
 import TaskList from '@/components/tasks/TaskList'
 import AllMaterialsView from '@/components/materials/AllMaterialsView'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+interface FabSample {
+  taskId: string
+  projectName: string
+  projectNickname: string | null
+  projectRef: string | null
+  itemName: string | null
+  sentToFabAt: string | null
+  note: string | null
+  links: DocLink[]
+}
 
 export default function FabDashboard() {
   const searchParams = useSearchParams()
@@ -16,6 +27,13 @@ export default function FabDashboard() {
     fetcher,
     { refreshInterval: 300_000 },
   )
+
+  const { data: sampleData } = useSWR<{ samples: FabSample[] }>(
+    view === 'tasks' ? '/api/fabrication/samples' : null,
+    fetcher,
+    { refreshInterval: 300_000 },
+  )
+  const samples = sampleData?.samples ?? []
 
   const tasks = data?.tasks ?? []
 
@@ -107,6 +125,62 @@ export default function FabDashboard() {
       {view === 'materials' && (
         <div className="mb-4">
           <AllMaterialsView role="fabrication" />
+        </div>
+      )}
+
+      {/* Samples to build — read-only cards sent by SED (project details + notes + links) */}
+      {view === 'tasks' && samples.length > 0 && (
+        <div className="mb-6 space-y-2">
+          <p className="text-sm font-semibold text-gray-700">عينات للتصنيع ({samples.length})</p>
+          {samples.map((s) => (
+            <div key={s.taskId} className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-amber-900">
+                    {s.projectNickname
+                      ? s.projectName ? `${s.projectNickname} — ${s.projectName}` : s.projectNickname
+                      : (s.projectName || s.projectRef || 'مشروع')}
+                  </p>
+                  <p className="text-[11px] text-amber-600 font-mono mt-0.5">
+                    {s.projectRef}{s.itemName ? ` · ${s.itemName}` : ''}
+                  </p>
+                </div>
+                {s.sentToFabAt && (
+                  <span className="shrink-0 text-[10px] text-amber-500">
+                    {new Date(s.sentToFabAt).toLocaleDateString('ar-AE', { day: 'numeric', month: 'short' })}
+                  </span>
+                )}
+              </div>
+
+              {s.note && (
+                <p className="text-xs text-amber-900 whitespace-pre-wrap mt-2 leading-relaxed">
+                  <span className="font-semibold">ملاحظة: </span>{s.note}
+                </p>
+              )}
+
+              {s.links.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2" dir="ltr">
+                  {s.links.map((l, i) => (
+                    l.url ? (
+                      <a
+                        key={i}
+                        href={l.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-medium px-2 py-1 rounded-md bg-white border border-amber-300 text-amber-700 hover:bg-amber-100"
+                      >
+                        🔗 {l.label || 'رابط'}
+                      </a>
+                    ) : (
+                      <span key={i} className="text-[11px] px-2 py-1 rounded-md bg-white border border-amber-200 text-amber-600">
+                        {l.label}{l.notes ? ` — ${l.notes}` : ''}
+                      </span>
+                    )
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

@@ -167,8 +167,20 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
         const d = await res.json().catch(() => ({}))
         throw new Error((d as { error?: string }).error ?? 'Failed')
       }
-      toast.success(hasMaterial ? 'Fabrication notified — sample in progress' : 'Recorded: ordering material')
+      toast.success(hasMaterial ? 'Sent to Fabrication — they have been notified' : 'Recorded: ordering material')
       await onUpdate(task.id, {})
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function markSampleReceived() {
+    setSaving(true)
+    try {
+      await onUpdate(task.id, { status: 'Completed' })
+      toast.success('Sample received — task completed')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed')
     } finally {
@@ -227,8 +239,28 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
         <QuotationPanel task={task} variant="makeQuotation" onUpdate={onUpdate} />
       )}
 
+      {/* Order Sample — sent to fabrication: waiting to receive the finished sample */}
+      {(isOrderSample || isPerItemOrderSample) && task.status !== 'Completed' && task.sentToFabAt && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
+          <p className="text-xs font-semibold text-amber-800">
+            Sent to Fabrication{' '}
+            <span className="font-normal text-amber-700">
+              on {new Date(task.sentToFabAt).toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })} — fabrication has been notified.
+            </span>
+          </p>
+          <p className="text-[11px] text-amber-600">Mark complete once you receive the finished sample.</p>
+          <button
+            onClick={markSampleReceived}
+            disabled={saving}
+            className="w-full border border-green-400 bg-green-100 text-green-900 text-xs font-semibold px-3 py-2.5 rounded-lg hover:bg-green-200 transition-colors disabled:opacity-60"
+          >
+            ✓ Sample Received — Complete Task
+          </button>
+        </div>
+      )}
+
       {/* Order Sample branch selector */}
-      {(isOrderSample || isPerItemOrderSample) && task.status !== 'Completed' && (
+      {(isOrderSample || isPerItemOrderSample) && task.status !== 'Completed' && !task.sentToFabAt && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 space-y-2">
           <p className="text-xs font-semibold text-green-800">
             Order Sample —{' '}

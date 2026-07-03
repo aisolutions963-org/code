@@ -358,6 +358,7 @@ export function transformTask(record: RawRecord): Task {
     pathCondition: selectName(f[TASKS.PATH_CONDITION]),
     taskDocLinks: parseDocLinks(f[TASKS.TASK_DOC_LINKS]),
     fillersDocLinks: parseDocLinks(f[TASKS.FILLERS_DOC_LINKS]),
+    sentToFabAt: str(f[TASKS.SENT_TO_FAB_AT]),
   }
 }
 

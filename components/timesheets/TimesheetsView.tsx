@@ -37,56 +37,93 @@ function sortWorkers(workers: WorkerOption[]): WorkerOption[] {
   })
 }
 
+// Human label for what a worker is already on that day, derived from an
+// existing entry — mirrors the server-side getWorkerAssignmentsForDate() logic.
+function assignmentLabel(e: TimesheetEntry): string {
+  if (e.status === 'Holiday') return 'Holiday'
+  if (e.status === 'Absent') return 'Absent'
+  if (e.locationType === 'Factory') return 'Factory'
+  return e.projectRef ?? e.projectIds[0] ?? 'Assigned'
+}
+
+function buildAssignmentMap(entries: TimesheetEntry[]): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const e of entries) {
+    const label = assignmentLabel(e)
+    for (const workerId of e.workerIds) map.set(workerId, label)
+  }
+  return map
+}
+
 // ─── Log Entry Form ───────────────────────────────────────────────────────────
 
 function LogEntryForm({
   workers,
   projects,
+  workDate,
+  onWorkDateChange,
+  assignments,
   onCreated,
 }: {
   workers: WorkerOption[]
   projects: Project[]
+  workDate: string
+  onWorkDateChange: (date: string) => void
+  assignments: Map<string, string>
   onCreated: () => void
 }) {
-  const today = todayUAE()
-  const [workDate, setWorkDate] = useState(today)
   const [supervisorId, setSupervisorId] = useState('')
-  const [workerIds, setWorkerIds] = useState<string[]>([])
+  const [workerHours, setWorkerHours] = useState<Record<string, { regularHours: number; overtimeHours: number }>>({})
   const [locationType, setLocationType] = useState<'Project' | 'Factory'>('Project')
   const [projectId, setProjectId] = useState('')
-  const [regularHours, setRegularHours] = useState(8)
-  const [overtimeHours, setOvertimeHours] = useState(0)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [statusSavingId, setStatusSavingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [warning, setWarning] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const total = regularHours + overtimeHours
-  const isOverCap = total > 16
-  const isWarning = total > 14 && total <= 16
-
-  // Workers available for selection (exclude supervisor)
-  const availableWorkers = workers.filter((w) => w.id !== supervisorId)
+  const checkedIds = Object.keys(workerHours)
+  const groupTotal = checkedIds.reduce((s, id) => {
+    const h = workerHours[id]
+    return s + h.regularHours + h.overtimeHours
+  }, 0)
+  const anyOverCap = checkedIds.some((id) => {
+    const h = workerHours[id]
+    return h.regularHours + h.overtimeHours > 16
+  })
+  const anyWarning = checkedIds.some((id) => {
+    const h = workerHours[id]
+    const t = h.regularHours + h.overtimeHours
+    return t > 14 && t <= 16
+  })
 
   function toggleWorker(id: string) {
-    setWorkerIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
+    setWorkerHours((prev) => {
+      const next = { ...prev }
+      if (next[id]) delete next[id]
+      else next[id] = { regularHours: 8, overtimeHours: 0 }
+      return next
+    })
   }
 
-  // Estimated cost calculation
-  const supervisor = workers.find((w) => w.id === supervisorId)
-  const selectedWorkers = workers.filter((w) => workerIds.includes(w.id))
-  const allPeople = [...(supervisor ? [supervisor] : []), ...selectedWorkers]
-  const totalRate = allPeople.reduce((s, w) => s + (w.hourlyRate ?? 0), 0)
-  const estimatedCost = totalRate > 0 ? totalRate * total : null
+  function updateHours(id: string, field: 'regularHours' | 'overtimeHours', value: number) {
+    setWorkerHours((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }))
+  }
+
+  const estimatedCost = checkedIds.reduce((sum, id) => {
+    const w = workers.find((w) => w.id === id)
+    const h = workerHours[id]
+    if (!w?.hourlyRate) return sum
+    return sum + w.hourlyRate * (h.regularHours + h.overtimeHours)
+  }, 0)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!supervisorId) { setError('Supervisor is required.'); return }
     if (locationType === 'Project' && !projectId) { setError('Please select a project.'); return }
-    if (isOverCap) { setError('Total hours cannot exceed 16.'); return }
+    if (checkedIds.length === 0) { setError('Select at least one worker.'); return }
+    if (anyOverCap) { setError('Total hours cannot exceed 16 per worker.'); return }
     setSaving(true)
     setError(null)
     setWarning(null)
@@ -96,13 +133,12 @@ function LogEntryForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          mode: 'work',
           workDate,
           supervisorId,
-          workerIds,
           projectIds: locationType === 'Project' && projectId ? [projectId] : [],
           locationType,
-          regularHours,
-          overtimeHours,
+          workers: checkedIds.map((id) => ({ workerId: id, ...workerHours[id] })),
           notes: notes || undefined,
         }),
       })
@@ -111,17 +147,34 @@ function LogEntryForm({
       if (data.warning) setWarning(data.warning)
       setSuccess(true)
       setSupervisorId('')
-      setWorkerIds([])
+      setWorkerHours({})
       setProjectId('')
       setLocationType('Project')
-      setRegularHours(8)
-      setOvertimeHours(0)
       setNotes('')
       onCreated()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to log entry')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function markStatus(workerId: string, status: 'Holiday' | 'Absent') {
+    setStatusSavingId(workerId)
+    setError(null)
+    try {
+      const res = await fetch('/api/timesheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'status', workerId, workDate, status }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? `Failed to mark ${status}`)
+      onCreated()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `Failed to mark ${status}`)
+    } finally {
+      setStatusSavingId(null)
     }
   }
 
@@ -135,7 +188,7 @@ function LogEntryForm({
         <input
           type="date"
           value={workDate}
-          onChange={(e) => setWorkDate(e.target.value)}
+          onChange={(e) => onWorkDateChange(e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
         />
       </div>
@@ -147,10 +200,7 @@ function LogEntryForm({
         </label>
         <select
           value={supervisorId}
-          onChange={(e) => {
-            setSupervisorId(e.target.value)
-            setWorkerIds((prev) => prev.filter((id) => id !== e.target.value))
-          }}
+          onChange={(e) => setSupervisorId(e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white"
         >
           <option value="">Select supervisor…</option>
@@ -161,46 +211,6 @@ function LogEntryForm({
           ))}
         </select>
       </div>
-
-      {/* Workers (multi-select) */}
-      {supervisorId && (
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1.5">
-            Workers under supervisor
-            <span className="ml-1 text-gray-400 font-normal">(optional)</span>
-          </label>
-          {availableWorkers.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">No other workers available.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-1.5">
-              {availableWorkers.map((w) => (
-                <label
-                  key={w.id}
-                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border cursor-pointer text-xs transition-colors ${
-                    workerIds.includes(w.id)
-                      ? 'bg-brand-50 border-brand-300 text-brand-700'
-                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={workerIds.includes(w.id)}
-                    onChange={() => toggleWorker(w.id)}
-                    className="w-3.5 h-3.5 accent-brand-500"
-                  />
-                  <span className="truncate">
-                    {workerLabel(w)}
-                    {w.hourlyRate ? <span className="ml-1 text-gray-400">{w.hourlyRate}/hr</span> : null}
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-          {workerIds.length > 0 && (
-            <p className="text-xs text-gray-400 mt-1">{workerIds.length} worker{workerIds.length > 1 ? 's' : ''} selected</p>
-          )}
-        </div>
-      )}
 
       {/* Location type */}
       <div>
@@ -246,48 +256,103 @@ function LogEntryForm({
         </div>
       )}
 
-      {/* Hours */}
-      <div className="grid grid-cols-3 gap-3 items-end">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Regular Hrs</label>
-          <input
-            type="number"
-            min={0}
-            max={24}
-            step={0.5}
-            value={regularHours}
-            onChange={(e) => setRegularHours(Number(e.target.value))}
-            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-          />
+      {/* Workers — roster with per-worker hours or Holiday/Absent */}
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1.5">
+          Workers
+          <span className="ml-1 text-gray-400 font-normal">— check who worked this job, enter their own hours</span>
+        </label>
+        <div className="space-y-1.5">
+          {workers.map((w) => {
+            const assignedLabel = assignments.get(w.id)
+            const checked = w.id in workerHours
+            if (assignedLabel) {
+              return (
+                <div
+                  key={w.id}
+                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-gray-100 bg-gray-50 text-xs text-gray-400"
+                >
+                  <span className="truncate">{workerLabel(w)}</span>
+                  <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-500 text-[10px] font-medium">
+                    Already: {assignedLabel}
+                  </span>
+                </div>
+              )
+            }
+            return (
+              <div
+                key={w.id}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition-colors ${
+                  checked ? 'bg-brand-50 border-brand-300' : 'bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleWorker(w.id)}
+                    className="w-3.5 h-3.5 accent-brand-500 shrink-0"
+                  />
+                  <span className="truncate text-gray-700">
+                    {workerLabel(w)}
+                    {w.hourlyRate ? <span className="ml-1 text-gray-400">{w.hourlyRate}/hr</span> : null}
+                  </span>
+                </label>
+                {checked ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number" min={0} max={24} step={0.5}
+                      value={workerHours[w.id].regularHours}
+                      onChange={(e) => updateHours(w.id, 'regularHours', Number(e.target.value))}
+                      title="Regular hours"
+                      className="w-14 border border-gray-200 rounded px-1.5 py-1 text-xs text-right"
+                    />
+                    <span className="text-gray-300">+</span>
+                    <input
+                      type="number" min={0} max={24} step={0.5}
+                      value={workerHours[w.id].overtimeHours}
+                      onChange={(e) => updateHours(w.id, 'overtimeHours', Number(e.target.value))}
+                      title="Overtime hours"
+                      className="w-14 border border-gray-200 rounded px-1.5 py-1 text-xs text-right"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      disabled={statusSavingId === w.id}
+                      onClick={() => markStatus(w.id, 'Holiday')}
+                      className="px-2 py-1 rounded-md text-[10px] font-medium text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 disabled:opacity-50"
+                    >
+                      Holiday
+                    </button>
+                    <button
+                      type="button"
+                      disabled={statusSavingId === w.id}
+                      onClick={() => markStatus(w.id, 'Absent')}
+                      className="px-2 py-1 rounded-md text-[10px] font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 disabled:opacity-50"
+                    >
+                      Absent
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Overtime Hrs</label>
-          <input
-            type="number"
-            min={0}
-            max={24}
-            step={0.5}
-            value={overtimeHours}
-            onChange={(e) => setOvertimeHours(Number(e.target.value))}
-            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-          />
-        </div>
-        <div className={`text-center pb-1.5 text-sm font-bold ${isOverCap ? 'text-red-600' : isWarning ? 'text-orange-500' : 'text-gray-700'}`}>
-          Total: {total.toFixed(1)}h
-          {isWarning && <span className="block text-[10px] font-normal text-orange-500">⚠ over 14h</span>}
-          {isOverCap && <span className="block text-[10px] font-normal text-red-600">✕ exceeds 16h</span>}
-        </div>
+        {checkedIds.length > 0 && (
+          <p className={`text-xs mt-1.5 font-medium ${anyOverCap ? 'text-red-600' : anyWarning ? 'text-orange-500' : 'text-gray-500'}`}>
+            {checkedIds.length} worker{checkedIds.length > 1 ? 's' : ''} selected — {groupTotal.toFixed(1)}h combined
+            {anyWarning && <span className="ml-1">⚠ one or more over 14h</span>}
+            {anyOverCap && <span className="ml-1">✕ one or more exceed 16h</span>}
+          </p>
+        )}
       </div>
 
       {/* Estimated cost */}
-      {estimatedCost !== null && (
+      {estimatedCost > 0 && (
         <div className="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-amber-700">Estimated Labor Cost</p>
-            <p className="text-[11px] text-amber-500 mt-0.5">
-              {allPeople.map((p) => `${workerLabel(p)} @ AED ${p.hourlyRate ?? 0}/hr`).join(', ')}
-            </p>
-          </div>
+          <p className="text-xs font-semibold text-amber-700">Estimated Labor Cost</p>
           <p className="text-base font-bold text-amber-800">AED {estimatedCost.toFixed(0)}</p>
         </div>
       )}
@@ -310,7 +375,7 @@ function LogEntryForm({
 
       <button
         type="submit"
-        disabled={saving || isOverCap}
+        disabled={saving || anyOverCap}
         className="w-full py-2 bg-brand-500 text-white text-sm font-medium rounded-lg hover:bg-brand-600 disabled:opacity-50 transition-colors"
       >
         {saving ? 'Logging…' : 'Log Entry'}
@@ -321,7 +386,13 @@ function LogEntryForm({
 
 // ─── Today's Entries ──────────────────────────────────────────────────────────
 
-function TodayEntries({
+const STATUS_BADGE: Record<TimesheetEntry['status'], string> = {
+  Working: '',
+  Holiday: 'text-cyan-700 bg-cyan-50',
+  Absent: 'text-red-700 bg-red-50',
+}
+
+function DateEntries({
   date,
   refreshKey,
 }: {
@@ -348,17 +419,18 @@ function TodayEntries({
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-800">Today&apos;s Entries</p>
+        <p className="text-sm font-semibold text-gray-800">Entries</p>
         <span className="text-xs text-gray-400">{date}</span>
       </div>
       {entries.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-gray-400">No entries logged today.</p>
+        <p className="px-4 py-4 text-sm text-gray-400">No entries logged for this date.</p>
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50">
+              <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Worker</th>
               <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Supervisor</th>
-              <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Workers</th>
+              <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Status</th>
               <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Location</th>
               <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Reg</th>
               <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">OT</th>
@@ -369,14 +441,19 @@ function TodayEntries({
           <tbody className="divide-y divide-gray-50">
             {entries.map((e) => (
               <tr key={e.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-2 text-gray-800 font-medium">{e.supervisorName ?? '—'}</td>
-                <td className="px-4 py-2 text-xs text-gray-500">
+                <td className="px-4 py-2 text-gray-800 font-medium">
                   {e.workerNames && e.workerNames.length > 0
                     ? e.workerNames.join(', ')
-                    : <span className="text-gray-300">none</span>}
+                    : <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-2 text-xs text-gray-500">{e.supervisorName ?? '—'}</td>
+                <td className="px-4 py-2 text-xs">
+                  {e.status === 'Working'
+                    ? <span className="text-gray-400">Working</span>
+                    : <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[e.status]}`}>{e.status}</span>}
                 </td>
                 <td className="px-4 py-2 text-xs text-gray-500">
-                  {e.locationType === 'Factory'
+                  {e.status !== 'Working' ? '—' : e.locationType === 'Factory'
                     ? <span className="text-green-700 bg-green-50 px-1.5 py-0.5 rounded text-[11px] font-medium">Factory</span>
                     : <span className="text-blue-700 text-[11px]">{e.projectRef ?? e.projectIds[0] ?? '—'}</span>}
                 </td>
@@ -456,7 +533,7 @@ function WeeklySummaryView() {
           {summary.workers.map((w: {
             workerId: string
             workerName: string
-            days: { date: string; regularHours: number; overtimeHours: number; totalHours: number; projectRef?: string; entryId: string }[]
+            days: { date: string; status: TimesheetEntry['status']; regularHours: number; overtimeHours: number; totalHours: number; projectRef?: string; entryId: string }[]
             totalRegular: number
             totalOvertime: number
             totalHours: number
@@ -504,12 +581,20 @@ function WeeklySummaryView() {
                       {w.days.map((d) => (
                         <tr key={d.entryId} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-2 text-xs text-gray-500 font-mono">{formatDate(d.date)}</td>
-                          <td className="px-4 py-2 text-xs text-gray-400">{d.projectRef ?? '—'}</td>
-                          <td className="px-4 py-2 text-right text-gray-600">{d.regularHours.toFixed(1)}</td>
-                          <td className="px-4 py-2 text-right text-orange-500">{d.overtimeHours > 0 ? d.overtimeHours.toFixed(1) : '—'}</td>
-                          <td className={`px-4 py-2 text-right font-semibold ${d.totalHours > 14 ? 'text-orange-600' : 'text-gray-700'}`}>
-                            {d.totalHours.toFixed(1)}
-                          </td>
+                          {d.status !== 'Working' ? (
+                            <td colSpan={4} className="px-4 py-2">
+                              <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[d.status]}`}>{d.status}</span>
+                            </td>
+                          ) : (
+                            <>
+                              <td className="px-4 py-2 text-xs text-gray-400">{d.projectRef ?? '—'}</td>
+                              <td className="px-4 py-2 text-right text-gray-600">{d.regularHours.toFixed(1)}</td>
+                              <td className="px-4 py-2 text-right text-orange-500">{d.overtimeHours > 0 ? d.overtimeHours.toFixed(1) : '—'}</td>
+                              <td className={`px-4 py-2 text-right font-semibold ${d.totalHours > 14 ? 'text-orange-600' : 'text-gray-700'}`}>
+                                {d.totalHours.toFixed(1)}
+                              </td>
+                            </>
+                          )}
                         </tr>
                       ))}
                       <tr className="bg-gray-50 font-semibold">
@@ -535,7 +620,7 @@ function WeeklySummaryView() {
 export default function TimesheetsView({ projects }: { projects: Project[] }) {
   const [subView, setSubView] = useState<'log' | 'summary'>('log')
   const [refreshKey, setRefreshKey] = useState(0)
-  const today = todayUAE()
+  const [workDate, setWorkDate] = useState(todayUAE())
 
   const { data: workersData } = useSWR<{ workers: WorkerOption[] }>(
     '/api/timesheets/workers',
@@ -543,6 +628,17 @@ export default function TimesheetsView({ projects }: { projects: Project[] }) {
     { revalidateOnFocus: false },
   )
   const workers = sortWorkers(workersData?.workers ?? [])
+
+  const { data: dateEntriesData, mutate: mutateDateEntries } = useSWR<{ entries: TimesheetEntry[] }>(
+    `/api/timesheets?from=${workDate}&to=${workDate}`,
+    fetcher,
+  )
+  const assignments = buildAssignmentMap(dateEntriesData?.entries ?? [])
+
+  function handleCreated() {
+    setRefreshKey((k) => k + 1)
+    mutateDateEntries()
+  }
 
   return (
     <div className="space-y-4">
@@ -567,9 +663,12 @@ export default function TimesheetsView({ projects }: { projects: Project[] }) {
           <LogEntryForm
             workers={workers}
             projects={projects}
-            onCreated={() => setRefreshKey((k) => k + 1)}
+            workDate={workDate}
+            onWorkDateChange={setWorkDate}
+            assignments={assignments}
+            onCreated={handleCreated}
           />
-          <TodayEntries date={today} refreshKey={refreshKey} />
+          <DateEntries date={workDate} refreshKey={refreshKey} />
         </>
       )}
 
