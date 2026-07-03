@@ -74,9 +74,9 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     if (label) projectNameMap.set(p.id, label)
   }
 
-  const getProjectName = (linkedIds: unknown): string | undefined => {
-    const ids = linkedIds as string[] | undefined
-    return ids?.[0] ? projectNameMap.get(ids[0]) : undefined
+  const getProjectName = (val: unknown): string | undefined => {
+    const pid = str(val)
+    return pid ? projectNameMap.get(pid) : undefined
   }
 
   // Build dedup set from manually created calendar events (title + date) so task-based

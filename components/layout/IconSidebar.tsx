@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import useSWR from 'swr'
 import { Role } from '@/lib/types'
 
@@ -437,7 +437,6 @@ const sidebarFetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function IconSidebar({ role, name }: { role: Role; name: string }) {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [viewAsOpen, setViewAsOpen] = useState(false)
 
@@ -469,10 +468,9 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
       : 0
 
   const groups = NAV_GROUPS[role] ?? []
-  const currentHref = pathname + (searchParams.toString() ? '?' + searchParams.toString() : '')
 
   function isActive(item: NavItem): boolean {
-    return item.href === currentHref
+    return item.href === pathname
   }
 
   async function handleLogout() {

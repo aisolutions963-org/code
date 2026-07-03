@@ -6,6 +6,7 @@ import { getUserByAirtableMemberId, getUserById } from '@/lib/db'
 import { createNotification } from '@/lib/notifications'
 
 const PAYMENT_EVENT_TYPES = new Set(['payment-due', 'payment-received'])
+const REVIEW_TASK_PREFIXES = ['weekly-review:', 'monthly-audit:']
 
 export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async (req: NextRequest, session) => {
   try {
@@ -18,7 +19,12 @@ export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', '
       return NextResponse.json({ events })
     }
     const canSeePayments = session.role === 'manager' || session.role === 'superadmin'
-    const events = canSeePayments ? all : all.filter((e) => !PAYMENT_EVENT_TYPES.has(e.type))
+    const events = canSeePayments
+      ? all
+      : all.filter((e) =>
+          !PAYMENT_EVENT_TYPES.has(e.type) &&
+          !REVIEW_TASK_PREFIXES.some((p) => e.customTask?.startsWith(p))
+        )
     return NextResponse.json({ events })
   } catch (error) {
     console.error('GET /api/calendar error:', error)

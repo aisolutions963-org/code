@@ -124,9 +124,8 @@ async function getFabricationActiveProjectIds(): Promise<Set<string>> {
   })
   const ids = new Set<string>()
   for (const r of fabTasks) {
-    for (const pid of strArr(r.fields[TASKS.PROJECT])) {
-      ids.add(pid)
-    }
+    const pid = str(r.fields[TASKS.PROJECT])
+    if (pid) ids.add(pid)
   }
   return ids
 }

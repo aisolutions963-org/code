@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useSearchParams, useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Role } from '@/lib/types'
 
@@ -219,12 +219,11 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
 
 export default function MobileBottomNav({ role, name }: { role: Role; name: string }) {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
 
-  const currentHref = pathname + (searchParams.toString() ? '?' + searchParams.toString() : '')
+  const currentHref = pathname
   const tabs = PRIMARY_NAV[role] ?? []
   const activeText = ROLE_ACTIVE_TEXT[role]
   const accentBg = ROLE_ACCENT_BG[role]

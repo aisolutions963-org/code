@@ -10,7 +10,6 @@ import {
   tblUrl,
   RawRecord,
   str,
-  strArr,
   firstLinkedRecord,
   transformProject,
   transformTask,
@@ -154,7 +153,7 @@ export async function getClientRequests(options?: {
 
   const tasksByProject = new Map<string, Task[]>()
   for (const tr of taskRecords) {
-    const pid = strArr(tr.fields[TASKS.PROJECT])[0]
+    const pid = str(tr.fields[TASKS.PROJECT])
     if (!pid) continue
     if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
     tasksByProject.get(pid)!.push(transformTask(tr))
@@ -201,7 +200,7 @@ export async function getClientRequestsByParentProject(parentProjectId: string):
 
   const tasksByProject = new Map<string, Task[]>()
   for (const tr of taskRecords) {
-    const pid = strArr(tr.fields[TASKS.PROJECT])[0]
+    const pid = str(tr.fields[TASKS.PROJECT])
     if (!pid) continue
     if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
     tasksByProject.get(pid)!.push(transformTask(tr))
