@@ -22,6 +22,7 @@ import {
 } from '@/lib/airtable'
 import { deleteSedProjectMappings, deleteInactivityAlerts } from '@/lib/db'
 import { PROJECTS } from '@/lib/fieldMap'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export async function GET(
   _request: NextRequest,
@@ -31,6 +32,10 @@ export async function GET(
   const session = await getSession()
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, id))) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
 
   const canSeePayments = session.role === 'manager' || session.role === 'superadmin'

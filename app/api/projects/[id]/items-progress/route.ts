@@ -2,9 +2,14 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getAllTasksForProjectAll, getProjectById, getProjectItemNameMap } from '@/lib/airtable'
 import { Task } from '@/lib/types'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole()(async (_req, session, { params }) => {
   const { id } = params
+
+  if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, id))) {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+  }
 
   const [tasks, project] = await Promise.all([
     getAllTasksForProjectAll(id, session.role),

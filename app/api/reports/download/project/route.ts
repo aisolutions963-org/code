@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getProjectById, getPaymentsByProject } from '@/lib/airtable'
+import { getProjectById, getPaymentsByProject, getClientRequestsByParentProject } from '@/lib/airtable'
 import { buildMultiSheetXlsx, xlsxResponse } from '@/lib/xlsxHelper'
 
 export const dynamic = 'force-dynamic'
@@ -11,14 +11,19 @@ export const GET = requireRole('superadmin', 'manager')(async (req: NextRequest)
     return NextResponse.json({ error: 'id query param required' }, { status: 400 })
   }
 
-  const [project, payments] = await Promise.all([
+  const [project, payments, linkedRequests] = await Promise.all([
     getProjectById(projectId),
     getPaymentsByProject(projectId),
+    getClientRequestsByParentProject(projectId),
   ])
 
   if (!project) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
+
+  const clientRequests = linkedRequests
+    .map((r) => (r.tradeReference ? `${r.requestType} (${r.tradeReference})` : r.requestType))
+    .join(', ')
 
   const overviewRows = [{
     ref:         project.projectId ?? '',
@@ -32,6 +37,7 @@ export const GET = requireRole('superadmin', 'manager')(async (req: NextRequest)
     totalPaid:   project.totalPaid ?? 0,
     remaining:   project.remainingBalance ?? 0,
     paymentMode: project.paymentMode ?? '',
+    clientRequests,
   }]
 
   const paymentRows = payments.map((p) => ({
@@ -61,6 +67,7 @@ export const GET = requireRole('superadmin', 'manager')(async (req: NextRequest)
         { header: 'Total Paid',   key: 'totalPaid',   width: 14, isCurrency: true },
         { header: 'Remaining',    key: 'remaining',   width: 14, isCurrency: true },
         { header: 'Payment Mode', key: 'paymentMode', width: 16 },
+        { header: 'Client Requests', key: 'clientRequests', width: 28 },
       ],
       rows: overviewRows,
     },

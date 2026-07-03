@@ -12,10 +12,17 @@ import {
 import { TaskUpdateInput } from '@/lib/types'
 import { UpdateTaskSchema } from '@/lib/validation'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole()(
-  async (_req: NextRequest, _session, { params }) => {
+  async (_req: NextRequest, session, { params }) => {
     const task = await getTaskById(params.id)
+    if (session.role === 'sed') {
+      const projectId = task.project?.[0]
+      if (!projectId || !(await isSedAuthorizedForProject(session, projectId))) {
+        return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+      }
+    }
     return NextResponse.json({ task })
   },
 )
@@ -74,6 +81,12 @@ export const PATCH = requireRole()(
         const taskDepts: string[] = accessTask.department ?? []
         if (taskDepts.length > 0 && !taskDepts.some((d) => allowedDepts.includes(d))) {
           return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+        }
+        if (session.role === 'sed') {
+          const projectId = accessTask.project?.[0]
+          if (!projectId || !(await isSedAuthorizedForProject(session, projectId))) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+          }
         }
       }
     }

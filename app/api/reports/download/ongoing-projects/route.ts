@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS, PROJECT_ITEMS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
+import { getClientRequestLabelsByParent } from '@/lib/airtable'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const projectParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   const activeStages = ['Preparing', 'Open', 'Fabrication', 'Installation']
   const stageFilter = activeStages.map(s => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')
-  projectParams.set('filterByFormula', `OR(${stageFilter})`)
+  // Exclude Trade/Maintenance/Variance sub-projects — they show up via the
+  // "Client Requests" column on their parent project's row instead.
+  projectParams.set('filterByFormula', `AND(OR(${stageFilter}), {${PROJECTS.REQUEST_TYPE}}="")`)
   projectParams.append('fields[]', PROJECTS.PROJECT_ID)
   projectParams.append('fields[]', PROJECTS.PROJECT_NAME)
   projectParams.append('fields[]', PROJECTS.CLIENT_NAME)
@@ -46,9 +49,10 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   itemParams.append('fields[]', PROJECT_ITEMS.PROJECT)
   itemParams.append('fields[]', PROJECT_ITEMS.ITEM_TYPE)
 
-  const [projects, items] = await Promise.all([
+  const [projects, items, requestLabels] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, projectParams),
     fetchAll(PROJECT_ITEMS.TABLE_ID, itemParams),
+    getClientRequestLabelsByParent(),
   ])
 
   const itemsByProject = new Map<string, { name: string; status: string }[]>()
@@ -80,6 +84,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       sed: owner?.name ?? '',
       itemName: '',
       itemStatus: '',
+      clientRequests: requestLabels.get(proj.id) ?? '',
     })
     const projItems = itemsByProject.get(proj.id) ?? []
     for (const item of projItems) {
@@ -92,6 +97,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
         sed: '',
         itemName: `  ${item.name}`,
         itemStatus: item.status,
+        clientRequests: '',
       })
     }
   }
@@ -102,6 +108,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     { header: 'Client', key: 'client', width: 22 },
     { header: 'Stage', key: 'stage', width: 16 },
     { header: 'SED', key: 'sed', width: 18 },
+    { header: 'Client Requests', key: 'clientRequests', width: 28 },
     { header: 'Item Name', key: 'itemName', width: 28 },
     { header: 'Item Status', key: 'itemStatus', width: 18 },
   ], rows)

@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getProjectById, getPaymentsByProject, getTimesheetEntries } from '@/lib/airtable'
 import { getUserByAirtableMemberId } from '@/lib/db'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole('superadmin', 'manager', 'sed', 'fabrication', 'installation')(
   async (req: NextRequest, session, context) => {
     const { id } = (context as { params: { id: string } }).params
+
+    if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, id))) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
 
     try {
       const rawProject = await getProjectById(id)

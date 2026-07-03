@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
+import { getClientRequestLabelsByParent } from '@/lib/airtable'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +38,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
 
   const safe = clientName.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  params.set('filterByFormula', `LOWER({${PROJECTS.CLIENT_NAME}}) = LOWER("${safe}")`)
+  // Exclude Trade/Maintenance/Variance sub-projects — they show up via the
+  // "Client Requests" column on their parent project's row instead.
+  params.set('filterByFormula', `AND(LOWER({${PROJECTS.CLIENT_NAME}}) = LOWER("${safe}"), {${PROJECTS.REQUEST_TYPE}}="")`)
   params.append('fields[]', PROJECTS.PROJECT_ID)
   params.append('fields[]', PROJECTS.PROJECT_NAME)
   params.append('fields[]', PROJECTS.PROJECT_STAGE)
@@ -55,7 +58,10 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   params.set('sort[0][field]', PROJECTS.PROJECT_CREATED_AT)
   params.set('sort[0][direction]', 'desc')
 
-  const records = await fetchAll(PROJECTS.TABLE_ID, params)
+  const [records, requestLabels] = await Promise.all([
+    fetchAll(PROJECTS.TABLE_ID, params),
+    getClientRequestLabelsByParent(),
+  ])
 
   const rows = records.map((r) => {
     const f = r.fields
@@ -80,6 +86,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       location,
       sed:          owner,
       createdAt:    str(f[PROJECTS.PROJECT_CREATED_AT]).slice(0, 10),
+      clientRequests: requestLabels.get(r.id) ?? '',
     }
   })
 
@@ -96,6 +103,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     { header: 'Location',      key: 'location',    width: 30 },
     { header: 'SED',           key: 'sed',         width: 20 },
     { header: 'Created',       key: 'createdAt',   width: 12, isDate: true },
+    { header: 'Client Requests', key: 'clientRequests', width: 28 },
   ], rows)
 
   return xlsxResponse(buffer, `Client_${safeFilename}`)

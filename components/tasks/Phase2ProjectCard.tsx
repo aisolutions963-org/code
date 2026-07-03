@@ -40,15 +40,15 @@ export default function Phase2ProjectCard({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider font-mono">
-              {projectRef}
+            <span className="text-sm font-bold text-gray-800 truncate">
+              {displayName ?? projectRef}
             </span>
             <span className="text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium">
               Open
             </span>
           </div>
-          {displayName && (
-            <p className="text-xs text-gray-600 font-medium truncate mt-0.5">{displayName}</p>
+          {displayName && projectRef && (
+            <p className="text-xs text-gray-400 font-mono uppercase tracking-wider mt-0.5">{projectRef}</p>
           )}
         </div>
 

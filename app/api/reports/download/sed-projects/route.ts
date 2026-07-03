@@ -17,7 +17,20 @@ const getOwnerName = (f: Record<string, unknown>): string => {
   return (entry as { name?: string }).name ?? ''
 }
 
-function buildRow(f: Record<string, unknown>, sedName: string, type: string) {
+const getRequestTypeName = (f: Record<string, unknown>): string => {
+  const raw = f[PROJECTS.REQUEST_TYPE]
+  if (typeof raw === 'string') return raw
+  if (raw && typeof raw === 'object') return (raw as { name?: string }).name ?? ''
+  return ''
+}
+
+const getChildLabel = (child: AirtableRecord): string => {
+  const tradeRef = (child.fields[PROJECTS.TRADE_REFERENCE] as string | undefined) ?? ''
+  const requestType = getRequestTypeName(child.fields)
+  return tradeRef ? `${requestType} (${tradeRef})` : requestType
+}
+
+function buildRow(f: Record<string, unknown>, sedName: string, type: string, clientRequests: string) {
   return {
     sedName,
     reference: (f[PROJECTS.PROJECT_ID] as string) ?? '',
@@ -29,6 +42,7 @@ function buildRow(f: Record<string, unknown>, sedName: string, type: string) {
     totalCost: (f[PROJECTS.PROJECT_TOTAL_COST] as number) ?? 0,
     createdAt: (f[PROJECTS.PROJECT_CREATED_AT] as string) ?? '',
     notes: (f[PROJECTS.MANAGER_NOTES] as string) ?? '',
+    clientRequests,
   }
 }
 
@@ -105,12 +119,11 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const rows: ReturnType<typeof buildRow>[] = []
   for (const parent of sortedParents) {
     const sedName = getOwnerName(parent.fields)
-    rows.push(buildRow(parent.fields, sedName, ''))
-    for (const child of children.get(parent.id) ?? []) {
-      const tradeRef = (child.fields[PROJECTS.TRADE_REFERENCE] as string | undefined) ?? ''
-      const requestType = (child.fields[PROJECTS.REQUEST_TYPE] as string) ?? ''
-      const typeLabel = tradeRef ? `${requestType} (${tradeRef})` : requestType
-      rows.push(buildRow(child.fields, sedName, typeLabel))
+    const childRecords = children.get(parent.id) ?? []
+    const clientRequests = childRecords.map(getChildLabel).join(', ')
+    rows.push(buildRow(parent.fields, sedName, '', clientRequests))
+    for (const child of childRecords) {
+      rows.push(buildRow(child.fields, sedName, getChildLabel(child), ''))
     }
   }
 
@@ -125,6 +138,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     { header: 'Total Cost (AED)', key: 'totalCost',    width: 18, isCurrency: true },
     { header: 'Created At',       key: 'createdAt',    width: 14, isDate: true },
     { header: 'Notes',            key: 'notes',        width: 30 },
+    { header: 'Client Requests',  key: 'clientRequests', width: 28 },
   ], rows)
 
   return xlsxResponse(buffer, 'SED_Projects_Status')

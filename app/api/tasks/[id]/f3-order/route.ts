@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
+import { getTaskById } from '@/lib/airtable'
 import { handleF3Order } from '@/lib/workflow'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const POST = requireRole('manager', 'superadmin', 'sed', 'fabrication', 'installation')(
   async (req: NextRequest, session, { params }) => {
@@ -19,6 +21,14 @@ export const POST = requireRole('manager', 'superadmin', 'sed', 'fabrication', '
 
     if (path !== 'small' && path !== 'big') {
       return NextResponse.json({ error: 'path must be "small" or "big"' }, { status: 400 })
+    }
+
+    if (session.role === 'sed') {
+      const task = await getTaskById(params.id)
+      const projectId = task.project?.[0]
+      if (!projectId || !(await isSedAuthorizedForProject(session, projectId))) {
+        return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+      }
     }
 
     if (!Array.isArray(items) || items.length === 0) {

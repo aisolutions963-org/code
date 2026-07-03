@@ -62,8 +62,8 @@ export default function ProjectTaskCard({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider font-mono">
-            {projectRef}
+          <span className="text-sm font-bold text-gray-800 truncate">
+            {displayName ?? projectRef}
           </span>
           {stageBadgeClass && (
             <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border ${stageBadgeClass}`}>
@@ -71,8 +71,8 @@ export default function ProjectTaskCard({
             </span>
           )}
         </div>
-        {displayName && (
-          <p className="text-xs text-gray-700 font-medium truncate mt-0.5">{displayName}</p>
+        {displayName && projectRef && (
+          <p className="text-xs text-gray-400 font-mono uppercase tracking-wider mt-0.5">{projectRef}</p>
         )}
       </div>
 

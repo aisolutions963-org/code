@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
+import { getClientRequestLabelsByParent } from '@/lib/airtable'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,10 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     formula = `AND(${formula}, {${PROJECTS.REMAINING_BALANCE}}>0)`
   }
 
+  // Exclude Trade/Maintenance/Variance sub-projects — they show up via the
+  // "Client Requests" column on their parent project's row instead.
+  formula = `AND(${formula}, {${PROJECTS.REQUEST_TYPE}}="")`
+
   params.set('filterByFormula', formula)
   params.append('fields[]', PROJECTS.PROJECT_ID)
   params.append('fields[]', PROJECTS.PROJECT_NAME)
@@ -66,7 +71,10 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   params.append('sort[0][field]', PROJECTS.PROJECT_CREATED_AT)
   params.append('sort[0][direction]', 'desc')
 
-  const projects = await fetchAll(PROJECTS.TABLE_ID, params)
+  const [projects, requestLabels] = await Promise.all([
+    fetchAll(PROJECTS.TABLE_ID, params),
+    getClientRequestLabelsByParent(),
+  ])
 
   const rows = projects.map((proj) => {
     const f = proj.fields
@@ -85,6 +93,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       totalPaid:    typeof f[PROJECTS.TOTAL_PAID] === 'number' ? f[PROJECTS.TOTAL_PAID] as number : 0,
       remaining:    typeof f[PROJECTS.REMAINING_BALANCE] === 'number' ? f[PROJECTS.REMAINING_BALANCE] as number : 0,
       createdAt:    (f[PROJECTS.PROJECT_CREATED_AT] as string) ?? '',
+      clientRequests: requestLabels.get(proj.id) ?? '',
     }
   })
 
@@ -105,6 +114,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     { header: 'Total Paid',   key: 'totalPaid',   width: 14, isCurrency: true },
     { header: 'Remaining',    key: 'remaining',   width: 14, isCurrency: true },
     { header: 'Created',      key: 'createdAt',   width: 14, isDate: true },
+    { header: 'Client Requests', key: 'clientRequests', width: 28 },
   ], rows)
 
   return xlsxResponse(buffer, filename)

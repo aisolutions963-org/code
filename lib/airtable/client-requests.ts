@@ -10,6 +10,7 @@ import {
   tblUrl,
   RawRecord,
   str,
+  selectName,
   firstLinkedRecord,
   transformProject,
   transformTask,
@@ -244,4 +245,32 @@ export async function updateClientRequestTradeReference(
   tradeReference: string,
 ): Promise<void> {
   await updateProject(requestProjectId, { [PROJECTS.TRADE_REFERENCE]: tradeReference })
+}
+
+// Maps every parent project ID to a formatted, comma-joined label of its linked
+// Trade/Maintenance/Variance requests, e.g. "Trade (2341Tr1), Variance (2341Vr1)".
+// Used by report exports so a project's row can show a "Client Requests" column
+// instead of the requests appearing as separate, independent-looking rows.
+export async function getClientRequestLabelsByParent(): Promise<Map<string, string>> {
+  if (PROJECTS.REQUEST_TYPE.startsWith('REPLACE')) return new Map()
+
+  const records = await fetchAll(PROJECTS.TABLE_ID, {
+    filterByFormula: `{${PROJECTS.REQUEST_TYPE}} != ""`,
+    fields: [PROJECTS.REQUEST_TYPE, PROJECTS.PARENT_PROJECT, PROJECTS.TRADE_REFERENCE],
+  })
+
+  const labelsByParent = new Map<string, string[]>()
+  for (const r of records) {
+    const parentId = firstLinkedRecord(r.fields[PROJECTS.PARENT_PROJECT])?.id
+    if (!parentId) continue
+    const type = selectName(r.fields[PROJECTS.REQUEST_TYPE]) ?? ''
+    const ref = str(r.fields[PROJECTS.TRADE_REFERENCE])
+    const label = ref ? `${type} (${ref})` : type
+    if (!labelsByParent.has(parentId)) labelsByParent.set(parentId, [])
+    labelsByParent.get(parentId)!.push(label)
+  }
+
+  const result = new Map<string, string>()
+  for (const [parentId, labels] of labelsByParent) result.set(parentId, labels.join(', '))
+  return result
 }
