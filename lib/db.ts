@@ -266,5 +266,21 @@ export async function setSetting(key: string, value: string): Promise<void> {
   })
 }
 
+export async function deleteSedProjectMappings(projectAirtableId: string): Promise<void> {
+  const c = await db()
+  await c.execute({
+    sql: 'DELETE FROM sed_projects WHERE project_airtable_id = ?',
+    args: [projectAirtableId],
+  })
+}
+
+export async function deleteInactivityAlerts(projectId: string): Promise<void> {
+  const c = await db()
+  await c.execute({
+    sql: 'DELETE FROM inactivity_alerts WHERE project_id = ?',
+    args: [projectId],
+  })
+}
+
 // Raw client for notifications and metrics (already awaits init internally)
 export { db as getDB }

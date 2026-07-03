@@ -157,6 +157,29 @@ export async function fetchAll(
   return records
 }
 
+export async function deleteByProject(tableId: string, projectField: string, projectId: string): Promise<number> {
+  const records = await fetchAll(tableId, {
+    filterByFormula: `{${projectField}} = "${projectId}"`,
+    fields: [projectField],
+  })
+  if (records.length === 0) return 0
+  let deleted = 0
+  for (let i = 0; i < records.length; i += 10) {
+    const chunk = records.slice(i, i + 10)
+    const qs = chunk.map((r) => `records[]=${r.id}`).join('&')
+    const res = await fetchWithRetry(`${BASE_URL}/${process.env.AIRTABLE_BASE_ID}/${tableId}?${qs}`, {
+      method: 'DELETE',
+      headers: airtableHeaders(),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable delete error (${tableId}) ${res.status}: ${body}`)
+    }
+    deleted += chunk.length
+  }
+  return deleted
+}
+
 // ─── Transform helpers ───────────────────────────────────────────────────────
 
 export function str(val: unknown): string | undefined {

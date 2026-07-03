@@ -10,6 +10,7 @@ import {
   tblUrl,
   RawRecord,
   transformMaintenance,
+  deleteByProject,
 } from './_client'
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
@@ -74,4 +75,8 @@ export async function expireMaintenanceRecord(recordId: string): Promise<void> {
     const body = await res.text()
     throw new Error(`Airtable error ${res.status}: ${body}`)
   }
+}
+
+export async function deleteMaintenanceByProject(projectId: string): Promise<number> {
+  return deleteByProject(MAINTENANCE.TABLE_ID, MAINTENANCE.PROJECTS, projectId)
 }

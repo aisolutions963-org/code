@@ -15,6 +15,7 @@ import {
   str,
   num,
   strArr,
+  deleteByProject,
 } from './_client'
 import { getProjectItemNameMap } from './tasks'
 
@@ -310,4 +311,8 @@ export async function upsertReminderEvent(input: {
     })
     if (!res.ok) throw new Error(`Airtable error ${res.status}`)
   }
+}
+
+export async function deleteCalendarEventsByProject(projectId: string): Promise<number> {
+  return deleteByProject(CALENDAR_EVENTS.TABLE_ID, CALENDAR_EVENTS.PROJECT, projectId)
 }

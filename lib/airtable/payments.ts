@@ -10,6 +10,7 @@ import {
   tblUrl,
   RawRecord,
   transformPayment,
+  deleteByProject,
 } from './_client'
 
 export async function getPaymentsByProjectIds(projectIds: string[]): Promise<Payment[]> {
@@ -92,6 +93,10 @@ export async function updatePayment(id: string, input: PaymentUpdateInput): Prom
   }
   const record: RawRecord = await res.json()
   return transformPayment(record)
+}
+
+export async function deletePaymentsByProject(projectId: string): Promise<number> {
+  return deleteByProject(PAYMENTS.TABLE_ID, PAYMENTS.PROJECT, projectId)
 }
 
 export async function getSedQuarterlyRevenue(

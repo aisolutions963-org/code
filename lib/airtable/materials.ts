@@ -12,6 +12,7 @@ import {
   str,
   num,
   strArr,
+  deleteByProject,
 } from './_client'
 
 function transformMaterial(record: RawRecord): Material {
@@ -113,6 +114,10 @@ export async function createMaterials(
     created.push(...data.records.map(transformMaterial))
   }
   return created
+}
+
+export async function deleteMaterialsByProject(projectId: string): Promise<number> {
+  return deleteByProject(MATERIALS_NEEDED.TABLE_ID, MATERIALS_NEEDED.PROJECTS, projectId)
 }
 
 export async function createMaterialOrder(order: MaterialOrderInput): Promise<Material[]> {

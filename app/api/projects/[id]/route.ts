@@ -8,8 +8,19 @@ import {
   getPaymentsByProject,
   deleteTasksByProjectId,
   deleteProjectById,
+  deleteProjectItemsByProject,
+  deletePaymentsByProject,
+  deleteMaterialsByProject,
+  deleteCalendarEventsByProject,
+  deleteMaintenanceByProject,
+  deletePurchaseOrdersByProject,
+  deleteInstallationLogsByProject,
+  deleteHandoverSheetsByProject,
+  deleteTimesheetsByProject,
+  deleteChildProjectsByProject,
   updateProject,
 } from '@/lib/airtable'
+import { deleteSedProjectMappings, deleteInactivityAlerts } from '@/lib/db'
 import { PROJECTS } from '@/lib/fieldMap'
 
 export async function GET(
@@ -154,9 +165,24 @@ export async function DELETE(
   }
 
   try {
-    const deletedTasks = await deleteTasksByProjectId(id)
+    await Promise.all([
+      deleteTasksByProjectId(id),
+      deletePaymentsByProject(id),
+      deleteMaterialsByProject(id),
+      deleteCalendarEventsByProject(id),
+      deleteMaintenanceByProject(id),
+      deletePurchaseOrdersByProject(id),
+      deleteInstallationLogsByProject(id),
+      deleteHandoverSheetsByProject(id),
+      deleteTimesheetsByProject(id),
+      deleteChildProjectsByProject(id),
+      deleteSedProjectMappings(id),
+      deleteInactivityAlerts(id),
+    ])
+    // Items deleted after tasks to avoid orphaned item references
+    await deleteProjectItemsByProject(id)
     await deleteProjectById(id)
-    return NextResponse.json({ deleted: true, deletedTasks })
+    return NextResponse.json({ deleted: true })
   } catch (error) {
     console.error('DELETE /api/projects/[id] error:', error)
     return NextResponse.json({ error: 'Failed to delete project' }, { status: 500 })

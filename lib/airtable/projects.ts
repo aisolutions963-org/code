@@ -9,9 +9,13 @@ import {
   CLIENTS,
   PROJECTS,
   TASKS,
+  PROJECT_ITEMS,
   END_USERS,
   HANDOVER_SHEETS,
   MAINTENANCE,
+  PURCHASE_ORDERS,
+  INSTALLATION_LOGS,
+  PRODUCTION_TIMESHEETS,
   fetchAll,
   fetchWithRetry,
   airtableHeaders,
@@ -25,6 +29,7 @@ import {
   strArr,
   firstLinkedRecord,
   transformProject,
+  deleteByProject,
 } from './_client'
 import { todayUAE } from '../dateUtils'
 
@@ -306,6 +311,46 @@ export async function deleteProjectById(projectId: string): Promise<void> {
     const body = await res.text()
     throw new Error(`Airtable error deleting project ${res.status}: ${body}`)
   }
+}
+
+export async function deleteProjectItemsByProject(projectId: string): Promise<number> {
+  return deleteByProject(PROJECT_ITEMS.TABLE_ID, PROJECT_ITEMS.PROJECT, projectId)
+}
+
+export async function deletePurchaseOrdersByProject(projectId: string): Promise<number> {
+  return deleteByProject(PURCHASE_ORDERS.TABLE_ID, PURCHASE_ORDERS.PROJECT, projectId)
+}
+
+export async function deleteInstallationLogsByProject(projectId: string): Promise<number> {
+  return deleteByProject(INSTALLATION_LOGS.TABLE_ID, INSTALLATION_LOGS.PROJECT, projectId)
+}
+
+export async function deleteHandoverSheetsByProject(projectId: string): Promise<number> {
+  return deleteByProject(HANDOVER_SHEETS.TABLE_ID, HANDOVER_SHEETS.PROJECT, projectId)
+}
+
+export async function deleteTimesheetsByProject(projectId: string): Promise<number> {
+  return deleteByProject(PRODUCTION_TIMESHEETS.TABLE, PRODUCTION_TIMESHEETS.PROJECT, projectId)
+}
+
+export async function deleteChildProjectsByProject(projectId: string): Promise<string[]> {
+  const records = await fetchAll(PROJECTS.TABLE_ID, {
+    filterByFormula: `{${PROJECTS.PARENT_PROJECT}} = "${projectId}"`,
+    fields: [PROJECTS.PROJECT_NAME],
+  })
+  if (records.length === 0) return []
+  const ids = records.map((r) => r.id)
+  for (const id of ids) {
+    const res = await fetchWithRetry(recUrl(PROJECTS.TABLE_ID, id), {
+      method: 'DELETE',
+      headers: airtableHeaders(),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error deleting child project ${res.status}: ${body}`)
+    }
+  }
+  return ids
 }
 
 export async function uploadAttachmentToRecord(
