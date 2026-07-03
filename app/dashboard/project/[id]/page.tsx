@@ -1,10 +1,9 @@
 'use client'
 
 import { use, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, Project, Payment, ClientRequest } from '@/lib/types'
+import { Task, TaskUpdateInput, Project, Payment, ClientRequest, Role } from '@/lib/types'
 import { useSession } from '@/app/dashboard/layout-client'
 import ItemBoard from '@/components/projects/ItemBoard'
 import TaskList, { TaskListSkeleton } from '@/components/tasks/TaskList'
@@ -389,45 +388,129 @@ const TYPE_BADGE: Record<string, string> = {
   Variance:    'bg-purple-100 text-purple-700',
 }
 
-function LinkedRequestsSection({ requests }: { requests: ClientRequest[] }) {
+function LinkedRequestCard({
+  req,
+  role,
+  canSeePayments,
+  onUpdate,
+}: {
+  req: ClientRequest
+  role: string
+  canSeePayments: boolean
+  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const tasks = req.tasks ?? []
+  const done = tasks.filter((t) => t.status === 'Completed').length
+  const activePayments = (req.payments ?? []).filter((p) => p.paymentStatus !== 'Cancelled')
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 overflow-hidden">
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 transition-colors"
+      >
+        <svg
+          className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${TYPE_BADGE[req.requestType] ?? 'bg-gray-100 text-gray-600'}`}>
+          {req.requestType}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-gray-800 truncate">{req.projectName}</p>
+          {req.tradeReference && (
+            <p className="text-[11px] font-mono text-gray-500">{req.tradeReference}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-gray-400">{done}/{tasks.length} tasks</span>
+          {canSeePayments && activePayments.length > 0 && (
+            <span className="text-xs font-mono text-gray-600">{fmt(req.paymentTotal ?? 0)}</span>
+          )}
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+            req.projectStage === 'Closed' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-700'
+          }`}>
+            {req.projectStage}
+          </span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-gray-100 bg-white">
+          {canSeePayments && activePayments.length > 0 && (
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Payments</p>
+              <div className="space-y-1.5">
+                {activePayments.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">{p.paymentType}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${statusBadge(p.paymentStatus)}`}>
+                        {p.paymentStatus}
+                      </span>
+                      <span className="font-mono text-gray-800">{fmt(p.amount ?? 0)}</span>
+                    </div>
+                  </div>
+                ))}
+                {activePayments.length > 1 && (
+                  <div className="pt-1.5 mt-1 border-t border-gray-100 flex justify-between text-xs">
+                    <span className="text-gray-400">Total</span>
+                    <span className="font-mono font-semibold text-gray-800">{fmt(req.paymentTotal ?? 0)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {tasks.length > 0 ? (
+            <div className="px-4 py-3">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Tasks</p>
+              <TaskList
+                tasks={tasks}
+                role={role as Role}
+                onUpdate={onUpdate}
+                groupByProject={false}
+              />
+            </div>
+          ) : (
+            <p className="px-4 py-3 text-xs text-gray-400">No tasks yet.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LinkedRequestsSection({
+  requests,
+  role,
+  canSeePayments,
+  onUpdate,
+}: {
+  requests: ClientRequest[]
+  role: string
+  canSeePayments: boolean
+  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+}) {
   if (requests.length === 0) return null
   return (
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
       <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-        Linked requests ({requests.length})
+        Trade / Variance / Maintenance ({requests.length})
       </h2>
       <div className="space-y-2">
-        {requests.map((req) => {
-          const done = (req.tasks ?? []).filter((t) => t.status === 'Completed').length
-          const total = (req.tasks ?? []).length
-          return (
-            <div key={req.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50 hover:bg-white transition-colors">
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${TYPE_BADGE[req.requestType] ?? 'bg-gray-100 text-gray-600'}`}>
-                {req.requestType}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-800 truncate">{req.projectName}</p>
-                {req.tradeReference && (
-                  <p className="text-[11px] font-mono text-gray-500">{req.tradeReference}</p>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs text-gray-400">{done}/{total}</span>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                  req.projectStage === 'Closed' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {req.projectStage}
-                </span>
-                <Link
-                  href={`/dashboard/project/${req.id}`}
-                  className="text-[11px] text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  Open →
-                </Link>
-              </div>
-            </div>
-          )
-        })}
+        {requests.map((req) => (
+          <LinkedRequestCard
+            key={req.id}
+            req={req}
+            role={role}
+            canSeePayments={canSeePayments}
+            onUpdate={onUpdate}
+          />
+        ))}
       </div>
     </section>
   )
@@ -675,7 +758,12 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
                 <PaymentsSection project={reportData.project} payments={reportData.payments} />
               )}
               {requestsData && requestsData.requests.length > 0 && (
-                <LinkedRequestsSection requests={requestsData.requests} />
+                <LinkedRequestsSection
+                  requests={requestsData.requests}
+                  role={role}
+                  canSeePayments={role === 'manager' || role === 'superadmin'}
+                  onUpdate={handleUpdate}
+                />
               )}
               {reportData.timesheetSummary && (
                 <TimesheetSection summary={reportData.timesheetSummary} />

@@ -190,6 +190,8 @@ export interface ClientRequest {
   parentProjectName?: string
   tradeReference?: string
   tasks?: Task[]
+  payments?: Payment[]
+  paymentTotal?: number
 }
 
 export interface ClientRequestCreateInput {

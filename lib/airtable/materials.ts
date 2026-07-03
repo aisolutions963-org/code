@@ -35,15 +35,6 @@ function transformMaterial(record: RawRecord): Material {
   }
 }
 
-export async function getPendingMaterialsCount(): Promise<number> {
-  const formula = `OR({${MATERIALS_NEEDED.ORDER_STATUS}} = "Not ordered", {${MATERIALS_NEEDED.ORDER_STATUS}} = "Pending approval")`
-  const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, {
-    filterByFormula: formula,
-    fields: [MATERIALS_NEEDED.ORDER_STATUS],
-  })
-  return records.length
-}
-
 export async function getAllActiveMaterials(options?: { projectIds?: string[] }): Promise<Material[]> {
   let formula: string | undefined
   if (options?.projectIds?.length) {

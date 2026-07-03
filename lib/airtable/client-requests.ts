@@ -10,12 +10,14 @@ import {
   tblUrl,
   RawRecord,
   str,
+  strArr,
   firstLinkedRecord,
   transformProject,
   transformTask,
 } from './_client'
 import { getProjectById, updateProject } from './projects'
 import { generateTasksForProject } from './tasks'
+import { getPaymentsByProjectIds } from './payments'
 
 // Template IDs that provide department metadata for client request tasks
 const CR_TEMPLATE_SED     = 'rec6xYWnAAWOKyVr7' // Department = SED
@@ -152,7 +154,7 @@ export async function getClientRequests(options?: {
 
   const tasksByProject = new Map<string, Task[]>()
   for (const tr of taskRecords) {
-    const pid = str(tr.fields[TASKS.PROJECT])
+    const pid = strArr(tr.fields[TASKS.PROJECT])[0]
     if (!pid) continue
     if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
     tasksByProject.get(pid)!.push(transformTask(tr))
@@ -188,21 +190,37 @@ export async function getClientRequestsByParentProject(parentProjectId: string):
 
   const projectIds = projects.map((r) => r.id)
   const taskFormula = `OR(${projectIds.map((id) => `{${TASKS.PROJECT}} = "${id}"`).join(',')})`
-  const taskRecords = await fetchAll(TASKS.TABLE_ID, {
-    filterByFormula: taskFormula,
-    fields: [TASKS.PROJECT, TASKS.TASK_NAME, TASKS.STATUS, TASKS.TEMPLATE_ORDER, TASKS.DEPARTMENT],
-  })
+
+  const [taskRecords, allPayments] = await Promise.all([
+    fetchAll(TASKS.TABLE_ID, {
+      filterByFormula: taskFormula,
+      fields: [TASKS.PROJECT, TASKS.TASK_NAME, TASKS.STATUS, TASKS.TEMPLATE_ORDER, TASKS.DEPARTMENT],
+    }),
+    getPaymentsByProjectIds(projectIds),
+  ])
 
   const tasksByProject = new Map<string, Task[]>()
   for (const tr of taskRecords) {
-    const pid = str(tr.fields[TASKS.PROJECT])
+    const pid = strArr(tr.fields[TASKS.PROJECT])[0]
     if (!pid) continue
     if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
     tasksByProject.get(pid)!.push(transformTask(tr))
   }
 
+  const paymentsByProject = new Map<string, typeof allPayments>()
+  for (const pay of allPayments) {
+    const pid = pay.project?.[0]
+    if (!pid) continue
+    if (!paymentsByProject.has(pid)) paymentsByProject.set(pid, [])
+    paymentsByProject.get(pid)!.push(pay)
+  }
+
   return projects.map((r) => {
     const p = transformProject(r)
+    const payments = paymentsByProject.get(p.id) ?? []
+    const paymentTotal = payments
+      .filter((pay) => pay.paymentStatus !== 'Cancelled')
+      .reduce((sum, pay) => sum + (pay.amount ?? 0), 0)
     return {
       id: p.id,
       projectName: p.projectName,
@@ -216,6 +234,8 @@ export async function getClientRequestsByParentProject(parentProjectId: string):
       parentProjectName: p.parentProjectName,
       tradeReference: p.tradeReference,
       tasks: tasksByProject.get(p.id) ?? [],
+      payments,
+      paymentTotal,
     }
   })
 }

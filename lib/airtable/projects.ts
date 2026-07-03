@@ -353,30 +353,6 @@ export async function deleteChildProjectsByProject(projectId: string): Promise<s
   return ids
 }
 
-export async function uploadAttachmentToRecord(
-  recordId: string,
-  fieldId: string,
-  file: { name: string; type: string; buffer: Buffer },
-): Promise<void> {
-  const form = new FormData()
-  form.append(
-    'file',
-    new Blob([new Uint8Array(file.buffer)], { type: file.type || 'application/octet-stream' }),
-    file.name,
-  )
-  const res = await fetch(
-    `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${recordId}/uploadAttachment/${fieldId}`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
-      body: form,
-    },
-  )
-  if (!res.ok) {
-    throw new Error(`Airtable attachment upload failed: ${res.status} ${await res.text()}`)
-  }
-}
-
 // ─── Handover Sheets ──────────────────────────────────────────────────────────
 
 function transformHandoverSheet(record: RawRecord): HandoverSheet {
