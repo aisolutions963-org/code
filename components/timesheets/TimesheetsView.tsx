@@ -73,6 +73,7 @@ function LogEntryForm({
   onCreated: () => void
 }) {
   const [supervisorId, setSupervisorId] = useState('')
+  const [supervisorHours, setSupervisorHours] = useState({ regularHours: 8, overtimeHours: 0 })
   const [workerHours, setWorkerHours] = useState<Record<string, { regularHours: number; overtimeHours: number }>>({})
   const [locationType, setLocationType] = useState<'Project' | 'Factory'>('Project')
   const [projectId, setProjectId] = useState('')
@@ -84,19 +85,28 @@ function LogEntryForm({
   const [success, setSuccess] = useState(false)
 
   const checkedIds = Object.keys(workerHours)
-  const groupTotal = checkedIds.reduce((s, id) => {
-    const h = workerHours[id]
-    return s + h.regularHours + h.overtimeHours
-  }, 0)
-  const anyOverCap = checkedIds.some((id) => {
-    const h = workerHours[id]
-    return h.regularHours + h.overtimeHours > 16
-  })
-  const anyWarning = checkedIds.some((id) => {
-    const h = workerHours[id]
-    const t = h.regularHours + h.overtimeHours
+  // The supervisor worked that day too — unless they're already booked elsewhere,
+  // their hours are part of the same submit as everyone else in this group.
+  const supervisorAlreadyAssigned = supervisorId ? assignments.get(supervisorId) : undefined
+  const combinedEntries: { workerId: string; regularHours: number; overtimeHours: number }[] = [
+    ...(supervisorId && !supervisorAlreadyAssigned ? [{ workerId: supervisorId, ...supervisorHours }] : []),
+    ...checkedIds.map((id) => ({ workerId: id, ...workerHours[id] })),
+  ]
+  const groupTotal = combinedEntries.reduce((s, e) => s + e.regularHours + e.overtimeHours, 0)
+  const anyOverCap = combinedEntries.some((e) => e.regularHours + e.overtimeHours > 16)
+  const anyWarning = combinedEntries.some((e) => {
+    const t = e.regularHours + e.overtimeHours
     return t > 14 && t <= 16
   })
+
+  function handleSupervisorChange(id: string) {
+    setSupervisorId(id)
+    setSupervisorHours({ regularHours: 8, overtimeHours: 0 })
+  }
+
+  function updateSupervisorHours(field: 'regularHours' | 'overtimeHours', value: number) {
+    setSupervisorHours((prev) => ({ ...prev, [field]: value }))
+  }
 
   function toggleWorker(id: string) {
     setWorkerHours((prev) => {
@@ -111,18 +121,17 @@ function LogEntryForm({
     setWorkerHours((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }))
   }
 
-  const estimatedCost = checkedIds.reduce((sum, id) => {
-    const w = workers.find((w) => w.id === id)
-    const h = workerHours[id]
+  const estimatedCost = combinedEntries.reduce((sum, e) => {
+    const w = workers.find((w) => w.id === e.workerId)
     if (!w?.hourlyRate) return sum
-    return sum + w.hourlyRate * (h.regularHours + h.overtimeHours)
+    return sum + w.hourlyRate * (e.regularHours + e.overtimeHours)
   }, 0)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!supervisorId) { setError('Supervisor is required.'); return }
     if (locationType === 'Project' && !projectId) { setError('Please select a project.'); return }
-    if (checkedIds.length === 0) { setError('Select at least one worker.'); return }
+    if (combinedEntries.length === 0) { setError('Select at least one worker.'); return }
     if (anyOverCap) { setError('Total hours cannot exceed 16 per worker.'); return }
     setSaving(true)
     setError(null)
@@ -138,7 +147,7 @@ function LogEntryForm({
           supervisorId,
           projectIds: locationType === 'Project' && projectId ? [projectId] : [],
           locationType,
-          workers: checkedIds.map((id) => ({ workerId: id, ...workerHours[id] })),
+          workers: combinedEntries,
           notes: notes || undefined,
         }),
       })
@@ -147,6 +156,7 @@ function LogEntryForm({
       if (data.warning) setWarning(data.warning)
       setSuccess(true)
       setSupervisorId('')
+      setSupervisorHours({ regularHours: 8, overtimeHours: 0 })
       setWorkerHours({})
       setProjectId('')
       setLocationType('Project')
@@ -200,7 +210,7 @@ function LogEntryForm({
         </label>
         <select
           value={supervisorId}
-          onChange={(e) => setSupervisorId(e.target.value)}
+          onChange={(e) => handleSupervisorChange(e.target.value)}
           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white"
         >
           <option value="">Select supervisor…</option>
@@ -210,6 +220,35 @@ function LogEntryForm({
             </option>
           ))}
         </select>
+
+        {/* Supervisor's own hours — they worked that day too, unless already booked elsewhere */}
+        {supervisorId && (
+          supervisorAlreadyAssigned ? (
+            <p className="mt-1.5 text-xs text-gray-400">
+              Already: <span className="font-medium">{supervisorAlreadyAssigned}</span> — their hours won't be logged again for this entry.
+            </p>
+          ) : (
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-gray-400 shrink-0">Their hours:</span>
+              <input
+                type="number" min={0} max={24} step={0.5}
+                value={supervisorHours.regularHours}
+                onChange={(e) => updateSupervisorHours('regularHours', Number(e.target.value))}
+                title="Regular hours"
+                className="w-16 border border-gray-200 rounded px-1.5 py-1 text-xs text-right"
+              />
+              <span className="text-gray-300 text-xs">+</span>
+              <input
+                type="number" min={0} max={24} step={0.5}
+                value={supervisorHours.overtimeHours}
+                onChange={(e) => updateSupervisorHours('overtimeHours', Number(e.target.value))}
+                title="Overtime hours"
+                className="w-16 border border-gray-200 rounded px-1.5 py-1 text-xs text-right"
+              />
+              <span className="text-xs text-gray-400">hrs</span>
+            </div>
+          )
+        )}
       </div>
 
       {/* Location type */}
@@ -263,7 +302,7 @@ function LogEntryForm({
           <span className="ml-1 text-gray-400 font-normal">— check who worked this job, enter their own hours</span>
         </label>
         <div className="space-y-1.5">
-          {workers.map((w) => {
+          {workers.filter((w) => w.id !== supervisorId).map((w) => {
             const assignedLabel = assignments.get(w.id)
             const checked = w.id in workerHours
             if (assignedLabel) {
