@@ -361,7 +361,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
     {
       label: 'Production',
       items: [
-        { label: 'Team Tasks', href: '/dashboard/fab?view=team', icon: <TeamIcon /> },
         { label: 'Materials', href: '/dashboard/fab?view=materials', icon: <HammerIcon /> },
         { label: 'Schedule', href: '/dashboard/fab?view=timeline', icon: <CalendarIcon /> },
       ],
