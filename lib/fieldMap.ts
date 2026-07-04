@@ -84,6 +84,7 @@ export const TASKS = {
   SUPERADMIN_NOTE: 'fldjVNPzFB76Ik0fh',
   INSTALLATION_SCHEDULE: 'fld6czB3O8VLmirhY',
   SENT_TO_FAB_AT: 'fld8fQFcUHunsOJmb',
+  INSTALLATION_NOTE: 'fld4DIgtwsi6Zxbk8',
 } as const
 
 export const PROJECTS = {
@@ -123,6 +124,7 @@ export const PROJECTS = {
   PARENT_PROJECT:  'flds3nCf54kT4Ss3s',  // linked record → PROJECTS
   TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
   CLIENT_STATUS:   'fldwHeIOIoC4yXoua',  // single select: Broker | End-to-End Client | Designer | Contractor | Developer | Other
+  DELETED_AT:      'fldzYRbsAHpdGMKgD',  // dateTime — set on soft-delete, blank when active
 } as const
 
 export const PROJECT_ITEMS = {

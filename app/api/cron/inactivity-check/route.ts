@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getProjects, checkAndUnlockInactivityFollowUp } from '@/lib/airtable'
+import { getProjects, checkAndUnlockInactivityFollowUp, expireOverdueMaintenanceRecords } from '@/lib/airtable'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 import { db } from '@/lib/db'
 import { todayUAE } from '@/lib/dateUtils'
@@ -18,6 +18,14 @@ export async function GET(req: NextRequest) {
   const c = await db()
 
   try {
+    // Auto-expire warranties that have passed their 1-year end date
+    let warrantiesExpired = 0
+    try {
+      warrantiesExpired = await expireOverdueMaintenanceRecords()
+    } catch (err) {
+      console.error('[cron/inactivity-check] warranty expiry failed:', err)
+    }
+
     const projects = await getProjects({ stage: 'Open' })
     let alerted = 0
     let skipped = 0
@@ -64,7 +72,7 @@ export async function GET(req: NextRequest) {
       alerted++
     }
 
-    return NextResponse.json({ ok: true, alerted, skipped, total: projects.length })
+    return NextResponse.json({ ok: true, alerted, skipped, total: projects.length, warrantiesExpired })
   } catch (error) {
     console.error('[cron/inactivity-check] error:', error)
     return NextResponse.json(

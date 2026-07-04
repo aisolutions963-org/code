@@ -12,6 +12,7 @@ export const EDITABLE_FIELDS: Record<Role, (keyof TaskUpdateInput)[]> = {
     'completionDate',
     'qcCheckAtSiteDone',
     'fillersDone',
+    'installationNote',
   ],
   sed: [
     'status',
@@ -82,6 +83,7 @@ const ALL_TASK_UPDATE_KEYS: (keyof TaskUpdateInput)[] = [
   'followUpOutcome',
   'taskDocLinks',
   'fillersDocLinks',
+  'installationNote',
 ]
 
 EDITABLE_FIELDS.superadmin = ALL_TASK_UPDATE_KEYS

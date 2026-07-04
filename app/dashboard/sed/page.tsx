@@ -201,6 +201,7 @@ export default function SedDashboard() {
       {/* Projects view */}
       {view === 'projects' && (() => {
         const q = projectSearch.trim().toLowerCase()
+        const digits = q.replace(/\D/g, '')
         const visibleProjects = q
           ? projects.filter((p) =>
               p.projectName.toLowerCase().includes(q) ||
@@ -208,7 +209,9 @@ export default function SedDashboard() {
               (p.quotationNumber ?? '').toLowerCase().includes(q) ||
               (p.quotationReference ?? '').toLowerCase().includes(q) ||
               (p.projectId ?? '').toLowerCase().includes(q) ||
-              (p.nickname ?? '').toLowerCase().includes(q),
+              (p.nickname ?? '').toLowerCase().includes(q) ||
+              (p.clientPhone ?? '').toLowerCase().includes(q) ||
+              (digits.length >= 3 && (p.clientPhone ?? '').replace(/\D/g, '').includes(digits)),
             )
           : projects
         return (
@@ -233,7 +236,7 @@ export default function SedDashboard() {
                     type="text"
                     value={projectSearch}
                     onChange={(e) => setProjectSearch(e.target.value)}
-                    placeholder="Search by project name, client, quotation number…"
+                    placeholder="Search by project, client, phone, quotation number…"
                     className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
                   />
                   {projectSearch && (
@@ -320,6 +323,31 @@ export default function SedDashboard() {
   )
 }
 
+// Days a client approval has been waiting → amber after 3, red after 7
+const SLA_AMBER_DAYS = 3
+const SLA_RED_DAYS = 7
+
+function daysSince(iso?: string): number | null {
+  if (!iso) return null
+  const ms = Date.now() - new Date(iso).getTime()
+  if (Number.isNaN(ms) || ms < 0) return null
+  return Math.floor(ms / (1000 * 60 * 60 * 24))
+}
+
+function ApprovalAgeBadge({ task }: { task: Task }) {
+  const d = daysSince(task.startedAt ?? task.lastModified)
+  if (d == null) return null
+  const color =
+    d >= SLA_RED_DAYS ? 'bg-red-100 text-red-700' :
+    d >= SLA_AMBER_DAYS ? 'bg-amber-100 text-amber-700' :
+    'bg-gray-100 text-gray-500'
+  return (
+    <span className={`shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full ${color}`}>
+      {d === 0 ? 'Awaiting today' : `Awaiting ${d}d`}
+    </span>
+  )
+}
+
 function ClientApprovalsView({
   tasks,
   loading,
@@ -337,11 +365,13 @@ function ClientApprovalsView({
     )
   }
 
-  const pending = tasks.filter((t) => {
-    const name = t.taskName.toLowerCase()
-    return (name.startsWith('[gate]') || name.includes('take approval from client')) &&
-      (t.status === 'To Do' || t.status === 'In Progress')
-  })
+  const pending = tasks
+    .filter((t) => {
+      const name = t.taskName.toLowerCase()
+      return (name.startsWith('[gate]') || name.includes('take approval from client')) &&
+        (t.status === 'To Do' || t.status === 'In Progress')
+    })
+    .sort((a, b) => (daysSince(b.startedAt ?? b.lastModified) ?? -1) - (daysSince(a.startedAt ?? a.lastModified) ?? -1))
 
   const decided = tasks.filter((t) => t.conceptDesignApproval || t.sampleApproval || t.quotationOutcome)
 
@@ -373,9 +403,12 @@ function ClientApprovalsView({
                     {t.projectItemName ? ` › ${t.projectItemName}` : ''}
                   </p>
                 </div>
-                <span className="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                  {t.status}
-                </span>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    {t.status}
+                  </span>
+                  <ApprovalAgeBadge task={t} />
+                </div>
               </div>
             ))}
           </div>
@@ -441,6 +474,48 @@ const STATUS_STYLE: Record<string, string> = {
   'Completed':        'bg-green-100 text-green-700',
   'Pending Approval': 'bg-orange-100 text-orange-700',
   'Locked':           'bg-gray-100 text-gray-400',
+}
+
+function SiteVisitDateEditor({
+  task,
+  onUpdate,
+}: {
+  task: Task
+  onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
+}) {
+  const [date, setDate] = useState(task.taskStartDate ?? '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function save(newDate: string) {
+    setDate(newDate)
+    if (!newDate) return
+    setSaving(true)
+    setSaved(false)
+    try {
+      await onUpdate(task.id, { taskStartDate: newDate })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {
+      setDate(task.taskStartDate ?? '')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <span className="text-[11px] text-gray-400 shrink-0">Visit date</span>
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => save(e.target.value)}
+        className="text-[11px] border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
+      />
+      {saving && <span className="text-[10px] text-gray-400">Saving…</span>}
+      {saved && <span className="text-[10px] text-green-600">✓ Rescheduled</span>}
+    </div>
+  )
 }
 
 function SiteVisitsView({
@@ -583,13 +658,17 @@ function SiteVisitsView({
                     {t.projectItemName && (
                       <p className="text-[11px] text-gray-400 mt-0.5">Item: {t.projectItemName}</p>
                     )}
-                    {t.taskStartDate && (
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        Scheduled:{' '}
-                        {new Date(t.taskStartDate + 'T00:00:00').toLocaleDateString('en-AE', {
-                          weekday: 'short', day: 'numeric', month: 'short',
-                        })}
-                      </p>
+                    {t.status === 'Completed' ? (
+                      t.taskStartDate && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          Scheduled:{' '}
+                          {new Date(t.taskStartDate + 'T00:00:00').toLocaleDateString('en-AE', {
+                            weekday: 'short', day: 'numeric', month: 'short',
+                          })}
+                        </p>
+                      )
+                    ) : (
+                      <SiteVisitDateEditor task={t} onUpdate={onUpdate} />
                     )}
                     {t.postVisitOutcome && (
                       <p className="text-[11px] text-gray-500 mt-0.5 italic">Outcome: {t.postVisitOutcome}</p>

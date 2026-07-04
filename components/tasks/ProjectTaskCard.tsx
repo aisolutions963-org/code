@@ -23,6 +23,7 @@ interface ProjectTaskCardProps {
   taskCount: number
   itemCount: number
   pendingApprovalCount: number
+  priorityCount?: number
   isPhase2: boolean
 }
 
@@ -35,6 +36,7 @@ export default function ProjectTaskCard({
   taskCount,
   itemCount,
   pendingApprovalCount,
+  priorityCount = 0,
   isPhase2,
 }: ProjectTaskCardProps) {
   const router = useRouter()
@@ -77,6 +79,11 @@ export default function ProjectTaskCard({
       </div>
 
       <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+        {priorityCount > 0 && (
+          <span className="flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full" title="Priority tasks">
+            🚩 {priorityCount}
+          </span>
+        )}
         {pendingApprovalCount > 0 && (
           <span className="flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" />

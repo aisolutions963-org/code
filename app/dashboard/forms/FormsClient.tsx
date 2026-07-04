@@ -461,7 +461,7 @@ export default function FormsClient({ role }: { role: Role }) {
 
   const canPay = role === 'manager' || role === 'superadmin'
   const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'fabrication' || role === 'superadmin'
-  const canHandover = role === 'installation' || role === 'manager' || role === 'superadmin'
+  const canHandover = role === 'installation' || role === 'manager' || role === 'superadmin' || role === 'sed'
 
   const allProjects = data?.projects ?? []
 

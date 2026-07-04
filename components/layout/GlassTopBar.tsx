@@ -114,11 +114,12 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
     { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
 
-  const { data: metricsData } = useSWR<SuperadminMetrics>(
+  const { data: metricsData, mutate: mutateMetrics } = useSWR<SuperadminMetrics>(
     role === 'superadmin' ? '/api/superadmin/metrics' : null,
     fetcher,
     { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
+  const [markingCalled, setMarkingCalled] = useState<string | null>(null)
 
   const { data: notifData, mutate: mutateNotifs } = useSWR<NotificationsResponse>(
     '/api/notifications',
@@ -147,6 +148,24 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
   async function handleMarkAllRead() {
     await fetch('/api/notifications', { method: 'PATCH' })
     mutateNotifs()
+  }
+
+  // Resolve a "Call the client" alert: mark the task In Progress so it drops off
+  // the To-Do-based alert list (the full decision is still made on the task board).
+  async function handleMarkCalled(taskId: string) {
+    setMarkingCalled(taskId)
+    try {
+      await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: { status: 'In Progress' } }),
+      })
+      await mutateMetrics()
+    } catch {
+      // leave the alert in place on failure
+    } finally {
+      setMarkingCalled(null)
+    }
   }
 
   const handleRefresh = useCallback(() => {
@@ -251,15 +270,24 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                             d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                         </svg>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="text-xs font-bold text-white/80">Call client — all gates cleared</p>
                           <p className="text-xs text-white/50 truncate">{t.projectName}</p>
                           <p className="text-[10px] text-white/30 font-mono">{t.projectRef} · {t.clientName}</p>
-                          {t.clientPhone && (
-                            <a href={`tel:${t.clientPhone}`} className="text-[11px] font-semibold text-teal-400 hover:text-teal-300">
-                              {t.clientPhone}
-                            </a>
-                          )}
+                          <div className="flex items-center gap-3 mt-1">
+                            {t.clientPhone && (
+                              <a href={`tel:${t.clientPhone}`} className="text-[11px] font-semibold text-teal-400 hover:text-teal-300">
+                                {t.clientPhone}
+                              </a>
+                            )}
+                            <button
+                              onClick={() => handleMarkCalled(t.taskId)}
+                              disabled={markingCalled === t.taskId}
+                              className="text-[11px] font-semibold text-white/50 hover:text-white/80 disabled:opacity-40"
+                            >
+                              {markingCalled === t.taskId ? 'Marking…' : 'Mark as called'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}

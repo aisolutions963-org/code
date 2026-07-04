@@ -94,6 +94,8 @@ export interface Task {
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
   sentToFabAt?: string
+  installationNote?: string
+  projectDescription?: string
 }
 
 export interface TaskUpdateInput {
@@ -129,6 +131,7 @@ export interface TaskUpdateInput {
   followUpOutcome?: string
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
+  installationNote?: string
 }
 
 export interface Client {
@@ -176,6 +179,7 @@ export interface Project {
   parentProjectId?: string
   parentProjectName?: string
   tradeReference?: string
+  deletedAt?: string
 }
 
 export interface ClientRequest {

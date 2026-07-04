@@ -19,6 +19,7 @@ import {
   deleteTimesheetsByProject,
   deleteChildProjectsByProject,
   updateProject,
+  softDeleteProject,
 } from '@/lib/airtable'
 import { deleteSedProjectMappings, deleteInactivityAlerts } from '@/lib/db'
 import { PROJECTS } from '@/lib/fieldMap'
@@ -160,13 +161,26 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
   const session = await getSession()
   if (!session || session.role !== 'superadmin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const permanent = request.nextUrl.searchParams.get('permanent') === 'true'
+
+  // Default: soft-delete (recoverable from Trash). Permanent purge cascades everything.
+  if (!permanent) {
+    try {
+      await softDeleteProject(id)
+      return NextResponse.json({ deleted: true, soft: true })
+    } catch (error) {
+      console.error('DELETE (soft) /api/projects/[id] error:', error)
+      return NextResponse.json({ error: 'Failed to delete project' }, { status: 500 })
+    }
   }
 
   try {

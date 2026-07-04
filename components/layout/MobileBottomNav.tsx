@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { Role } from '@/lib/types'
 
@@ -220,10 +220,16 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
 export default function MobileBottomNav({ role, name }: { role: Role; name: string }) {
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
 
-  const currentHref = pathname
+  const currentHref = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname
+
+  function navigate(e: React.MouseEvent, href: string) {
+    e.preventDefault()
+    router.push(href)
+  }
   const tabs = PRIMARY_NAV[role] ?? []
   const activeText = ROLE_ACTIVE_TEXT[role]
   const accentBg = ROLE_ACCENT_BG[role]
@@ -297,7 +303,7 @@ export default function MobileBottomNav({ role, name }: { role: Role; name: stri
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={() => setMenuOpen(false)}
+                    onClick={(e) => { setMenuOpen(false); navigate(e, item.href) }}
                     className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                       active
                         ? `bg-white/[0.10] ${activeText}`
@@ -358,6 +364,7 @@ export default function MobileBottomNav({ role, name }: { role: Role; name: stri
             <Link
               key={tab.href}
               href={tab.href}
+              onClick={(e) => navigate(e, tab.href)}
               className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] transition-all ${
                 active ? activeText : 'text-white/35'
               }`}

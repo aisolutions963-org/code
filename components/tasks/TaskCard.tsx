@@ -494,7 +494,9 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
               {ar ? (AR_TASK_NAMES[task.taskName] ?? task.taskName) : task.taskName}
             </span>
             {task.priorityFlag && (
-              <span className="text-xs font-medium" title="Priority task">🚩</span>
+              <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded" title="Priority task">
+                🚩 {ar ? 'أولوية' : 'Priority'}
+              </span>
             )}
             {urgent && (
               <span className="text-xs text-red-600 font-medium bg-red-50 px-1.5 py-0.5 rounded">
@@ -515,6 +517,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {projectLabel && (
               <span className="text-xs text-gray-500">{projectLabel}</span>
+            )}
+            {role === 'installation' && task.projectDescription && (
+              <span className="text-xs text-violet-500 truncate max-w-[200px]" title={task.projectDescription}>
+                {task.projectDescription.length > 50
+                  ? task.projectDescription.slice(0, 50) + '…'
+                  : task.projectDescription}
+              </span>
             )}
             <TaskStatusBadge status={task.status} />
             {task.department.length > 0 && (
@@ -724,6 +733,14 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                 {role === 'fabrication' ? 'Stock Check Note' : 'Note from SED'}
               </p>
               <p className="text-sm text-blue-900 whitespace-pre-wrap">{task.sedNote}</p>
+            </div>
+          )}
+
+          {/* Installation note — read-only for manager/superadmin/sed */}
+          {(role === 'manager' || role === 'superadmin' || role === 'sed') && task.installationNote && (
+            <div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-2.5 space-y-1">
+              <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Installation Note</p>
+              <p className="text-sm text-violet-900 whitespace-pre-wrap">{task.installationNote}</p>
             </div>
           )}
 
