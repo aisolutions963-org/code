@@ -110,7 +110,7 @@ export default function SedDashboard() {
       </div>
 
       {/* Follow-Ups view */}
-      {view === 'follow-ups' && <FollowUpsView title="My Follow-Ups" />}
+      {view === 'follow-ups' && <FollowUpsView title="My Follow-Ups" editable />}
 
       {/* Materials view */}
       {view === 'materials' && <AllMaterialsView role="sed" />}

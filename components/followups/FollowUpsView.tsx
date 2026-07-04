@@ -23,6 +23,7 @@ interface QuotationOption {
   quoteNumber: string
   quotationReference?: string
   clientName: string
+  projectName?: string
 }
 
 const METHOD_COLORS: Record<string, string> = {
@@ -46,7 +47,7 @@ const EMPTY_FORM = {
   notes: '',
 }
 
-export default function FollowUpsView({ title = 'Follow-Ups' }: { title?: string }) {
+export default function FollowUpsView({ title = 'Follow-Ups', editable = false }: { title?: string; editable?: boolean }) {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -106,7 +107,7 @@ export default function FollowUpsView({ title = 'Follow-Ups' }: { title?: string
           <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
           <p className="text-xs text-gray-400 mt-0.5">{logs.length} log{logs.length !== 1 ? 's' : ''}</p>
         </div>
-        <Button size="sm" onClick={() => setShowAdd(true)}>+ Log Follow-Up</Button>
+        {editable && <Button size="sm" onClick={() => setShowAdd(true)}>+ Log Follow-Up</Button>}
       </div>
 
       {isLoading && (
@@ -164,13 +165,15 @@ export default function FollowUpsView({ title = 'Follow-Ups' }: { title?: string
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(log.id)}
-                  disabled={deleting === log.id}
-                  className="shrink-0 text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40 text-base leading-none mt-0.5"
-                >
-                  ×
-                </button>
+                {editable && (
+                  <button
+                    onClick={() => handleDelete(log.id)}
+                    disabled={deleting === log.id}
+                    className="shrink-0 text-gray-300 hover:text-red-400 transition-colors disabled:opacity-40 text-base leading-none mt-0.5"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -198,7 +201,7 @@ export default function FollowUpsView({ title = 'Follow-Ups' }: { title?: string
                       {q.quoteNumber
                         ? `${q.quoteNumber}${q.quotationReference ?? ''} — `
                         : ''}
-                      {q.clientName || q.id}
+                      {q.projectName || q.clientName || 'Unnamed project'}
                     </option>
                   ))}
                 </select>

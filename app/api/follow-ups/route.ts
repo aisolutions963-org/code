@@ -62,9 +62,9 @@ const INACTIVE_STAGES = new Set(['Closed', 'Closed and active warranty', 'Warran
 
 async function fetchProjectsById(
   projectIds: string[],
-): Promise<Map<string, { quotationNumber: string; quotationReference: string; clientName: string; stage: string }>> {
+): Promise<Map<string, { quotationNumber: string; quotationReference: string; clientName: string; stage: string; projectName: string }>> {
   if (projectIds.length === 0) return new Map()
-  const map = new Map<string, { quotationNumber: string; quotationReference: string; clientName: string; stage: string }>()
+  const map = new Map<string, { quotationNumber: string; quotationReference: string; clientName: string; stage: string; projectName: string }>()
   for (let i = 0; i < projectIds.length; i += 50) {
     const batch = projectIds.slice(i, i + 50)
     const formula =
@@ -76,6 +76,8 @@ async function fetchProjectsById(
     params.append('fields[]', PROJECTS.QUOTATION_REFERENCE)
     params.append('fields[]', PROJECTS.CLIENT_NAME)
     params.append('fields[]', PROJECTS.PROJECT_STAGE)
+    params.append('fields[]', PROJECTS.PROJECT_NAME)
+    params.append('fields[]', PROJECTS.NICKNAME)
     const res = await fetch(`${BASE_URL}/${PROJECTS.TABLE_ID}?${params}`, {
       headers: { Authorization: `Bearer ${API_KEY}` },
       cache: 'no-store',
@@ -83,11 +85,14 @@ async function fetchProjectsById(
     if (!res.ok) continue
     const data = (await res.json()) as { records: RawRecord[] }
     for (const r of data.records) {
+      const nickname = (r.fields[PROJECTS.NICKNAME] as string) ?? ''
+      const projectName = (r.fields[PROJECTS.PROJECT_NAME] as string) ?? ''
       map.set(r.id, {
         quotationNumber: (r.fields[PROJECTS.QUOTATION_NUMBER] as string) ?? '',
         quotationReference: (r.fields[PROJECTS.QUOTATION_REFERENCE] as string) ?? '',
         clientName: (r.fields[PROJECTS.CLIENT_NAME] as string) ?? '',
         stage: (r.fields[PROJECTS.PROJECT_STAGE] as string) ?? '',
+        projectName: nickname || projectName,
       })
     }
   }
@@ -162,6 +167,7 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req: Next
         quoteNumber: proj?.quotationNumber ?? q.quoteNumber,
         quotationReference: proj?.quotationReference ?? '',
         clientName: proj?.clientName ?? q.clientName,
+        projectName: proj?.projectName ?? '',
       }
     })
 
