@@ -808,28 +808,6 @@ export async function getTaskCountForProject(projectId: string): Promise<number>
   return records.length
 }
 
-export async function createAdHocTask(fields: {
-  taskName: string
-  projectId: string
-  departments: string[]
-  status?: string
-}): Promise<string> {
-  const record: Record<string, unknown> = {
-    [TASKS.TASK_NAME]: fields.taskName,
-    [TASKS.PROJECT]: fields.projectId,
-    [TASKS.STATUS]: fields.status ?? 'To Do',
-    [TASKS.DEPARTMENT]: fields.departments,
-  }
-  const ids = await createTasksBatch([record])
-  return ids[0]
-}
-
-export async function measurementTaskExists(projectId: string): Promise<boolean> {
-  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.TASK_NAME}} = "Take Measurements", {${TASKS.STATUS}} != "Completed")`
-  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula, fields: [TASKS.STATUS] })
-  return records.length > 0
-}
-
 export async function generateTasksForProject(
   projectId: string,
   stage: string,
