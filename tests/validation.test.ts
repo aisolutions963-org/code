@@ -426,9 +426,9 @@ describe('CreateQuotationItemsSchema', () => {
     expect(CreateQuotationItemsSchema.safeParse({ ...base, items: [] }).success).toBe(false)
   })
 
-  it('rejects item with no actions', () => {
-    const badItem = { ...validItem, actions: [] }
-    expect(CreateQuotationItemsSchema.safeParse({ ...base, items: [badItem] }).success).toBe(false)
+  it('accepts item with no actions (gateway model no longer requires them at F5)', () => {
+    const itemWithNoActions = { ...validItem, actions: [] }
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, items: [itemWithNoActions] }).success).toBe(true)
   })
 
   it('rejects invalid action value', () => {
