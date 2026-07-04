@@ -869,6 +869,31 @@ export async function handleF3Order(input: {
   )
 }
 
+export async function handleStoreReview(input: {
+  taskId: string
+  notes: string
+  submittedBy: string
+}): Promise<{ finalStatus: TaskStatus }> {
+  return withTimeout(
+    (async () => {
+      const task = await getTaskById(input.taskId)
+      const projectRef = await resolveProjectLabel(task)
+
+      await updateTaskRaw(input.taskId, {
+        [TASKS.STATUS]: 'In Progress' as TaskStatus,
+        [TASKS.STARTED_AT]: new Date().toISOString(),
+        [TASKS.SED_NOTE]: input.notes,
+      })
+
+      const body = `Fabrication store review for ${projectRef}: ${input.notes}`
+      await createNotification({ recipientRole: 'manager', title: `Store review submitted — ${projectRef}`, body, link: ROLE_DASHBOARD['manager'] })
+      await createNotification({ recipientRole: 'sed', title: `Store review submitted — ${projectRef}`, body, link: ROLE_DASHBOARD['sed'] })
+
+      return { finalStatus: 'In Progress' as TaskStatus }
+    })(),
+  )
+}
+
 export async function handleCallCountEscalation(task: Task): Promise<void> {
   const projectId = task.project?.[0]
   if (!projectId) return
