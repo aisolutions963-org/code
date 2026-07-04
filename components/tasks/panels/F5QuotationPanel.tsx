@@ -5,25 +5,15 @@ import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
 
-type ActionPath = 'Site Visit (item)' | 'Select Sample (item)' | 'Design (item)' | 'Measurement (item)'
-
-const ACTION_OPTIONS: { value: ActionPath; label: string }[] = [
-  { value: 'Site Visit (item)', label: 'SED Site Visit' },
-  { value: 'Select Sample (item)', label: 'Select/Order Sample' },
-  { value: 'Design (item)', label: 'Design' },
-  { value: 'Measurement (item)', label: 'Take Measurement' },
-]
-
 interface QuotationRow {
   itemName: string
   description: string
   quantity: string
   unitPrice: string
-  actions: ActionPath[]
 }
 
 function emptyRow(): QuotationRow {
-  return { itemName: '', description: '', quantity: '1', unitPrice: '', actions: [] }
+  return { itemName: '', description: '', quantity: '1', unitPrice: '' }
 }
 
 function rowTotal(r: QuotationRow): number {
@@ -57,13 +47,6 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
   }
   function addRow() { setRows((prev) => [...prev, emptyRow()]) }
   function removeRow(i: number) { setRows((prev) => prev.filter((_, idx) => idx !== i)) }
-  function toggleAction(i: number, action: ActionPath) {
-    setRows((prev) => prev.map((r, idx) => {
-      if (idx !== i) return r
-      const has = r.actions.includes(action)
-      return { ...r, actions: has ? r.actions.filter((a) => a !== action) : [...r.actions, action] }
-    }))
-  }
 
   const subtotal = rows.reduce((s, r) => s + rowTotal(r), 0)
   const discountAmount = parseFloat(discount) || 0
@@ -86,7 +69,6 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
       if (!r.description.trim()) { setErr(`Item ${i + 1}: description is required`); return }
       if (!r.quantity || parseInt(r.quantity) < 1) { setErr(`Item ${i + 1}: quantity must be ≥ 1`); return }
       if (r.unitPrice === '' || parseFloat(r.unitPrice) < 0) { setErr(`Item ${i + 1}: enter a unit price`); return }
-      if (r.actions.length === 0) { setErr(`Item ${i + 1}: select at least one action`); return }
     }
 
     setSaving(true)
@@ -101,7 +83,6 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
           description: r.description.trim(),
           quantity: parseInt(r.quantity),
           unitPrice: parseFloat(r.unitPrice),
-          actions: r.actions,
         })),
       }
 
@@ -184,7 +165,6 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
               <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-14">Qty *</th>
               <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-20">Unit Price *</th>
               <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-20">Total</th>
-              <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[160px]">Actions *</th>
               <th className="w-4" />
             </tr>
           </thead>
@@ -232,21 +212,6 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
                   </td>
                   <td className="py-1 pr-2 tabular-nums text-gray-600 font-mono">
                     {rowTot > 0 ? fmt(rowTot) : '—'}
-                  </td>
-                  <td className="py-1 pr-2">
-                    <div className="flex flex-col gap-0.5">
-                      {ACTION_OPTIONS.map((opt) => (
-                        <label key={opt.value} className="flex items-center gap-1 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={row.actions.includes(opt.value)}
-                            onChange={() => toggleAction(i, opt.value)}
-                            className="accent-blue-600"
-                          />
-                          <span className="text-xs text-gray-700">{opt.label}</span>
-                        </label>
-                      ))}
-                    </div>
                   </td>
                   <td className="py-1">
                     {rows.length > 1 && (

@@ -98,9 +98,6 @@ export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }
         if (order >= phase2Min && order < phase3Min) return t.status !== 'Completed'
         return order < phase2Min || order >= phase3Min
       })
-          const allTaskPaths = item.allTasks
-            .map((t) => t.pathCondition)
-            .filter((p): p is string => !!p)
           return (
             <ItemGroupSection
               key={item.id}
@@ -108,7 +105,6 @@ export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }
               itemName={item.name}
               projectId={projectId}
               tasks={visibleTasks}
-              allTaskPaths={allTaskPaths}
               role={role}
               onUpdate={handleUpdate}
               onMutate={onMutate}

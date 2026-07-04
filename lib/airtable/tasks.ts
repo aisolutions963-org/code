@@ -28,6 +28,7 @@ import {
   str,
   strArr,
   selectName,
+  lookupSelectNames,
   firstLinkedRecord,
   transformTask,
 } from './_client'
@@ -368,10 +369,11 @@ export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> 
   return records
     .map((r) => {
       const f = r.fields
-      const rawDept = f[TASK_TEMPLATES.DEPARTMENT]
-      const dept = Array.isArray(rawDept)
-        ? (rawDept as { name: string }[]).map((d) => d.name)
-        : []
+      // Airtable returns multipleSelects values as plain strings (not {name} objects) —
+      // lookupSelectNames() handles both shapes defensively. Also trim: the "Installation"
+      // choice in Airtable has a stray trailing space ("Installation "), which would
+      // otherwise silently break every `.department.includes('Installation')` check.
+      const dept = lookupSelectNames(f[TASK_TEMPLATES.DEPARTMENT]).map((d) => d.trim())
       const rawPhase = f[TASK_TEMPLATES.PHASE] as { name: string } | string | null | undefined
       return {
         id: r.id,
@@ -920,7 +922,10 @@ export async function generateTasksForProject(
 export async function generateItemTasksForProject(
   projectId: string,
   itemId: string,
-  chosenPaths: string[],
+  // When omitted, every per-item action path defined in the Airtable templates is
+  // generated (gateway model). When provided, only those paths are generated
+  // (used by the manual "+ Actions" fallback).
+  chosenPaths?: string[],
 ): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
   const allOpenTemplates = await getTaskTemplates('Open')
 
@@ -929,7 +934,7 @@ export async function generateItemTasksForProject(
     (t) =>
       (t.phaseLabel === null || t.phaseLabel === phaseLabel) &&
       (t.templateOrder === null || t.templateOrder >= perItemOrderMin) &&
-      (t.pathCondition === null || chosenPaths.includes(t.pathCondition)),
+      (t.pathCondition === null || !chosenPaths || chosenPaths.includes(t.pathCondition)),
   ).filter(t => t.templateOrder == null || t.pathCondition !== null || !GLOBALLY_EXCLUDED_TEMPLATE_ORDERS.includes(t.templateOrder))
   if (itemTemplates.length === 0) return { created: 0, todoTemplates: [] }
 

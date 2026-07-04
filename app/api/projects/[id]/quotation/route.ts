@@ -61,7 +61,9 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
     results.push({ projectItemId: projectItem.id, quotationId: quotation.id })
 
     try {
-      const { created: tasksCreated, todoTemplates } = await generateItemTasksForProject(id, projectItem.id, item.actions)
+      // Gateway model: generate every per-item action defined in the Airtable
+      // templates (no pre-selection) — SED acts on the relevant chips.
+      const { created: tasksCreated, todoTemplates } = await generateItemTasksForProject(id, projectItem.id)
 
       if (todoTemplates.length > 0) {
         await notifyTasksReady(

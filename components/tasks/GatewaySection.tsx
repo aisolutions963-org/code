@@ -74,7 +74,8 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
     !!task.projectItem?.length && task.pathCondition === 'Select Sample (item)'
   const isMeasurementTask =
     task.taskName.toLowerCase().includes('take measurement') &&
-    !isPerItem &&
+    // Standalone (Phase 1) measurement OR the per-item "Measurement (item)" gateway chip
+    (!isPerItem || task.pathCondition === 'Measurement (item)') &&
     (role === 'manager' || role === 'sed' || role === 'superadmin')
   const isDateTask = isDateRequiredTask(task.taskName) && !isMeasurementTask &&
     (role === 'manager' || role === 'sed' || role === 'superadmin')

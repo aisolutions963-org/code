@@ -119,6 +119,8 @@ export const CreateQuotationItemsSchema = z.object({
         quantity: z.number().int().min(1).max(9999),
         unitPrice: z.number().min(0).max(10_000_000),
         notes: z.string().max(2000).optional(),
+        // Actions are no longer chosen at F5 — all per-item action tasks are generated
+        // upfront (gateway model). Kept optional for backward compatibility.
         actions: z
           .array(
             z.enum([
@@ -128,7 +130,7 @@ export const CreateQuotationItemsSchema = z.object({
               'Measurement (item)',
             ]),
           )
-          .min(1, 'Select at least one action for each item'),
+          .optional(),
       }),
     )
     .min(1, 'At least one item is required')

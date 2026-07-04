@@ -50,7 +50,7 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
 
     const newTask: Record<string, unknown> = {
       [TASKS.TASK_NAME]: isPerItem ? 'Take measurements for item' : 'Take Measurement',
-      [TASKS.PROJECT]: [projectId],
+      [TASKS.PROJECT]: projectId,
       [TASKS.STATUS]: 'To Do',
       [TASKS.TASK_START_DATE]: date,
       [TASKS.TASK_TEMPLATES_LINK]: [template.id],
