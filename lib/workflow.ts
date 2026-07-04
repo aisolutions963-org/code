@@ -835,6 +835,11 @@ export async function handleF3Order(input: {
           [TASKS.STARTED_AT]: new Date().toISOString(),
           ...(input.generalNotes ? { [TASKS.SED_NOTE]: input.generalNotes } : {}),
         })
+        // Big orders never reach "Completed" on this task (fabrication store check
+        // happens on a separate task), but the order-32 AND-join (Store Revised
+        // Material List / All Material Estimation Price) still needs unlocking here —
+        // otherwise it stays Locked forever since only the "small" path used to unlock it.
+        await unlockNextTasks(task)
         const fabBody = `F3 Big Order for ${projectRef}: please check the store for ${materials.length} item(s) marked "Pending approval" in the materials list and confirm what needs ordering.${input.generalNotes ? `\nManager notes: ${input.generalNotes}` : ''}`
         const bigOrderBody = `F3 Big Order submitted for ${projectRef}. ${materials.length} item(s) pending fabrication store check.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`
         await createNotification({ recipientRole: 'fabrication', title: `Store Check Required — F3 for ${projectRef}`, body: fabBody, link: ROLE_DASHBOARD['fabrication'] })
