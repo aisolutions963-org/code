@@ -115,12 +115,13 @@ interface CalendarProject {
 }
 
 // ─── Inline Add Form ──────────────────────────────────────────────────────────
-function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }: {
+function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode, installEvents }: {
   defaultDate: string
   onDone: () => void
   mutate: () => void
   showFactory?: boolean
   personalMode?: boolean
+  installEvents?: CalendarEvent[]
 }) {
   const [title, setTitle]             = useState('')
   const [date, setDate]               = useState(defaultDate)
@@ -146,6 +147,37 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }
   const projects    = projData?.projects ?? []
   const teamMembers = teamData?.members  ?? []
   const typeOpts    = showFactory ? INSTALL_TYPE_OPTS : EVENT_TYPE_OPTS
+
+  // Conflict detection — selected members already booked on an installation event that day
+  const conflicts = useMemo(() => {
+    if (!showFactory || !date || selectedMembers.length === 0) return [] as { name: string; title: string }[]
+    const out: { name: string; title: string }[] = []
+    for (const ev of installEvents ?? []) {
+      if (ev.date !== date || !ev.teamMemberIds?.length) continue
+      for (const mid of selectedMembers) {
+        if (ev.teamMemberIds.includes(mid)) {
+          out.push({ name: teamMembers.find((m) => m.id === mid)?.name ?? 'Member', title: ev.title })
+        }
+      }
+    }
+    return out
+  }, [showFactory, date, selectedMembers, installEvents, teamMembers])
+
+  // Upcoming bookings per member (availability context in the picker)
+  const busyByMember = useMemo(() => {
+    const map = new Map<string, string[]>()
+    const todayStr = new Date().toISOString().slice(0, 10)
+    for (const ev of installEvents ?? []) {
+      if (!ev.teamMemberIds?.length || ev.date < todayStr) continue
+      for (const mid of ev.teamMemberIds) {
+        const arr = map.get(mid) ?? []
+        if (!arr.includes(ev.date)) arr.push(ev.date)
+        map.set(mid, arr)
+      }
+    }
+    for (const arr of map.values()) arr.sort()
+    return map
+  }, [installEvents])
 
   async function save() {
     if (!title.trim() || !date) return
@@ -261,18 +293,38 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode }
           {teamMembers.length === 0 ? (
             <p className="text-xs text-gray-400">Loading team…</p>
           ) : (
-            <div className="flex flex-wrap gap-3">
-              {teamMembers.map(m => (
-                <label key={m.id} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={selectedMembers.includes(m.id)}
-                    onChange={e => setMembers(s => e.target.checked ? [...s, m.id] : s.filter(x => x !== m.id))}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="text-gray-700">{m.name}</span>
-                </label>
-              ))}
+            <div className="flex flex-col gap-1.5">
+              {teamMembers.map(m => {
+                const busy = busyByMember.get(m.id) ?? []
+                return (
+                  <label key={m.id} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={selectedMembers.includes(m.id)}
+                      onChange={e => setMembers(s => e.target.checked ? [...s, m.id] : s.filter(x => x !== m.id))}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-gray-700">{m.name}</span>
+                    {busy.length > 0 && (
+                      <span className="text-[10px] text-amber-600">busy: {busy.slice(0, 2).join(', ')}{busy.length > 2 ? '…' : ''}</span>
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+          )}
+
+          {conflicts.length > 0 && (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-[11px] font-semibold text-amber-800">Scheduling conflict</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {conflicts.map((c, i) => (
+                  <li key={i} className="text-[11px] text-amber-700">
+                    {c.name} is already booked on {date} — {c.title}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-amber-500 mt-0.5">You can still save if this is intentional.</p>
             </div>
           )}
         </div>
@@ -529,6 +581,7 @@ export default function UnifiedCalendar({
             mutate={mutate}
             showFactory={effectiveAssign}
             personalMode={effectivePersonal}
+            installEvents={allEvents.filter((e) => e.type === 'installation')}
           />
         </div>
       )}

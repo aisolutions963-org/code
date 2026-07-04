@@ -2,12 +2,29 @@
 
 import { useState } from 'react'
 import useSWR, { mutate as globalMutate } from 'swr'
-import { Project, Role } from '@/lib/types'
+import { Project, Role, Material } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
 import Button from '@/components/ui/Button'
 import HandoverModal from '@/components/projects/HandoverModal'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+// F3 order-status chip colors (mirrors AllMaterialsView)
+const ORDER_STATUS_COLORS: Record<string, string> = {
+  'Not ordered':        'bg-gray-100 text-gray-600',
+  'Pending approval':   'bg-yellow-100 text-yellow-700',
+  'Ordered':            'bg-blue-100 text-blue-700',
+  'Partially received': 'bg-orange-100 text-orange-700',
+  'Received':           'bg-emerald-100 text-emerald-700',
+  'Delayed':            'bg-red-100 text-red-700',
+}
+
+const MATERIALS_VIEW_BY_ROLE: Record<string, string> = {
+  fabrication: '/dashboard/fab?view=materials',
+  manager:     '/dashboard/mgr?view=materials',
+  sed:         '/dashboard/sed?view=materials',
+  superadmin:  '/dashboard/superadmin?view=materials',
+}
 
 const inp = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
 const sel = `${inp} bg-white`
@@ -463,6 +480,20 @@ export default function FormsClient({ role }: { role: Role }) {
   const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'fabrication' || role === 'superadmin'
   const canHandover = role === 'installation' || role === 'manager' || role === 'superadmin' || role === 'sed'
 
+  // F3 order-status tracking — recent material orders + their status
+  const { data: matData, mutate: mutateMaterials } = useSWR<{ materials: Material[] }>(
+    canOrderMaterials ? '/api/materials' : null,
+    fetcher,
+    { refreshInterval: 120_000 },
+  )
+  const materials = matData?.materials ?? []
+  const pendingOrders = materials.filter((m) => m.orderStatus === 'Not ordered' || m.orderStatus === 'Pending approval').length
+  const delayedOrders = materials.filter((m) => m.orderStatus === 'Delayed').length
+  const recentOrders = [...materials]
+    .sort((a, b) => (b.requestDate ?? '').localeCompare(a.requestDate ?? ''))
+    .slice(0, 5)
+  const materialsViewHref = MATERIALS_VIEW_BY_ROLE[role] ?? '/dashboard/forms'
+
   const allProjects = data?.projects ?? []
 
   // For handover: only show projects in active production/closing stages
@@ -507,18 +538,52 @@ export default function FormsClient({ role }: { role: Role }) {
 
         {/* F3 Material Order */}
         {canOrderMaterials && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">F3 — Material Order</p>
-              <p className="text-xs text-gray-400 mt-0.5">Order materials for a project, office, factory or other</p>
-              {f3Saved && <p className="text-xs text-green-600 mt-1">Order submitted successfully.</p>}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-gray-800">F3 — Material Order</p>
+                  {pendingOrders > 0 && (
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      {pendingOrders} pending
+                    </span>
+                  )}
+                  {delayedOrders > 0 && (
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                      {delayedOrders} delayed
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">Order materials for a project, office, factory or other</p>
+                {f3Saved && <p className="text-xs text-green-600 mt-1">Order submitted successfully.</p>}
+              </div>
+              <button
+                onClick={() => { setShowF3(true); setF3Saved(false) }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-colors shrink-0"
+              >
+                + New Order
+              </button>
             </div>
-            <button
-              onClick={() => { setShowF3(true); setF3Saved(false) }}
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-colors shrink-0"
-            >
-              + New Order
-            </button>
+
+            {/* Recent orders + their status */}
+            {recentOrders.length > 0 && (
+              <div className="border-t border-gray-100 pt-2.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Recent orders</p>
+                  <a href={materialsViewHref} className="text-[11px] text-brand-600 hover:text-brand-700 font-medium">View all →</a>
+                </div>
+                <div className="space-y-1">
+                  {recentOrders.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="text-gray-700 truncate">{m.name}</span>
+                      <span className={`shrink-0 font-medium px-2 py-0.5 rounded-full ${ORDER_STATUS_COLORS[m.orderStatus ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {m.orderStatus ?? 'Not ordered'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -556,7 +621,7 @@ export default function FormsClient({ role }: { role: Role }) {
         <F3Modal
           projects={allProjects}
           onClose={() => setShowF3(false)}
-          onSubmitted={() => { setF3Saved(true); mutate() }}
+          onSubmitted={() => { setF3Saved(true); mutate(); mutateMaterials() }}
         />
       )}
     </div>
