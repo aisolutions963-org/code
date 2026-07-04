@@ -400,7 +400,15 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         toast.error(ar ? 'استخدم اللوحة أدناه' : 'Use the panel below to complete or skip')
         return
       }
-      if ((isMakeQuotation || isF4Task) && !task.projectQuotationNumber && !task.projectRequestType) {
+      if (isMakeQuotation) {
+        // Complete via dropdown only when the quotation the API requires is saved
+        // (number + reference, or a client-request reference) — else point to the panel.
+        const quotationReady = !!(task.projectQuotationNumber && (task.projectQuotationReference || task.projectRequestType))
+        if (!quotationReady) {
+          toast.error(ar ? 'استكمل بيانات العرض أدناه' : 'Complete the quotation details in the panel below')
+          return
+        }
+      } else if (isF4Task && !task.projectQuotationNumber && !task.projectRequestType) {
         toast.error(ar ? 'استكمل بيانات العرض أدناه' : 'Complete the quotation details in the panel below')
         return
       }
