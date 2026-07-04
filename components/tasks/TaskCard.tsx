@@ -19,6 +19,7 @@ import F2ProductionPanel from './panels/F2ProductionPanel'
 import CallClientDecisionPanelComponent from './panels/CallClientDecisionPanel'
 import MeasurementTeamPanel from './panels/MeasurementTeamPanel'
 import MaintenanceTeamPanel from './panels/MaintenanceTeamPanel'
+import StoreReviewPanel from './panels/StoreReviewPanel'
 
 
 interface TaskCardProps {
@@ -206,6 +207,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     task.taskName.toLowerCase().startsWith('installation day') ||
     task.taskName.startsWith('ملاحظة فريق التركيب')
   const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
+  const isStoreRevisedMaterialTask = task.taskName.toLowerCase().startsWith('store revised material list')
   // Carpentry / Paint per-item tasks: shown alongside Fabrication Done — team marks In Progress if applicable
   const isFabItemPath =
     !!task.projectItem?.length &&
@@ -400,6 +402,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         toast.error(ar ? 'استخدم اللوحة أدناه' : 'Use the panel below to complete or skip')
         return
       }
+      if (isStoreRevisedMaterialTask && task.status === 'To Do') {
+        toast.error(ar ? 'أضف ملاحظات المراجعة أدناه أولاً' : 'Add your store review notes in the panel below first')
+        return
+      }
       if (isMakeQuotation) {
         // Complete via dropdown only when the quotation the API requires is saved
         // (number + reference, or a client-request reference) — else point to the panel.
@@ -422,6 +428,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       return
     }
     if (isF3Task && task.status !== 'Completed' && key === 'status' && value === 'In Progress') return
+    if (isStoreRevisedMaterialTask && task.status === 'To Do' && key === 'status' && value === 'In Progress') return
     if (isF4Task && task.status === 'Completed' && key === 'status') return
     setLocalFields((prev) => ({ ...prev, [key]: value }))
     scheduleUpdate(key, value)
@@ -638,6 +645,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <F3OrderPanel task={task} onUpdate={onUpdate} />
           )}
 
+          {/* Store review notes — fabrication reports store-check findings before this can complete */}
+          {isStoreRevisedMaterialTask && task.status === 'To Do' && (
+            <StoreReviewPanel task={task} onUpdate={onUpdate} />
+          )}
+
           {/* Attach 7 docs panel — Phase 2 per-item final step */}
           {isAttachDocsTask && (
             <AttachDocsPanel task={task} onUpdate={onUpdate} />
@@ -725,11 +737,13 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             </div>
           )}
 
-          {/* SED note — shown read-only to manager/superadmin/fabrication */}
-          {(role === 'manager' || role === 'superadmin' || role === 'fabrication') && task.sedNote && (
+          {/* SED note / store review note — shown read-only to manager/superadmin/fabrication/sed */}
+          {(role === 'manager' || role === 'superadmin' || role === 'fabrication' || role === 'sed') && task.sedNote && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2.5 space-y-1">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-                {role === 'fabrication' ? 'Stock Check Note' : 'Note from SED'}
+                {isStoreRevisedMaterialTask
+                  ? (role === 'fabrication' ? 'Your Store Review Note' : 'Store Review Note (Fabrication)')
+                  : (role === 'fabrication' ? 'Stock Check Note' : 'Note from SED')}
               </p>
               <p className="text-sm text-blue-900 whitespace-pre-wrap">{task.sedNote}</p>
             </div>
