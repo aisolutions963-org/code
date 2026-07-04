@@ -5,6 +5,7 @@ import useSWR, { mutate as globalMutate } from 'swr'
 import { Project, Role } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
 import Button from '@/components/ui/Button'
+import NewProjectModal from '@/components/projects/NewProjectModal'
 import HandoverModal from '@/components/projects/HandoverModal'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -13,10 +14,10 @@ const inp = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:
 const sel = `${inp} bg-white`
 const lbl = 'text-xs text-gray-500 block mb-1'
 
-// Stages where a handover form is relevant
-const HANDOVER_STAGES = new Set(['Production', 'Closing'])
+// F6 handover is only relevant once a project has reached the Closing stage.
+const HANDOVER_STAGE = 'Closing'
 
-// ─── Payment Form ─────────────────────────────────────────────────────────────
+// ─── F4 Payment Form ────────────────────────────────────────────────────────
 
 function PaymentForm({ project }: { project: Project }) {
   const today = todayUAE()
@@ -158,242 +159,7 @@ function PaymentForm({ project }: { project: Project }) {
   )
 }
 
-// ─── F3 Material Order Modal ──────────────────────────────────────────────────
-
-const UNITS = ['pcs', 'm', 'm²', 'kg', 'set', 'box', 'roll'] as const
-type Unit = typeof UNITS[number]
-const PURPOSES = ['Project', 'Office', 'Factory', 'Cars', 'Other'] as const
-type Purpose = typeof PURPOSES[number]
-
-interface MaterialRow {
-  name: string
-  quantity: string
-  unit: Unit | ''
-  supplier: string
-  neededBy: string
-  notes: string
-}
-
-const EMPTY_ROW: MaterialRow = { name: '', quantity: '', unit: '', supplier: '', neededBy: '', notes: '' }
-
-function F3Modal({
-  projects,
-  onClose,
-  onSubmitted,
-}: {
-  projects: Project[]
-  onClose: () => void
-  onSubmitted: () => void
-}) {
-  const today = todayUAE()
-  const [purpose, setPurpose] = useState<Purpose>('Project')
-  const [projectId, setProjectId] = useState('')
-  const [orderType, setOrderType] = useState<'small' | 'big' | null>(null)
-  const [rows, setRows] = useState<MaterialRow[]>([EMPTY_ROW, EMPTY_ROW])
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState('')
-
-  function addRow() { setRows((r) => [...r, { ...EMPTY_ROW }]) }
-  function removeRow(i: number) { setRows((r) => r.filter((_, idx) => idx !== i)) }
-  function updateRow(i: number, key: keyof MaterialRow, value: string) {
-    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [key]: value } : row)))
-  }
-
-  const validRows = rows.filter((r) => r.name.trim())
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setErr('')
-    if (!orderType) { setErr('Select an order type (Small or Big)'); return }
-    if (purpose === 'Project' && !projectId) { setErr('Select a project'); return }
-    if (validRows.length === 0) { setErr('Add at least one material'); return }
-    const bad = validRows.find((r) => !r.quantity || !r.unit)
-    if (bad) { setErr(`"${bad.name}": quantity and unit are required`); return }
-
-    setSaving(true)
-    try {
-      const res = await fetch('/api/materials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          purpose,
-          ...(purpose === 'Project' ? { projectId } : {}),
-          orderType,
-          items: validRows.map((r) => ({
-            name: r.name.trim(),
-            quantity: parseFloat(r.quantity),
-            unit: r.unit,
-            ...(r.supplier.trim() ? { supplier: r.supplier.trim() } : {}),
-            ...(r.neededBy ? { neededByDate: r.neededBy } : {}),
-            ...(r.notes.trim() ? { notes: r.notes.trim() } : {}),
-          })),
-        }),
-      })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
-      onSubmitted()
-      onClose()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const rowInp = 'w-full border border-gray-200 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white'
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-sm font-bold text-gray-800">F3 — Material Order</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
-
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Order Details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Purpose <span className="text-red-500">*</span></label>
-                  <select
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    value={purpose}
-                    onChange={(e) => { setPurpose(e.target.value as Purpose); setProjectId('') }}
-                  >
-                    {PURPOSES.map((p) => <option key={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">
-                    Project {purpose === 'Project' && <span className="text-red-500">*</span>}
-                  </label>
-                  <select
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-400"
-                    value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    disabled={purpose !== 'Project'}
-                  >
-                    <option value="">Select project…</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.projectName}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs text-gray-500">
-                <div>
-                  <span className="font-medium text-gray-400">Request Date</span>
-                  <p className="text-gray-700 mt-0.5">{today}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-400">Requested By</span>
-                  <p className="text-gray-700 mt-0.5">Current user (auto)</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {(['small', 'big'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setOrderType(t)}
-                  className={`text-left px-4 py-3 rounded-xl text-sm font-semibold border-2 transition-all ${
-                    orderType === t
-                      ? t === 'small'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
-                        : 'border-amber-500 bg-amber-50 text-amber-900'
-                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                  }`}
-                >
-                  <div>{t === 'small' ? 'Small Order' : 'Big Order'}</div>
-                  <div className="text-xs font-normal mt-0.5 opacity-70">
-                    {t === 'small' ? 'Order directly' : 'Fabrication checks store first'}
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 min-w-[140px]">Material Name <span className="text-red-400">*</span></th>
-                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 min-w-[100px]">Supplier</th>
-                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 w-16">Qty <span className="text-red-400">*</span></th>
-                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 w-20">Unit <span className="text-red-400">*</span></th>
-                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 w-32">Needed By</th>
-                    <th className="text-left pb-2 pr-2 font-semibold text-gray-500 min-w-[100px]">Notes</th>
-                    <th className="w-4" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {rows.map((row, i) => (
-                    <tr key={i}>
-                      <td className="py-1.5 pr-2">
-                        <input className={rowInp} value={row.name} onChange={(e) => updateRow(i, 'name', e.target.value)} placeholder="e.g. MDF 18mm" />
-                      </td>
-                      <td className="py-1.5 pr-2">
-                        <input className={rowInp} value={row.supplier} onChange={(e) => updateRow(i, 'supplier', e.target.value)} placeholder="Supplier" />
-                      </td>
-                      <td className="py-1.5 pr-2">
-                        <input type="number" min="0" step="0.01" className={rowInp} value={row.quantity} onChange={(e) => updateRow(i, 'quantity', e.target.value)} placeholder="0" />
-                      </td>
-                      <td className="py-1.5 pr-2">
-                        <select className={rowInp} value={row.unit} onChange={(e) => updateRow(i, 'unit', e.target.value)}>
-                          <option value="">—</option>
-                          {UNITS.map((u) => <option key={u}>{u}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-1.5 pr-2">
-                        <input type="date" className={rowInp} value={row.neededBy} onChange={(e) => updateRow(i, 'neededBy', e.target.value)} />
-                      </td>
-                      <td className="py-1.5 pr-2">
-                        <input className={rowInp} value={row.notes} onChange={(e) => updateRow(i, 'notes', e.target.value)} placeholder="Color, spec…" />
-                      </td>
-                      <td className="py-1.5">
-                        {rows.length > 1 && (
-                          <button type="button" onClick={() => removeRow(i)} className="text-gray-300 hover:text-red-400 text-base leading-none">×</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <button type="button" onClick={addRow} className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium">
-                + Add row
-              </button>
-            </div>
-
-            {err && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
-          </div>
-
-          <div className="border-t border-gray-100 px-5 py-4 flex items-center justify-between shrink-0">
-            <p className="text-xs text-gray-400">
-              Purpose can be: {PURPOSES.join(' / ')}
-            </p>
-            <div className="flex gap-3">
-              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200">
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 transition-colors"
-              >
-                {saving ? 'Submitting…' : `Submit Order (${validRows.length})`}
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// ─── Handover Section ─────────────────────────────────────────────────────────
+// ─── F6 Handover Section ────────────────────────────────────────────────────
 
 function HandoverSection({ project, onCreated }: { project: Project; onCreated: () => void }) {
   const [open, setOpen] = useState(false)
@@ -422,23 +188,6 @@ function HandoverSection({ project, onCreated }: { project: Project; onCreated: 
   )
 }
 
-// ─── Project Card ─────────────────────────────────────────────────────────────
-
-function ProjectCard({ project, canPay, canHandover, onRefresh }: { project: Project; canPay: boolean; canHandover: boolean; onRefresh: () => void }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
-      <div>
-        <p className="text-sm font-semibold text-gray-900">{project.projectName}</p>
-        <p className="text-xs text-gray-400 mt-0.5">
-          {project.clientName ?? '—'} · {project.projectStage ?? '—'}
-        </p>
-      </div>
-      {canPay && <PaymentForm project={project} />}
-      {canHandover && <HandoverSection project={project} onCreated={onRefresh} />}
-    </div>
-  )
-}
-
 function Spinner() {
   return (
     <div className="flex justify-center py-12">
@@ -447,7 +196,7 @@ function Spinner() {
   )
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main ────────────────────────────────────────────────────────────────────
 
 export default function FormsClient({ role }: { role: Role }) {
   const { data, isLoading, error, mutate } = useSWR<{ projects: Project[] }>(
@@ -456,35 +205,14 @@ export default function FormsClient({ role }: { role: Role }) {
     { refreshInterval: 300_000 },
   )
 
-  const [showF3, setShowF3] = useState(false)
-  const [f3Saved, setF3Saved] = useState(false)
+  const [showNewProject, setShowNewProject] = useState(false)
 
+  const canCreateProject = role === 'sed' || role === 'manager' || role === 'superadmin'
   const canPay = role === 'manager' || role === 'superadmin'
-  const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'fabrication' || role === 'superadmin'
-  const canHandover = role === 'installation' || role === 'manager' || role === 'superadmin'
 
   const allProjects = data?.projects ?? []
-
-  // For handover: only show projects in active production/closing stages
-  const handoverProjects = canHandover
-    ? allProjects.filter((p) => !p.projectStage || HANDOVER_STAGES.has(p.projectStage))
-    : []
-
-  // For payment: show all active projects
   const paymentProjects = canPay ? allProjects : []
-
-  // Projects shown as cards: union of handover + payment projects (deduped)
-  const cardProjectIds = new Set([
-    ...handoverProjects.map((p) => p.id),
-    ...paymentProjects.map((p) => p.id),
-  ])
-  const cardProjects = allProjects.filter((p) => cardProjectIds.has(p.id))
-
-  const subtitle = isLoading
-    ? 'Loading…'
-    : canHandover || canPay
-      ? `${cardProjects.length} project${cardProjects.length !== 1 ? 's' : ''}`
-      : 'Submit material orders'
+  const handoverProjects = allProjects.filter((p) => p.projectStage === HANDOVER_STAGE)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -492,7 +220,6 @@ export default function FormsClient({ role }: { role: Role }) {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Forms</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
           </div>
           <button
             onClick={() => mutate()}
@@ -505,19 +232,18 @@ export default function FormsClient({ role }: { role: Role }) {
           </button>
         </div>
 
-        {/* F3 Material Order */}
-        {canOrderMaterials && (
+        {/* F1 — New Project */}
+        {canCreateProject && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-gray-800">F3 — Material Order</p>
-              <p className="text-xs text-gray-400 mt-0.5">Order materials for a project, office, factory or other</p>
-              {f3Saved && <p className="text-xs text-green-600 mt-1">Order submitted successfully.</p>}
+              <p className="text-sm font-semibold text-gray-800">F1 — New Project</p>
+              <p className="text-xs text-gray-400 mt-0.5">Start the intake form for a new project</p>
             </div>
             <button
-              onClick={() => { setShowF3(true); setF3Saved(false) }}
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-colors shrink-0"
+              onClick={() => setShowNewProject(true)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors shrink-0"
             >
-              + New Order
+              + New Project
             </button>
           </div>
         )}
@@ -531,32 +257,51 @@ export default function FormsClient({ role }: { role: Role }) {
           </div>
         )}
 
-        {/* Project cards — only for roles that have payment or handover actions */}
-        {(canPay || canHandover) && !isLoading && !error && cardProjects.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-sm font-semibold text-gray-700">
-              {canHandover && !canPay ? 'No projects in Production or Closing stage' : 'No active projects'}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Projects will appear here once they reach the relevant stage.</p>
+        {/* F4 — Payment */}
+        {canPay && !isLoading && !error && (
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">F4 — Payment</p>
+            {paymentProjects.length === 0 ? (
+              <p className="text-sm text-gray-500">No active projects.</p>
+            ) : (
+              paymentProjects.map((project) => (
+                <div key={project.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                  <p className="text-sm font-semibold text-gray-900">{project.projectName}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {project.clientName ?? '—'} · {project.projectStage ?? '—'}
+                  </p>
+                  <PaymentForm project={project} />
+                </div>
+              ))
+            )}
           </div>
         )}
 
-        {(canPay || canHandover) && !isLoading && cardProjects.map((project) => (
-          <ProjectCard
-            key={project.id}
-            project={project}
-            canPay={canPay}
-            canHandover={canHandover && HANDOVER_STAGES.has(project.projectStage ?? '')}
-            onRefresh={() => mutate()}
-          />
-        ))}
+        {/* F6 — Handover (Closing stage only, every role) */}
+        {!isLoading && !error && (
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">F6 — Handover</p>
+            {handoverProjects.length === 0 ? (
+              <p className="text-sm text-gray-500">No projects currently in the Closing stage.</p>
+            ) : (
+              handoverProjects.map((project) => (
+                <div key={project.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                  <p className="text-sm font-semibold text-gray-900">{project.projectName}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {project.clientName ?? '—'} · {project.projectStage ?? '—'}
+                  </p>
+                  <HandoverSection project={project} onCreated={() => mutate()} />
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
-      {showF3 && (
-        <F3Modal
-          projects={allProjects}
-          onClose={() => setShowF3(false)}
-          onSubmitted={() => { setF3Saved(true); mutate() }}
+      {showNewProject && (
+        <NewProjectModal
+          onClose={() => setShowNewProject(false)}
+          onCreated={() => { setShowNewProject(false); mutate() }}
         />
       )}
     </div>

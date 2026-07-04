@@ -12,7 +12,7 @@ import { CreateHandoverSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
-export const GET = requireRole('manager', 'superadmin', 'sed', 'installation')(
+export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(
   async (_req: NextRequest, _session, { params }) => {
     try {
       const sheets = await getHandoverSheetForProject(params.id)
@@ -24,7 +24,7 @@ export const GET = requireRole('manager', 'superadmin', 'sed', 'installation')(
   },
 )
 
-export const POST = requireRole('installation', 'manager', 'superadmin')(
+export const POST = requireRole('sed', 'manager', 'fabrication', 'installation', 'superadmin')(
   async (req: NextRequest, session, { params }) => {
     let formData: FormData
     try {
