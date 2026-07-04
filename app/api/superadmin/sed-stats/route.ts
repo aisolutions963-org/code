@@ -64,13 +64,14 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
   return results
 }
 
-async function fetchTeamMemberMap(): Promise<Map<string, string>> {
-  const map = new Map<string, string>() // recId → name
+async function fetchTeamMemberMap(): Promise<Map<string, { name: string; isSed: boolean }>> {
+  const map = new Map<string, { name: string; isSed: boolean }>() // recId → info
   let offset: string | undefined
   do {
     const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
     params.append('fields[]', TEAM_MEMBERS.NAME)
     params.append('fields[]', TEAM_MEMBERS.ACTIVE)
+    params.append('fields[]', TEAM_MEMBERS.SYSTEM_ROLE)
     if (offset) params.set('offset', offset)
     const res = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${TEAM_MEMBERS.TABLE_ID}?${params}`,
@@ -84,7 +85,8 @@ async function fetchTeamMemberMap(): Promise<Map<string, string>> {
     for (const r of data.records) {
       const name = (r.fields[TEAM_MEMBERS.NAME] as string) ?? ''
       const active = r.fields[TEAM_MEMBERS.ACTIVE]
-      if (name && active) map.set(r.id, name)
+      const role = (r.fields[TEAM_MEMBERS.SYSTEM_ROLE] as string) ?? ''
+      if (name && active) map.set(r.id, { name, isSed: role === 'SED' })
     }
     offset = data.offset
   } while (offset)
@@ -119,23 +121,29 @@ export const GET = requireRole('superadmin')(async () => {
   const sedNames: string[] = []
   const map: Record<string, SedEntry> = {}
 
+  // Seed every active SED team member first, so SEDs with zero projects still
+  // show up on the chart instead of only ever appearing once they own a project.
+  for (const member of teamMemberMap.values()) {
+    if (member.isSed) ensureSed(map, sedNames, member.name)
+  }
+
   for (const p of projects) {
     // Primary owner — gets stage count + revenue
     if (p.ownerId) {
-      const name = teamMemberMap.get(p.ownerId)
-      if (name) {
-        ensureSed(map, sedNames, name)
-        incrementStage(map[name], p.stage)
-        map[name].totalPaid += p.totalPaid
+      const owner = teamMemberMap.get(p.ownerId)
+      if (owner) {
+        ensureSed(map, sedNames, owner.name)
+        incrementStage(map[owner.name], p.stage)
+        map[owner.name].totalPaid += p.totalPaid
       }
     }
 
     // Commun SEDs — get stage count only (revenue stays with primary owner)
     for (const communId of p.communIds) {
-      const communName = teamMemberMap.get(communId)
-      if (communName) {
-        ensureSed(map, sedNames, communName)
-        incrementStage(map[communName], p.stage)
+      const commun = teamMemberMap.get(communId)
+      if (commun) {
+        ensureSed(map, sedNames, commun.name)
+        incrementStage(map[commun.name], p.stage)
       }
     }
   }
