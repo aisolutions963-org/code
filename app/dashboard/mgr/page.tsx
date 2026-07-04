@@ -312,7 +312,6 @@ export default function MgrDashboard() {
                           <button onClick={() => setHandoverProject(p)} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
                             F6 — Handover Sheet
                           </button>
-                          <RequestMeasurementButton projectId={p.id} />
                         </div>
                       </div>
                     ))}
@@ -494,32 +493,3 @@ export default function MgrDashboard() {
   )
 }
 
-function RequestMeasurementButton({ projectId }: { projectId: string }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error' | 'exists'>('idle')
-
-  async function request() {
-    setState('loading')
-    try {
-      const res = await fetch(`/api/projects/${projectId}/request-measurement`, { method: 'POST' })
-      if (res.status === 409) { setState('exists'); return }
-      if (!res.ok) throw new Error()
-      setState('done')
-    } catch {
-      setState('error')
-    }
-  }
-
-  if (state === 'done') return <span className="text-xs text-green-600 font-medium">✓ Measurement requested</span>
-  if (state === 'exists') return <span className="text-xs text-gray-400 font-medium">Measurement already requested</span>
-  if (state === 'error') return <span className="text-xs text-red-500 font-medium">Failed — <button onClick={request} className="underline">retry</button></span>
-
-  return (
-    <button
-      onClick={request}
-      disabled={state === 'loading'}
-      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-50"
-    >
-      {state === 'loading' ? 'Requesting…' : '📐 Request Measurements'}
-    </button>
-  )
-}
