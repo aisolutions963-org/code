@@ -181,7 +181,6 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'Home', href: '/home' },
     { label: 'My Tasks', href: '/dashboard/fab' },
     { label: 'Forms', href: '/dashboard/forms' },
-    { label: 'Team Tasks', href: '/dashboard/fab?view=team' },
     { label: 'Materials', href: '/dashboard/fab?view=materials' },
     { label: 'Production Timeline', href: '/dashboard/fab?view=timeline' },
   ],
