@@ -114,7 +114,15 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
   }
 
   async function handleChange(key: keyof TaskUpdateInput, value: unknown) {
-    if (isMakeQuotation && key === 'status' && value === 'Completed') return
+    if (isMakeQuotation && key === 'status' && value === 'Completed') {
+      // Allow completing via the dropdown once the quotation is saved; otherwise point
+      // the user to the panel instead of silently doing nothing.
+      const quotationReady = !!(task.projectQuotationNumber && (task.projectQuotationReference || task.projectRequestType))
+      if (!quotationReady) {
+        toast.error('Complete the quotation details in the panel below')
+        return
+      }
+    }
     setLocalFields((prev) => ({ ...prev, [key]: value }))
     setSaving(true)
     try {
