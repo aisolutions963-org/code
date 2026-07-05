@@ -5,6 +5,7 @@ import useSWR, { mutate as globalMutate } from 'swr'
 import { Project, Role, Material } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
 import Button from '@/components/ui/Button'
+import NewProjectModal from '@/components/projects/NewProjectModal'
 import HandoverModal from '@/components/projects/HandoverModal'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -30,8 +31,8 @@ const inp = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:
 const sel = `${inp} bg-white`
 const lbl = 'text-xs text-gray-500 block mb-1'
 
-// Stages where a handover form is relevant
-const HANDOVER_STAGES = new Set(['Production', 'Closing'])
+// F6 handover is only relevant once a project has reached the Closing stage.
+const HANDOVER_STAGE = 'Closing'
 
 // ─── Payment Form ─────────────────────────────────────────────────────────────
 
@@ -475,10 +476,12 @@ export default function FormsClient({ role }: { role: Role }) {
 
   const [showF3, setShowF3] = useState(false)
   const [f3Saved, setF3Saved] = useState(false)
+  const [showNewProject, setShowNewProject] = useState(false)
 
+  const canCreateProject = role === 'sed' || role === 'manager' || role === 'superadmin'
   const canPay = role === 'manager' || role === 'superadmin'
   const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'fabrication' || role === 'superadmin'
-  const canHandover = role === 'installation' || role === 'manager' || role === 'superadmin' || role === 'sed'
+  const canHandover = true
 
   // F3 order-status tracking — recent material orders + their status
   const { data: matData, mutate: mutateMaterials } = useSWR<{ materials: Material[] }>(
@@ -496,10 +499,8 @@ export default function FormsClient({ role }: { role: Role }) {
 
   const allProjects = data?.projects ?? []
 
-  // For handover: only show projects in active production/closing stages
-  const handoverProjects = canHandover
-    ? allProjects.filter((p) => !p.projectStage || HANDOVER_STAGES.has(p.projectStage))
-    : []
+  // For handover: only show projects that have reached the Closing stage
+  const handoverProjects = allProjects.filter((p) => p.projectStage === HANDOVER_STAGE)
 
   // For payment: show all active projects
   const paymentProjects = canPay ? allProjects : []
@@ -535,6 +536,22 @@ export default function FormsClient({ role }: { role: Role }) {
             Refresh
           </button>
         </div>
+
+        {/* F1 — New Project */}
+        {canCreateProject && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">F1 — New Project</p>
+              <p className="text-xs text-gray-400 mt-0.5">Start the intake form for a new project</p>
+            </div>
+            <button
+              onClick={() => setShowNewProject(true)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors shrink-0"
+            >
+              + New Project
+            </button>
+          </div>
+        )}
 
         {/* F3 Material Order */}
         {canOrderMaterials && (
@@ -600,7 +617,7 @@ export default function FormsClient({ role }: { role: Role }) {
         {(canPay || canHandover) && !isLoading && !error && cardProjects.length === 0 && (
           <div className="text-center py-16">
             <p className="text-sm font-semibold text-gray-700">
-              {canHandover && !canPay ? 'No projects in Production or Closing stage' : 'No active projects'}
+              {canHandover && !canPay ? 'No projects in the Closing stage' : 'No active projects'}
             </p>
             <p className="text-xs text-gray-400 mt-1">Projects will appear here once they reach the relevant stage.</p>
           </div>
@@ -611,7 +628,7 @@ export default function FormsClient({ role }: { role: Role }) {
             key={project.id}
             project={project}
             canPay={canPay}
-            canHandover={canHandover && HANDOVER_STAGES.has(project.projectStage ?? '')}
+            canHandover={project.projectStage === HANDOVER_STAGE}
             onRefresh={() => mutate()}
           />
         ))}
@@ -622,6 +639,13 @@ export default function FormsClient({ role }: { role: Role }) {
           projects={allProjects}
           onClose={() => setShowF3(false)}
           onSubmitted={() => { setF3Saved(true); mutate(); mutateMaterials() }}
+        />
+      )}
+
+      {showNewProject && (
+        <NewProjectModal
+          onClose={() => setShowNewProject(false)}
+          onCreated={() => { setShowNewProject(false); mutate() }}
         />
       )}
     </div>
