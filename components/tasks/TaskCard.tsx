@@ -213,10 +213,14 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     !!task.projectItem?.length &&
     (task.pathCondition === 'Carpentry' || task.pathCondition === 'Paint')
 
+  // Plain delivery-tracking checklist task — just To Do / In Progress / Completed,
+  // no admin note or outcome panel despite the "Follow Up" wording in its name.
+  const isMaterialDeliveryTrackingTask = task.taskName.toLowerCase().includes('till material received')
+
   const isFollowUpTask =
     role === 'superadmin' &&
     task.taskName.toLowerCase().includes(FOLLOW_UP_KEYWORD) &&
-    !task.taskName.toLowerCase().includes('til material')
+    !isMaterialDeliveryTrackingTask
 
   const isSystemAutoTask =
     task.taskName.toLowerCase().startsWith('to follow tasks progress') ||
@@ -750,7 +754,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           )}
 
           {/* Admin note — editable for superadmin, read-only banner for all other roles */}
-          {role === 'superadmin' && !isFollowUpTask && (
+          {role === 'superadmin' && !isFollowUpTask && !isMaterialDeliveryTrackingTask && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 space-y-2">
               <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">📌 Admin Note</p>
               <textarea
