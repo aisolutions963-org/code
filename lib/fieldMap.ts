@@ -5,6 +5,7 @@ export const CLIENTS = {
   PHONE: 'fld2wGFrsIkZ2WJKX',
   EMAIL: 'fldAhLNSsczIN9W20',
   PROJECTS: 'fldg6O6PUTESQDTNn',
+  CATEGORY: 'fldPTPSqFX6juB8QS',  // singleSelect: Direct Client | Broker | From Other Client | Designer | Contractor | Developer | Other
 } as const
 
 export const END_USERS = {
@@ -116,6 +117,7 @@ export const PROJECTS = {
   NICKNAME: 'fldChERvQwVlxO1nR',
   EMIRATE: 'fldIrxYRfumFm6JjU',
   LOCATION: 'fld5iIjUh9z7jaJFW',
+  LOCATION_OTHER: 'fldY5AZs7Rbtg6xOP',  // singleLineText — custom area when Location = "Other"
   DETAILED_LOCATION: 'fldoRWDUaeNKEtrbi',
   PROJECT_DESCRIPTION: 'fldhpCCy7ZIrh7pax',
   REQUIRED_INTAKE_PATHS: 'fld5jHSFxBU9euELy',

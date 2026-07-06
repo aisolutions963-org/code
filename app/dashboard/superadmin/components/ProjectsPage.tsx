@@ -12,16 +12,14 @@ import { fetcher, Spinner, isStale } from './shared'
 
 function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, onNotesSaved }: { project: Project; onAdvance: (id: string) => Promise<void>; onDelete: (id: string, name: string) => Promise<void>; onReopen: (id: string) => Promise<void>; onDisapprove: (id: string) => Promise<void>; onNotesSaved?: () => void }) {
   const [loading, setLoading] = useState(false)
-  const [genLoading, setGenLoading] = useState(false)
   const [reopenLoading, setReopenLoading] = useState(false)
   const [disapproveLoading, setDisapproveLoading] = useState(false)
   const [err, setErr] = useState('')
-  const [genMsg, setGenMsg] = useState('')
   const [expanded, setExpanded] = useState(false)
   const stale = isStale(p.lastModifiedTasks)
 
   async function advance() {
-    setLoading(true); setErr(''); setGenMsg('')
+    setLoading(true); setErr('')
     try { await onAdvance(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setLoading(false) }
   }
 
@@ -35,33 +33,6 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
     setDisapproveLoading(true); setErr('')
     try { await onDisapprove(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setDisapproveLoading(false) }
   }
-
-  async function generateTasks(force = false) {
-    setGenLoading(true); setErr(''); setGenMsg('')
-    try {
-      const res = await fetch(`/api/projects/${p.id}/generate-tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stage: p.projectStage, force }),
-      })
-      const data = await res.json()
-      if (res.status === 409) {
-        const ok = window.confirm(
-          `${data.existingCount} tasks already exist for this project. Generate more anyway?`
-        )
-        if (ok) await generateTasks(true)
-        return
-      }
-      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
-      setGenMsg(`✓ Created ${data.created} tasks`)
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed')
-    } finally {
-      setGenLoading(false)
-    }
-  }
-
-  const canGenerate = p.projectStage === 'Preparing' || p.projectStage === 'Open' || p.projectStage === 'Production'
 
   const address = [p.detailedLocation, p.location, p.emirate].filter(Boolean).join(', ')
 
@@ -100,15 +71,9 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
         </td>
         <td className="px-4 py-3">
           {stale && <span className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5">Stale</span>}
-          {genMsg && <span className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 ml-1">{genMsg}</span>}
         </td>
         <td className="px-4 py-3 text-right">
           <div className="flex items-center justify-end gap-2">
-            {canGenerate && (
-              <Button size="sm" variant="secondary" loading={genLoading} onClick={() => generateTasks()}>
-                ⚡ Tasks
-              </Button>
-            )}
             {p.projectStage !== 'Not-Approved' && p.projectStage !== 'Closed' && p.projectStage !== 'Closed and active warranty' && p.projectStage !== 'Warranty expired' && (
               <Button
                 size="sm"

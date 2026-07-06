@@ -45,13 +45,14 @@ function transformClient(record: RawRecord): Client & { projectCount: number } {
     clientName: str(f[CLIENTS.CLIENT_NAME]) ?? '',
     phone: str(f[CLIENTS.PHONE]),
     email: str(f[CLIENTS.EMAIL]),
+    category: str(f[CLIENTS.CATEGORY]) as Client['category'],
     projectCount,
   }
 }
 
 export async function getAllClients(): Promise<(Client & { projectCount: number })[]> {
   const records = await fetchAll(CLIENTS.TABLE_ID, {
-    fields: [CLIENTS.CLIENT_NAME, CLIENTS.PHONE, CLIENTS.EMAIL, CLIENTS.CLIENT_ID, CLIENTS.PROJECTS],
+    fields: [CLIENTS.CLIENT_NAME, CLIENTS.PHONE, CLIENTS.EMAIL, CLIENTS.CLIENT_ID, CLIENTS.PROJECTS, CLIENTS.CATEGORY],
     sort: [{ field: CLIENTS.CLIENT_NAME, direction: 'asc' }],
   })
   return records.map(transformClient)
@@ -62,16 +63,17 @@ async function findClientByName(name: string): Promise<Client | null> {
   const formula = `LOWER({${CLIENTS.CLIENT_NAME}}) = LOWER("${safe}")`
   const records = await fetchAll(CLIENTS.TABLE_ID, {
     filterByFormula: formula,
-    fields: [CLIENTS.CLIENT_NAME, CLIENTS.PHONE, CLIENTS.EMAIL, CLIENTS.CLIENT_ID],
+    fields: [CLIENTS.CLIENT_NAME, CLIENTS.PHONE, CLIENTS.EMAIL, CLIENTS.CLIENT_ID, CLIENTS.CATEGORY],
     maxRecords: 1,
   })
   if (records.length === 0) return null
   return transformClient(records[0])
 }
 
-async function createClientRecord(name: string, phone?: string): Promise<Client> {
+async function createClientRecord(name: string, phone?: string, category?: string): Promise<Client> {
   const fields: Record<string, unknown> = { [CLIENTS.CLIENT_NAME]: name }
   if (phone) fields[CLIENTS.PHONE] = phone
+  if (category) fields[CLIENTS.CATEGORY] = category
   const res = await fetchWithRetry(tblUrl(CLIENTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
@@ -86,10 +88,30 @@ async function createClientRecord(name: string, phone?: string): Promise<Client>
   return transformClient(data.records[0])
 }
 
-async function getOrCreateClient(name: string, phone?: string): Promise<Client> {
+async function updateClientCategory(clientId: string, category: string): Promise<void> {
+  const res = await fetchWithRetry(recUrl(CLIENTS.TABLE_ID, clientId), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields: { [CLIENTS.CATEGORY]: category } }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error updating client category ${res.status}: ${body}`)
+  }
+}
+
+// Category is a client-level attribute. On create we set it; for an existing client
+// we keep it in sync with the latest selection (last-write-wins).
+async function getOrCreateClient(name: string, phone?: string, category?: string): Promise<Client> {
   const existing = await findClientByName(name)
-  if (existing) return existing
-  return createClientRecord(name, phone)
+  if (existing) {
+    if (category && existing.category !== category) {
+      await updateClientCategory(existing.id, category)
+      return { ...existing, category: category as Client['category'] }
+    }
+    return existing
+  }
+  return createClientRecord(name, phone, category)
 }
 
 export async function createEndUser(input: {
@@ -253,22 +275,22 @@ export async function createProject(input: ProjectCreateInput): Promise<Project>
     [PROJECTS.PROJECT_DESCRIPTION]: input.projectDescription,
     [PROJECTS.PROJECT_STAGE]: 'Preparing',
     [PROJECTS.EMIRATE]: input.emirate,
-    [PROJECTS.CLIENT_STATUS]: input.clientStatus,
   }
 
   if (input.nickname) fields[PROJECTS.NICKNAME] = input.nickname
   if (input.detailedLocation) fields[PROJECTS.DETAILED_LOCATION] = input.detailedLocation
   if (input.clientPhone) fields[PROJECTS.CLIENT_PHONE] = input.clientPhone
   if (input.location) fields[PROJECTS.LOCATION] = input.location
+  if (input.locationOther) fields[PROJECTS.LOCATION_OTHER] = input.locationOther
   if (input.sedNotes) fields[PROJECTS.SED_NOTES] = input.sedNotes
   if (input.salesOwnerCollaboratorId) fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
   if (input.communSedIds?.length) fields[PROJECTS.COMMUN_SEDS] = input.communSedIds
 
-  if (input.clientName) {
-    const client = await getOrCreateClient(input.clientName, input.clientPhone || undefined)
-    fields[PROJECTS.CLIENT_NAME] = input.clientName
-    fields[PROJECTS.CLIENT] = [client.id]
-  }
+  // Client category is stored on the client record (not the project). getOrCreateClient
+  // creates the client if new and keeps the category in sync for existing clients.
+  const client = await getOrCreateClient(input.clientName, input.clientPhone || undefined, input.clientCategory)
+  fields[PROJECTS.CLIENT_NAME] = input.clientName
+  fields[PROJECTS.CLIENT] = [client.id]
 
   const tryCreate = async (f: Record<string, unknown>): Promise<RawRecord> => {
     const res = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {

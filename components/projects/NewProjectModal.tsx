@@ -10,9 +10,10 @@ const UAE_EMIRATES = [
   'Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Umm Al Quwain', 'Ras Al Khaimah', 'Fujairah',
 ]
 
-const CLIENT_STATUS_OPTIONS = [
+const CLIENT_CATEGORY_OPTIONS = [
+  'Direct Client',
   'Broker',
-  'End-to-End Client',
+  'From Other Client',
   'Designer',
   'Contractor',
   'Developer',
@@ -52,9 +53,10 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     clientPhone: '',
     emirate: '',
     location: '',
+    locationOther: '',
     sedNotes: '',
     isCommunal: false,
-    clientStatus: '',
+    clientCategory: '',
     endUserName: '',
     endUserContact: '',
   })
@@ -91,6 +93,8 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
   function selectClient(c: Client) {
     set('clientName', c.clientName)
     if (c.phone) set('clientPhone', c.phone)
+    // Category is a client attribute — prefill it from the chosen client.
+    if (c.category) set('clientCategory', c.category)
     setClientSuggestionsOpen(false)
     clientInputRef.current?.blur()
   }
@@ -123,7 +127,10 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
     if (!form.projectName.trim()) missing.push('Project Name')
     if (!form.projectDescription.trim()) missing.push('Project Scope')
     if (!form.emirate) missing.push('Emirate')
-    if (!form.clientStatus) missing.push('Client Status')
+    if (!form.clientName.trim()) missing.push('Client Name')
+    if (!form.clientCategory) missing.push('Client Category')
+    if (!selectedSedId) missing.push('Assigned SED')
+    if (form.location === 'Other' && !form.locationOther.trim()) missing.push('Area (Other)')
     if (missing.length > 0) { setErr(`Required: ${missing.join(', ')}`); return }
 
     setSaving(true); setErr('')
@@ -132,18 +139,20 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
         projectName: form.projectName.trim(),
         projectDescription: form.projectDescription,
         emirate: form.emirate,
-        clientStatus: form.clientStatus,
+        clientCategory: form.clientCategory,
+        clientName: form.clientName.trim(),
+        salesOwnerCollaboratorId: selectedSedId,
       }
 
       if (form.nickname.trim()) body.nickname = form.nickname.trim()
-      if (form.clientName.trim()) body.clientName = form.clientName.trim()
       if (form.detailedLocation.trim()) body.detailedLocation = form.detailedLocation.trim()
       if (form.clientPhone) body.clientPhone = form.clientPhone
-      if (form.location) body.location = form.location
+      // "Other" isn't a Location choice — send the custom value separately, leave Location blank.
+      if (form.location && form.location !== 'Other') body.location = form.location
+      if (form.location === 'Other' && form.locationOther.trim()) body.locationOther = form.locationOther.trim()
       if (form.sedNotes) body.sedNotes = form.sedNotes
-      if (selectedSedId) body.salesOwnerCollaboratorId = selectedSedId
       if (form.isCommunal && selectedCommunSeds.length > 0) body.communSedIds = selectedCommunSeds
-      const needsEndUser = form.clientStatus === 'Broker' || form.clientStatus === 'Contractor'
+      const needsEndUser = form.clientCategory === 'Broker' || form.clientCategory === 'Contractor'
       if (needsEndUser && form.endUserName.trim()) {
         body.endUserName = form.endUserName.trim()
         if (form.endUserContact.trim()) body.endUserContact = form.endUserContact.trim()
@@ -244,24 +253,24 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             />
           </div>
 
-          {/* Client Status — required */}
+          {/* Client Category — required (stored on the client record) */}
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Client Status *</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Client Category *</label>
             <select
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-              value={form.clientStatus}
-              onChange={(e) => set('clientStatus', e.target.value)}
+              value={form.clientCategory}
+              onChange={(e) => set('clientCategory', e.target.value)}
             >
-              <option value="">— select client type —</option>
-              {CLIENT_STATUS_OPTIONS.map((s) => (
+              <option value="">— select client category —</option>
+              {CLIENT_CATEGORY_OPTIONS.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
 
-          {/* Assigned SED — manual, optional */}
+          {/* Assigned SED — required */}
           <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Assigned SED</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Assigned SED *</label>
             <select
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
               value={selectedSedId}
@@ -274,9 +283,9 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             </select>
           </div>
 
-          {/* Client Name — optional with autocomplete */}
+          {/* Client Name — required, with autocomplete */}
           <div className="relative">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Client Name</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Client Name *</label>
             <input
               ref={clientInputRef}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -354,14 +363,25 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
               Area {!showLocation && <span className="text-gray-400 font-normal">(Dubai only)</span>}
             </label>
             {showLocation ? (
-              <select
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-                value={form.location}
-                onChange={(e) => set('location', e.target.value)}
-              >
-                <option value="">— select area —</option>
-                {DUBAI_LOCATIONS.map((l) => <option key={l}>{l}</option>)}
-              </select>
+              <>
+                <select
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                  value={form.location}
+                  onChange={(e) => set('location', e.target.value)}
+                >
+                  <option value="">— select area —</option>
+                  {DUBAI_LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+                  <option value="Other">Other…</option>
+                </select>
+                {form.location === 'Other' && (
+                  <input
+                    className="w-full mt-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    value={form.locationOther}
+                    onChange={(e) => set('locationOther', e.target.value)}
+                    placeholder="Type the area name"
+                  />
+                )}
+              </>
             ) : (
               <input
                 disabled
@@ -384,7 +404,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
           </div>
 
           {/* End User — shown for Broker or Contractor */}
-          {(form.clientStatus === 'Broker' || form.clientStatus === 'Contractor') && (
+          {(form.clientCategory === 'Broker' || form.clientCategory === 'Contractor') && (
             <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 space-y-3">
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">End User (Optional)</p>
               <div className="grid grid-cols-2 gap-3">

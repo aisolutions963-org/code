@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create End User record if provided (Broker/Contractor projects)
-    if (data.endUserName && (data.clientStatus === 'Broker' || data.clientStatus === 'Contractor')) {
+    if (data.endUserName && (data.clientCategory === 'Broker' || data.clientCategory === 'Contractor')) {
       createEndUser({
         name: data.endUserName,
         phoneOrEmail: data.endUserContact,
