@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById, upsertF2DeliveryEvent } from '@/lib/airtable'
+import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById, upsertF2DeliveryEvent, deleteQuotationsByProject, deleteProjectItemsByProject, deletePerItemTasksByProject } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 import { canEditField, filterAllowedFields, ROLE_TO_DEPARTMENT } from '@/lib/permissions'
 import {
@@ -92,6 +92,24 @@ export const PATCH = requireRole()(
     }
 
     const { status, managerReviewStatus, callCount, followUpOutcome, superadminNote, ...otherFields } = fields as Partial<TaskUpdateInput>
+
+    // F5 quotation reset — reverting a completed F5 task back to an editable status
+    // wipes the prior quotation line items, project items, and per-item tasks so the
+    // quotation can be resubmitted from scratch (no duplicated data).
+    if (status !== undefined && status !== 'Completed') {
+      const revertTask = await getTaskById(params.id)
+      const isF5 = revertTask.taskName.toLowerCase().startsWith('f5 —')
+      if (isF5 && revertTask.status === 'Completed') {
+        const projectId = revertTask.project?.[0]
+        if (projectId) {
+          await Promise.all([
+            deleteQuotationsByProject(projectId),
+            deleteProjectItemsByProject(projectId),
+            deletePerItemTasksByProject(projectId),
+          ])
+        }
+      }
+    }
 
     if (Object.keys(otherFields).length > 0) {
       const filtered = filterAllowedFields(session.role, otherFields)

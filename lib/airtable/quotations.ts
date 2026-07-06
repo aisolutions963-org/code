@@ -16,6 +16,7 @@ import {
   num,
   bool,
   strArr,
+  deleteByProject,
 } from './_client'
 
 // ─── Project Items ────────────────────────────────────────────────────────────
@@ -126,6 +127,10 @@ export async function getQuotationsByProject(projectId: string): Promise<Quotati
   return records
     .filter((r) => strArr(r.fields[QUOTATIONS.PROJECT]).includes(projectId))
     .map(transformQuotation)
+}
+
+export async function deleteQuotationsByProject(projectId: string): Promise<number> {
+  return deleteByProject(QUOTATIONS.TABLE_ID, QUOTATIONS.PROJECT, projectId)
 }
 
 // ─── Purchase Orders ─────────────────────────────────────────────────────────

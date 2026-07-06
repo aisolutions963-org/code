@@ -140,6 +140,7 @@ export interface Client {
   clientName: string
   phone?: string
   email?: string
+  category?: ClientCategory
   projectCount?: number
 }
 
@@ -209,20 +210,31 @@ export interface ClientRequestCreateInput {
   parentProjectId?: string
 }
 
+export type ClientCategory =
+  | 'Direct Client'
+  | 'Broker'
+  | 'From Other Client'
+  | 'Designer'
+  | 'Contractor'
+  | 'Developer'
+  | 'Other'
+
 export interface ProjectCreateInput {
   projectName: string
   projectDescription: string
   emirate: string
-  clientStatus: 'Broker' | 'End-to-End Client' | 'Designer' | 'Contractor' | 'Developer' | 'Other'
+  // Category is a client attribute (stored on the Client record), so a client name is required.
+  clientCategory: ClientCategory
+  clientName: string
+  salesOwnerCollaboratorId: string
 
   nickname?: string
-  clientName?: string
   detailedLocation?: string
 
   clientPhone?: string
   location?: string
+  locationOther?: string
   sedNotes?: string
-  salesOwnerCollaboratorId?: string
   communSedIds?: string[]
   endUserName?: string
   endUserContact?: string

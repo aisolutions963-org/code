@@ -71,14 +71,6 @@ function TimelineIcon() {
   )
 }
 
-function PhaseGateIcon() {
-  return (
-    <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
 function ActivityIcon() {
   return (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,7 +235,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Pipeline', href: '/dashboard/pipeline', icon: <PipelineIcon /> },
         { label: 'All Projects', href: '/dashboard/superadmin?view=projects', icon: <FolderIcon /> },
-        { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases', icon: <PhaseGateIcon /> },
         { label: 'Activity', href: '/dashboard/superadmin?view=activity', icon: <ActivityIcon /> },
         { label: 'Follow-Ups', href: '/dashboard/superadmin?view=follow-ups', icon: <ClipboardIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },

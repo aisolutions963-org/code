@@ -4,7 +4,6 @@ import { useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { Page } from './components/types'
 import OverviewPage from './components/OverviewPage'
-import PhasesPage from './components/PhasesPage'
 import ActivityPage from './components/ActivityPage'
 import PaymentsPage from './components/PaymentsPage'
 import CalendarPage from './components/CalendarPage'
@@ -23,7 +22,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-const VALID_PAGES = new Set<Page>(['overview','phases','activity','payments','calendar','warranty','users','announcements','projects','tasks','materials','deliveries','payables','receivables','follow-ups'])
+const VALID_PAGES = new Set<Page>(['overview','activity','payments','calendar','warranty','users','announcements','projects','tasks','materials','deliveries','payables','receivables','follow-ups'])
 
 function DeliveriesPage() {
   const { data, isLoading } = useSWR<{ events: CalendarEvent[] }>(
@@ -101,7 +100,6 @@ export default function SuperadminDashboard() {
   return (
     <div className="p-6 min-w-0">
       {page === 'overview' && <OverviewPage />}
-      {page === 'phases' && <PhasesPage />}
       {page === 'activity' && <ActivityPage />}
       {page === 'payments' && <PaymentsPage />}
       {page === 'calendar' && <CalendarPage />}

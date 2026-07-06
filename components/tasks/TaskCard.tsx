@@ -373,6 +373,16 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   }
 
   function handleChange(key: keyof TaskUpdateInput, value: unknown) {
+    // Reverting a completed F5 quotation deletes its line items + per-item tasks so it
+    // can be rebuilt from scratch — confirm before the destructive reset.
+    if (isF5Task && task.status === 'Completed' && key === 'status' && value !== 'Completed') {
+      const ok = window.confirm(
+        ar
+          ? 'سيؤدي هذا إلى حذف بنود عرض السعر والمهام المرتبطة بها ليبدأ النموذج من جديد. هل تريد المتابعة؟'
+          : 'This will delete the current quotation line items and their per-item tasks so the form starts blank. Continue?',
+      )
+      if (!ok) return
+    }
     if (key === 'status' && value === 'Completed') {
       if (isOrderSample || isPerItemOrderSample) {
         toast.error(ar ? 'استخدم خيار الفرع أدناه' : 'Use the branch selector below to complete')

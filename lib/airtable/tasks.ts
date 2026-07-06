@@ -802,6 +802,38 @@ export async function deleteTasksByProjectId(projectId: string): Promise<number>
   return deleted
 }
 
+// Deletes only per-item tasks (those linked to a project item), leaving Phase-1 /
+// universal project-level tasks intact. Used when an F5 quotation is reset so the
+// item-derived tasks are cleared before a fresh resubmission.
+export async function deletePerItemTasksByProject(projectId: string): Promise<number> {
+  const formula = `{${TASKS.PROJECT}} = "${projectId}"`
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [TASKS.PROJECT_ITEM],
+  })
+  const perItem = records.filter((r) => {
+    const v = r.fields[TASKS.PROJECT_ITEM]
+    return Array.isArray(v) ? v.length > 0 : Boolean(v)
+  })
+  if (perItem.length === 0) return 0
+
+  let deleted = 0
+  for (let i = 0; i < perItem.length; i += 10) {
+    const chunk = perItem.slice(i, i + 10)
+    const qs = chunk.map((r) => `records[]=${r.id}`).join('&')
+    const res = await fetchWithRetry(`${BASE_URL}/${process.env.AIRTABLE_BASE_ID}/${TASKS.TABLE_ID}?${qs}`, {
+      method: 'DELETE',
+      headers: airtableHeaders(),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable error deleting per-item tasks ${res.status}: ${body}`)
+    }
+    deleted += chunk.length
+  }
+  return deleted
+}
+
 export async function getTaskCountForProject(projectId: string): Promise<number> {
   const formula = `{${TASKS.PROJECT}} = "${projectId}"`
   const records = await fetchAll(TASKS.TABLE_ID, {

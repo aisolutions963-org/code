@@ -121,7 +121,9 @@ describe('CreateProjectSchema', () => {
     projectName: 'Villa Renovation',
     projectDescription: 'Full interior woodwork for 4BR villa',
     emirate: 'Dubai',
-    clientStatus: 'End-to-End Client',
+    clientCategory: 'Direct Client',
+    clientName: 'Ahmed Villas',
+    salesOwnerCollaboratorId: 'usrABC123',
   }
 
   it('accepts minimal valid project', () => {
@@ -139,7 +141,7 @@ describe('CreateProjectSchema', () => {
   })
 
   it('rejects missing projectDescription', () => {
-    expect(CreateProjectSchema.safeParse({ projectName: 'X', emirate: 'Dubai', clientStatus: 'Broker' }).success).toBe(false)
+    expect(CreateProjectSchema.safeParse({ projectName: 'X', emirate: 'Dubai', clientCategory: 'Broker', clientName: 'Y', salesOwnerCollaboratorId: 'usr1' }).success).toBe(false)
   })
 
   it('rejects missing emirate', () => {
@@ -151,36 +153,46 @@ describe('CreateProjectSchema', () => {
     expect(CreateProjectSchema.safeParse({ ...base, emirate: '' }).success).toBe(false)
   })
 
-  it('rejects missing clientStatus', () => {
-    const { clientStatus, ...withoutStatus } = base
-    expect(CreateProjectSchema.safeParse(withoutStatus).success).toBe(false)
+  it('rejects missing clientCategory', () => {
+    const { clientCategory, ...withoutCategory } = base
+    expect(CreateProjectSchema.safeParse(withoutCategory).success).toBe(false)
   })
 
-  it('rejects invalid clientStatus value', () => {
-    expect(CreateProjectSchema.safeParse({ ...base, clientStatus: 'Freelancer' }).success).toBe(false)
+  it('rejects invalid clientCategory value', () => {
+    expect(CreateProjectSchema.safeParse({ ...base, clientCategory: 'Freelancer' }).success).toBe(false)
   })
 
-  it('accepts all valid clientStatus values', () => {
-    const statuses = ['Broker', 'End-to-End Client', 'Designer', 'Contractor', 'Developer', 'Other']
-    statuses.forEach((s) => {
-      expect(CreateProjectSchema.safeParse({ ...base, clientStatus: s }).success).toBe(true)
+  it('rejects missing clientName', () => {
+    const { clientName, ...withoutName } = base
+    expect(CreateProjectSchema.safeParse(withoutName).success).toBe(false)
+  })
+
+  it('rejects missing assigned SED', () => {
+    const { salesOwnerCollaboratorId, ...withoutSed } = base
+    expect(CreateProjectSchema.safeParse(withoutSed).success).toBe(false)
+  })
+
+  it('accepts all valid clientCategory values', () => {
+    const categories = ['Direct Client', 'Broker', 'From Other Client', 'Designer', 'Contractor', 'Developer', 'Other']
+    categories.forEach((s) => {
+      expect(CreateProjectSchema.safeParse({ ...base, clientCategory: s }).success).toBe(true)
     })
   })
 
-  it('accepts optional endUserName and endUserContact for Broker clientStatus', () => {
+  it('accepts optional endUserName and endUserContact for Broker clientCategory', () => {
     const brokerProject = {
       ...base,
-      clientStatus: 'Broker',
+      clientCategory: 'Broker',
       endUserName: 'Khalid Al Rashid',
       endUserContact: '+971501112233',
     }
     expect(CreateProjectSchema.safeParse(brokerProject).success).toBe(true)
   })
 
-  it('accepts optional endUserName and endUserContact for Contractor clientStatus', () => {
+  it('accepts optional endUserName and endUserContact for Contractor clientCategory', () => {
     const contractorProject = {
       ...base,
-      clientStatus: 'Contractor',
+      clientCategory: 'Contractor',
       endUserName: 'Hessa Nasser',
       endUserContact: 'hessa@example.com',
     }

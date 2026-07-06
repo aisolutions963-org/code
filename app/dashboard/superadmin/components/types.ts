@@ -2,7 +2,6 @@
 
 export type Page =
   | 'overview'
-  | 'phases'
   | 'activity'
   | 'payments'
   | 'calendar'

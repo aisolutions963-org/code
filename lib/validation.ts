@@ -218,16 +218,19 @@ export const CreateProjectSchema = z.object({
   projectName: z.string().min(1).max(200).transform((v) => v.trim()),
   projectDescription: z.string().min(1).max(5000),
   emirate: z.string().min(1, 'Emirate is required').max(100),
-  clientStatus: z.enum(['Broker', 'End-to-End Client', 'Designer', 'Contractor', 'Developer', 'Other']),
+  clientCategory: z.enum(['Direct Client', 'Broker', 'From Other Client', 'Designer', 'Contractor', 'Developer', 'Other']),
+  // A category attaches to the client record, so a client name is required.
+  clientName: z.string().min(1, 'Client name is required').max(200).transform((v) => v.trim()),
+  // Assigned SED is required.
+  salesOwnerCollaboratorId: z.string().min(1, 'Assigned SED is required'),
 
   nickname: z.string().max(100).transform((v) => v.trim()).optional(),
-  clientName: z.string().max(200).transform((v) => v.trim()).optional(),
   detailedLocation: z.string().max(1000).optional(),
 
   clientPhone: z.string().max(30).optional(),
   location: z.string().max(200).optional(),
+  locationOther: z.string().max(200).optional(),
   sedNotes: z.string().max(5000).optional(),
-  salesOwnerCollaboratorId: z.string().optional(),
   communSedIds: z.array(z.string().min(1)).max(10).optional(),
   endUserName: z.string().max(200).optional(),
   endUserContact: z.string().max(200).optional(),

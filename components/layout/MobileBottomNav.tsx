@@ -204,7 +204,6 @@ const ALL_NAV: Record<Role, { label: string; href: string }[]> = {
     { label: 'Client Requests', href: '/dashboard/client-requests' },
     { label: 'Overview', href: '/dashboard/superadmin' },
     { label: 'Pipeline', href: '/dashboard/pipeline' },
-    { label: 'Phase Gates', href: '/dashboard/superadmin?view=phases' },
     { label: 'Activity', href: '/dashboard/superadmin?view=activity' },
     { label: 'Payments', href: '/dashboard/superadmin?view=payments' },
     { label: 'Pay Calendar', href: '/dashboard/superadmin?view=calendar' },
