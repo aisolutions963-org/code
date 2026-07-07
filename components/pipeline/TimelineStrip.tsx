@@ -125,7 +125,7 @@ export default function TimelineStrip() {
       </div>
 
       {/* Scroll area */}
-      <div ref={containerRef} className="overflow-x-auto overflow-y-hidden scrollbar-thin h-[calc(160px-36px)]">
+      <div ref={containerRef} className="overflow-x-auto overflow-y-hidden scrollbar-thin h-[124px]">
         <div className="relative" style={{ width: TOTAL_DAYS * DAY_W, height: '100%' }}>
 
           {/* Month dividers + date headers */}
