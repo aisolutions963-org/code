@@ -13,7 +13,10 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "e2e:debug": "playwright test --debug"
+    "e2e:debug": "playwright test --debug",
+    "deploy": "vercel --prod --yes",
+    "deploy:preview": "vercel --yes",
+    "ship": "git push origin HEAD && vercel --prod --yes"
   },
   "dependencies": {
     "@libsql/client": "^0.17.3",
