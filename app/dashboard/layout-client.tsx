@@ -61,7 +61,7 @@ export default function DashboardLayoutClient({
 
               {/* Content — reserve the bottom-nav height (64px) + device safe-area on mobile
                   so the last buttons aren't hidden behind the fixed nav bar. */}
-              <main className="flex-1 overflow-y-auto scrollbar-thin md:pb-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
+              <main className="flex-1 overflow-y-auto scrollbar-thin md:pb-0 pb-[calc(4.5rem_+_env(safe-area-inset-bottom))]">
                 <Suspense fallback={null}>
                   {children}
                 </Suspense>
