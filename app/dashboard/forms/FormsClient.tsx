@@ -480,7 +480,8 @@ export default function FormsClient({ role }: { role: Role }) {
 
   const canCreateProject = role === 'sed' || role === 'manager' || role === 'superadmin'
   const canPay = role === 'manager' || role === 'superadmin'
-  const canOrderMaterials = role === 'sed' || role === 'manager' || role === 'fabrication' || role === 'superadmin'
+  // F3 material order is available to every role.
+  const canOrderMaterials = true
   const canHandover = true
 
   // F3 order-status tracking — recent material orders + their status
