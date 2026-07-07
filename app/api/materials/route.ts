@@ -12,7 +12,7 @@ export const GET = requireRole('manager', 'superadmin', 'sed', 'fabrication', 'i
   return NextResponse.json({ materials, pendingCount })
 })
 
-export const POST = requireRole('sed', 'manager', 'fabrication', 'superadmin')(
+export const POST = requireRole('sed', 'manager', 'fabrication', 'installation', 'superadmin')(
   async (req: NextRequest, session) => {
     let rawBody: unknown
     try {
