@@ -59,8 +59,9 @@ export default function DashboardLayoutClient({
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50">
               <GlassTopBar role={role} name={name} />
 
-              {/* Content — pb-16 on mobile reserves space above bottom nav */}
-              <main className="flex-1 overflow-y-auto scrollbar-thin pb-16 md:pb-0">
+              {/* Content — reserve the bottom-nav height (64px) + device safe-area on mobile
+                  so the last buttons aren't hidden behind the fixed nav bar. */}
+              <main className="flex-1 overflow-y-auto scrollbar-thin md:pb-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
                 <Suspense fallback={null}>
                   {children}
                 </Suspense>
