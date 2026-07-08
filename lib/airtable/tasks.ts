@@ -732,6 +732,30 @@ export async function getCallClientPendingTasks(): Promise<
   })
 }
 
+// For the given projects, return the name of a current active (To Do / In Progress)
+// task — i.e. where each project is currently stuck. Used by smarter stale detection.
+export async function getStuckTaskForProjects(projectIds: string[]): Promise<Record<string, string>> {
+  if (projectIds.length === 0) return {}
+  const out: Record<string, string> = {}
+  const chunks: string[][] = []
+  for (let i = 0; i < projectIds.length; i += 10) chunks.push(projectIds.slice(i, i + 10))
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const projFilter = chunk.map((id) => `{${TASKS.PROJECT}} = "${id}"`).join(', ')
+      const formula = `AND(OR(${projFilter}), OR({${TASKS.STATUS}}="To Do", {${TASKS.STATUS}}="In Progress"))`
+      const records = await fetchAll(TASKS.TABLE_ID, {
+        filterByFormula: formula,
+        fields: [TASKS.TASK_NAME, TASKS.PROJECT],
+      })
+      for (const r of records) {
+        const pid = str(r.fields[TASKS.PROJECT])
+        if (pid && !out[pid]) out[pid] = str(r.fields[TASKS.TASK_NAME]) ?? ''
+      }
+    }),
+  )
+  return out
+}
+
 export async function getPendingApprovalsCount(): Promise<number> {
   const formula = `{${TASKS.MANAGER_REVIEW_STATUS}} = "Pending"`
   const records = await fetchAll(TASKS.TABLE_ID, {

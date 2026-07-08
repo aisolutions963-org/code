@@ -34,8 +34,17 @@ interface OverduePayment {
   paymentType: string
 }
 
+interface StaleProject {
+  projectId: string
+  projectName: string
+  projectRef?: string
+  daysStale: number
+  currentTask: string | null
+}
+
 interface SuperadminMetrics {
   staleProjects: number
+  staleProjectsList?: StaleProject[]
   overduePayments: OverduePayment[]
   callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 }
@@ -111,6 +120,7 @@ export default function NotificationsPage() {
 
   const pendingCount = pendingData?.count ?? 0
   const staleCount = metricsData?.staleProjects ?? 0
+  const staleList = metricsData?.staleProjectsList ?? []
   const overduePayments = metricsData?.overduePayments ?? []
   const overdueCount = overduePayments.length
   const callClientTasks = metricsData?.callClientTasks ?? []
@@ -224,19 +234,37 @@ export default function NotificationsPage() {
             </Link>
           )}
 
-          {/* Stale projects */}
-          {staleCount > 0 && (
-            <div className="px-4 py-3.5 flex items-start gap-3 border-b border-gray-100 last:border-0">
-              <div className="w-2 h-2 rounded-full bg-yellow-400 mt-1.5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  <span className="font-semibold">{staleCount}</span> stale project{staleCount !== 1 ? 's' : ''}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">No activity for more than 3 days</p>
-              </div>
-              <span className="text-[10px] font-semibold text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded shrink-0">Attention</span>
-            </div>
-          )}
+          {/* Stale projects — per-project, with what they're stuck at */}
+          {staleList.length > 0
+            ? staleList.map((s) => (
+                <Link
+                  key={s.projectId}
+                  href={`/dashboard/project/${s.projectId}`}
+                  className="px-4 py-3.5 flex items-start gap-3 border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-0 block"
+                >
+                  <div className="w-2 h-2 rounded-full bg-yellow-400 mt-1.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{s.projectName}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {s.currentTask ? <>Stuck at <span className="font-medium">{s.currentTask}</span> · </> : null}
+                      {s.daysStale} day{s.daysStale !== 1 ? 's' : ''} no activity
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-semibold text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded shrink-0">Attention</span>
+                </Link>
+              ))
+            : staleCount > 0 && (
+                <div className="px-4 py-3.5 flex items-start gap-3 border-b border-gray-100 last:border-0">
+                  <div className="w-2 h-2 rounded-full bg-yellow-400 mt-1.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900">
+                      <span className="font-semibold">{staleCount}</span> stale project{staleCount !== 1 ? 's' : ''}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">No activity for more than 3 days</p>
+                  </div>
+                  <span className="text-[10px] font-semibold text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded shrink-0">Attention</span>
+                </div>
+              )}
 
           {/* Overdue payments */}
           {overduePayments.map((p) => (

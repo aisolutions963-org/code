@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getAllProjects, getPendingApprovalsCount, getCallClientPendingTasks } from '@/lib/airtable'
+import { getAllProjects, getPendingApprovalsCount, getCallClientPendingTasks, getStuckTaskForProjects } from '@/lib/airtable'
 import { PAYMENTS } from '@/lib/fieldMap'
 import { todayUAE } from '@/lib/dateUtils'
 
@@ -80,10 +80,26 @@ export const GET = requireRole('superadmin')(async () => {
   const activeProjects = projects.filter(
     (p) => !['Closed', 'Closed and active warranty', 'Warranty expired'].includes(p.projectStage),
   ).length
-  const staleProjects = projects.filter((p) => {
-    if (!p.lastModifiedTasks || ['Closed', 'Closed and active warranty', 'Warranty expired'].includes(p.projectStage)) return false
-    return (Date.now() - new Date(p.lastModifiedTasks).getTime()) / (1000 * 60 * 60 * 24) > 3
-  }).length
+  const DAY_MS = 1000 * 60 * 60 * 24
+  const CLOSED_STAGES = ['Closed', 'Closed and active warranty', 'Warranty expired']
+  const staleProjectsFull = projects.filter((p) => {
+    if (!p.lastModifiedTasks || CLOSED_STAGES.includes(p.projectStage)) return false
+    return (Date.now() - new Date(p.lastModifiedTasks).getTime()) / DAY_MS > 3
+  })
+  const staleProjects = staleProjectsFull.length
+
+  // Smarter stale detection: attach the current stuck task + days stale per project.
+  const stuckMap = await getStuckTaskForProjects(staleProjectsFull.map((p) => p.id))
+  const staleProjectsList = staleProjectsFull
+    .map((p) => ({
+      projectId: p.id,
+      projectName: p.projectName,
+      projectRef: p.projectId,
+      daysStale: Math.floor((Date.now() - new Date(p.lastModifiedTasks!).getTime()) / DAY_MS),
+      currentTask: stuckMap[p.id] ?? null,
+    }))
+    .sort((a, b) => b.daysStale - a.daysStale)
+
   const totalRevenue = projects.reduce((s, p) => s + (p.projectTotalCost ?? 0), 0)
   const totalPaid = projects.reduce((s, p) => s + (p.totalPaid ?? 0), 0)
   const totalRemaining = projects.reduce((s, p) => s + (p.remainingBalance ?? 0), 0)
@@ -92,6 +108,7 @@ export const GET = requireRole('superadmin')(async () => {
     totalProjects,
     activeProjects,
     staleProjects,
+    staleProjectsList,
     pendingApprovals,
     overduePayments,
     totalRevenue,
