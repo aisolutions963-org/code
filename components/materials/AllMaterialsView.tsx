@@ -38,8 +38,11 @@ export default function AllMaterialsView({ role }: { role: string }) {
   const [updating, setUpdating] = useState<string | null>(null)
 
   const canEdit = role === 'superadmin' || role === 'manager'
+  // includeRequests=true so Trade/Variance/Maintenance sub-projects resolve (else "Unknown Project")
   const projectsUrl =
-    role === 'superadmin' || role === 'manager' ? '/api/projects?all=true' : '/api/projects'
+    role === 'superadmin' || role === 'manager'
+      ? '/api/projects?all=true&includeRequests=true'
+      : '/api/projects?includeRequests=true'
 
   const { data: materialsData, isLoading, mutate } = useSWR<{ materials: Material[]; pendingCount: number }>(
     '/api/materials',
@@ -57,20 +60,48 @@ export default function AllMaterialsView({ role }: { role: string }) {
   const projects = projectsData?.projects ?? []
   const projectMap = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
 
+  // For a material's linked project, resolve what to display. Trade/Variance/Maintenance
+  // orders link to a sub-project (client request) — surface the PARENT project instead,
+  // plus the request-type tag, so they no longer show as "Unknown Project".
+  const resolveDisplay = useMemo(
+    () => (pid: string) => {
+      const linked = projectMap.get(pid) ?? null
+      if (linked?.requestType) {
+        const parent = linked.parentProjectId ? projectMap.get(linked.parentProjectId) ?? null : null
+        return {
+          name: parent?.projectName ?? linked.parentProjectName ?? linked.projectName ?? 'Unknown Project',
+          ref: parent?.projectId,
+          stage: parent?.projectStage,
+          clientName: parent?.clientName ?? linked.clientName,
+          requestType: linked.requestType as string | undefined,
+        }
+      }
+      return {
+        name: linked?.projectName ?? 'Unknown Project',
+        ref: linked?.projectId,
+        stage: linked?.projectStage,
+        clientName: linked?.clientName,
+        requestType: undefined as string | undefined,
+      }
+    },
+    [projectMap],
+  )
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return materials
     return materials.filter((m) => {
-      const proj = projectMap.get(m.projects?.[0] ?? '')
+      const d = resolveDisplay(m.projects?.[0] ?? '')
       return (
         m.name.toLowerCase().includes(q) ||
         (m.supplier ?? '').toLowerCase().includes(q) ||
-        (proj?.projectName ?? '').toLowerCase().includes(q) ||
-        (proj?.projectId ?? '').toLowerCase().includes(q) ||
-        (proj?.clientName ?? '').toLowerCase().includes(q)
+        d.name.toLowerCase().includes(q) ||
+        (d.ref ?? '').toLowerCase().includes(q) ||
+        (d.clientName ?? '').toLowerCase().includes(q) ||
+        (d.requestType ?? '').toLowerCase().includes(q)
       )
     })
-  }, [materials, search, projectMap])
+  }, [materials, search, resolveDisplay])
 
   const grouped = useMemo(() => {
     const map = new Map<string, { project: Project | null; materials: Material[] }>()
@@ -199,7 +230,8 @@ export default function AllMaterialsView({ role }: { role: string }) {
       )}
 
       {/* Project groups */}
-      {grouped.map(([pid, { project: p, materials: mats }]) => {
+      {grouped.map(([pid, { materials: mats }]) => {
+        const d = resolveDisplay(pid)
         const pending = mats.filter(
           (m) => m.orderStatus === 'Not ordered' || m.orderStatus === 'Pending approval',
         ).length
@@ -220,20 +252,25 @@ export default function AllMaterialsView({ role }: { role: string }) {
             }`}>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  {p?.projectId && (
-                    <span className="font-mono text-[11px] text-gray-400">{p.projectId}</span>
+                  {d.ref && (
+                    <span className="font-mono text-[11px] text-gray-400">{d.ref}</span>
                   )}
-                  {p?.projectStage && (
+                  {d.requestType && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold border border-indigo-200/60">
+                      {d.requestType}
+                    </span>
+                  )}
+                  {d.stage && (
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/60 text-gray-600 font-medium border border-gray-200/60">
-                      {p.projectStage}
+                      {d.stage}
                     </span>
                   )}
                 </div>
                 <p className="font-semibold text-sm text-gray-900 truncate mt-0.5">
-                  {p?.projectName ?? 'Unknown Project'}
+                  {d.name}
                 </p>
-                {p?.clientName && (
-                  <p className="text-xs text-gray-500">{p.clientName}</p>
+                {d.clientName && (
+                  <p className="text-xs text-gray-500">{d.clientName}</p>
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
