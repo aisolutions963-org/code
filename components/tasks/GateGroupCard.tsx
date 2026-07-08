@@ -170,7 +170,9 @@ export default function GateGroupCard({ tasks, role, onUpdate, allClearMessage }
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
           <div>
-            <p className="text-sm font-semibold text-green-800">All gates cleared</p>
+            <p className="text-sm font-semibold text-green-800">
+              All gates cleared{tasks[0]?.projectName ? ` for ${tasks[0].projectNickname ?? tasks[0].projectName}` : ''} — next: Call the Client
+            </p>
             <p className="text-xs text-green-700 mt-0.5">
               {allClearMessage ?? '"Call the Client — All Approvals" task is now active. Call to get final confirmation or restart any action above.'}
             </p>

@@ -735,6 +735,66 @@ export async function getCallClientPendingTasks(): Promise<
   })
 }
 
+// For the given projects, return the name of a current active (To Do / In Progress)
+// task — i.e. where each project is currently stuck. Used by smarter stale detection.
+export async function getStuckTaskForProjects(projectIds: string[]): Promise<Record<string, string>> {
+  if (projectIds.length === 0) return {}
+  const out: Record<string, string> = {}
+  const chunks: string[][] = []
+  for (let i = 0; i < projectIds.length; i += 10) chunks.push(projectIds.slice(i, i + 10))
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const projFilter = chunk.map((id) => `{${TASKS.PROJECT}} = "${id}"`).join(', ')
+      const formula = `AND(OR(${projFilter}), OR({${TASKS.STATUS}}="To Do", {${TASKS.STATUS}}="In Progress"))`
+      const records = await fetchAll(TASKS.TABLE_ID, {
+        filterByFormula: formula,
+        fields: [TASKS.TASK_NAME, TASKS.PROJECT],
+      })
+      for (const r of records) {
+        const pid = str(r.fields[TASKS.PROJECT])
+        if (pid && !out[pid]) out[pid] = str(r.fields[TASKS.TASK_NAME]) ?? ''
+      }
+    }),
+  )
+  return out
+}
+
+// Per-department performance over the last 30 days: completed-task count and average
+// task duration (started → completed). Powers the superadmin role-performance card.
+export async function getRolePerformance(): Promise<
+  { department: string; avgHours: number; completed: number }[]
+> {
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const formula = `AND({${TASKS.STATUS}}="Completed", NOT({${TASKS.COMPLETED_AT}}=BLANK()), IS_AFTER({${TASKS.COMPLETED_AT}}, "${since30}"))`
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [TASKS.DEPARTMENT, TASKS.STARTED_AT, TASKS.COMPLETED_AT],
+  })
+  const agg = new Map<string, { totalHours: number; durationCount: number; completed: number }>()
+  for (const r of records) {
+    const dept = lookupSelectNames(r.fields[TASKS.DEPARTMENT])[0] ?? 'Other'
+    const entry = agg.get(dept) ?? { totalHours: 0, durationCount: 0, completed: 0 }
+    entry.completed += 1
+    const started = str(r.fields[TASKS.STARTED_AT])
+    const completed = str(r.fields[TASKS.COMPLETED_AT])
+    if (started && completed) {
+      const hours = (new Date(completed).getTime() - new Date(started).getTime()) / (60 * 60 * 1000)
+      if (hours >= 0 && hours < 24 * 365) {
+        entry.totalHours += hours
+        entry.durationCount += 1
+      }
+    }
+    agg.set(dept, entry)
+  }
+  return Array.from(agg.entries())
+    .map(([department, v]) => ({
+      department,
+      avgHours: v.durationCount > 0 ? Math.round((v.totalHours / v.durationCount) * 10) / 10 : 0,
+      completed: v.completed,
+    }))
+    .sort((a, b) => b.completed - a.completed)
+}
+
 export async function getPendingApprovalsCount(): Promise<number> {
   const formula = `{${TASKS.MANAGER_REVIEW_STATUS}} = "Pending"`
   const records = await fetchAll(TASKS.TABLE_ID, {

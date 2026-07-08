@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import useSWR from 'swr'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -12,6 +13,7 @@ interface CommissionData {
   amount: number
   nextThreshold: number | null
   toNext: number | null
+  breakdown?: { projectId: string; name: string; revenue: number }[]
 }
 
 function fmt(n: number) {
@@ -19,6 +21,7 @@ function fmt(n: number) {
 }
 
 export default function CommissionCard({ className }: { className?: string }) {
+  const [expanded, setExpanded] = useState(false)
   const { data, isLoading, error } = useSWR<CommissionData>('/api/sed/commission', fetcher, {
     refreshInterval: 300_000,
   })
@@ -38,7 +41,7 @@ export default function CommissionCard({ className }: { className?: string }) {
     )
   }
 
-  const { quarterLabel, quarterRevenue, tier, amount, nextThreshold, toNext } = data
+  const { quarterLabel, quarterRevenue, tier, amount, nextThreshold, toNext, breakdown } = data
 
   const tierBadge =
     tier === 'gold'
@@ -101,6 +104,31 @@ export default function CommissionCard({ className }: { className?: string }) {
           <p className="text-xs text-yellow-600 font-semibold">2% tier reached</p>
         )}
       </div>
+
+      {/* Per-project breakdown */}
+      {breakdown && breakdown.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 font-medium"
+          >
+            <svg className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            {expanded ? 'Hide' : 'View'} breakdown ({breakdown.length})
+          </button>
+          {expanded && (
+            <div className="mt-2 space-y-1">
+              {breakdown.map((b) => (
+                <div key={b.projectId} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-gray-600 truncate">{b.name}</span>
+                  <span className="font-mono font-medium text-gray-800 shrink-0">AED {fmt(b.revenue)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
