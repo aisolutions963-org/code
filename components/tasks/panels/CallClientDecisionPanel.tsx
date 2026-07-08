@@ -29,7 +29,7 @@ const OUTCOME_CONFIG: Record<CallOutcome, {
   refused: {
     label: 'Rejected',
     description: 'Client declined — project rejected',
-    consequence: 'Project is marked Not-Approved. No further tasks will be generated.',
+    consequence: 'Project is marked Not Approved. No further tasks will be generated.',
     color: 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100',
     confirmColor: 'bg-red-600 hover:bg-red-700 text-white',
   },

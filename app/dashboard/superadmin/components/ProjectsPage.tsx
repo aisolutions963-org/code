@@ -29,7 +29,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
   }
 
   async function disapprove() {
-    if (!window.confirm(`Mark "${p.projectName}" as Not-Approved? This will notify the SED and manager.`)) return
+    if (!window.confirm(`Mark "${p.projectName}" as Not Approved? This will notify the SED and manager.`)) return
     setDisapproveLoading(true); setErr('')
     try { await onDisapprove(p.id) } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') } finally { setDisapproveLoading(false) }
   }
@@ -66,7 +66,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">
           <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : p.projectStage === 'Production' ? 'green' : 'gray'}>
-            {p.projectStage}
+            {p.projectStage === 'Not-Approved' ? 'Not Approved' : p.projectStage}
           </Badge>
         </td>
         <td className="px-4 py-3">

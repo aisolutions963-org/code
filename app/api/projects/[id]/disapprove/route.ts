@@ -24,13 +24,13 @@ export const POST = requireRole('superadmin')(async (_req, _session, { params })
     createNotification({
       recipientRole: 'sed',
       title: `Project not approved — ${projectRef}`,
-      body: `"${projectLabel}" has been marked as Not-Approved by superadmin.`,
+      body: `"${projectLabel}" has been marked as Not Approved by superadmin.`,
       link: ROLE_DASHBOARD['sed'],
     }),
     createNotification({
       recipientRole: 'manager',
       title: `Project not approved — ${projectRef}`,
-      body: `"${projectLabel}" has been marked as Not-Approved by superadmin.`,
+      body: `"${projectLabel}" has been marked as Not Approved by superadmin.`,
       link: ROLE_DASHBOARD['manager'],
     }),
   ])

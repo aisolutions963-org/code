@@ -4,13 +4,14 @@ import { Project } from '@/lib/types'
 import { useDrawer } from '@/lib/drawer-context'
 import Link from 'next/link'
 
+// Keep in sync with COLUMN_DOT in PipelineColumn.tsx so a card's dot matches its column header.
 const STAGE_DOT: Record<string, string> = {
-  'Preparing': 'bg-purple-400',
-  'Open': 'bg-amber-400',
-  'Production': 'bg-green-400',
+  'Preparing': 'bg-orange-400',
+  'Open': 'bg-blue-400',
+  'Production': 'bg-purple-400',
   'Closed': 'bg-gray-600',
   'Closed and active warranty': 'bg-teal-400',
-  'Warranty expired': 'bg-gray-400',
+  'Warranty expired': 'bg-gray-500',
 }
 
 function urgencyGlow(project: Project): string {

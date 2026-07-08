@@ -13,7 +13,7 @@ export default function FollowUpDecisionPanel({ task, onDone }: { task: Task; on
     {
       value: 'Reject Project',
       label: 'Reject project',
-      desc: 'Mark project as Not-Approved. SED and manager will be notified.',
+      desc: 'Mark project as Not Approved. SED and manager will be notified.',
       color: 'border-red-300 bg-red-50 hover:bg-red-100 text-red-800',
     },
     {
