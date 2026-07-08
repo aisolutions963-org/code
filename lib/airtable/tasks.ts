@@ -756,6 +756,42 @@ export async function getStuckTaskForProjects(projectIds: string[]): Promise<Rec
   return out
 }
 
+// Per-department performance over the last 30 days: completed-task count and average
+// task duration (started → completed). Powers the superadmin role-performance card.
+export async function getRolePerformance(): Promise<
+  { department: string; avgHours: number; completed: number }[]
+> {
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const formula = `AND({${TASKS.STATUS}}="Completed", NOT({${TASKS.COMPLETED_AT}}=BLANK()), IS_AFTER({${TASKS.COMPLETED_AT}}, "${since30}"))`
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [TASKS.DEPARTMENT, TASKS.STARTED_AT, TASKS.COMPLETED_AT],
+  })
+  const agg = new Map<string, { totalHours: number; durationCount: number; completed: number }>()
+  for (const r of records) {
+    const dept = lookupSelectNames(r.fields[TASKS.DEPARTMENT])[0] ?? 'Other'
+    const entry = agg.get(dept) ?? { totalHours: 0, durationCount: 0, completed: 0 }
+    entry.completed += 1
+    const started = str(r.fields[TASKS.STARTED_AT])
+    const completed = str(r.fields[TASKS.COMPLETED_AT])
+    if (started && completed) {
+      const hours = (new Date(completed).getTime() - new Date(started).getTime()) / (60 * 60 * 1000)
+      if (hours >= 0 && hours < 24 * 365) {
+        entry.totalHours += hours
+        entry.durationCount += 1
+      }
+    }
+    agg.set(dept, entry)
+  }
+  return Array.from(agg.entries())
+    .map(([department, v]) => ({
+      department,
+      avgHours: v.durationCount > 0 ? Math.round((v.totalHours / v.durationCount) * 10) / 10 : 0,
+      completed: v.completed,
+    }))
+    .sort((a, b) => b.completed - a.completed)
+}
+
 export async function getPendingApprovalsCount(): Promise<number> {
   const formula = `{${TASKS.MANAGER_REVIEW_STATUS}} = "Pending"`
   const records = await fetchAll(TASKS.TABLE_ID, {
