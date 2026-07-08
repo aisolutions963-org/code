@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput } from '@/lib/types'
 import TaskList from '@/components/tasks/TaskList'
@@ -13,6 +14,9 @@ export default function MyTasksPage() {
     { refreshInterval: 300_000 },
   )
   const allTasks = data?.tasks ?? []
+
+  const [tab, setTab] = useState<'mine' | 'all'>('mine')
+  const [search, setSearch] = useState('')
 
   // Superadmin sees: tasks pending their approval, Call the Client decisions, Follow Up decisions,
   // payment tasks (F4 / any task with "payment" in the name), and tasks in the
@@ -42,6 +46,20 @@ export default function MyTasksPage() {
     (t) => !(t.taskName === 'Follow Up' && t.status === 'To Do'),
   )
 
+  // "All tasks" view — every non-locked task in the system, searchable.
+  const allFiltered = (() => {
+    const q = search.trim().toLowerCase()
+    const base = allTasks.filter((t) => t.status !== 'Locked')
+    if (!q) return base
+    return base.filter(
+      (t) =>
+        t.taskName.toLowerCase().includes(q) ||
+        (t.projectName ?? '').toLowerCase().includes(q) ||
+        (t.projectRef ?? '').toLowerCase().includes(q) ||
+        t.department.some((d) => d.toLowerCase().includes(q)),
+    )
+  })()
+
   async function handleUpdate(id: string, fields: Partial<TaskUpdateInput>) {
     const res = await fetch(`/api/tasks/${id}`, {
       method: 'PATCH',
@@ -57,9 +75,28 @@ export default function MyTasksPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">My Tasks</h2>
-        <p className="text-sm text-gray-500">Decisions and approvals requiring your attention</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">{tab === 'mine' ? 'My Tasks' : 'All Tasks'}</h2>
+          <p className="text-sm text-gray-500">
+            {tab === 'mine'
+              ? 'Decisions and approvals requiring your attention'
+              : 'Every task across all projects and roles'}
+          </p>
+        </div>
+        <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold shrink-0">
+          {(['mine', 'all'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-3 py-1.5 transition-colors ${
+                tab === t ? 'bg-gray-800 text-white' : 'bg-white text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {t === 'mine' ? 'My Tasks' : 'View all'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && (
@@ -68,6 +105,19 @@ export default function MyTasksPage() {
         </div>
       )}
 
+      {tab === 'all' ? (
+        <>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search all tasks by name, project, or department…"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+          <TaskList loading={isLoading} tasks={allFiltered} role="superadmin" onUpdate={handleUpdate} />
+        </>
+      ) : (
+      <>
       {/* Call-client banner */}
       {callClientReady.length > 0 && (
         <div className="bg-teal-50 border-2 border-teal-400 rounded-xl px-4 py-4">
@@ -107,6 +157,8 @@ export default function MyTasksPage() {
       ))}
 
       <TaskList loading={isLoading} tasks={regularTasks} role="superadmin" onUpdate={handleUpdate} />
+      </>
+      )}
     </div>
   )
 }
