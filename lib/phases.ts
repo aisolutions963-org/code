@@ -13,6 +13,8 @@ export const PHASE_CONFIG = {
     perItemOrderMin: 23,
     phaseLabel: 'Phase 2 — Opening',
   },
+  // 'Working' is the Phase 3 config key (matches phaseLabel 'Phase 3 — Working').
+  // The project's live Project Stage during this phase is 'Production'.
   Working: {
     phaseLabel: 'Phase 3 — Working',
     triggerOrder: 29,

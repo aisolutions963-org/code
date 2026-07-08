@@ -30,7 +30,7 @@ export const POST = requireRole('superadmin')(async (req, _session, { params }) 
   const projectRef = project.projectId ?? id
   const projectLabel = project.projectName ? `${projectRef} — ${project.projectName}` : projectRef
   const detail = [reason && `Reason: ${reason}`, note && `Note: ${note}`].filter(Boolean).join('\n')
-  const body = `"${projectLabel}" has been marked as Not-Approved by superadmin.${detail ? `\n${detail}` : ''}`
+  const body = `"${projectLabel}" has been marked as Not Approved by superadmin.${detail ? `\n${detail}` : ''}`
 
   await Promise.all([
     createNotification({

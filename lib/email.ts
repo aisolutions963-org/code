@@ -143,12 +143,12 @@ export async function notifyManagerEscalation(project: {
     html: emailWrapper(`
       ${alertBadge('Escalation', '#ef4444')}
       ${heading('Client unreachable — 3 call attempts reached')}
-      ${bodyText('The sales team has made three unsuccessful attempts to contact this client. The project has been automatically marked as <strong>Not-Approved</strong>. Your review and decision on next steps is required.')}
+      ${bodyText('The sales team has made three unsuccessful attempts to contact this client. The project has been automatically marked as <strong>Not Approved</strong>. Your review and decision on next steps is required.')}
       ${infoTable([
         ['Project Name', project.projectName],
         ['Project ID', project.projectId],
         ['Client', project.clientName],
-        ['Status set to', 'Not-Approved (automatic)'],
+        ['Status set to', 'Not Approved (automatic)'],
         ['Escalated at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
       ])}
       ${ctaButton('View Project & Decide Next Steps', dashboardUrl)}
