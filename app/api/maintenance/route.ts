@@ -4,32 +4,15 @@ import {
   getMaintenanceRecords,
   getProjectNamesByIds,
   expireMaintenanceRecord,
+  expireOverdueMaintenanceRecords,
   updateProject,
 } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 
 export const GET = requireRole('superadmin', 'manager', 'installation')(async () => {
+  // Auto-expire warranties past their 1-year end date (also runs daily via cron)
+  await expireOverdueMaintenanceRecords()
   const records = await getMaintenanceRecords()
-  const today = Date.now()
-
-  // Auto-expire: Active records whose endDate has passed
-  const toExpire = records.filter(
-    (r) => r.status === 'Active' && new Date(r.endDate).getTime() < today,
-  )
-  if (toExpire.length > 0) {
-    await Promise.all(
-      toExpire.flatMap((r) => [
-        expireMaintenanceRecord(r.id),
-        ...(r.projects ?? []).map((pid) =>
-          updateProject(pid, { [PROJECTS.PROJECT_STAGE]: 'Warranty expired' }),
-        ),
-      ]),
-    )
-    // Re-fetch after expiry updates
-    const updated = await getMaintenanceRecords()
-    return buildResponse(updated)
-  }
-
   return buildResponse(records)
 })
 

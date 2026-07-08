@@ -34,7 +34,7 @@ const DUBAI_LOCATIONS = [
   'The Springs', 'Tilal Al Ghaf', 'Town Square', 'Umm Suqeim',
 ]
 
-interface SedMember { id: string; name: string }
+interface SedMember { id: string; name: string; projectCount?: number }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -278,7 +278,9 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
             >
               <option value="">— select SED —</option>
               {sedMembers.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
+                <option key={m.id} value={m.id}>
+                  {m.name}{m.projectCount != null ? ` — ${m.projectCount} active` : ''}
+                </option>
               ))}
             </select>
           </div>
@@ -462,7 +464,12 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
                         onChange={() => toggleCommunSed(m.id)}
                         className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
                       />
-                      <span className="text-gray-700">{m.name}</span>
+                      <span className="text-gray-700">
+                        {m.name}
+                        {m.projectCount != null && (
+                          <span className="text-gray-400"> — {m.projectCount} active</span>
+                        )}
+                      </span>
                     </label>
                   ))}
               </div>

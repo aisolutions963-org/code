@@ -160,7 +160,7 @@ export async function getProjectIdsForSedByEmail(email: string): Promise<string[
   return records.map((r) => r.id)
 }
 
-export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[]; includeAllStages?: boolean; includeClientRequests?: boolean } = {}): Promise<Project[]> {
+export async function getProjects(options: { stage?: string; sedEmail?: string; sedAirtableMemberId?: string; allowedStages?: string[]; includeAllStages?: boolean; includeClientRequests?: boolean; includeDeleted?: boolean } = {}): Promise<Project[]> {
   const requestTypeFieldReady = !PROJECTS.REQUEST_TYPE.startsWith('REPLACE')
   // When includeClientRequests=true, include Trade/Variance projects alongside regular ones
   const noRequests = requestTypeFieldReady && !options.includeClientRequests ? `{${PROJECTS.REQUEST_TYPE}} = ""` : null
@@ -183,6 +183,15 @@ export async function getProjects(options: { stage?: string; sedEmail?: string; 
     getFabricationActiveProjectIds(),
   ])
   let projects = records.map(r => ({ ...transformProject(r), fabricationActive: fabActiveIds.has(r.id) }))
+  // Soft-deleted projects are hidden from every list unless explicitly requested (Trash view).
+  if (!options.includeDeleted) {
+    projects = projects.filter((p) => !p.deletedAt)
+  }
+  // Belt-and-suspenders: guarantee client-request sub-projects never leak into a plain
+  // project list, regardless of what the Airtable-side formula did above.
+  if (!options.includeClientRequests) {
+    projects = projects.filter((p) => !p.requestType)
+  }
   if (options.sedAirtableMemberId || options.sedEmail) {
     const memberId = options.sedAirtableMemberId
     const email = options.sedEmail?.toLowerCase()
@@ -200,7 +209,7 @@ export async function getProjects(options: { stage?: string; sedEmail?: string; 
   return projects
 }
 
-export async function getAllProjects(options?: { includeClientRequests?: boolean }): Promise<Project[]> {
+export async function getAllProjects(options?: { includeClientRequests?: boolean; includeDeleted?: boolean }): Promise<Project[]> {
   const requestTypeFieldReady = !PROJECTS.REQUEST_TYPE.startsWith('REPLACE')
   const filter = requestTypeFieldReady && !options?.includeClientRequests
     ? `{${PROJECTS.REQUEST_TYPE}} = ""`
@@ -212,7 +221,35 @@ export async function getAllProjects(options?: { includeClientRequests?: boolean
     }),
     getFabricationActiveProjectIds(),
   ])
-  return records.map(r => ({ ...transformProject(r), fabricationActive: fabActiveIds.has(r.id) }))
+  let projects = records.map(r => ({ ...transformProject(r), fabricationActive: fabActiveIds.has(r.id) }))
+  // Soft-deleted projects are hidden unless explicitly requested (Trash view).
+  if (!options?.includeDeleted) {
+    projects = projects.filter((p) => !p.deletedAt)
+  }
+  // Belt-and-suspenders: guarantee client-request sub-projects never leak into a plain
+  // project list, regardless of what the Airtable-side formula did above.
+  if (!options?.includeClientRequests) {
+    projects = projects.filter((p) => !p.requestType)
+  }
+  return projects
+}
+
+// ─── Soft delete / restore ────────────────────────────────────────────────────
+
+export async function softDeleteProject(id: string): Promise<void> {
+  await updateProject(id, { [PROJECTS.DELETED_AT]: new Date().toISOString() })
+}
+
+export async function restoreProject(id: string): Promise<Project> {
+  return updateProject(id, { [PROJECTS.DELETED_AT]: null })
+}
+
+export async function getDeletedProjects(): Promise<Project[]> {
+  const records = await fetchAll(PROJECTS.TABLE_ID, {
+    filterByFormula: `NOT({${PROJECTS.DELETED_AT}} = BLANK())`,
+    sort: [{ field: PROJECTS.DELETED_AT, direction: 'desc' }],
+  })
+  return records.map(transformProject)
 }
 
 export async function projectNameExists(name: string): Promise<boolean> {

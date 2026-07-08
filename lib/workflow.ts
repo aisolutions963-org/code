@@ -525,6 +525,24 @@ export async function handleTaskCompletion(
         }
       }
 
+      // Notify manager when an Installation or Fabrication task is completed,
+      // so on-site / production progress isn't invisible until manually checked.
+      const isSystemAuto =
+        taskNameLower.startsWith('to follow tasks progress') || taskNameLower.includes('(auto')
+      const isFixingTeamNote =
+        taskNameLower.startsWith('fixing team note') || task.taskName.startsWith('ملاحظة فريق التركيب')
+      const completedDept = task.department?.find((d) => d === 'Installation' || d === 'Fabrication')
+      if (completedDept && !isSystemAuto && !isFixingTeamNote) {
+        const projectLabel = await resolveProjectLabel(task)
+        await createNotification({
+          recipientRole: 'manager',
+          title: `${completedDept} task completed — ${projectLabel}`,
+          body: `"${task.taskName}" was marked complete${submittedBy ? ` by ${submittedBy}` : ''}.`,
+          link: ROLE_DASHBOARD['manager'],
+          category: completedDept.toLowerCase(),
+        })
+      }
+
       return { finalStatus: 'Completed' as TaskStatus }
     })(),
   )

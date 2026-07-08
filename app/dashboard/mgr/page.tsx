@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project } from '@/lib/types'
 import TaskList from '@/components/tasks/TaskList'
@@ -37,6 +38,7 @@ export default function MgrDashboard() {
   const [showMaterialModal, setShowMaterialModal] = useState(false)
   const [handoverProject, setHandoverProject] = useState<Project | null>(null)
   const [projectSearch, setProjectSearch] = useState('')
+  const [approvalsOnly, setApprovalsOnly] = useState(false)
 
 
   const { data: taskData, error: taskError, isLoading: taskLoading, mutate: mutateTasks } =
@@ -44,7 +46,7 @@ export default function MgrDashboard() {
 
   const { data: projectData, error: projectError, isLoading: projectLoading, mutate: mutateProjects } =
     useSWR<{ projects: Project[] }>(
-      view === 'projects' || view === 'payments' || view === 'installation' || view === 'timesheets'
+      view === 'tasks' || view === 'projects' || view === 'payments' || view === 'installation' || view === 'timesheets'
         ? '/api/projects'
         : null,
       fetcher,
@@ -87,6 +89,10 @@ export default function MgrDashboard() {
 
   const pendingReview = tasks.filter(t => t.status === 'Pending Approval')
   const open = tasks.filter(t => t.status !== 'Completed')
+  const unassignedProjects = projects.filter(
+    (p) => !p.assignedInstallationTeam || p.assignedInstallationTeam.length === 0,
+  )
+  const outstandingCount = projects.filter((p) => (p.remainingBalance ?? 0) > 0).length
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -111,6 +117,53 @@ export default function MgrDashboard() {
           <p className="text-xs text-gray-500 mt-0.5">Active Projects</p>
         </div>
       </div>
+
+      {/* Action Center — at-a-glance manager priorities on the default dashboard */}
+      {view === 'tasks' && (pendingReview.length > 0 || unassignedProjects.length > 0 || outstandingCount > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+          <button
+            onClick={() => setApprovalsOnly((v) => !v)}
+            className={`text-left rounded-xl border px-4 py-3 transition-colors ${
+              pendingReview.length === 0
+                ? 'border-gray-200 bg-white opacity-60 cursor-default'
+                : approvalsOnly
+                  ? 'border-orange-300 bg-orange-100'
+                  : 'border-orange-200 bg-orange-50 hover:bg-orange-100'
+            }`}
+            disabled={pendingReview.length === 0}
+          >
+            <p className="text-2xl font-bold text-orange-600">{pendingReview.length}</p>
+            <p className="text-xs font-medium text-orange-900 mt-0.5">Awaiting your approval</p>
+            <p className="text-[11px] text-orange-500 mt-0.5">{approvalsOnly ? 'Showing only these — tap to clear' : 'Tap to filter the list'}</p>
+          </button>
+
+          <Link
+            href="/dashboard/mgr?view=installation"
+            className={`rounded-xl border px-4 py-3 transition-colors ${
+              unassignedProjects.length === 0
+                ? 'border-gray-200 bg-white opacity-60'
+                : 'border-purple-200 bg-purple-50 hover:bg-purple-100'
+            }`}
+          >
+            <p className="text-2xl font-bold text-purple-600">{unassignedProjects.length}</p>
+            <p className="text-xs font-medium text-purple-900 mt-0.5">Need an installation team</p>
+            <p className="text-[11px] text-purple-500 mt-0.5">Assign teams →</p>
+          </Link>
+
+          <Link
+            href="/dashboard/mgr?view=payments"
+            className={`rounded-xl border px-4 py-3 transition-colors ${
+              outstandingCount === 0
+                ? 'border-gray-200 bg-white opacity-60'
+                : 'border-red-200 bg-red-50 hover:bg-red-100'
+            }`}
+          >
+            <p className="text-2xl font-bold text-red-500">{outstandingCount}</p>
+            <p className="text-xs font-medium text-red-900 mt-0.5">Projects with balance due</p>
+            <p className="text-[11px] text-red-400 mt-0.5">Review payments →</p>
+          </Link>
+        </div>
+      )}
 
       {/* Task views */}
       {(view === 'tasks' || view === 'deliveries') && (
@@ -171,7 +224,13 @@ export default function MgrDashboard() {
           {!taskError && (
             <TaskList
               loading={taskLoading}
-              tasks={view === 'deliveries' ? tasks.filter(t => !!t.completionDate) : tasks}
+              tasks={
+                view === 'deliveries'
+                  ? tasks.filter(t => !!t.completionDate)
+                  : approvalsOnly
+                    ? pendingReview
+                    : tasks
+              }
               role="manager"
               onUpdate={handleUpdate}
             />
@@ -185,6 +244,7 @@ export default function MgrDashboard() {
       {/* Projects view */}
       {view === 'projects' && (() => {
         const q = projectSearch.trim().toLowerCase()
+        const digits = q.replace(/\D/g, '')
         const visibleProjects = q
           ? projects.filter((p) =>
               p.projectName.toLowerCase().includes(q) ||
@@ -192,7 +252,9 @@ export default function MgrDashboard() {
               (p.quotationNumber ?? '').toLowerCase().includes(q) ||
               (p.quotationReference ?? '').toLowerCase().includes(q) ||
               (p.projectId ?? '').toLowerCase().includes(q) ||
-              (p.nickname ?? '').toLowerCase().includes(q),
+              (p.nickname ?? '').toLowerCase().includes(q) ||
+              (p.clientPhone ?? '').toLowerCase().includes(q) ||
+              (digits.length >= 3 && (p.clientPhone ?? '').replace(/\D/g, '').includes(digits)),
             )
           : projects
         return (
@@ -214,7 +276,7 @@ export default function MgrDashboard() {
                     type="text"
                     value={projectSearch}
                     onChange={(e) => setProjectSearch(e.target.value)}
-                    placeholder="Search by project name, client, quotation number…"
+                    placeholder="Search by project, client, phone, quotation number…"
                     className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
                   />
                   {projectSearch && (

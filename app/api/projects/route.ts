@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getProjects, getAllProjects, getProjectById, createProject, createEndUser, generateTasksForProject, projectNameExists } from '@/lib/airtable'
+import { getProjects, getAllProjects, getProjectById, createProject, createEndUser, generateTasksForProject, projectNameExists, getDeletedProjects } from '@/lib/airtable'
 import { getUserById, getUserByAirtableMemberId, addSedProjectMapping, getSedProjectIdsByUserId } from '@/lib/db'
 import { CreateProjectSchema } from '@/lib/validation'
 import { createNotification } from '@/lib/notifications'
@@ -15,6 +15,21 @@ export async function GET(request: NextRequest) {
   const stage = searchParams.get('stage') ?? undefined
   const all = searchParams.get('all') === 'true'
   const includeRequests = searchParams.get('includeRequests') === 'true'
+  const deleted = searchParams.get('deleted') === 'true'
+
+  // Trash view — superadmin only
+  if (deleted) {
+    if (session.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    try {
+      const projects = await getDeletedProjects()
+      return NextResponse.json({ projects })
+    } catch (error) {
+      console.error('GET /api/projects?deleted error:', error)
+      return NextResponse.json({ error: 'Failed to fetch deleted projects' }, { status: 500 })
+    }
+  }
 
   try {
     let projects

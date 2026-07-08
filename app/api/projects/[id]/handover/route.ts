@@ -24,7 +24,7 @@ export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', '
   },
 )
 
-export const POST = requireRole('sed', 'manager', 'fabrication', 'installation', 'superadmin')(
+export const POST = requireRole('installation', 'manager', 'superadmin', 'sed', 'fabrication')(
   async (req: NextRequest, session, { params }) => {
     let formData: FormData
     try {

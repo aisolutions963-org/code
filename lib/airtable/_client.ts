@@ -359,6 +359,7 @@ export function transformTask(record: RawRecord): Task {
     taskDocLinks: parseDocLinks(f[TASKS.TASK_DOC_LINKS]),
     fillersDocLinks: parseDocLinks(f[TASKS.FILLERS_DOC_LINKS]),
     sentToFabAt: str(f[TASKS.SENT_TO_FAB_AT]),
+    installationNote: str(f[TASKS.INSTALLATION_NOTE]),
   }
 }
 
@@ -416,6 +417,7 @@ export function transformProject(record: RawRecord): import('../types').Project 
     parentProjectId: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.id ?? undefined,
     parentProjectName: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.name ?? undefined,
     tradeReference: str(f[PROJECTS.TRADE_REFERENCE]) ?? undefined,
+    deletedAt: str(f[PROJECTS.DELETED_AT]) ?? undefined,
   }
 }
 

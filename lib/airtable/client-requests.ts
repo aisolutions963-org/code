@@ -23,6 +23,10 @@ import { getPaymentsByProjectIds } from './payments'
 const CR_TEMPLATE_SED     = 'rec6xYWnAAWOKyVr7' // Department = SED
 const CR_TEMPLATE_PAYMENT = 'recRX4dqaaY5RsPdH' // Department = Manager
 
+// Belt-and-suspenders: guarantee these functions can never return a plain project,
+// regardless of what the Airtable-side {REQUEST_TYPE} != "" formula did.
+const VALID_REQUEST_TYPES = new Set(['Trade', 'Maintenance', 'Variance'])
+
 const TRADE_TASKS = [
   { name: 'F3 — Order Trade Material',    order: 100, templateId: CR_TEMPLATE_SED },
   { name: 'F4 — Trade Payment',           order: 101, templateId: CR_TEMPLATE_PAYMENT },
@@ -129,7 +133,7 @@ export async function getClientRequests(options?: {
   })
 
   const memberId = options?.sedAirtableMemberId
-  const projects = memberId
+  const scopedRecords = memberId
     ? allRecords.filter((r) => {
         const owner = firstLinkedRecord(r.fields[PROJECTS.SALES_OWNER])
         if (owner?.id === memberId) return true
@@ -142,6 +146,7 @@ export async function getClientRequests(options?: {
         return communIds.includes(memberId)
       })
     : allRecords
+  const projects = scopedRecords.filter((r) => VALID_REQUEST_TYPES.has(str(r.fields[PROJECTS.REQUEST_TYPE]) ?? ''))
   if (projects.length === 0) return []
 
   const projectIds = projects.map((r) => r.id)
@@ -182,10 +187,13 @@ export async function getClientRequests(options?: {
 export async function getClientRequestsByParentProject(parentProjectId: string): Promise<ClientRequest[]> {
   if (PROJECTS.PARENT_PROJECT.startsWith('REPLACE')) return []
   const formula = `FIND("${parentProjectId}", ARRAYJOIN({${PROJECTS.PARENT_PROJECT}}, ","))`
-  const projects = await fetchAll(PROJECTS.TABLE_ID, {
+  const allProjects = await fetchAll(PROJECTS.TABLE_ID, {
     filterByFormula: formula,
     sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
   })
+  // Belt-and-suspenders: only records with a genuine request type qualify as
+  // "linked requests" — a PARENT_PROJECT link alone isn't enough.
+  const projects = allProjects.filter((r) => VALID_REQUEST_TYPES.has(str(r.fields[PROJECTS.REQUEST_TYPE]) ?? ''))
   if (projects.length === 0) return []
 
   const projectIds = projects.map((r) => r.id)

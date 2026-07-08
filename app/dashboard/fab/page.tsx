@@ -191,7 +191,7 @@ export default function FabDashboard() {
       )}
 
       {!error && view !== 'timeline' && (
-        <TaskList loading={isLoading} tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} />
+        <TaskList loading={isLoading} tasks={visibleTasks} role="fabrication" onUpdate={handleUpdate} sortByRecent />
       )}
 
     </div>

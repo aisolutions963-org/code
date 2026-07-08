@@ -14,6 +14,8 @@ interface TaskListProps {
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
   groupByProject?: boolean
   loading?: boolean
+  /** Float projects with the most recently modified tasks to the top (used by fabrication) */
+  sortByRecent?: boolean
 }
 
 function isGatewayTask(name: string) {
@@ -160,7 +162,7 @@ function renderTasksInOrder(
   return mainNodes
 }
 
-export default function TaskList({ tasks, role, onUpdate, groupByProject = true, loading }: TaskListProps) {
+export default function TaskList({ tasks, role, onUpdate, groupByProject = true, loading, sortByRecent = false }: TaskListProps) {
   if (loading) {
     return <TaskListSkeleton />
   }
@@ -196,9 +198,27 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
     groups.get(key)!.tasks.push(task)
   }
 
+  // Surface priority per project and float projects with flagged tasks to the top.
+  // Optionally (fabrication) order the rest by most recent task activity.
+  const groupEntries = Array.from(groups.entries()).map(([projectKey, group]) => ({
+    projectKey,
+    group,
+    priorityCount: group.tasks.filter((t) => t.priorityFlag).length,
+    lastActivity: group.tasks.reduce((max, t) => {
+      const ts = t.lastModified ? new Date(t.lastModified).getTime() : 0
+      return ts > max ? ts : max
+    }, 0),
+  }))
+  groupEntries.sort((a, b) => {
+    const byPriority = Number(b.priorityCount > 0) - Number(a.priorityCount > 0)
+    if (byPriority !== 0) return byPriority
+    if (sortByRecent) return b.lastActivity - a.lastActivity
+    return 0
+  })
+
   return (
     <div className="space-y-6">
-      {Array.from(groups.entries()).map(([projectKey, { projectRecordId, tasks: groupTasks }]) => {
+      {groupEntries.map(({ projectKey, group: { projectRecordId, tasks: groupTasks }, priorityCount }) => {
         const isPhase2 = groupTasks.some((t) => t.projectItem && t.projectItem.length > 0)
         const itemCount = new Set(groupTasks.flatMap((t) => t.projectItem ?? [])).size
         const pendingApprovalCount = groupTasks.filter((t) => t.status === 'Pending Approval').length
@@ -216,6 +236,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
             taskCount={groupTasks.length}
             itemCount={itemCount}
             pendingApprovalCount={pendingApprovalCount}
+            priorityCount={priorityCount}
             isPhase2={isPhase2}
           />
         )

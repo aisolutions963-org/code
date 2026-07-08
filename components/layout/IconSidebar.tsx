@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { Role } from '@/lib/types'
 
@@ -426,6 +426,8 @@ const sidebarFetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function IconSidebar({ role, name }: { role: Role; name: string }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [viewAsOpen, setViewAsOpen] = useState(false)
 
@@ -458,8 +460,15 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
 
   const groups = NAV_GROUPS[role] ?? []
 
+  const currentUrl = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname
+
   function isActive(item: NavItem): boolean {
-    return item.href === pathname
+    return item.href === currentUrl
+  }
+
+  function navigate(e: React.MouseEvent, href: string) {
+    e.preventDefault()
+    router.push(href)
   }
 
   async function handleLogout() {
@@ -506,6 +515,7 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={(e) => navigate(e, item.href)}
                     className={`relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-all duration-150 ${
                       active
                         ? `bg-white/[0.10] ${ROLE_TEXT[role]} font-medium`
@@ -560,7 +570,7 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
                 <Link
                   key={l.href}
                   href={l.href}
-                  onClick={() => setViewAsOpen(false)}
+                  onClick={(e) => { setViewAsOpen(false); navigate(e, l.href) }}
                   className={`flex items-center px-4 py-2.5 text-[13px] hover:bg-white/[0.06] transition-colors ${l.color}`}
                 >
                   {l.label}

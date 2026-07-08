@@ -53,6 +53,7 @@ const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   priorityFlag: 'Priority Flag',
   taskDocLinks: 'Notes & Links',
   fillersDocLinks: 'Fillers & Missing Items List',
+  installationNote: 'Task Notes',
 }
 
 const FIELD_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
@@ -67,6 +68,7 @@ const FIELD_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
   postCarpentryPath: 'مسار ما بعد النجارة',
   qcCheckAtSiteDone: 'فحص الجودة في الموقع',
   fillersDone: 'تم الفيلر',
+  installationNote: 'ملاحظات',
   taskDocLinks: 'ملاحظات وروابط',
   fillersDocLinks: 'قائمة الفيلر والمواد الناقصة',
 }
@@ -313,7 +315,7 @@ export default function FieldEditor({
           )
         }
 
-        if (key === 'managerComment' || key === 'sedNote' || key === 'superadminNote') {
+        if (key === 'managerComment' || key === 'sedNote' || key === 'superadminNote' || key === 'installationNote') {
           return (
             <div key={key} className="flex flex-col gap-1">
               <label className={`text-xs font-medium uppercase tracking-wide ${key === 'superadminNote' ? 'text-amber-600' : 'text-gray-500'}`}>
@@ -326,6 +328,7 @@ export default function FieldEditor({
                 placeholder={
                   key === 'sedNote' ? 'Leave a note visible to the manager…' :
                   key === 'superadminNote' ? 'Add a follow-up note for this task…' :
+                  key === 'installationNote' ? 'Add notes (customer not home, missing tools, access issues…)' :
                   undefined
                 }
                 className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 resize-none ${

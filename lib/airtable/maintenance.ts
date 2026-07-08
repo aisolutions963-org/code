@@ -3,6 +3,7 @@
 import { MaintenanceRecord } from '../types'
 import {
   MAINTENANCE,
+  PROJECTS,
   fetchAll,
   fetchWithRetry,
   airtableHeaders,
@@ -12,6 +13,7 @@ import {
   transformMaintenance,
   deleteByProject,
 } from './_client'
+import { updateProject } from './projects'
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
   const records = await fetchAll(MAINTENANCE.TABLE_ID, {
@@ -63,6 +65,30 @@ export async function activateMaintenanceRecord(recordId: string): Promise<void>
     const body = await res.text()
     throw new Error(`Airtable error ${res.status}: ${body}`)
   }
+}
+
+/**
+ * Auto-expire any Active maintenance record whose warranty end date (start + 1yr)
+ * has passed, and flip its linked project(s) to the "Warranty expired" stage.
+ * Idempotent — safe to call from both the daily cron and the warranty page load.
+ * Returns the number of records expired.
+ */
+export async function expireOverdueMaintenanceRecords(): Promise<number> {
+  const records = await getMaintenanceRecords()
+  const now = Date.now()
+  const toExpire = records.filter(
+    (r) => r.status === 'Active' && r.endDate && new Date(r.endDate).getTime() < now,
+  )
+  if (toExpire.length === 0) return 0
+  await Promise.all(
+    toExpire.flatMap((r) => [
+      expireMaintenanceRecord(r.id),
+      ...(r.projects ?? []).map((pid) =>
+        updateProject(pid, { [PROJECTS.PROJECT_STAGE]: 'Warranty expired' }),
+      ),
+    ]),
+  )
+  return toExpire.length
 }
 
 export async function expireMaintenanceRecord(recordId: string): Promise<void> {
