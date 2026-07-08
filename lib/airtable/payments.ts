@@ -122,3 +122,26 @@ export async function getSedQuarterlyRevenue(
     })
     .reduce((s, r) => s + ((r.fields[PAYMENTS.AMOUNT] as number) || 0), 0)
 }
+
+// Same quarter revenue, broken down per project (for the commission-card breakdown).
+export async function getSedQuarterlyRevenueByProject(
+  projectIds: string[],
+  quarterStart: string,
+  quarterEnd: string,
+): Promise<Record<string, number>> {
+  if (projectIds.length === 0) return {}
+  const projectIdSet = new Set(projectIds)
+  const formula = `AND({${PAYMENTS.PAYMENT_STATUS}}="Received", {${PAYMENTS.RECEIVED_DATE}}>="${quarterStart}", {${PAYMENTS.RECEIVED_DATE}}<="${quarterEnd}")`
+  const records = await fetchAll(PAYMENTS.TABLE_ID, {
+    filterByFormula: formula,
+    fields: [PAYMENTS.AMOUNT, PAYMENTS.PROJECT],
+  })
+  const byProject: Record<string, number> = {}
+  for (const r of records) {
+    const proj = r.fields[PAYMENTS.PROJECT]
+    if (!Array.isArray(proj)) continue
+    const firstMatch = (proj as string[]).find((id) => projectIdSet.has(id))
+    if (firstMatch) byProject[firstMatch] = (byProject[firstMatch] ?? 0) + ((r.fields[PAYMENTS.AMOUNT] as number) || 0)
+  }
+  return byProject
+}

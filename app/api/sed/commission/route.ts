@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getSedQuarterlyRevenue, getProjectIdsForSedByEmail } from '@/lib/airtable'
+import { getSedQuarterlyRevenue, getSedQuarterlyRevenueByProject, getProjectIdsForSedByEmail, getProjectNamesByIds } from '@/lib/airtable'
 import { getUserById, getSedProjectIdsByUserId } from '@/lib/db'
 import { todayUAE } from '@/lib/dateUtils'
 import { calcCommission } from '@/lib/commission'
@@ -50,8 +50,17 @@ export const GET = requireRole('sed')(async (_req, session) => {
   const projectIds = [...new Set([...sqliteIds, ...airtableIds])]
 
   const { label, start, end } = getQuarter(todayUAE())
-  const revenue = await getSedQuarterlyRevenue(projectIds, start, end)
+  const [revenue, byProject] = await Promise.all([
+    getSedQuarterlyRevenue(projectIds, start, end),
+    getSedQuarterlyRevenueByProject(projectIds, start, end),
+  ])
   const commission = calcCommission(revenue)
+
+  const contributingIds = Object.keys(byProject)
+  const names = contributingIds.length > 0 ? await getProjectNamesByIds(contributingIds) : {}
+  const breakdown = contributingIds
+    .map((id) => ({ projectId: id, name: names[id] ?? id, revenue: byProject[id] }))
+    .sort((a, b) => b.revenue - a.revenue)
 
   return NextResponse.json({
     quarterLabel: label,
@@ -59,5 +68,6 @@ export const GET = requireRole('sed')(async (_req, session) => {
     quarterEnd: end,
     quarterRevenue: revenue,
     ...commission,
+    breakdown,
   })
 })
