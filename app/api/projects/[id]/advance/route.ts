@@ -7,6 +7,9 @@ import {
   generatePhase3TasksForItem,
   generatePhase4Tasks,
   getProjectItemsForProject,
+  getMaintenanceRecordForProject,
+  createMaintenanceRecord,
+  activateMaintenanceRecord,
 } from '@/lib/airtable'
 import { notifyTasksReady } from '@/lib/notifications'
 import { PROJECTS } from '@/lib/fieldMap'
@@ -45,6 +48,23 @@ export const POST = requireRole('superadmin')(async (_req, _session, { params })
         // Phase 4: closing tasks — now triggered when warranty phase begins
         const result = await generatePhase4Tasks(id)
         todoTemplates = result.todoTemplates
+
+        // The advance button bypasses the handover + final-payment flow that normally
+        // starts the warranty clock, so ensure a maintenance record exists (guarded).
+        // Mirrors closeProjectAfterFinalPayment: activate an existing record, else create one.
+        const existingMaintenance = await getMaintenanceRecordForProject(id).catch(() => null)
+        if (existingMaintenance) {
+          await activateMaintenanceRecord(existingMaintenance.id)
+        } else {
+          const start = new Date()
+          const end = new Date(start)
+          end.setFullYear(end.getFullYear() + 1)
+          await createMaintenanceRecord(id, {
+            startDate: start.toISOString().slice(0, 10),
+            endDate: end.toISOString().slice(0, 10),
+            status: 'Active',
+          })
+        }
       } else if (nextStage === 'Warranty expired') {
         // Terminal stage — no task generation
       } else {
