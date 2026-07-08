@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getProjects, checkAndUnlockInactivityFollowUp, expireOverdueMaintenanceRecords } from '@/lib/airtable'
+import { getProjects, checkAndUnlockInactivityFollowUp, expireOverdueMaintenanceRecords, getDeletedProjects } from '@/lib/airtable'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
+import { purgeProjectCascade } from '@/lib/projectPurge'
 import { db } from '@/lib/db'
 import { todayUAE } from '@/lib/dateUtils'
 
 export const dynamic = 'force-dynamic'
 
 const INACTIVITY_DAYS = 3
+const PURGE_AFTER_DAYS = 30
 
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('authorization')
@@ -24,6 +26,27 @@ export async function GET(req: NextRequest) {
       warrantiesExpired = await expireOverdueMaintenanceRecords()
     } catch (err) {
       console.error('[cron/inactivity-check] warranty expiry failed:', err)
+    }
+
+    // Auto-purge projects that have sat in Trash (soft-deleted) for > 30 days
+    let purged = 0
+    try {
+      const cutoff = Date.now() - PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000
+      const deletedProjects = await getDeletedProjects()
+      for (const p of deletedProjects) {
+        if (!p.deletedAt || new Date(p.deletedAt).getTime() > cutoff) continue
+        try {
+          await purgeProjectCascade(p.id)
+          purged++
+          console.log(
+            `[cron/inactivity-check] purged trashed project ${p.projectId ?? p.id} (deleted ${p.deletedAt})`,
+          )
+        } catch (err) {
+          console.error(`[cron/inactivity-check] purge failed for ${p.id}:`, err)
+        }
+      }
+    } catch (err) {
+      console.error('[cron/inactivity-check] trash purge failed:', err)
     }
 
     const projects = await getProjects({ stage: 'Open' })
@@ -72,7 +95,7 @@ export async function GET(req: NextRequest) {
       alerted++
     }
 
-    return NextResponse.json({ ok: true, alerted, skipped, total: projects.length, warrantiesExpired })
+    return NextResponse.json({ ok: true, alerted, skipped, total: projects.length, warrantiesExpired, purged })
   } catch (error) {
     console.error('[cron/inactivity-check] error:', error)
     return NextResponse.json(

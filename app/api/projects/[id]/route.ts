@@ -6,24 +6,12 @@ import {
   getAllTasksForProject,
   getLockedTasksForScope,
   getPaymentsByProject,
-  deleteTasksByProjectId,
-  deleteProjectById,
-  deleteProjectItemsByProject,
-  deletePaymentsByProject,
-  deleteMaterialsByProject,
-  deleteCalendarEventsByProject,
-  deleteMaintenanceByProject,
-  deletePurchaseOrdersByProject,
-  deleteInstallationLogsByProject,
-  deleteHandoverSheetsByProject,
-  deleteTimesheetsByProject,
-  deleteChildProjectsByProject,
   updateProject,
   softDeleteProject,
 } from '@/lib/airtable'
-import { deleteSedProjectMappings, deleteInactivityAlerts } from '@/lib/db'
 import { PROJECTS } from '@/lib/fieldMap'
 import { isSedAuthorizedForProject } from '@/lib/sedAccess'
+import { purgeProjectCascade } from '@/lib/projectPurge'
 
 export async function GET(
   _request: NextRequest,
@@ -184,23 +172,7 @@ export async function DELETE(
   }
 
   try {
-    await Promise.all([
-      deleteTasksByProjectId(id),
-      deletePaymentsByProject(id),
-      deleteMaterialsByProject(id),
-      deleteCalendarEventsByProject(id),
-      deleteMaintenanceByProject(id),
-      deletePurchaseOrdersByProject(id),
-      deleteInstallationLogsByProject(id),
-      deleteHandoverSheetsByProject(id),
-      deleteTimesheetsByProject(id),
-      deleteChildProjectsByProject(id),
-      deleteSedProjectMappings(id),
-      deleteInactivityAlerts(id),
-    ])
-    // Items deleted after tasks to avoid orphaned item references
-    await deleteProjectItemsByProject(id)
-    await deleteProjectById(id)
+    await purgeProjectCascade(id)
     return NextResponse.json({ deleted: true })
   } catch (error) {
     console.error('DELETE /api/projects/[id] error:', error)
