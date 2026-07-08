@@ -368,9 +368,12 @@ function EventCard({ ev, showInstallAssign }: { ev: CalendarEvent; showInstallAs
             )}
           </div>
           <p className="text-sm font-semibold text-gray-900 leading-snug">{ev.title}</p>
-          {ev.projectName && (
+          {(ev.projectRef || ev.projectName) && (
             <p className="text-xs text-gray-500 font-medium">
-              {ev.projectName}{ev.itemName ? <span className="text-gray-400"> › {ev.itemName}</span> : null}
+              {ev.projectRef && <span className="font-mono text-gray-400">{ev.projectRef}</span>}
+              {ev.projectRef && ev.projectName ? ' · ' : ''}
+              {ev.projectName}
+              {ev.itemName ? <span className="text-gray-400"> › {ev.itemName}</span> : null}
             </p>
           )}
           {ev.createdBy && <p className="text-xs text-gray-400">{ev.createdBy}</p>}
@@ -661,8 +664,11 @@ export default function UnifiedCalendar({
                         <span
                           key={ev.id}
                           className={`text-[10px] leading-snug px-1.5 py-0.5 rounded font-medium truncate border ${cfg.pill}`}
+                          title={ev.title}
                         >
-                          {ev.title}
+                          {ev.projectName
+                            ? `${ev.projectRef ? ev.projectRef + ' · ' : ''}${ev.projectName}`
+                            : ev.title}
                         </span>
                       )
                     })}

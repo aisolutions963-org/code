@@ -27,6 +27,7 @@ export interface CalendarEvent {
   type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication' | 'personal'
   projectId?: string
   projectName?: string
+  projectRef?: string
   itemName?: string
   amount?: number
   notes?: string
@@ -69,14 +70,22 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
   ])
 
   const projectNameMap = new Map<string, string>()
+  const projectRefMap = new Map<string, string>()
   for (const p of allProjects) {
     const label = str(p.fields[PROJECTS.NICKNAME]) ?? str(p.fields[PROJECTS.PROJECT_NAME]) ?? str(p.fields[PROJECTS.PROJECT_ID])
     if (label) projectNameMap.set(p.id, label)
+    const ref = str(p.fields[PROJECTS.PROJECT_ID])
+    if (ref) projectRefMap.set(p.id, ref)
   }
 
   const getProjectName = (val: unknown): string | undefined => {
     const pid = str(val)
     return pid ? projectNameMap.get(pid) : undefined
+  }
+
+  const getProjectRef = (val: unknown): string | undefined => {
+    const pid = str(val)
+    return pid ? projectRefMap.get(pid) : undefined
   }
 
   // Build dedup set from manually created calendar events (title + date) so task-based
@@ -107,6 +116,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       type,
       projectId: str(f[TASKS.PROJECT_ID]),
       projectName: projectLabel,
+      projectRef: getProjectRef(f[TASKS.PROJECT]),
       createdAt: r.createdTime,
     })
   }
@@ -135,6 +145,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
         type: 'fabrication',
         projectId,
         projectName: getProjectName(f[TASKS.PROJECT]),
+        projectRef: getProjectRef(f[TASKS.PROJECT]),
         itemName: itemIds?.[0] ? itemNameMap[itemIds[0]] : undefined,
         createdAt: r.createdTime,
       })
@@ -148,12 +159,13 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const receivedDate = str(f[PAYMENTS.RECEIVED_DATE])
     const dueDate = str(f[PAYMENTS.DUE_DATE])
     const projectName = getProjectName(f[PAYMENTS.PROJECT])
+    const projectRef = getProjectRef(f[PAYMENTS.PROJECT])
     const createdBy = str(f[PAYMENTS.RECORDED_BY])
     if (receivedDate) {
-      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', amount, projectName, createdBy, createdAt: r.createdTime })
+      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', amount, projectName, projectRef, createdBy, createdAt: r.createdTime })
     }
     if (dueDate && dueDate !== receivedDate) {
-      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', amount, projectName, createdBy, createdAt: r.createdTime })
+      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', amount, projectName, projectRef, createdBy, createdAt: r.createdTime })
     }
   }
 
@@ -181,6 +193,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       customTask,
       createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
       projectName: getProjectName(f[CALENDAR_EVENTS.PROJECT]),
+      projectRef: getProjectRef(f[CALENDAR_EVENTS.PROJECT]),
       createdAt: r.createdTime,
       teamMemberIds,
     })
@@ -200,6 +213,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       notes: desc,
       createdBy: str(f[INSTALLATION_LOGS.RECORDED_BY]),
       projectName: getProjectName(f[INSTALLATION_LOGS.PROJECT]),
+      projectRef: getProjectRef(f[INSTALLATION_LOGS.PROJECT]),
       createdAt: r.createdTime,
     })
   }
