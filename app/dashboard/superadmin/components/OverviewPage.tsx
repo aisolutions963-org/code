@@ -45,6 +45,52 @@ function KpiCard({ label, value, href, downloadHref, loading }: { label: string;
   )
 }
 
+interface HealthData {
+  status: 'ok' | 'degraded' | 'critical'
+  metrics: { errorRate: number; avgLatencyMs: number; requestCount: number; lastErrorAt: string | null }
+  services: { airtable: 'ok' | 'failing'; database: 'ok' | 'failing' }
+  failedRequests: unknown[]
+}
+
+function SystemHealthCard() {
+  const { data } = useSWR<HealthData>('/api/admin/health', fetcher, { refreshInterval: 120_000 })
+  const status = data?.status
+  const dot = status === 'critical' ? 'bg-red-500' : status === 'degraded' ? 'bg-amber-400' : 'bg-green-500'
+  const label = status === 'critical' ? 'Critical' : status === 'degraded' ? 'Degraded' : status === 'ok' ? 'Healthy' : '…'
+  const svc = (s?: string) => (s === 'ok' ? 'text-green-600' : 'text-red-600')
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-700">System Health</p>
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+          <span className={`w-2 h-2 rounded-full ${dot}`} /> {label}
+        </span>
+      </div>
+      {data ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div><p className="text-gray-400">Error rate</p><p className="font-semibold text-gray-800">{data.metrics.errorRate}%</p></div>
+          <div><p className="text-gray-400">Avg latency</p><p className="font-semibold text-gray-800">{data.metrics.avgLatencyMs}ms</p></div>
+          <div><p className="text-gray-400">Airtable</p><p className={`font-semibold ${svc(data.services.airtable)}`}>{data.services.airtable}</p></div>
+          <div><p className="text-gray-400">Database</p><p className={`font-semibold ${svc(data.services.database)}`}>{data.services.database}</p></div>
+          <div><p className="text-gray-400">Requests</p><p className="font-semibold text-gray-800">{data.metrics.requestCount}</p></div>
+          <div><p className="text-gray-400">Failed (recent)</p><p className="font-semibold text-gray-800">{data.failedRequests.length}</p></div>
+          <div className="col-span-2">
+            <p className="text-gray-400">Last error</p>
+            <p className="font-semibold text-gray-800">
+              {data.metrics.lastErrorAt
+                ? new Date(data.metrics.lastErrorAt).toLocaleString('en-AE', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                : 'none'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="h-16 bg-gray-50 rounded animate-pulse" />
+      )}
+    </div>
+  )
+}
+
 export default function OverviewPage() {
   const { data: kpiData, isLoading: kpiLoading } = useSWR<KpiCounts>(
     '/api/superadmin/kpi-counts', fetcher,
@@ -199,6 +245,9 @@ export default function OverviewPage() {
 
       {/* ── Section 5: Work Hours by Project ───────────────── */}
       <WorkHoursChart />
+
+      {/* ── System Health ─────────────────────────────────── */}
+      <SystemHealthCard />
 
       {/* ── Section 6: Database Cleanup ────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">

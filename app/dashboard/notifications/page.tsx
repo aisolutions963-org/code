@@ -58,8 +58,28 @@ function timeAgo(dateStr: string): string {
   return parseDate(dateStr).toLocaleDateString('en-AE', { month: 'short', day: 'numeric' })
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  default: 'General',
+  installation: 'Installation',
+  fabrication: 'Fabrication',
+  payment: 'Payments',
+}
+function categoryLabel(c: string): string {
+  return CATEGORY_LABELS[c] ?? (c ? c.charAt(0).toUpperCase() + c.slice(1) : 'General')
+}
+
+function dateBucket(dateStr: string): 'Today' | 'This week' | 'Older' {
+  const d = parseDate(dateStr)
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  if (d.getTime() >= startOfToday) return 'Today'
+  if (d.getTime() >= startOfToday - 6 * 86400_000) return 'This week'
+  return 'Older'
+}
+
 export default function NotificationsPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
 
   const { data, mutate, isLoading } = useSWR<NotificationsResponse>(
     '/api/notifications?all=true',
@@ -82,7 +102,12 @@ export default function NotificationsPage() {
 
   const all = data?.notifications ?? []
   const unreadCount = data?.unreadCount ?? 0
-  const shown = filter === 'unread' ? all.filter((n) => n.read === 0) : all
+  const categories = Array.from(new Set(all.map((n) => n.category || 'default')))
+  const byRead = filter === 'unread' ? all.filter((n) => n.read === 0) : all
+  const shown = typeFilter === 'all' ? byRead : byRead.filter((n) => (n.category || 'default') === typeFilter)
+  const groupedShown = (['Today', 'This week', 'Older'] as const)
+    .map((bucket) => ({ bucket, items: shown.filter((n) => dateBucket(n.created_at) === bucket) }))
+    .filter((g) => g.items.length > 0)
 
   const pendingCount = pendingData?.count ?? 0
   const staleCount = metricsData?.staleProjects ?? 0
@@ -138,8 +163,27 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      {/* Type filter chips */}
+      {categories.length > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          {['all', ...categories].map((c) => (
+            <button
+              key={c}
+              onClick={() => setTypeFilter(c)}
+              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                typeFilter === c
+                  ? 'bg-gray-800 text-white border-gray-800'
+                  : 'bg-white text-gray-500 border-gray-200 hover:text-gray-700'
+              }`}
+            >
+              {c === 'all' ? 'All types' : categoryLabel(c)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Live alerts section (manager + superadmin) */}
-      {hasAlerts && filter === 'all' && (
+      {hasAlerts && filter === 'all' && typeFilter === 'all' && (
         <div className="rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200">
             <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Live Alerts</p>
@@ -240,10 +284,14 @@ export default function NotificationsPage() {
         </div>
       )}
 
-      {/* Notification list */}
+      {/* Notification list — grouped by date */}
       {!isLoading && shown.length > 0 && (
-        <div className="space-y-1.5">
-          {shown.map((n) => {
+        <div className="space-y-4">
+          {groupedShown.map(({ bucket, items }) => (
+            <div key={bucket}>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">{bucket}</p>
+              <div className="space-y-1.5">
+          {items.map((n) => {
             const isInstall = n.category === 'installation'
             const unreadBg = isInstall ? 'bg-orange-50 border-orange-100 hover:bg-orange-100/60' : 'bg-blue-50 border-blue-100 hover:bg-blue-100/60'
             const dotColor = isInstall ? 'bg-orange-400' : 'bg-blue-500'
@@ -286,6 +334,9 @@ export default function NotificationsPage() {
               </div>
             )
           })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
