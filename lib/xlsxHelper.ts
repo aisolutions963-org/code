@@ -78,6 +78,8 @@ export async function buildMultiSheetXlsx(
 
 export function xlsxResponse(buffer: Buffer, filename: string): NextResponse {
   const today = todayUAE()
+  // Strip any extension the caller passed so we don't double up (…xlsx_date.xlsx).
+  const base = filename.replace(/\.xlsx$/i, '')
   // Copy exactly the bytes this Buffer represents. `buffer.buffer` would hand back
   // the whole (often pooled) backing ArrayBuffer, prepending/appending stray bytes
   // that corrupt the zip container — Excel then refuses to open the file.
@@ -88,7 +90,7 @@ export function xlsxResponse(buffer: Buffer, filename: string): NextResponse {
   return new NextResponse(body, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${filename}_${today}.xlsx"`,
+      'Content-Disposition': `attachment; filename="${base}_${today}.xlsx"`,
       'Cache-Control': 'no-store',
     },
   })

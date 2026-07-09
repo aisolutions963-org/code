@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getClientRequests } from '@/lib/airtable'
 import { buildMultiSheetXlsx, xlsxResponse } from '@/lib/xlsxHelper'
-import { todayUAE } from '@/lib/dateUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,5 +87,5 @@ export const GET = requireRole('manager', 'superadmin')(async () => {
     },
   ])
 
-  return xlsxResponse(buffer, `Client_Requests_${todayUAE()}.xlsx`)
+  return xlsxResponse(buffer, 'Client_Requests')
 })
