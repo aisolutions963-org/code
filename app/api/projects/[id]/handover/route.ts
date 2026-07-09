@@ -59,8 +59,11 @@ export const POST = requireRole('installation', 'manager', 'superadmin', 'sed', 
       ? await updateHandoverSheet(existingSheets[0].id, sheetData)
       : await createHandoverSheet(params.id, sheetData)
 
-    // Handover submitted → project is now Closed.
-    await updateProject(params.id, { [PROJECTS.PROJECT_STAGE]: 'Closed' })
+    // Handover submitted → close the project only if it had reached the Closing stage.
+    // For earlier-stage projects we record the handover without changing the stage.
+    if (project.projectStage === 'Closing') {
+      await updateProject(params.id, { [PROJECTS.PROJECT_STAGE]: 'Closed' })
+    }
 
     const projectRef = project.projectId ?? params.id
     const projectLabel = project.projectName
