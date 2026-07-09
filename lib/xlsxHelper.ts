@@ -82,11 +82,14 @@ export function xlsxResponse(buffer: Buffer, filename: string): NextResponse {
   // the whole (often pooled) backing ArrayBuffer, prepending/appending stray bytes
   // that corrupt the zip container — Excel then refuses to open the file.
   const body = new Uint8Array(buffer)
+  // Do NOT set Content-Length manually: undici sets it for a Uint8Array body, and a
+  // hand-set (uncompressed) length conflicts with the platform's edge gzip, which
+  // truncates the download. Let the platform own the transfer headers.
   return new NextResponse(body, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${filename}_${today}.xlsx"`,
-      'Content-Length': String(body.byteLength),
+      'Cache-Control': 'no-store',
     },
   })
 }
