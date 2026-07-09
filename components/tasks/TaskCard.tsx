@@ -20,6 +20,7 @@ import CallClientDecisionPanelComponent from './panels/CallClientDecisionPanel'
 import MeasurementTeamPanel from './panels/MeasurementTeamPanel'
 import MaintenanceTeamPanel from './panels/MaintenanceTeamPanel'
 import StoreReviewPanel from './panels/StoreReviewPanel'
+import InstallationDayPanel from './panels/InstallationDayPanel'
 
 
 interface TaskCardProps {
@@ -201,10 +202,12 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     .toLowerCase()
     .startsWith('choose installation team')
   const isF2ProductionTask = task.taskName.toLowerCase().startsWith('f2 production list')
+  // "Installation Day N (Flexible — Repeats as Needed)" — dedicated team logs actual days
+  // (date, workers, notes). Distinct from the Arabic day/worker *planning* note below.
+  const isInstallationDayTask = task.taskName.toLowerCase().startsWith('installation day')
   const isFixingTeamNoteTask =
     task.taskName.toLowerCase().startsWith('fixing team note') ||
     task.taskName.toLowerCase().startsWith('how many days') ||
-    task.taskName.toLowerCase().startsWith('installation day') ||
     task.taskName.startsWith('ملاحظة فريق التركيب')
   const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
   const isStoreRevisedMaterialTask = task.taskName.toLowerCase().startsWith('store revised material list')
@@ -688,6 +691,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <FixingTeamNotePanel task={task} onUpdate={onUpdate} />
           )}
 
+          {/* Installation Day — dedicated team logs each day (date, workers, notes) as they go */}
+          {isInstallationDayTask && (role === 'installation' || role === 'manager' || role === 'superadmin') && (
+            <InstallationDayPanel task={task} onUpdate={onUpdate} />
+          )}
+
           {/* Fabricate if any missing item — skip or proceed */}
           {isFabricateMissingTask && (
             <FabricateMissingPanel task={task} onUpdate={onUpdate} />
@@ -859,7 +867,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                   : 'Will be completed automatically by the system'}
               </p>
             </div>
-          ) : (
+          ) : isInstallationDayTask ? null : (
             <FieldEditor
               taskId={task.id}
               role={role}
