@@ -7,6 +7,7 @@ import {
   getInstallationLogsByProject,
   getProjectById,
   updateProject,
+  uploadHandoverDocument,
 } from '@/lib/airtable'
 import { CreateHandoverSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
@@ -55,9 +56,28 @@ export const POST = requireRole('installation', 'manager', 'superadmin', 'sed', 
 
     // Upsert: update the draft sheet built up from installation logs, or create one fresh
     const sheetData = { ...parsed.data, recordedBy: session.name }
-    const sheet = existingSheets.length > 0
+    let sheet = existingSheets.length > 0
       ? await updateHandoverSheet(existingSheets[0].id, sheetData)
       : await createHandoverSheet(params.id, sheetData)
+
+    // Persist the signed document (if provided) to the sheet's PDF attachment field.
+    const signedDocument = formData.get('signedDocument')
+    if (signedDocument instanceof File && signedDocument.size > 0) {
+      if (signedDocument.size > 5 * 1024 * 1024) {
+        console.warn('[handover] signed document exceeds 5 MB — skipping attachment upload')
+      } else {
+        try {
+          const buffer = Buffer.from(await signedDocument.arrayBuffer())
+          sheet = await uploadHandoverDocument(sheet.id, {
+            buffer,
+            filename: signedDocument.name || 'handover-document',
+            contentType: signedDocument.type || 'application/octet-stream',
+          })
+        } catch (err) {
+          console.error('[handover] document upload failed:', err)
+        }
+      }
+    }
 
     // Handover submitted → close the project only if it had reached the Closing stage.
     // For earlier-stage projects we record the handover without changing the stage.

@@ -427,6 +427,7 @@ export interface HandoverSheet {
   installationDifficulty?: string
   newsletterOptIn?: boolean
   recordedBy?: string
+  documentUrl?: string
 }
 
 export interface ProjectItem {
