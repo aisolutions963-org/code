@@ -538,6 +538,13 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
     { refreshInterval: 300_000 },
   )
 
+  // Next single locked step (project-level + per-item), any department — a heads-up preview.
+  const { data: nextStepsData } = useSWR<{ project: string | null; items: Record<string, string | null> }>(
+    `/api/projects/${id}/next-steps`,
+    fetcher,
+    { refreshInterval: 300_000 },
+  )
+
   // Report
   const { data: reportData, isLoading: reportLoading, mutate: mutateReport } = useSWR<ReportResponse>(
     tab === 'report' ? `/api/projects/${id}/report` : null,
@@ -669,6 +676,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
                 role={role}
                 onUpdate={handleUpdate}
                 groupByProject={false}
+                nextStep={nextStepsData?.project ?? null}
               />
             </section>
           )}
@@ -706,6 +714,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
                 role={role}
                 onUpdate={handleUpdate}
                 onMutate={() => mutate()}
+                nextStepByItem={nextStepsData?.items}
               />
             </section>
           )}

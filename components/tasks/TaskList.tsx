@@ -7,6 +7,7 @@ import GatewaySection from './GatewaySection'
 import GateGroupCard from './GateGroupCard'
 import ItemGroupSection from './ItemGroupSection'
 import ProjectTaskCard from './ProjectTaskCard'
+import NextUpPreview from './NextUpPreview'
 
 interface TaskListProps {
   tasks: Task[]
@@ -16,6 +17,8 @@ interface TaskListProps {
   loading?: boolean
   /** Float projects with the most recently modified tasks to the top (used by fabrication) */
   sortByRecent?: boolean
+  /** Preview of the next single locked step (project-level), shown at the top. */
+  nextStep?: string | null
 }
 
 function isGatewayTask(name: string) {
@@ -65,6 +68,7 @@ function renderTasksInOrder(
   role: Role,
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>,
   projectId?: string,
+  nextStep?: string | null,
 ): React.ReactNode[] {
   // Split per-item (Phase 2) tasks from project-level tasks
   const itemTasks = tasks.filter((t) => t.projectItem && t.projectItem.length > 0)
@@ -159,10 +163,12 @@ function renderTasksInOrder(
     }
   }
 
+  if (nextStep) mainNodes.unshift(<NextUpPreview key="next-up" label={nextStep} />)
+
   return mainNodes
 }
 
-export default function TaskList({ tasks, role, onUpdate, groupByProject = true, loading, sortByRecent = false }: TaskListProps) {
+export default function TaskList({ tasks, role, onUpdate, groupByProject = true, loading, sortByRecent = false, nextStep }: TaskListProps) {
   if (loading) {
     return <TaskListSkeleton />
   }
@@ -185,7 +191,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
   if (!groupByProject) {
     return (
       <div className="space-y-2">
-        {renderTasksInOrder(tasks, role, onUpdate)}
+        {renderTasksInOrder(tasks, role, onUpdate, undefined, nextStep)}
       </div>
     )
   }

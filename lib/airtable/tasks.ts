@@ -541,6 +541,14 @@ export async function getLockedTasksForScope(
   return itemId ? tasks.filter((t) => t.projectItem?.[0] === itemId) : tasks
 }
 
+// All locked tasks for a project (project-level + per-item, any department). Used by the
+// next-step preview to show what's coming up.
+export async function getAllLockedTasksForProject(projectId: string): Promise<Task[]> {
+  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.STATUS}} = "Locked")`
+  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })
+  return records.map(transformTask)
+}
+
 export async function getTasksForProject(
   projectId: string,
   role: Role,

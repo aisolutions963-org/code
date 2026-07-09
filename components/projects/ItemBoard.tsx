@@ -11,6 +11,8 @@ interface Props {
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
   onMutate: () => void
+  /** Per-item next single locked step (keyed by item id). */
+  nextStepByItem?: Record<string, string | null>
 }
 
 function SummaryStrip({ items }: { items: ItemSummary[] }) {
@@ -64,7 +66,7 @@ function SummaryStrip({ items }: { items: ItemSummary[] }) {
   )
 }
 
-export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }: Props) {
+export default function ItemBoard({ projectId, items, role, onUpdate, onMutate, nextStepByItem }: Props) {
   const handleUpdate = async (id: string, fields: Partial<TaskUpdateInput>) => {
     await onUpdate(id, fields)
     onMutate()
@@ -108,6 +110,7 @@ export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }
               role={role}
               onUpdate={handleUpdate}
               onMutate={onMutate}
+              nextStep={nextStepByItem?.[item.id] ?? null}
             />
           )
         })}
