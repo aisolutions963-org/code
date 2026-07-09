@@ -39,15 +39,24 @@ export function MetricCard({ label, value, sub, color }: { label: string; value:
   )
 }
 
+// Stage colours — kept in sync with the project-stage badges/KPIs used across the app
+// (Preparing=amber, Open=green, Production=blue, Closed=gray).
+const STAGE_HEX = {
+  Preparing: '#f59e0b',
+  Open: '#16a34a',
+  Production: '#3b82f6',
+  Closed: '#9ca3af',
+} as const
+
 export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
   const [selectedSed, setSelectedSed] = useState<string | null>(null)
 
   const chartData = selectedSed
     ? [
-        { name: 'Preparing', value: data.find((d) => d.sedName === selectedSed)?.preparing ?? 0, fill: '#3b82f6' },
-        { name: 'Open', value: data.find((d) => d.sedName === selectedSed)?.open ?? 0, fill: '#16a34a' },
-        { name: 'Production', value: data.find((d) => d.sedName === selectedSed)?.production ?? 0, fill: '#f59e0b' },
-        { name: 'Closed', value: data.find((d) => d.sedName === selectedSed)?.closed ?? 0, fill: '#f9a8d4' },
+        { name: 'Preparing', value: data.find((d) => d.sedName === selectedSed)?.preparing ?? 0, fill: STAGE_HEX.Preparing },
+        { name: 'Open', value: data.find((d) => d.sedName === selectedSed)?.open ?? 0, fill: STAGE_HEX.Open },
+        { name: 'Production', value: data.find((d) => d.sedName === selectedSed)?.production ?? 0, fill: STAGE_HEX.Production },
+        { name: 'Closed', value: data.find((d) => d.sedName === selectedSed)?.closed ?? 0, fill: STAGE_HEX.Closed },
       ]
     : data.map((d) => ({
         name: d.sedName,
@@ -88,10 +97,10 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
         {/* Legend */}
         <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-3">
           {[
-            { label: 'Preparing', color: '#3b82f6' },
-            { label: 'Open', color: '#16a34a' },
-            { label: 'Production', color: '#f59e0b' },
-            { label: 'Closed', color: '#f9a8d4' },
+            { label: 'Preparing', color: STAGE_HEX.Preparing },
+            { label: 'Open', color: STAGE_HEX.Open },
+            { label: 'Production', color: STAGE_HEX.Production },
+            { label: 'Closed', color: STAGE_HEX.Closed },
           ].map((l) => (
             <span key={l.label} className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.color }} />
@@ -127,10 +136,10 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
               <XAxis type="number" domain={[0, maxVal]} allowDecimals={false} tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Bar dataKey="preparing" fill="#3b82f6" radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
-              <Bar dataKey="open" fill="#16a34a" radius={[0, 0, 0, 0]} name="Open" stackId="a" />
-              <Bar dataKey="production" fill="#f59e0b" radius={[0, 0, 0, 0]} name="Production" stackId="a" />
-              <Bar dataKey="closed" fill="#f9a8d4" radius={[0, 3, 3, 0]} name="Closed" stackId="a" />
+              <Bar dataKey="preparing" fill={STAGE_HEX.Preparing} radius={[0, 3, 3, 0]} name="Preparing" stackId="a" />
+              <Bar dataKey="open" fill={STAGE_HEX.Open} radius={[0, 0, 0, 0]} name="Open" stackId="a" />
+              <Bar dataKey="production" fill={STAGE_HEX.Production} radius={[0, 0, 0, 0]} name="Production" stackId="a" />
+              <Bar dataKey="closed" fill={STAGE_HEX.Closed} radius={[0, 3, 3, 0]} name="Closed" stackId="a" />
             </BarChart>
           )}
         </ResponsiveContainer>
