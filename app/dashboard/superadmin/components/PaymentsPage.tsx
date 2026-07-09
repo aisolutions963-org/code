@@ -366,7 +366,18 @@ function PaymentDetail({
           </div>
           <div>
             <label className="text-xs text-gray-500 block mb-1">Type *</label>
-            <select value={form.paymentType} onChange={(e) => setF('paymentType', e.target.value)}
+            <select value={form.paymentType} onChange={(e) => {
+                const v = e.target.value
+                setForm((f) => {
+                  let referenceNo = f.referenceNo
+                  if (v === 'Delivery' && p.quotationNumber) {
+                    referenceNo = [p.quotationNumber, p.quotationReference].filter(Boolean).join(' — ')
+                  } else if (f.paymentType === 'Delivery') {
+                    referenceNo = isTradeOrVariance ? (p.tradeReference ?? '') : ''
+                  }
+                  return { ...f, paymentType: v, referenceNo }
+                })
+              }}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
               {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>

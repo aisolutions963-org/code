@@ -161,7 +161,24 @@ function PaymentDetail({ project: p }: { project: Project }) {
           </div>
           <div>
             <label className={lbl}>Type</label>
-            <select value={form.paymentType} onChange={(e) => setF('paymentType', e.target.value)} className={sel}>
+            <select
+              value={form.paymentType}
+              onChange={(e) => {
+                const v = e.target.value
+                setForm((f) => {
+                  let referenceNo = f.referenceNo
+                  if (v === 'Delivery' && p.quotationNumber) {
+                    // Delivery payments carry the project's quotation number + reference
+                    referenceNo = [p.quotationNumber, p.quotationReference].filter(Boolean).join(' — ')
+                  } else if (f.paymentType === 'Delivery') {
+                    // switching away from Delivery — restore the default reference
+                    referenceNo = isTradeOrVariance ? (p.tradeReference ?? '') : ''
+                  }
+                  return { ...f, paymentType: v, referenceNo }
+                })
+              }}
+              className={sel}
+            >
               {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
