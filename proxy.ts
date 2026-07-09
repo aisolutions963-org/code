@@ -92,13 +92,14 @@ export async function proxy(request: NextRequest) {
     return withId(NextResponse.redirect(new URL('/dashboard/superadmin', request.url)))
   }
 
-  // Role-to-segment enforcement for /dashboard
-  // Shared sub-pages (accessible to all authenticated roles) are excluded.
-  const SHARED_SEGMENTS = new Set(['project'])
+  // Role-to-segment enforcement for /dashboard: block another role's dashboard only.
+  // Shared pages (forms, pipeline, client-requests, notifications, project, and any
+  // future shared route) are not role dashboards, so they pass through for every role.
+  const ROLE_DASHBOARD_SEGMENTS = new Set(Object.values(ROLE_TO_DASHBOARD))
   if (pathname.startsWith('/dashboard') && role !== 'superadmin') {
     const dashboardSegment = getRoleDashboard(role)
     const requestedSegment = pathname.split('/')[2]
-    if (requestedSegment && requestedSegment !== dashboardSegment && !SHARED_SEGMENTS.has(requestedSegment)) {
+    if (requestedSegment && ROLE_DASHBOARD_SEGMENTS.has(requestedSegment) && requestedSegment !== dashboardSegment) {
       return withId(
         NextResponse.redirect(new URL(`/dashboard/${dashboardSegment}`, request.url)),
       )
