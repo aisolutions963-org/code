@@ -72,6 +72,7 @@ export interface Task {
   client?: string[]
   taskCreated?: string
   lastModified?: string
+  createdAt?: string
   clientPhone?: string
   projectItemName?: string
   assignedTo?: string[]

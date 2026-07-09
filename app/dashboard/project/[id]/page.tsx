@@ -577,7 +577,10 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
     { revalidateOnFocus: false },
   )
   const docsTasks = docsData?.tasks ?? []
-  const projectLevelTasks = allTasks.filter((t) => !t.projectItem?.length)
+  // Newest-created task on top (project-detail task list).
+  const projectLevelTasks = allTasks
+    .filter((t) => !t.projectItem?.length)
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
   const hasItems = !isLoading && !error && (data?.items.length ?? 0) > 0
   const hasProjectTasks = !tasksLoading && projectLevelTasks.length > 0
   const bothLoaded = !isLoading && !tasksLoading

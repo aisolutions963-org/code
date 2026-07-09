@@ -350,6 +350,7 @@ export function transformTask(record: RawRecord): Task {
     client: strArr(f[TASKS.CLIENT]),
     taskCreated: str(f[TASKS.TASK_CREATED]),
     lastModified: str(f[TASKS.LAST_MODIFIED]),
+    createdAt: record.createdTime,
     assignedTo: strArr(f[TASKS.ASSIGNED_TO]),
     callCount: num(f[TASKS.CALL_COUNT]),
     sedNote: str(f[TASKS.SED_NOTE]),
