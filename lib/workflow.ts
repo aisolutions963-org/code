@@ -382,35 +382,27 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
 }
 
 async function maybeGeneratePhase4(task: Task): Promise<void> {
-  // "Attach Site Photo (After Final Installation Day)" is the end-of-production
-  // project-level task (order 55). Completing it triggers Phase 4 directly.
-  const isEndOfProductionTask =
-    task.taskName.toLowerCase() === 'attach site photo (after final installation day)'
-
-  // Phase 4 triggers either from the end-of-production project-level task,
-  // or when all meaningful per-item (Phase 2/3) tasks are done.
-  if (!isEndOfProductionTask && !(task.projectItem?.length)) return
+  // Phase 4 (handover) is project-level and must wait until EVERY item has finished
+  // its per-item installation. Installation tasks (Installation Day, Approval to
+  // Complete Installation, Attach Site Photo, QC) are all per-item, so only a per-item
+  // task completion can be the one that finishes the last item.
+  if (!task.projectItem?.length) return
   const projectId = task.project?.[0]
   if (!projectId) return
 
-  if (!isEndOfProductionTask) {
-    const allProjectTasks = await getAllTasksForProjectAll(projectId)
-    const perItemTasks = allProjectTasks.filter((t) => (t.projectItem?.length ?? 0) > 0)
-    if (perItemTasks.length === 0) return
+  const allProjectTasks = await getAllTasksForProjectAll(projectId)
+  const perItemTasks = allProjectTasks.filter((t) => (t.projectItem?.length ?? 0) > 0)
+  if (perItemTasks.length === 0) return
 
-    // Unchosen path tasks (Carpentry/Paint not selected) remain "To Do" below the
-    // completing task's order. Don't let them block the Closing phase from starting.
-    // Only block on: tasks actively in progress/pending, OR "To Do" tasks at or above
-    // the completing task's order (AND-join partners or future steps that still need work).
-    const completedTaskOrder = task.templateOrder?.[0] ?? 0
-    const blockingTasks = perItemTasks.filter(
-      (t) =>
-        t.status === 'In Progress' ||
-        t.status === 'Pending Approval' ||
-        (t.status === 'To Do' && (t.templateOrder?.[0] ?? 0) >= completedTaskOrder),
-    )
-    if (blockingTasks.length > 0) return
-  }
+  // An item's per-item task is "done" when Completed, an explicitly optional task, or an
+  // unchosen path alternative (Carpentry/Paint left To-Do). Everything else — Locked (a
+  // lagging item that hasn't reached this step), In Progress, Pending Approval, or a plain
+  // To-Do — means at least one item is still working, so the handover must not start yet.
+  const isDone = (t: Task) =>
+    t.status === 'Completed' ||
+    t.taskName.toLowerCase().includes('optional') ||
+    (t.status === 'To Do' && !!t.pathCondition)
+  if (perItemTasks.some((t) => !isDone(t))) return
 
   const { todoTemplates } = await generatePhase4Tasks(projectId)
 
