@@ -69,6 +69,9 @@ export default function InstallationDayPanel({ task, onUpdate }: Props) {
   }
 
   async function markComplete() {
+    if (logs.length === 0 && !window.confirm('No installation days have been logged yet. Mark this installation complete anyway?')) {
+      return
+    }
     setCompleting(true)
     try {
       // Send an installation-owned field (installationDays) alongside status so the tasks
@@ -153,8 +156,8 @@ export default function InstallationDayPanel({ task, onUpdate }: Props) {
         </button>
       )}
 
-      {/* Mark complete — once at least one day is logged; can still add days afterwards */}
-      {!isCompleted && logs.length > 0 && (
+      {/* Mark complete — always available so the task can't get stuck; confirms if no days logged */}
+      {!isCompleted && (
         <button
           onClick={markComplete}
           disabled={completing}
