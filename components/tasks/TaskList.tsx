@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Task, TaskUpdateInput, Role } from '@/lib/types'
+import { workingSubStage } from '@/lib/phases'
 import TaskCard from './TaskCard'
 import GatewaySection from './GatewaySection'
 import GateGroupCard from './GateGroupCard'
@@ -230,6 +231,16 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
         const pendingApprovalCount = groupTasks.filter((t) => t.status === 'Pending Approval').length
         const firstTask = groupTasks[0]
         const projectStage = firstTask?.projectStage?.[0]
+        // In Production, show the Working sub-stage from the furthest active task.
+        const subStage = projectStage === 'Production'
+          ? (() => {
+              const orders = groupTasks
+                .filter((t) => t.status === 'To Do' || t.status === 'In Progress')
+                .map((t) => t.templateOrder?.[0])
+                .filter((o): o is number => o != null)
+              return orders.length ? workingSubStage(Math.max(...orders)) : null
+            })()
+          : null
 
         return (
           <ProjectTaskCard
@@ -239,6 +250,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
             projectName={firstTask?.projectName}
             projectNickname={firstTask?.projectNickname}
             projectStage={projectStage}
+            subStage={subStage}
             taskCount={groupTasks.length}
             itemCount={itemCount}
             pendingApprovalCount={pendingApprovalCount}

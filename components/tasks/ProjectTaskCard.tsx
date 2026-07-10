@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 const STAGE_BADGE: Record<string, string> = {
   Preparing: 'bg-orange-100 text-orange-700 border-orange-200',
   Open: 'bg-teal-100 text-teal-700 border-teal-200',
+  Production: 'bg-purple-100 text-purple-700 border-purple-200',
   Closed: 'bg-green-100 text-green-700 border-green-200',
 }
 
 const ACCENT: Record<string, string> = {
   Preparing: 'border-l-orange-400',
   Open: 'border-l-teal-400',
+  Production: 'border-l-purple-400',
   Closed: 'border-l-green-400',
 }
 
@@ -20,6 +22,8 @@ interface ProjectTaskCardProps {
   projectName?: string
   projectNickname?: string
   projectStage?: string
+  /** Working sub-stage (Material/Fabrication/Fixing) — shown next to a Production badge. */
+  subStage?: string | null
   taskCount: number
   itemCount: number
   pendingApprovalCount: number
@@ -33,6 +37,7 @@ export default function ProjectTaskCard({
   projectName,
   projectNickname,
   projectStage,
+  subStage,
   taskCount,
   itemCount,
   pendingApprovalCount,
@@ -69,7 +74,7 @@ export default function ProjectTaskCard({
           </span>
           {stageBadgeClass && (
             <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border ${stageBadgeClass}`}>
-              {stage}
+              {stage}{subStage ? ` · ${subStage}` : ''}
             </span>
           )}
         </div>
