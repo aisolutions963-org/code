@@ -80,12 +80,17 @@ export default function ItemBoard({ projectId, items, role, onUpdate, onMutate, 
     )
   }
 
+  // Item with the most recently generated task on top (matches the newest-first task order).
+  const newestOf = (item: ItemSummary) =>
+    item.allTasks.reduce((m, t) => (t.createdAt && t.createdAt > m ? t.createdAt : m), '')
+  const orderedItems = [...items].sort((a, b) => newestOf(b).localeCompare(newestOf(a)))
+
   return (
     <>
       <SummaryStrip items={items} />
 
       <div className="space-y-4">
-        {items.map((item) => {
+        {orderedItems.map((item) => {
           const phase2Min = PHASE_CONFIG.Open.perItemOrderMin        // 23
       const phase3Min = PHASE_CONFIG.Working.perItemOrderMin     // 30
       const hasPhase3 = item.allTasks.some(
