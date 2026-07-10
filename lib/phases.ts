@@ -26,6 +26,18 @@ export const PHASE_CONFIG = {
   },
 } as const
 
+// Phase 3 (Working) sub-stages — mirrors the Airtable "Sub-stage" field
+// (Material → Fabrication → Fixing), derived from the template order ranges so the
+// app can surface which part of Production a project is currently in.
+export type WorkingSubStage = 'Material' | 'Fabrication' | 'Fixing'
+export function workingSubStage(order: number | null | undefined): WorkingSubStage | null {
+  if (order == null) return null
+  if (order >= 30 && order <= 37) return 'Material'
+  if (order >= 38 && order <= 43) return 'Fabrication'
+  if (order >= 44 && order <= 55) return 'Fixing'
+  return null
+}
+
 export const TASK_MARKERS = {
   GATE_PREFIX: '[gate]',
   AUTO_MARKER: '(auto',

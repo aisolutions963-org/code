@@ -4,6 +4,7 @@ import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project, Payment, ClientRequest, Role } from '@/lib/types'
+import { workingSubStage } from '@/lib/phases'
 import { useSession } from '@/app/dashboard/layout-client'
 import ItemBoard from '@/components/projects/ItemBoard'
 import TaskList, { TaskListSkeleton } from '@/components/tasks/TaskList'
@@ -588,6 +589,18 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
   const projectLevelTasks = allTasks
     .filter((t) => !t.projectItem?.length)
     .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+  // During Production, surface which sub-stage the project has reached (Material →
+  // Fabrication → Fixing), from the furthest-along active per-item task.
+  const currentSubStage = (() => {
+    if (data?.projectStage !== 'Production') return null
+    const orders = (data?.items ?? [])
+      .flatMap((i) => i.allTasks)
+      .filter((t) => t.status === 'To Do' || t.status === 'In Progress')
+      .map((t) => t.templateOrder?.[0])
+      .filter((o): o is number => o != null)
+    return orders.length ? workingSubStage(Math.max(...orders)) : null
+  })()
+
   const hasItems = !isLoading && !error && (data?.items.length ?? 0) > 0
   const hasProjectTasks = !tasksLoading && projectLevelTasks.length > 0
   const bothLoaded = !isLoading && !tasksLoading
@@ -617,7 +630,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
               <span className="font-mono text-xs text-gray-400 uppercase tracking-wider">{projectRef}</span>
               {data?.projectStage && (
                 <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-medium border border-teal-200">
-                  {data.projectStage}
+                  {data.projectStage}{currentSubStage ? ` · ${currentSubStage}` : ''}
                 </span>
               )}
             </div>
