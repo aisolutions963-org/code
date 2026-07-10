@@ -6,7 +6,11 @@ import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput, InstallationLog } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = async (url: string) => {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`Failed to load logs (${r.status})`)
+  return r.json()
+}
 const inp = 'w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400'
 
 interface Props {
@@ -18,7 +22,7 @@ interface Props {
 // belongs to the project's assigned team. They add a day (date, workers, notes) as they go.
 export default function InstallationDayPanel({ task, onUpdate }: Props) {
   const projectId = task.projectRecordId
-  const { data, mutate } = useSWR<{ logs: InstallationLog[] }>(
+  const { data, error, mutate } = useSWR<{ logs: InstallationLog[] }>(
     projectId ? `/api/projects/${projectId}/installation-logs` : null,
     fetcher,
   )
@@ -46,9 +50,17 @@ export default function InstallationDayPanel({ task, onUpdate }: Props) {
         body: JSON.stringify(body),
       })
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error((d as { error?: string }).error ?? 'Failed') }
+      const created = (await res.json().catch(() => null)) as { log?: InstallationLog } | null
       toast.success('Day logged')
       setDate(todayUAE()); setWorkers(''); setNotes(''); setShowForm(false)
-      mutate()
+      // Show the new day immediately, then revalidate against the server.
+      await mutate(
+        (prev) => {
+          const existing = prev?.logs ?? []
+          return { logs: created?.log ? [...existing, created.log] : existing }
+        },
+        { revalidate: true },
+      )
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to log day')
     } finally {
@@ -81,6 +93,12 @@ export default function InstallationDayPanel({ task, onUpdate }: Props) {
           <span className="text-[10px] font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded">Completed</span>
         )}
       </div>
+
+      {error && (
+        <p className="text-[11px] text-red-600">
+          Couldn&apos;t load the day log. <button onClick={() => mutate()} className="underline">Retry</button>
+        </p>
+      )}
 
       {/* Logged days */}
       {logs.length > 0 && (
