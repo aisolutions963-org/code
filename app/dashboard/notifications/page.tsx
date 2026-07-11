@@ -20,10 +20,6 @@ interface NotificationsResponse {
   unreadCount: number
 }
 
-interface PendingApprovalsResponse {
-  count: number
-}
-
 interface OverduePayment {
   id: string
   projectId: string
@@ -97,12 +93,6 @@ export default function NotificationsPage() {
   )
 
   // These endpoints return 403 for roles without access — SWR catches the error and data stays undefined
-  const { data: pendingData } = useSWR<PendingApprovalsResponse>(
-    '/api/tasks/pending-approvals',
-    fetcher,
-    { refreshInterval: 300_000, shouldRetryOnError: false },
-  )
-
   const { data: metricsData } = useSWR<SuperadminMetrics>(
     '/api/superadmin/metrics',
     fetcher,
@@ -118,14 +108,13 @@ export default function NotificationsPage() {
     .map((bucket) => ({ bucket, items: shown.filter((n) => dateBucket(n.created_at) === bucket) }))
     .filter((g) => g.items.length > 0)
 
-  const pendingCount = pendingData?.count ?? 0
   const staleCount = metricsData?.staleProjects ?? 0
   const staleList = metricsData?.staleProjectsList ?? []
   const overduePayments = metricsData?.overduePayments ?? []
   const overdueCount = overduePayments.length
   const callClientTasks = metricsData?.callClientTasks ?? []
 
-  const hasAlerts = pendingCount > 0 || staleCount > 0 || overdueCount > 0 || callClientTasks.length > 0
+  const hasAlerts = staleCount > 0 || overdueCount > 0 || callClientTasks.length > 0
 
   async function markRead(id: number) {
     await fetch(`/api/notifications/${id}`, { method: 'PATCH' })
@@ -216,23 +205,6 @@ export default function NotificationsPage() {
               <span className="text-[10px] font-semibold text-red-600 bg-red-100 px-1.5 py-0.5 rounded shrink-0">Action</span>
             </div>
           ))}
-
-          {/* Pending approvals */}
-          {pendingCount > 0 && (
-            <Link
-              href="/dashboard/mgr?view=tasks"
-              className="px-4 py-3.5 flex items-start gap-3 border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-0 block"
-            >
-              <div className="w-2 h-2 rounded-full bg-orange-400 mt-1.5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  <span className="font-semibold">{pendingCount}</span> task{pendingCount !== 1 ? 's' : ''} pending approval
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">Tap to review</p>
-              </div>
-              <span className="text-[10px] font-semibold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded shrink-0">Approval</span>
-            </Link>
-          )}
 
           {/* Stale projects — per-project, with what they're stuck at */}
           {staleList.length > 0

@@ -27,10 +27,10 @@ interface QuotationOption {
 }
 
 const METHOD_COLORS: Record<string, string> = {
-  Phone:       'bg-blue-100 text-blue-700',
-  WhatsApp:    'bg-green-100 text-green-700',
-  Email:       'bg-purple-100 text-purple-700',
-  'In-Person': 'bg-amber-100 text-amber-700',
+  'Phone Call': 'bg-blue-100 text-blue-700',
+  WhatsApp:     'bg-green-100 text-green-700',
+  Email:        'bg-purple-100 text-purple-700',
+  'In Person':  'bg-amber-100 text-amber-700',
 }
 function methodColor(m: string) {
   return METHOD_COLORS[m] ?? 'bg-gray-100 text-gray-500'
@@ -41,7 +41,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 const EMPTY_FORM = {
   quotationId: '',
   date: new Date().toISOString().slice(0, 10),
-  method: 'Phone',
+  method: 'Phone Call',
   outcome: '',
   nextDate: '',
   notes: '',
