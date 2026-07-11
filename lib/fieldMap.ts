@@ -127,6 +127,7 @@ export const PROJECTS = {
   TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
   CLIENT_STATUS:   'fldwHeIOIoC4yXoua',  // single select: Broker | End-to-End Client | Designer | Contractor | Developer | Other
   DELETED_AT:      'fldzYRbsAHpdGMKgD',  // dateTime — set on soft-delete, blank when active
+  PRODUCTION_START_DATE: 'fldtWKyDyyPN3mCVR', // date — when the project entered production
 } as const
 
 export const PROJECT_ITEMS = {
@@ -142,6 +143,15 @@ export const PROJECT_ITEMS = {
   ITEM_TYPE: 'fldYEzJXbvQEU9i4Z',
   QUANTITY: 'fldkzvi3cCcKzwjFc',
   QUOTATIONS_LINK: 'fldxjXZbDvK39rqJU',
+  // Per-item production milestone columns (single selects) + notes
+  DESIGN_STATUS:          'fldsS8s6EBpJTvTZI',
+  SAMPLE_STATUS:          'fldsit3QJLnuK7bEa',
+  MATERIAL_STATUS:        'fldzIRxgy8ImlsLpy',
+  SUBMITTED_TO_PRODUCTION:'fld6t5qJHPZ4M1rDM',
+  PRODUCTION_STATUS:      'fldSR4z6Iom2Jtw0U',
+  DELIVERY_FIXING_STATUS: 'fldORPesygKoWeMlI',
+  EXPECTED_DELIVERY_DATE: 'fldVRJFPh8rKrGsE0',
+  ITEM_NOTES:             'fldgHxnBO4mMeD662',
 } as const
 
 export const QUOTATIONS = {
@@ -427,6 +437,7 @@ export const RECEIVABLES = {
   COLLECTED:       'fldbcZImdyDd150py',
   BALANCE_DUE:     'fldv2CuId6P226OYi',
   INVOICE_DATE:    'flda547dHl6Anp7te',
+  LAST_PAYMENT_DATE: 'fldjvJEcaCORLdhjj',
   LAST_CONTACT:    'fldjAwuCpkznkqdf4',
   AGREED_DATE:     'fldkCH47PwDWWTBBQ',
   DEBT_AGE:        'fldbS9y117PMRS95o',

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import ExcelJS from 'exceljs'
 import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS, PROJECT_ITEMS } from '@/lib/fieldMap'
-import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
-import { getClientRequestLabelsByParent } from '@/lib/airtable'
+import { xlsxResponse } from '@/lib/xlsxHelper'
+import { formatProjectRef } from '@/lib/reportUtils'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,91 +28,122 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
   return records
 }
 
-export const GET = requireRole('superadmin')(async (req: NextRequest) => {
-  const from = new URL(req.url).searchParams.get('from') ?? ''
+// singleSelect comes back as a plain string over REST; be defensive about the object form too.
+function sel(v: unknown): string {
+  if (typeof v === 'string') return v
+  if (v && typeof v === 'object' && 'name' in v) return (v as { name?: string }).name ?? ''
+  return ''
+}
 
+interface Item {
+  name: string
+  design: string
+  sample: string
+  material: string
+  submitted: string
+  production: string
+  deliveryFixing: string
+  expectedDelivery: string
+  notes: string
+  seq: number
+}
+
+export const GET = requireRole('superadmin')(async () => {
   const projectParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   const activeStages = ['Preparing', 'Open', 'Fabrication', 'Installation']
   const stageFilter = activeStages.map(s => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')
-  // Exclude Trade/Maintenance/Variance sub-projects — they show up via the
-  // "Client Requests" column on their parent project's row instead.
+  // Exclude Trade/Maintenance/Variance sub-projects (they surface under their parent).
   projectParams.set('filterByFormula', `AND(OR(${stageFilter}), {${PROJECTS.REQUEST_TYPE}}="")`)
   projectParams.append('fields[]', PROJECTS.PROJECT_ID)
   projectParams.append('fields[]', PROJECTS.PROJECT_NAME)
   projectParams.append('fields[]', PROJECTS.CLIENT_NAME)
   projectParams.append('fields[]', PROJECTS.PROJECT_STAGE)
   projectParams.append('fields[]', PROJECTS.SALES_OWNER)
-  projectParams.append('fields[]', PROJECTS.PROJECT_ITEMS)
 
   const itemParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  itemParams.append('fields[]', PROJECT_ITEMS.ITEM_NAME)
-  itemParams.append('fields[]', PROJECT_ITEMS.STATUS)
-  itemParams.append('fields[]', PROJECT_ITEMS.PROJECT)
-  itemParams.append('fields[]', PROJECT_ITEMS.ITEM_TYPE)
+  for (const f of [
+    PROJECT_ITEMS.ITEM_NAME, PROJECT_ITEMS.PROJECT, PROJECT_ITEMS.ITEM_SEQUENCE,
+    PROJECT_ITEMS.DESIGN_STATUS, PROJECT_ITEMS.SAMPLE_STATUS, PROJECT_ITEMS.MATERIAL_STATUS,
+    PROJECT_ITEMS.SUBMITTED_TO_PRODUCTION, PROJECT_ITEMS.PRODUCTION_STATUS,
+    PROJECT_ITEMS.DELIVERY_FIXING_STATUS, PROJECT_ITEMS.EXPECTED_DELIVERY_DATE, PROJECT_ITEMS.ITEM_NOTES,
+  ]) itemParams.append('fields[]', f)
 
-  const [projects, items, requestLabels] = await Promise.all([
+  const [projects, items] = await Promise.all([
     fetchAll(PROJECTS.TABLE_ID, projectParams),
     fetchAll(PROJECT_ITEMS.TABLE_ID, itemParams),
-    getClientRequestLabelsByParent(),
   ])
 
-  const itemsByProject = new Map<string, { name: string; status: string }[]>()
+  const itemsByProject = new Map<string, Item[]>()
   for (const item of items) {
     const f = item.fields
     const projIds = Array.isArray(f[PROJECT_ITEMS.PROJECT]) ? (f[PROJECT_ITEMS.PROJECT] as string[]) : []
     for (const pid of projIds) {
       if (!itemsByProject.has(pid)) itemsByProject.set(pid, [])
       itemsByProject.get(pid)!.push({
-        name: (f[PROJECT_ITEMS.ITEM_NAME] as string) ?? '',
-        status: (f[PROJECT_ITEMS.STATUS] as string) ?? '',
+        name:             (f[PROJECT_ITEMS.ITEM_NAME] as string) ?? '',
+        design:           sel(f[PROJECT_ITEMS.DESIGN_STATUS]),
+        sample:           sel(f[PROJECT_ITEMS.SAMPLE_STATUS]),
+        material:         sel(f[PROJECT_ITEMS.MATERIAL_STATUS]),
+        submitted:        sel(f[PROJECT_ITEMS.SUBMITTED_TO_PRODUCTION]),
+        production:       sel(f[PROJECT_ITEMS.PRODUCTION_STATUS]),
+        deliveryFixing:   sel(f[PROJECT_ITEMS.DELIVERY_FIXING_STATUS]),
+        expectedDelivery: (f[PROJECT_ITEMS.EXPECTED_DELIVERY_DATE] as string) ?? '',
+        notes:            (f[PROJECT_ITEMS.ITEM_NOTES] as string) ?? '',
+        seq:              (f[PROJECT_ITEMS.ITEM_SEQUENCE] as number) ?? 0,
       })
     }
   }
 
-  // Build flat rows: header row per project + item rows
-  const rows: Record<string, unknown>[] = []
+  // Two-level sheet: a bold project header row (Project ID | Project Name | Client | Stage | SED),
+  // then a bold item column-header row, then the project's item rows.
+  const PROJECT_HEADERS = ['Project ID', 'Project Name', 'Client', 'Stage', 'SED']
+  const ITEM_HEADERS = ['Item Name', 'Design', 'Sample', 'Material', 'Submitted', 'Production', 'Delivery & Fixing', 'Expected Delivery', 'Notes']
+
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Ongoing Projects')
+  ws.columns = [
+    { width: 28 }, { width: 16 }, { width: 16 }, { width: 16 },
+    { width: 18 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 30 },
+  ]
+
+  const grey = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFDDDDDD' } }
+  const lightGrey = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFEEEEEE' } }
+
   for (const proj of projects) {
     const f = proj.fields
     const rawOwner = f[PROJECTS.SALES_OWNER]
     const ownerEntry = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner
     const owner = (!ownerEntry || typeof ownerEntry === 'string') ? undefined : ownerEntry as { name?: string }
-    rows.push({
-      type: 'project',
-      projectId: (f[PROJECTS.PROJECT_ID] as string) ?? '',
-      projectName: (f[PROJECTS.PROJECT_NAME] as string) ?? '',
-      client: (f[PROJECTS.CLIENT_NAME] as string) ?? '',
-      stage: (f[PROJECTS.PROJECT_STAGE] as string) ?? '',
-      sed: owner?.name ?? '',
-      itemName: '',
-      itemStatus: '',
-      clientRequests: requestLabels.get(proj.id) ?? '',
-    })
-    const projItems = itemsByProject.get(proj.id) ?? []
+
+    const projRow = ws.addRow([
+      formatProjectRef((f[PROJECTS.PROJECT_ID] as string) ?? ''),
+      (f[PROJECTS.PROJECT_NAME] as string) ?? '',
+      (f[PROJECTS.CLIENT_NAME] as string) ?? '',
+      (f[PROJECTS.PROJECT_STAGE] as string) ?? '',
+      owner?.name ?? '',
+    ])
+    projRow.font = { bold: true }
+    projRow.eachCell({ includeEmpty: true }, (c) => { c.fill = grey })
+    projRow.commit()
+
+    const hdrRow = ws.addRow(ITEM_HEADERS)
+    hdrRow.font = { bold: true, italic: true }
+    hdrRow.eachCell({ includeEmpty: true }, (c) => { c.fill = lightGrey })
+    hdrRow.commit()
+
+    const projItems = (itemsByProject.get(proj.id) ?? []).sort((a, b) => a.seq - b.seq)
     for (const item of projItems) {
-      rows.push({
-        type: 'item',
-        projectId: '',
-        projectName: '',
-        client: '',
-        stage: '',
-        sed: '',
-        itemName: `  ${item.name}`,
-        itemStatus: item.status,
-        clientRequests: '',
-      })
+      const row = ws.addRow([
+        `  ${item.name}`, item.design, item.sample, item.material, item.submitted,
+        item.production, item.deliveryFixing, item.expectedDelivery, item.notes,
+      ])
+      // Expected Delivery (col 8) formatted as a date when present.
+      const dCell = row.getCell(8)
+      if (dCell.value) dCell.numFmt = 'DD/MM/YYYY'
+      row.commit()
     }
   }
 
-  const buffer = await buildXlsx('Ongoing Projects', [
-    { header: 'Project ID', key: 'projectId', width: 14 },
-    { header: 'Project Name', key: 'projectName', width: 28 },
-    { header: 'Client', key: 'client', width: 22 },
-    { header: 'Stage', key: 'stage', width: 16 },
-    { header: 'SED', key: 'sed', width: 18 },
-    { header: 'Client Requests', key: 'clientRequests', width: 28 },
-    { header: 'Item Name', key: 'itemName', width: 28 },
-    { header: 'Item Status', key: 'itemStatus', width: 18 },
-  ], rows)
-
+  const buffer = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer)
   return xlsxResponse(buffer, 'Ongoing_Projects')
 }) as (req: NextRequest) => Promise<NextResponse>

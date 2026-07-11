@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { QUOTATION_LINE_ITEMS, QUOTATIONS, PROJECTS } from '@/lib/fieldMap'
+import { QUOTATION_LINE_ITEMS, QUOTATIONS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
 
 export const dynamic = 'force-dynamic'
@@ -38,7 +38,6 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const to   = sp.get('to')   ?? ''
 
   const liParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  liParams.append('fields[]', QUOTATION_LINE_ITEMS.LINE_ITEM_NAME)
   liParams.append('fields[]', QUOTATION_LINE_ITEMS.QUOTATION)
   liParams.append('fields[]', QUOTATION_LINE_ITEMS.LINE_NO)
   liParams.append('fields[]', QUOTATION_LINE_ITEMS.DESCRIPTION)
@@ -49,18 +48,12 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   liParams.append('fields[]', QUOTATION_LINE_ITEMS.LINE_SUBTOTAL)
   liParams.append('fields[]', QUOTATION_LINE_ITEMS.VAT_AMOUNT)
   liParams.append('fields[]', QUOTATION_LINE_ITEMS.LINE_TOTAL)
-  liParams.append('fields[]', QUOTATION_LINE_ITEMS.PROJECT_ITEM)
 
   const quotParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   quotParams.append('fields[]', QUOTATIONS.NAME)
+  quotParams.append('fields[]', QUOTATIONS.QUOTE_NUMBER)
   quotParams.append('fields[]', QUOTATIONS.CLIENT_NAME)
-  quotParams.append('fields[]', QUOTATIONS.PROJECT)
   quotParams.append('fields[]', QUOTATIONS.SENT_DATE)
-  quotParams.append('fields[]', QUOTATIONS.QUOTATION_STATUS)
-
-  const projParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  projParams.append('fields[]', PROJECTS.PROJECT_ID)
-  projParams.append('fields[]', PROJECTS.PROJECT_NAME)
 
   if (from || to) {
     const dateParts: string[] = []
@@ -70,14 +63,12 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     quotParams.set('filterByFormula', formula)
   }
 
-  const [lineItems, allQuotations, allProjects] = await Promise.all([
+  const [lineItems, allQuotations] = await Promise.all([
     fetchAll(QUOTATION_LINE_ITEMS.TABLE_ID, liParams),
     fetchAll(QUOTATIONS.TABLE_ID, quotParams),
-    fetchAll(PROJECTS.TABLE_ID, projParams),
   ])
 
   const quotationById = new Map(allQuotations.map((q) => [q.id, q.fields]))
-  const projectById   = new Map(allProjects.map((p) => [p.id, p.fields]))
 
   // If date filter applied, only keep line items linked to matching quotations
   const validQuotIds = from || to ? new Set(allQuotations.map((q) => q.id)) : null
@@ -96,19 +87,16 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
         ? (f[QUOTATION_LINE_ITEMS.QUOTATION] as string[])
         : []
       const quot = quotIds[0] ? quotationById.get(quotIds[0]) : undefined
-      const projIds = quot
-        ? (Array.isArray(quot[QUOTATIONS.PROJECT]) ? (quot[QUOTATIONS.PROJECT] as string[]) : [])
-        : []
-      const proj = projIds[0] ? projectById.get(projIds[0]) : undefined
+      // Quote Number (extended field); fall back to the record name when unset.
+      const quoteNumber = (quot?.[QUOTATIONS.QUOTE_NUMBER] as string)
+        || (quot?.[QUOTATIONS.NAME] as string)
+        || ''
 
       return {
-        lineNo:      (f[QUOTATION_LINE_ITEMS.LINE_NO] as number) ?? 0,
-        lineItem:    (f[QUOTATION_LINE_ITEMS.LINE_ITEM_NAME] as string) ?? '',
-        description: (f[QUOTATION_LINE_ITEMS.DESCRIPTION] as string) ?? '',
-        projectRef:  (proj?.[PROJECTS.PROJECT_ID] as string) ?? '',
+        quoteNumber,
         client:      (quot?.[QUOTATIONS.CLIENT_NAME] as string) ?? '',
-        quoteName:   (quot?.[QUOTATIONS.NAME] as string) ?? '',
-        projectItem: (f[QUOTATION_LINE_ITEMS.PROJECT_ITEM] as string) ?? '',
+        lineNo:      (f[QUOTATION_LINE_ITEMS.LINE_NO] as number) ?? 0,
+        description: (f[QUOTATION_LINE_ITEMS.DESCRIPTION] as string) ?? '',
         qty:         (f[QUOTATION_LINE_ITEMS.QTY] as number) ?? 0,
         unit:        selectName(f[QUOTATION_LINE_ITEMS.UNIT]),
         rate:        (f[QUOTATION_LINE_ITEMS.RATE] as number) ?? 0,
@@ -118,22 +106,19 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
         lineTotal:   (f[QUOTATION_LINE_ITEMS.LINE_TOTAL] as number) ?? 0,
       }
     })
-    .sort((a, b) => a.projectRef.localeCompare(b.projectRef) || a.lineNo - b.lineNo)
+    .sort((a, b) => a.quoteNumber.localeCompare(b.quoteNumber) || a.lineNo - b.lineNo)
 
   const buffer = await buildXlsx('Line Items', [
-    { header: 'Line #',            key: 'lineNo',      width: 8 },
-    { header: 'Line Item',         key: 'lineItem',    width: 24 },
-    { header: 'Description',       key: 'description', width: 32 },
-    { header: 'Project Ref',       key: 'projectRef',  width: 14 },
+    { header: 'Quote Number',      key: 'quoteNumber', width: 16 },
     { header: 'Client Name',       key: 'client',      width: 22 },
-    { header: 'Quotation',         key: 'quoteName',   width: 22 },
-    { header: 'Project Item',      key: 'projectItem', width: 20 },
+    { header: 'Line #',            key: 'lineNo',      width: 8 },
+    { header: 'Description',       key: 'description', width: 32 },
     { header: 'Qty',               key: 'qty',         width: 8 },
     { header: 'Unit',              key: 'unit',        width: 10 },
     { header: 'Rate (AED)',        key: 'rate',        width: 14, isCurrency: true },
     { header: 'VAT %',             key: 'vatPct',      width: 8 },
     { header: 'Subtotal (AED)',    key: 'subtotal',    width: 16, isCurrency: true },
-    { header: 'VAT Amount (AED)',  key: 'vatAmount',   width: 16, isCurrency: true },
+    { header: 'VAT (AED)',         key: 'vatAmount',   width: 16, isCurrency: true },
     { header: 'Line Total (AED)',  key: 'lineTotal',   width: 16, isCurrency: true },
   ], rows)
 

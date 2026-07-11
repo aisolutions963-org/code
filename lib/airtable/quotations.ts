@@ -96,6 +96,7 @@ export async function createQuotation(input: {
   notes?: string
   quotationDate?: string
   recordedBy?: string
+  revision?: number
 }): Promise<Quotation> {
   const fields: Record<string, unknown> = {
     [QUOTATIONS.NAME]: input.itemName,
@@ -103,6 +104,9 @@ export async function createQuotation(input: {
     [QUOTATIONS.PROJECT_ITEM]: [input.projectItemId],
     [QUOTATIONS.QUANTITY]: input.quantity,
     [QUOTATIONS.UNIT_PRICE]: input.unitPrice,
+    // Revision label: first submission = R0. Increment-on-overwrite is gated on a
+    // persistent per-project counter field that does not yet exist (see MISSING FIELDS).
+    [QUOTATIONS.REVISION]: `R${input.revision ?? 0}`,
   }
   if (input.description) fields[QUOTATIONS.DESCRIPTION] = input.description
   if (input.notes) fields[QUOTATIONS.NOTES] = input.notes
