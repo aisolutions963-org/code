@@ -33,7 +33,7 @@ export const GET = requireRole('superadmin')(async () => {
   logParams.append('fields[]', FOLLOW_UP_LOG.METHOD)
   logParams.append('fields[]', FOLLOW_UP_LOG.OUTCOME)
   logParams.append('fields[]', FOLLOW_UP_LOG.NEXT_DATE)
-  logParams.append('fields[]', FOLLOW_UP_LOG.DONE_BY)
+  logParams.append('fields[]', FOLLOW_UP_LOG.LOGGED_BY)
   logParams.append('fields[]', FOLLOW_UP_LOG.NOTES)
   logParams.append('sort[0][field]', FOLLOW_UP_LOG.DATE)
   logParams.append('sort[0][direction]', 'desc')
@@ -64,26 +64,27 @@ export const GET = requireRole('superadmin')(async () => {
       : []
     const quoteInfo = quotationMap.get(quotationIds[0] ?? '')
     return {
-      doneBy:        (f[FOLLOW_UP_LOG.DONE_BY] as string) ?? '',
-      clientName:    quoteInfo?.clientName ?? '',
-      quoteNumber:   quoteInfo?.quoteNumber ?? '',
       date:          (f[FOLLOW_UP_LOG.DATE] as string) ?? '',
+      quoteNumber:   quoteInfo?.quoteNumber ?? '',
+      clientName:    quoteInfo?.clientName ?? '',
       method:        (f[FOLLOW_UP_LOG.METHOD] as string) ?? '',
       outcome:       (f[FOLLOW_UP_LOG.OUTCOME] as string) ?? '',
       nextDate:      (f[FOLLOW_UP_LOG.NEXT_DATE] as string) ?? '',
+      // Written by the create route to LOGGED_BY (name); DONE_BY is the legacy empty collaborator.
+      doneBy:        (f[FOLLOW_UP_LOG.LOGGED_BY] as string) ?? '',
       notes:         (f[FOLLOW_UP_LOG.NOTES] as string) ?? '',
     }
   })
 
-  const buffer = await buildXlsx('SED Follow-Ups', [
-    { header: 'Done By',        key: 'doneBy',      width: 20 },
-    { header: 'Client',         key: 'clientName',  width: 25 },
-    { header: 'Quotation #',    key: 'quoteNumber', width: 16 },
-    { header: 'Date',           key: 'date',        width: 14, isDate: true },
-    { header: 'Method',         key: 'method',      width: 16 },
-    { header: 'Outcome',        key: 'outcome',     width: 30 },
-    { header: 'Next Follow-Up', key: 'nextDate',    width: 14, isDate: true },
-    { header: 'Notes',          key: 'notes',       width: 40 },
+  const buffer = await buildXlsx('Follow-Ups', [
+    { header: 'Follow-Up Date',      key: 'date',        width: 14, isDate: true },
+    { header: 'Quote Number',        key: 'quoteNumber', width: 16 },
+    { header: 'Client Name',         key: 'clientName',  width: 25 },
+    { header: 'Method',              key: 'method',      width: 16 },
+    { header: 'Outcome',             key: 'outcome',     width: 30 },
+    { header: 'Next Follow-Up Date', key: 'nextDate',    width: 16, isDate: true },
+    { header: 'Done By',             key: 'doneBy',      width: 20 },
+    { header: 'Notes',               key: 'notes',       width: 40 },
   ], rows)
 
   return xlsxResponse(buffer, 'SED_Follow_Ups')
