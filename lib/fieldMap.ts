@@ -97,6 +97,8 @@ export const PROJECTS = {
   PROJECT_STAGE: 'fldnINS8WLH5nkNGK',
   CLIENT_NAME: 'fldq8KO7c05etvfo2',
   SALES_OWNER: 'fld2JiufpGFcKCC6U',
+  SALES_OWNER_NAME: 'fldQJJhey8t2G6eN5', // lookup: Name (from Sales Owner) — resolves the SED name directly
+
   PAYMENT_MODE: 'fldmdHxh00sNkHqsj',
   PROJECT_TOTAL_COST: 'fldGFCLmYsTam1SIJ',
   TOTAL_PAID: 'fld6BdgaLcTcAMIEH',

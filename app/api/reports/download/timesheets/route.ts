@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { PRODUCTION_TIMESHEETS, WORKERS } from '@/lib/fieldMap'
+import { PRODUCTION_TIMESHEETS, WORKERS, PROJECTS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
 
 export const dynamic = 'force-dynamic'
@@ -29,13 +29,8 @@ async function fetchAll(tableId: string, params: URLSearchParams): Promise<Rec[]
 }
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : 0)
-const linkName = (v: unknown): { id: string; name: string } | undefined => {
-  if (Array.isArray(v) && v[0] && typeof v[0] === 'object') {
-    const e = v[0] as { id?: string; name?: string }
-    return { id: e.id ?? '', name: e.name ?? '' }
-  }
-  return undefined
-}
+// Linked-record fields come back as arrays of record-ID strings over REST.
+const firstId = (v: unknown): string => (Array.isArray(v) && typeof v[0] === 'string' ? v[0] : '')
 
 // UAE work week starts Saturday. Returns { weekStart 'YYYY-MM-DD', dayIndex 0=Sat..6=Fri }.
 function weekOf(dateStr: string): { weekStart: string; dayIndex: number } | null {
@@ -89,15 +84,20 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   workerParams.append('fields[]', WORKERS.FULL_NAME)
   workerParams.append('fields[]', WORKERS.NICKNAME)
 
-  const [entries, workers] = await Promise.all([
+  const projParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
+  projParams.append('fields[]', PROJECTS.PROJECT_NAME)
+
+  const [entries, workers, projects] = await Promise.all([
     fetchAll(PRODUCTION_TIMESHEETS.TABLE, tsParams),
     fetchAll(WORKERS.TABLE, workerParams),
+    fetchAll(PROJECTS.TABLE_ID, projParams),
   ])
 
   const workerById = new Map(workers.map((w) => [w.id, {
     name:     (w.fields[WORKERS.FULL_NAME] as string) || (w.fields[WORKERS.NAME] as string) || '',
     nickname: (w.fields[WORKERS.NICKNAME] as string) ?? '',
   }]))
+  const projectNameById = new Map(projects.map((p) => [p.id, (p.fields[PROJECTS.PROJECT_NAME] as string) ?? '']))
 
   // Aggregate daily rows into weekly grid rows, keyed by worker × week × project.
   const weeks = new Map<string, Week>()
@@ -105,12 +105,11 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     const f = e.fields
     const wk = weekOf((f[PRODUCTION_TIMESHEETS.WORK_DATE] as string) ?? '')
     if (!wk) continue
-    const worker = linkName(f[PRODUCTION_TIMESHEETS.WORKER])
-    const proj = linkName(f[PRODUCTION_TIMESHEETS.PROJECT])
-    const info = worker ? workerById.get(worker.id) : undefined
-    const workerName = info?.name || worker?.name || ''
-    const projectName = proj?.name ?? ''
-    const key = `${worker?.id ?? workerName}|${wk.weekStart}|${projectName}`
+    const workerId = firstId(f[PRODUCTION_TIMESHEETS.WORKER])
+    const info = workerId ? workerById.get(workerId) : undefined
+    const workerName = info?.name || ''
+    const projectName = projectNameById.get(firstId(f[PRODUCTION_TIMESHEETS.PROJECT])) ?? ''
+    const key = `${workerId || workerName}|${wk.weekStart}|${projectName}`
 
     let row = weeks.get(key)
     if (!row) {

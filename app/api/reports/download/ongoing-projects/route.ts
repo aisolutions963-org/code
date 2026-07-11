@@ -58,7 +58,7 @@ export const GET = requireRole('superadmin')(async () => {
   projectParams.append('fields[]', PROJECTS.PROJECT_NAME)
   projectParams.append('fields[]', PROJECTS.CLIENT_NAME)
   projectParams.append('fields[]', PROJECTS.PROJECT_STAGE)
-  projectParams.append('fields[]', PROJECTS.SALES_OWNER)
+  projectParams.append('fields[]', PROJECTS.SALES_OWNER_NAME)
 
   const itemParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   for (const f of [
@@ -111,16 +111,17 @@ export const GET = requireRole('superadmin')(async () => {
 
   for (const proj of projects) {
     const f = proj.fields
-    const rawOwner = f[PROJECTS.SALES_OWNER]
-    const ownerEntry = Array.isArray(rawOwner) ? rawOwner[0] : rawOwner
-    const owner = (!ownerEntry || typeof ownerEntry === 'string') ? undefined : ownerEntry as { name?: string }
+    // Sales Owner is a linked record (returns record-ID strings over REST); the
+    // "Name (from Sales Owner)" lookup gives the SED name directly.
+    const ownerLookup = f[PROJECTS.SALES_OWNER_NAME]
+    const sed = Array.isArray(ownerLookup) ? String(ownerLookup[0] ?? '') : ''
 
     const projRow = ws.addRow([
       formatProjectRef((f[PROJECTS.PROJECT_ID] as string) ?? ''),
       (f[PROJECTS.PROJECT_NAME] as string) ?? '',
       (f[PROJECTS.CLIENT_NAME] as string) ?? '',
       (f[PROJECTS.PROJECT_STAGE] as string) ?? '',
-      owner?.name ?? '',
+      sed,
     ])
     projRow.font = { bold: true }
     projRow.eachCell({ includeEmpty: true }, (c) => { c.fill = grey })

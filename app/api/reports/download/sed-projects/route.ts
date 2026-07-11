@@ -35,10 +35,9 @@ const firstLink = (v: unknown): string | undefined =>
   Array.isArray(v) && v[0] ? ((v[0] as { id?: string }).id ?? (v[0] as string)) : undefined
 
 const getOwnerName = (f: Record<string, unknown>): string => {
-  const raw = f[PROJECTS.SALES_OWNER]
-  const entry = Array.isArray(raw) ? raw[0] : raw
-  if (!entry || typeof entry === 'string') return ''
-  return (entry as { name?: string }).name ?? ''
+  // Sales Owner links return record-ID strings over REST; use the name lookup instead.
+  const lookup = f[PROJECTS.SALES_OWNER_NAME]
+  return Array.isArray(lookup) ? String(lookup[0] ?? '') : ''
 }
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
@@ -49,7 +48,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   for (const f of [
     PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.CLIENT_NAME, PROJECTS.PROJECT_STAGE,
-    PROJECTS.SALES_OWNER, PROJECTS.PRODUCTION_START_DATE, PROJECTS.MANAGER_NOTES, PROJECTS.PROJECT_CREATED_AT,
+    PROJECTS.SALES_OWNER_NAME, PROJECTS.PRODUCTION_START_DATE, PROJECTS.MANAGER_NOTES, PROJECTS.PROJECT_CREATED_AT,
   ]) params.append('fields[]', f)
 
   const dateParts: string[] = []
