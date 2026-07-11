@@ -8,12 +8,13 @@ import TimelineStrip from '@/components/pipeline/TimelineStrip'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+// Columns follow the project phases (Phase 1–4). Warranty stages are post-project
+// and live in the Warranty view, not the pipeline.
 const COLUMNS: { title: string; stages: string[] }[] = [
   { title: 'Preparing',  stages: ['Preparing'] },
   { title: 'Open',       stages: ['Open'] },
   { title: 'Production', stages: ['Production'] },
-  { title: 'Done',       stages: ['Closed'] },
-  { title: 'Warranty',   stages: ['Closed and active warranty', 'Warranty expired'] },
+  { title: 'Closing',    stages: ['Closed'] },
 ]
 
 export default function PipelineClient({ role: _role }: { role: string }) {

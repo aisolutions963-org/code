@@ -37,7 +37,6 @@ import {
 
 const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   status: TASKS.STATUS,
-  managerReviewStatus: TASKS.MANAGER_REVIEW_STATUS,
   managerComment: TASKS.MANAGER_COMMENT,
   postVisitOutcome: TASKS.POST_VISIT_OUTCOME,
   taskStartDate: TASKS.TASK_START_DATE,
@@ -60,7 +59,6 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   fillersDone: TASKS.FILLERS_DONE,
   taskDocuments: TASKS.TASK_DOCUMENTS,
   fillersAndMissingList: TASKS.FILLERS_MISSING_ITEMS_LIST,
-  requiresManagerReviewManually: TASKS.REQUIRES_MANAGER_REVIEW_MANUALLY,
   priorityFlag: TASKS.PRIORITY_FLAG,
   callCount: TASKS.CALL_COUNT,
   sedNote: TASKS.SED_NOTE,

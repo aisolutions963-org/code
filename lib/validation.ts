@@ -24,7 +24,6 @@ export const UpdateUserSchema = z.object({
 
 export const UpdateTaskSchema = z.object({
   status: z.enum(['To Do', 'In Progress', 'Completed', 'Locked', 'Pending Approval']).optional(),
-  managerReviewStatus: z.enum(['Not Needed', 'Pending', 'Approved', 'Rejected']).optional(),
   managerComment: z.string().max(2000).optional(),
   postVisitOutcome: z.string().max(500).optional(),
   taskStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -46,7 +45,6 @@ export const UpdateTaskSchema = z.object({
   qcCheckAtSiteDone: z.boolean().optional(),
   fillersDone: z.boolean().optional(),
   priorityFlag: z.boolean().optional(),
-  requiresManagerReviewManually: z.boolean().optional(),
   callCount: z.number().int().min(0).max(10).optional(),
   sedNote: z.string().max(2000).optional(),
   superadminNote: z.string().max(2000).optional(),

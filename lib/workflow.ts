@@ -15,9 +15,8 @@ import {
   createMaterialOrder,
 } from './airtable'
 import { Task, TaskStatus } from './types'
-import { notifyManager, notifyManagerEscalation, notifyCallClient, notifyRejection, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
+import { notifyManagerEscalation, notifyCallClient, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
-import { getUsersByRole } from './db'
 import { PHASE_CONFIG, TASK_MARKERS } from './phases'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
@@ -437,32 +436,6 @@ export async function handleTaskCompletion(
     (async () => {
       const task = await getTaskById(taskId)
 
-      const needsReview =
-        task.requiresManagerReview?.[0] === true ||
-        task.requiresManagerReviewManually === true
-
-      const alreadyApproved =
-        task.managerReviewStatus === 'Approved' ||
-        task.managerReviewStatus === 'Not Needed'
-
-      // F1 is an info-capture intake form — it completes directly, no manager review needed
-      const isF1Task = task.taskName.toLowerCase().startsWith('f1 —')
-
-      if (needsReview && !alreadyApproved && !isF1Task) {
-        await updateTaskRaw(taskId, {
-          [TASKS.STATUS]: 'Pending Approval' as TaskStatus,
-          [TASKS.MANAGER_REVIEW_STATUS]: 'Pending',
-        })
-        if (process.env.MANAGER_EMAIL && process.env.RESEND_API_KEY) {
-          notifyManager({
-            taskName: task.taskName,
-            projectId: task.projectId,
-            submittedBy,
-          }).catch((err) => console.error('[A12] Manager notify failed:', err))
-        }
-        return { finalStatus: 'Pending Approval' as TaskStatus }
-      }
-
       await updateTaskRaw(taskId, {
         [TASKS.STATUS]: 'Completed' as TaskStatus,
         [TASKS.COMPLETED_AT]: new Date().toISOString(),
@@ -538,57 +511,6 @@ export async function handleTaskCompletion(
       return { finalStatus: 'Completed' as TaskStatus }
     })(),
   )
-}
-
-export async function handleManagerApproval(taskId: string): Promise<void> {
-  return withTimeout(
-    (async () => {
-      const task = await getTaskById(taskId)
-
-      await updateTaskRaw(taskId, {
-        [TASKS.STATUS]: 'Completed' as TaskStatus,
-        [TASKS.COMPLETED_AT]: new Date().toISOString(),
-      })
-
-      await unlockNextTasks(task)
-      maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
-      maybeGeneratePhase4(task).catch((err) => console.error('[P4-GEN]', err))
-    })(),
-  )
-}
-
-export async function handleManagerRejection(taskId: string): Promise<void> {
-  const task = await withTimeout(getTaskById(taskId))
-  await withTimeout(
-    updateTaskRaw(taskId, {
-      [TASKS.STATUS]: 'To Do' as TaskStatus,
-    }),
-  )
-  const projectRef = task.projectId ?? task.project?.[0] ?? ''
-  // In-app notification to the task's department
-  await notifyTasksReady(
-    [{ taskName: task.taskName, departments: task.department ?? [] }],
-    `Rejected by manager — task returned for rework (${projectRef})` +
-      (task.managerComment ? `\nNote: ${task.managerComment}` : ''),
-  )
-  // Email all active users in the task's department role
-  if (process.env.RESEND_API_KEY) {
-    const roles = (task.department ?? [])
-      .map((d) => DEPT_ROLE_MAP[d])
-      .filter((r): r is string => Boolean(r))
-    const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['sed']))
-    for (const role of uniqueRoles) {
-      const users = await getUsersByRole(role)
-      for (const user of users) {
-        notifyRejection({
-          taskName: task.taskName,
-          projectId: projectRef,
-          managerComment: task.managerComment ?? undefined,
-          recipientEmail: user.email,
-        }).catch((err) => console.error('[A14] Rejection email failed:', err))
-      }
-    }
-  }
 }
 
 export async function handleCallClientOutcome(

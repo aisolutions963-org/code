@@ -867,7 +867,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                   : 'Will be completed automatically by the system'}
               </p>
             </div>
-          ) : isInstallationDayTask ? null : (
+          ) : (
             <FieldEditor
               taskId={task.id}
               role={role}

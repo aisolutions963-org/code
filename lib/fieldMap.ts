@@ -396,7 +396,8 @@ export const FOLLOW_UP_LOG = {
   METHOD:         'fld6s5gxI6qjmHii9',
   OUTCOME:        'fld2ZoOMCvXeQpAml',
   NEXT_DATE:      'fldRtzDcV3MoXPYV0',
-  DONE_BY:        'flduFKcUnL4A7pRue',
+  DONE_BY:        'flduFKcUnL4A7pRue',   // singleCollaborator (legacy; can't accept a name string)
+  LOGGED_BY:      'fldWnNykJsevxTEft',   // singleLineText — who logged it (by name)
   NOTES:          'fldRa9L9ZY87JVihm',
 } as const
 

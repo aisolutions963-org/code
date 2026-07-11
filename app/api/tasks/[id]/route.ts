@@ -5,8 +5,6 @@ import { PROJECTS } from '@/lib/fieldMap'
 import { canEditField, filterAllowedFields, ROLE_TO_DEPARTMENT } from '@/lib/permissions'
 import {
   handleTaskCompletion,
-  handleManagerApproval,
-  handleManagerRejection,
   handleCallCountEscalation,
 } from '@/lib/workflow'
 import { TaskUpdateInput } from '@/lib/types'
@@ -91,7 +89,7 @@ export const PATCH = requireRole()(
       }
     }
 
-    const { status, managerReviewStatus, callCount, followUpOutcome, superadminNote, ...otherFields } = fields as Partial<TaskUpdateInput>
+    const { status, callCount, followUpOutcome, superadminNote, ...otherFields } = fields as Partial<TaskUpdateInput>
 
     // F5 quotation reset — reverting a completed F5 task back to an editable status
     // wipes the prior quotation line items, project items, and per-item tasks so the
@@ -218,16 +216,6 @@ export const PATCH = requireRole()(
       await updateTask(params.id, { status: 'In Progress', startedAt: new Date().toISOString() })
     } else if (status) {
       await updateTask(params.id, { status })
-    }
-
-    if (managerReviewStatus === 'Approved') {
-      await updateTask(params.id, { managerReviewStatus: 'Approved' })
-      await handleManagerApproval(params.id)
-    } else if (managerReviewStatus === 'Rejected') {
-      await updateTask(params.id, { managerReviewStatus: 'Rejected' })
-      await handleManagerRejection(params.id)
-    } else if (managerReviewStatus) {
-      await updateTask(params.id, { managerReviewStatus })
     }
 
     const refreshed = await getTaskById(params.id)

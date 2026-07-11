@@ -18,7 +18,6 @@ interface FieldEditorProps {
 
 const SELECT_OPTIONS: Partial<Record<keyof TaskUpdateInput, string[]>> = {
   status: ['To Do', 'In Progress', 'Completed'],
-  managerReviewStatus: ['Not Needed', 'Pending', 'Approved', 'Rejected'],
   postVisitOutcome: ['Make Quotation', 'Need More Details', 'Order Sample', 'Draft Proposal'],
   fabricationPath: ['Carpentry', 'Paint', 'Carpentry + Paint'],
   postCarpentryPath: ['Paint', 'Done', 'Purchase Missing Items'],
@@ -29,7 +28,6 @@ const SELECT_OPTIONS: Partial<Record<keyof TaskUpdateInput, string[]>> = {
 
 const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   status: 'Status',
-  managerReviewStatus: 'Manager Review Status',
   managerComment: 'Manager Comment',
   sedNote: 'Note for Manager',
   superadminNote: 'Admin Follow-up Note',
@@ -49,7 +47,6 @@ const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   quotationOutcome: 'Quotation Outcome',
   qcCheckAtSiteDone: 'QC Check @ Site Done',
   fillersDone: 'Fillers Done',
-  requiresManagerReviewManually: 'Requires Manager Review',
   priorityFlag: 'Priority Flag',
   taskDocLinks: 'Notes & Links',
   fillersDocLinks: 'Fillers & Missing Items List',
@@ -384,7 +381,6 @@ export default function FieldEditor({
         if (
           key === 'qcCheckAtSiteDone' ||
           key === 'fillersDone' ||
-          key === 'requiresManagerReviewManually' ||
           key === 'priorityFlag'
         ) {
           return (

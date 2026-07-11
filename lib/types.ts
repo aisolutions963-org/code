@@ -101,7 +101,6 @@ export interface Task {
 
 export interface TaskUpdateInput {
   status?: TaskStatus
-  managerReviewStatus?: ManagerReviewStatus
   managerComment?: string
   postVisitOutcome?: string
   taskStartDate?: string
@@ -124,7 +123,6 @@ export interface TaskUpdateInput {
   fillersDone?: boolean
   taskDocuments?: AttachmentInput[]
   fillersAndMissingList?: AttachmentInput[]
-  requiresManagerReviewManually?: boolean
   priorityFlag?: boolean
   callCount?: number
   sedNote?: string

@@ -9,15 +9,15 @@ describe('canEditField', () => {
     expect(canEditField('superadmin', 'status')).toBe(true)
     expect(canEditField('superadmin', 'superadminNote')).toBe(true)
     expect(canEditField('superadmin', 'followUpOutcome')).toBe(true)
-    expect(canEditField('superadmin', 'requiresManagerReviewManually')).toBe(true)
+    expect(canEditField('superadmin', 'priorityFlag')).toBe(true)
   })
 
   it('manager can edit status', () => {
     expect(canEditField('manager', 'status')).toBe(true)
   })
 
-  it('manager can edit managerReviewStatus', () => {
-    expect(canEditField('manager', 'managerReviewStatus')).toBe(true)
+  it('manager can edit managerComment', () => {
+    expect(canEditField('manager', 'managerComment')).toBe(true)
   })
 
   it('manager cannot edit sedNote', () => {
@@ -32,8 +32,8 @@ describe('canEditField', () => {
     expect(canEditField('sed', 'postVisitOutcome')).toBe(true)
   })
 
-  it('sed cannot edit managerReviewStatus', () => {
-    expect(canEditField('sed', 'managerReviewStatus')).toBe(false)
+  it('sed cannot edit managerComment', () => {
+    expect(canEditField('sed', 'managerComment')).toBe(false)
   })
 
   it('sed cannot edit superadminNote', () => {
@@ -79,13 +79,13 @@ describe('filterAllowedFields', () => {
       status: 'In Progress',
       postVisitOutcome: 'Client agreed',
       superadminNote: 'should be stripped',
-      managerReviewStatus: 'Pending',
+      managerComment: 'should be stripped',
     }
     const result = filterAllowedFields('sed', input)
     expect(result).toHaveProperty('status', 'In Progress')
     expect(result).toHaveProperty('postVisitOutcome', 'Client agreed')
     expect(result).not.toHaveProperty('superadminNote')
-    expect(result).not.toHaveProperty('managerReviewStatus')
+    expect(result).not.toHaveProperty('managerComment')
   })
 
   it('manager strips fabrication-only fields', () => {

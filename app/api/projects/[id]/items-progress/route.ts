@@ -11,10 +11,15 @@ export const GET = requireRole()(async (_req, session, { params }) => {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 })
   }
 
-  const [tasks, project] = await Promise.all([
-    getAllTasksForProjectAll(id, session.role),
-    getProjectById(id),
-  ])
+  // Project may have been deleted since the client last saw it — return 404 instead of
+  // letting the Airtable 403/not-found bubble up as an unhandled 500 (logged as a fail).
+  let project
+  try {
+    project = await getProjectById(id)
+  } catch {
+    return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+  }
+  const tasks = await getAllTasksForProjectAll(id, session.role)
 
   const itemIds = Array.from(new Set(tasks.flatMap((t) => t.projectItem ?? [])))
   const nameMap = await getProjectItemNameMap(itemIds)

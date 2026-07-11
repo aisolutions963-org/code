@@ -225,7 +225,7 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
                     onChange={(e) => setField('method', e.target.value)}
                     className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
                   >
-                    {['Phone', 'WhatsApp', 'Email', 'In-Person', 'Other'].map((m) => (
+                    {['Phone Call', 'WhatsApp', 'Email', 'In Person', 'Other'].map((m) => (
                       <option key={m}>{m}</option>
                     ))}
                   </select>
@@ -233,13 +233,17 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
               </div>
               <label className="block">
                 <span className="text-xs font-medium text-gray-600">Outcome *</span>
-                <input
+                <select
                   required
                   value={form.outcome}
                   onChange={(e) => setField('outcome', e.target.value)}
-                  placeholder="What was discussed or decided…"
-                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400"
-                />
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
+                >
+                  <option value="">— select outcome —</option>
+                  {['Contacted Client', 'Scheduled Follow-Up', 'Sent Proposal', 'Escalated to Manager', 'Project Cancelled', 'No Action Needed', 'No Answer'].map((o) => (
+                    <option key={o}>{o}</option>
+                  ))}
+                </select>
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-600">Next Follow-Up Date</span>

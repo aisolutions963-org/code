@@ -40,7 +40,6 @@ interface OverduePayment {
 interface SuperadminMetrics {
   staleProjects: number
   overduePayments: OverduePayment[]
-  pendingApprovals: number
   callClientTasks: { taskId: string; projectRef: string; projectName: string; clientName: string; clientPhone: string }[]
 }
 
@@ -106,14 +105,6 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
 
   const pageTitle = PAGE_TITLES[pathname] ?? ROLE_LABELS[role] + ' Dashboard'
 
-  const showPendingBell = role === 'manager' || role === 'superadmin'
-
-  const { data: pendingData } = useSWR<{ count: number }>(
-    showPendingBell ? '/api/tasks/pending-approvals' : null,
-    fetcher,
-    { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
-  )
-
   const { data: metricsData, mutate: mutateMetrics } = useSWR<SuperadminMetrics>(
     role === 'superadmin' ? '/api/superadmin/metrics' : null,
     fetcher,
@@ -127,7 +118,6 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
     { refreshInterval: 300_000, onSuccess: () => setLastUpdated(new Date()) },
   )
 
-  const pendingCount = pendingData?.count ?? 0
   const staleCount = metricsData?.staleProjects ?? 0
   const overduePayments = metricsData?.overduePayments ?? []
   const overdueCount = overduePayments.length
@@ -137,7 +127,6 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
 
   const totalAlerts =
     appUnread +
-    pendingCount +
     (role === 'superadmin' ? staleCount + overdueCount + callClientTasks.length : 0)
 
   async function handleMarkRead(id: number) {
@@ -291,23 +280,6 @@ export default function GlassTopBar({ role, name }: { role: Role; name: string }
                         </div>
                       </div>
                     ))}
-                  </div>
-                )}
-
-                {/* Pending Approval */}
-                {pendingCount > 0 && (
-                  <div>
-                    <div className="px-4 py-1.5 bg-orange-500/10 border-b border-orange-500/10">
-                      <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
-                        Pending Approval
-                      </p>
-                    </div>
-                    <div className="px-4 py-3 flex items-center gap-3 hover:bg-white/[0.04] transition-colors">
-                      <span className="text-sm text-white/60">
-                        <strong className="text-white/90">{pendingCount}</strong> task{pendingCount !== 1 ? 's' : ''} awaiting review
-                      </span>
-                    </div>
                   </div>
                 )}
 

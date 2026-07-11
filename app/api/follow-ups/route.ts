@@ -109,11 +109,11 @@ async function fetchLogs(userName: string | null): Promise<RawRecord[]> {
     params.append('fields[]', FOLLOW_UP_LOG.METHOD)
     params.append('fields[]', FOLLOW_UP_LOG.OUTCOME)
     params.append('fields[]', FOLLOW_UP_LOG.NEXT_DATE)
-    params.append('fields[]', FOLLOW_UP_LOG.DONE_BY)
+    params.append('fields[]', FOLLOW_UP_LOG.LOGGED_BY)
     params.append('fields[]', FOLLOW_UP_LOG.NOTES)
     if (userName) {
       const escapedName = userName.replace(/"/g, '\\"')
-      params.set('filterByFormula', `{${FOLLOW_UP_LOG.DONE_BY}} = "${escapedName}"`)
+      params.set('filterByFormula', `{${FOLLOW_UP_LOG.LOGGED_BY}} = "${escapedName}"`)
     }
     params.append('sort[0][field]', FOLLOW_UP_LOG.DATE)
     params.append('sort[0][direction]', 'desc')
@@ -188,7 +188,7 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req: Next
       method: (f[FOLLOW_UP_LOG.METHOD] as string) ?? '',
       outcome: (f[FOLLOW_UP_LOG.OUTCOME] as string) ?? '',
       nextDate: (f[FOLLOW_UP_LOG.NEXT_DATE] as string) || undefined,
-      doneBy: (f[FOLLOW_UP_LOG.DONE_BY] as string) ?? '',
+      doneBy: (f[FOLLOW_UP_LOG.LOGGED_BY] as string) ?? '',
       notes: (f[FOLLOW_UP_LOG.NOTES] as string) || undefined,
     }
   })
@@ -209,7 +209,7 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req: Next
     [FOLLOW_UP_LOG.DATE]: body.date,
     [FOLLOW_UP_LOG.METHOD]: body.method,
     [FOLLOW_UP_LOG.OUTCOME]: body.outcome,
-    [FOLLOW_UP_LOG.DONE_BY]: session.name,
+    [FOLLOW_UP_LOG.LOGGED_BY]: session.name,
   }
   if (body.quotationId) fields[FOLLOW_UP_LOG.QUOTATION] = [body.quotationId]
   if (body.nextDate) fields[FOLLOW_UP_LOG.NEXT_DATE] = body.nextDate

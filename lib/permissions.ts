@@ -35,7 +35,6 @@ export const EDITABLE_FIELDS: Record<Role, (keyof TaskUpdateInput)[]> = {
   ],
   manager: [
     'status',
-    'managerReviewStatus',
     'managerComment',
     'completionDate',
     'taskStartDate',
@@ -52,7 +51,6 @@ export const EDITABLE_FIELDS: Record<Role, (keyof TaskUpdateInput)[]> = {
 
 const ALL_TASK_UPDATE_KEYS: (keyof TaskUpdateInput)[] = [
   'status',
-  'managerReviewStatus',
   'managerComment',
   'postVisitOutcome',
   'taskStartDate',
@@ -75,7 +73,6 @@ const ALL_TASK_UPDATE_KEYS: (keyof TaskUpdateInput)[] = [
   'fillersDone',
   'taskDocuments',
   'fillersAndMissingList',
-  'requiresManagerReviewManually',
   'priorityFlag',
   'sedNote',
   'superadminNote',
