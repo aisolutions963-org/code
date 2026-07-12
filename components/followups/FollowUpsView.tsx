@@ -6,9 +6,9 @@ import Button from '@/components/ui/Button'
 
 interface FollowUpLog {
   id: string
-  quotationId: string
-  quotationNumber: string
-  quotationReference?: string
+  projectId: string
+  projectRef: string
+  projectName: string
   clientName: string
   date: string
   method: string
@@ -18,12 +18,11 @@ interface FollowUpLog {
   notes?: string
 }
 
-interface QuotationOption {
+interface ProjectOption {
   id: string
-  quoteNumber: string
-  quotationReference?: string
+  projectRef: string
+  projectName: string
   clientName: string
-  projectName?: string
 }
 
 const METHOD_COLORS: Record<string, string> = {
@@ -39,7 +38,7 @@ function methodColor(m: string) {
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const EMPTY_FORM = {
-  quotationId: '',
+  projectId: '',
   date: new Date().toISOString().slice(0, 10),
   method: 'Phone Call',
   outcome: '',
@@ -53,13 +52,13 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
-  const { data, mutate, isLoading } = useSWR<{ logs: FollowUpLog[]; quotations: QuotationOption[] }>(
+  const { data, mutate, isLoading } = useSWR<{ logs: FollowUpLog[]; projects: ProjectOption[] }>(
     '/api/follow-ups',
     fetcher,
     { refreshInterval: 300_000 },
   )
   const logs = data?.logs ?? []
-  const quotations = data?.quotations ?? []
+  const projects = data?.projects ?? []
 
   function setField(k: string, v: string) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -73,7 +72,7 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          quotationId: form.quotationId || undefined,
+          projectId: form.projectId || undefined,
           date: form.date,
           method: form.method,
           outcome: form.outcome,
@@ -128,12 +127,13 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-xs font-semibold text-gray-800 truncate">
-                      {log.clientName || log.quotationNumber || '—'}
+                      {log.projectName || log.clientName || '—'}
                     </span>
-                    {log.quotationNumber && (
-                      <span className="font-mono text-[11px] text-gray-400">
-                        {log.quotationNumber}{log.quotationReference ?? ''}
-                      </span>
+                    {log.projectRef && (
+                      <span className="font-mono text-[11px] text-gray-400">{log.projectRef}</span>
+                    )}
+                    {log.clientName && log.projectName && (
+                      <span className="text-[11px] text-gray-400">{log.clientName}</span>
                     )}
                     <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${methodColor(log.method)}`}>
                       {log.method}
@@ -189,19 +189,17 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
             </div>
             <form onSubmit={handleAdd} className="px-5 py-4 space-y-3">
               <label className="block">
-                <span className="text-xs font-medium text-gray-600">Project / Quotation</span>
+                <span className="text-xs font-medium text-gray-600">Project</span>
                 <select
-                  value={form.quotationId}
-                  onChange={(e) => setField('quotationId', e.target.value)}
+                  value={form.projectId}
+                  onChange={(e) => setField('projectId', e.target.value)}
                   className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
                 >
                   <option value="">— None —</option>
-                  {quotations.map((q) => (
-                    <option key={q.id} value={q.id}>
-                      {q.quoteNumber
-                        ? `${q.quoteNumber}${q.quotationReference ?? ''} — `
-                        : ''}
-                      {q.projectName || q.clientName || 'Unnamed project'}
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.projectRef ? `${p.projectRef} — ` : ''}
+                      {p.projectName || p.clientName || 'Unnamed project'}
                     </option>
                   ))}
                 </select>

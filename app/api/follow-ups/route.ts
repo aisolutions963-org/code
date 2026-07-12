@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { FOLLOW_UP_LOG, QUOTATIONS, PROJECTS } from '@/lib/fieldMap'
+import { FOLLOW_UP_LOG } from '@/lib/fieldMap'
+import { getAllProjects } from '@/lib/airtable'
 import { z } from 'zod'
 
 const CreateFollowUpSchema = z.object({
-  quotationId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date'),
   method: z.string().min(1).max(100),
   outcome: z.string().min(1).max(500),
@@ -27,84 +28,16 @@ interface RawRecord {
   fields: Record<string, unknown>
 }
 
-async function fetchQuotations(): Promise<{ id: string; projectId: string; quoteNumber: string; clientName: string }[]> {
-  const results: { id: string; projectId: string; quoteNumber: string; clientName: string }[] = []
-  let offset: string | undefined
-  do {
-    const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-    params.append('fields[]', QUOTATIONS.QUOTE_NUMBER)
-    params.append('fields[]', QUOTATIONS.CLIENT_NAME)
-    params.append('fields[]', QUOTATIONS.PROJECT)
-    params.append('sort[0][field]', QUOTATIONS.QUOTE_NUMBER)
-    params.append('sort[0][direction]', 'asc')
-    if (offset) params.set('offset', offset)
-    const res = await fetch(`${BASE_URL}/${QUOTATIONS.TABLE_ID}?${params}`, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
-      cache: 'no-store',
-    })
-    if (!res.ok) break
-    const data = (await res.json()) as { records: RawRecord[]; offset?: string }
-    for (const r of data.records) {
-      const projectIds = r.fields[QUOTATIONS.PROJECT] as string[] | undefined
-      results.push({
-        id: r.id,
-        projectId: projectIds?.[0] ?? '',
-        quoteNumber: (r.fields[QUOTATIONS.QUOTE_NUMBER] as string) ?? '',
-        clientName: (r.fields[QUOTATIONS.CLIENT_NAME] as string) ?? '',
-      })
-    }
-    offset = data.offset
-  } while (offset)
-  return results
-}
-
+// Projects that are no longer follow-up targets — excluded from the picker (but still
+// resolved for display of historical logs).
 const INACTIVE_STAGES = new Set(['Closed', 'Closed and active warranty', 'Warranty expired'])
-
-async function fetchProjectsById(
-  projectIds: string[],
-): Promise<Map<string, { quotationNumber: string; quotationReference: string; clientName: string; stage: string; projectName: string }>> {
-  if (projectIds.length === 0) return new Map()
-  const map = new Map<string, { quotationNumber: string; quotationReference: string; clientName: string; stage: string; projectName: string }>()
-  for (let i = 0; i < projectIds.length; i += 50) {
-    const batch = projectIds.slice(i, i + 50)
-    const formula =
-      batch.length === 1
-        ? `RECORD_ID() = "${batch[0]}"`
-        : `OR(${batch.map((id) => `RECORD_ID() = "${id}"`).join(',')})`
-    const params = new URLSearchParams({ returnFieldsByFieldId: 'true', filterByFormula: formula })
-    params.append('fields[]', PROJECTS.QUOTATION_NUMBER)
-    params.append('fields[]', PROJECTS.QUOTATION_REFERENCE)
-    params.append('fields[]', PROJECTS.CLIENT_NAME)
-    params.append('fields[]', PROJECTS.PROJECT_STAGE)
-    params.append('fields[]', PROJECTS.PROJECT_NAME)
-    params.append('fields[]', PROJECTS.NICKNAME)
-    const res = await fetch(`${BASE_URL}/${PROJECTS.TABLE_ID}?${params}`, {
-      headers: { Authorization: `Bearer ${API_KEY}` },
-      cache: 'no-store',
-    })
-    if (!res.ok) continue
-    const data = (await res.json()) as { records: RawRecord[] }
-    for (const r of data.records) {
-      const nickname = (r.fields[PROJECTS.NICKNAME] as string) ?? ''
-      const projectName = (r.fields[PROJECTS.PROJECT_NAME] as string) ?? ''
-      map.set(r.id, {
-        quotationNumber: (r.fields[PROJECTS.QUOTATION_NUMBER] as string) ?? '',
-        quotationReference: (r.fields[PROJECTS.QUOTATION_REFERENCE] as string) ?? '',
-        clientName: (r.fields[PROJECTS.CLIENT_NAME] as string) ?? '',
-        stage: (r.fields[PROJECTS.PROJECT_STAGE] as string) ?? '',
-        projectName: nickname || projectName,
-      })
-    }
-  }
-  return map
-}
 
 async function fetchLogs(userName: string | null): Promise<RawRecord[]> {
   const records: RawRecord[] = []
   let offset: string | undefined
   do {
     const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-    params.append('fields[]', FOLLOW_UP_LOG.QUOTATION)
+    params.append('fields[]', FOLLOW_UP_LOG.PROJECT)
     params.append('fields[]', FOLLOW_UP_LOG.DATE)
     params.append('fields[]', FOLLOW_UP_LOG.METHOD)
     params.append('fields[]', FOLLOW_UP_LOG.OUTCOME)
@@ -132,58 +65,44 @@ async function fetchLogs(userName: string | null): Promise<RawRecord[]> {
 
 export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req: NextRequest, session) => {
   const isSed = session.role === 'sed'
-  const [quotationsRaw, logsRaw] = await Promise.all([
-    fetchQuotations(),
+  const [allProjects, logsRaw] = await Promise.all([
+    getAllProjects({ includeClientRequests: true }),
     fetchLogs(isSed ? session.name : null),
   ])
 
-  const uniqueProjectIds = [...new Set(quotationsRaw.map((q) => q.projectId).filter(Boolean))]
-  const projectMap = await fetchProjectsById(uniqueProjectIds)
-
-  const quotationMap = new Map(
-    quotationsRaw.map((q) => {
-      const proj = projectMap.get(q.projectId)
-      return [
-        q.id,
-        {
-          quoteNumber: proj?.quotationNumber ?? q.quoteNumber,
-          quotationReference: proj?.quotationReference ?? '',
-          clientName: proj?.clientName ?? q.clientName,
-        },
-      ]
-    }),
+  // Map every project (any stage) so historical logs resolve; the picker filters to active.
+  const projectInfo = new Map(
+    allProjects.map((p) => [
+      p.id,
+      {
+        projectRef: p.projectId ?? '',
+        projectName: p.nickname || p.projectName || '',
+        clientName: p.clientName ?? '',
+      },
+    ]),
   )
 
-  const quotations = quotationsRaw
-    .filter((q) => {
-      if (!q.projectId) return true
-      const proj = projectMap.get(q.projectId)
-      return !proj || !INACTIVE_STAGES.has(proj.stage)
-    })
-    .map((q) => {
-      const proj = projectMap.get(q.projectId)
-      return {
-        id: q.id,
-        quoteNumber: proj?.quotationNumber ?? q.quoteNumber,
-        quotationReference: proj?.quotationReference ?? '',
-        clientName: proj?.clientName ?? q.clientName,
-        projectName: proj?.projectName ?? '',
-      }
-    })
+  const projects = allProjects
+    .filter((p) => !INACTIVE_STAGES.has(p.projectStage))
+    .map((p) => ({
+      id: p.id,
+      projectRef: p.projectId ?? '',
+      projectName: p.nickname || p.projectName || '',
+      clientName: p.clientName ?? '',
+    }))
+    .sort((a, b) => (a.projectName || a.clientName).localeCompare(b.projectName || b.clientName))
 
   const logs = logsRaw.map((r) => {
     const f = r.fields
-    const quotationIds = Array.isArray(f[FOLLOW_UP_LOG.QUOTATION])
-      ? (f[FOLLOW_UP_LOG.QUOTATION] as string[])
-      : []
-    const quotationId = quotationIds[0] ?? ''
-    const quoteInfo = quotationMap.get(quotationId)
+    const projectIds = Array.isArray(f[FOLLOW_UP_LOG.PROJECT]) ? (f[FOLLOW_UP_LOG.PROJECT] as string[]) : []
+    const projectRecId = projectIds[0] ?? ''
+    const info = projectInfo.get(projectRecId)
     return {
       id: r.id,
-      quotationId,
-      quotationNumber: quoteInfo?.quoteNumber ?? '',
-      quotationReference: quoteInfo?.quotationReference ?? '',
-      clientName: quoteInfo?.clientName ?? '',
+      projectId: projectRecId,
+      projectRef: info?.projectRef ?? '',
+      projectName: info?.projectName ?? '',
+      clientName: info?.clientName ?? '',
       date: (f[FOLLOW_UP_LOG.DATE] as string) ?? '',
       method: (f[FOLLOW_UP_LOG.METHOD] as string) ?? '',
       outcome: (f[FOLLOW_UP_LOG.OUTCOME] as string) ?? '',
@@ -193,7 +112,7 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req: Next
     }
   })
 
-  return NextResponse.json({ logs, quotations })
+  return NextResponse.json({ logs, projects })
 })
 
 export const POST = requireRole('sed', 'manager', 'superadmin')(async (req: NextRequest, session) => {
@@ -211,7 +130,7 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req: Next
     [FOLLOW_UP_LOG.OUTCOME]: body.outcome,
     [FOLLOW_UP_LOG.LOGGED_BY]: session.name,
   }
-  if (body.quotationId) fields[FOLLOW_UP_LOG.QUOTATION] = [body.quotationId]
+  if (body.projectId) fields[FOLLOW_UP_LOG.PROJECT] = [body.projectId]
   if (body.nextDate) fields[FOLLOW_UP_LOG.NEXT_DATE] = body.nextDate
   if (body.notes) fields[FOLLOW_UP_LOG.NOTES] = body.notes
 

@@ -404,6 +404,7 @@ export const FOLLOW_UP_LOG = {
   TABLE:          'tblHzJiOoOTqWPUwq',
   FOLLOW_UP_NAME: 'fldGXvvFmKw0zHAFA',
   QUOTATION:      'fldYqfBIQ6eLx7O4o',
+  PROJECT:        'fldELIt8PfV90Zwnd',   // multipleRecordLinks → PROJECTS
   DATE:           'fldnqDwE5a0nktqO1',
   METHOD:         'fld6s5gxI6qjmHii9',
   OUTCOME:        'fld2ZoOMCvXeQpAml',

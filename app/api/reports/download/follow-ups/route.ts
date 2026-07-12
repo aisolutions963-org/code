@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { FOLLOW_UP_LOG, QUOTATIONS } from '@/lib/fieldMap'
+import { FOLLOW_UP_LOG, PROJECTS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
 
 export const dynamic = 'force-dynamic'
@@ -28,7 +28,7 @@ async function fetchAll<T>(tableId: string, params: URLSearchParams): Promise<T[
 
 export const GET = requireRole('superadmin')(async () => {
   const logParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  logParams.append('fields[]', FOLLOW_UP_LOG.QUOTATION)
+  logParams.append('fields[]', FOLLOW_UP_LOG.PROJECT)
   logParams.append('fields[]', FOLLOW_UP_LOG.DATE)
   logParams.append('fields[]', FOLLOW_UP_LOG.METHOD)
   logParams.append('fields[]', FOLLOW_UP_LOG.OUTCOME)
@@ -38,35 +38,40 @@ export const GET = requireRole('superadmin')(async () => {
   logParams.append('sort[0][field]', FOLLOW_UP_LOG.DATE)
   logParams.append('sort[0][direction]', 'desc')
 
-  const quoteParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  quoteParams.append('fields[]', QUOTATIONS.QUOTE_NUMBER)
-  quoteParams.append('fields[]', QUOTATIONS.CLIENT_NAME)
+  const projParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
+  projParams.append('fields[]', PROJECTS.PROJECT_ID)
+  projParams.append('fields[]', PROJECTS.PROJECT_NAME)
+  projParams.append('fields[]', PROJECTS.NICKNAME)
+  projParams.append('fields[]', PROJECTS.CLIENT_NAME)
 
-  const [logs, quotations] = await Promise.all([
+  const [logs, projects] = await Promise.all([
     fetchAll<{ id: string; fields: Record<string, unknown> }>(FOLLOW_UP_LOG.TABLE, logParams),
-    fetchAll<{ id: string; fields: Record<string, unknown> }>(QUOTATIONS.TABLE_ID, quoteParams),
+    fetchAll<{ id: string; fields: Record<string, unknown> }>(PROJECTS.TABLE_ID, projParams),
   ])
 
-  const quotationMap = new Map(
-    quotations.map((q) => [
-      q.id,
+  const projectMap = new Map(
+    projects.map((p) => [
+      p.id,
       {
-        quoteNumber: (q.fields[QUOTATIONS.QUOTE_NUMBER] as string) ?? '',
-        clientName: (q.fields[QUOTATIONS.CLIENT_NAME] as string) ?? '',
+        projectRef: (p.fields[PROJECTS.PROJECT_ID] as string) ?? '',
+        projectName:
+          (p.fields[PROJECTS.NICKNAME] as string) || (p.fields[PROJECTS.PROJECT_NAME] as string) || '',
+        clientName: (p.fields[PROJECTS.CLIENT_NAME] as string) ?? '',
       },
     ]),
   )
 
   const rows = logs.map((r) => {
     const f = r.fields
-    const quotationIds = Array.isArray(f[FOLLOW_UP_LOG.QUOTATION])
-      ? (f[FOLLOW_UP_LOG.QUOTATION] as string[])
+    const projectIds = Array.isArray(f[FOLLOW_UP_LOG.PROJECT])
+      ? (f[FOLLOW_UP_LOG.PROJECT] as string[])
       : []
-    const quoteInfo = quotationMap.get(quotationIds[0] ?? '')
+    const info = projectMap.get(projectIds[0] ?? '')
     return {
       date:          (f[FOLLOW_UP_LOG.DATE] as string) ?? '',
-      quoteNumber:   quoteInfo?.quoteNumber ?? '',
-      clientName:    quoteInfo?.clientName ?? '',
+      projectRef:    info?.projectRef ?? '',
+      projectName:   info?.projectName ?? '',
+      clientName:    info?.clientName ?? '',
       method:        (f[FOLLOW_UP_LOG.METHOD] as string) ?? '',
       outcome:       (f[FOLLOW_UP_LOG.OUTCOME] as string) ?? '',
       nextDate:      (f[FOLLOW_UP_LOG.NEXT_DATE] as string) ?? '',
@@ -78,7 +83,8 @@ export const GET = requireRole('superadmin')(async () => {
 
   const buffer = await buildXlsx('Follow-Ups', [
     { header: 'Follow-Up Date',      key: 'date',        width: 14, isDate: true },
-    { header: 'Quote Number',        key: 'quoteNumber', width: 16 },
+    { header: 'Project Ref',         key: 'projectRef',  width: 14 },
+    { header: 'Project',             key: 'projectName', width: 25 },
     { header: 'Client Name',         key: 'clientName',  width: 25 },
     { header: 'Method',              key: 'method',      width: 16 },
     { header: 'Outcome',             key: 'outcome',     width: 30 },
