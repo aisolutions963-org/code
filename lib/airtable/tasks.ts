@@ -27,6 +27,7 @@ import {
   RawRecord,
   str,
   strArr,
+  lookupStrArr,
   selectName,
   lookupSelectNames,
   firstLinkedRecord,
@@ -205,7 +206,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
   const projectIds = Array.from(new Set(tasks.flatMap((t) => t.project ?? [])))
   if (projectIds.length === 0) return tasks
 
-  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null; salesOwnerName: string | null; communSeds: string[]; requestType: string | null; tradeReference: string | null; description: string | null }> = {}
+  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null; salesOwnerName: string | null; communSeds: string[]; requestType: string | null; tradeReference: string | null; description: string | null; installationTeamNames: string[] }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) {
     chunks.push(projectIds.slice(i, i + 10))
@@ -216,7 +217,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
       const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const records = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS, PROJECTS.REQUEST_TYPE, PROJECTS.TRADE_REFERENCE, PROJECTS.PROJECT_DESCRIPTION],
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS, PROJECTS.REQUEST_TYPE, PROJECTS.TRADE_REFERENCE, PROJECTS.PROJECT_DESCRIPTION, PROJECTS.INSTALLATION_TEAM_NAMES],
       })
       for (const r of records) {
         const ref = str(r.fields[PROJECTS.PROJECT_ID])
@@ -231,7 +232,8 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
         const requestType = str(r.fields[PROJECTS.REQUEST_TYPE]) ?? null
         const tradeReference = str(r.fields[PROJECTS.TRADE_REFERENCE]) ?? null
         const description = str(r.fields[PROJECTS.PROJECT_DESCRIPTION]) ?? null
-        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference, salesOwnerName: owner?.name ?? null, communSeds, requestType, tradeReference, description }
+        const installationTeamNames = lookupStrArr(r.fields[PROJECTS.INSTALLATION_TEAM_NAMES])
+        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference, salesOwnerName: owner?.name ?? null, communSeds, requestType, tradeReference, description, installationTeamNames }
       }
     }),
   )
@@ -255,6 +257,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
             projectRequestType: (info.requestType as 'Trade' | 'Maintenance' | 'Variance' | null) ?? undefined,
             projectTradeReference: info.tradeReference ?? undefined,
             projectDescription: info.description ?? undefined,
+            installationTeamNames: info.installationTeamNames.length > 0 ? info.installationTeamNames : undefined,
           }
         : {}),
     }

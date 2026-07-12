@@ -231,11 +231,17 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
   const actionable = isActionableTask(task, role)
+  // Arabic name: prefer the Airtable-driven translation, then the legacy hardcoded map, then English.
+  const taskDisplayName = ar
+    ? ((task.arabicName?.[0] || '').trim() || AR_TASK_NAMES[task.taskName] || task.taskName)
+    : task.taskName
   const isDecisionTask = isCallClientDecisionTask(task, role)
   const isPerItem = !!task.projectItem?.length
+  // Measurement tasks (standalone Phase-1 OR per-item) — SED/manager/superadmin assign a
+  // team + date via the panel. Per-item ones must be recognised too, otherwise they fall
+  // through to isDateTask and get wrongly blocked by the "add a date first" completion guard.
   const isMeasurementTask =
     task.taskName.toLowerCase().includes('take measurement') &&
-    !isPerItem &&
     (role === 'manager' || role === 'sed' || role === 'superadmin')
   const isMaintenanceTask =
     task.taskName.toLowerCase().includes('carry out maintenance work') &&
@@ -499,7 +505,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
                 ⚙ {ar ? 'تلقائي' : 'System'}
               </span>
               <span className="text-sm font-medium text-gray-600 truncate" dir={ar ? 'rtl' : 'ltr'}>
-                {ar ? (AR_TASK_NAMES[task.taskName] ?? task.taskName) : task.taskName}
+                {taskDisplayName}
               </span>
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -591,6 +597,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <TaskStatusBadge status={task.status} />
             {task.department.length > 0 && (
               <span className="text-xs text-gray-400">{task.department.join(', ')}</span>
+            )}
+            {(task.installationTeamNames?.length ?? 0) > 0 && (
+              <span className="text-xs text-violet-600 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded" title="Assigned installation team">
+                👷 {task.installationTeamNames!.join(', ')}
+              </span>
             )}
             {task.lastModified && (
               <span className="text-xs text-gray-400" title={new Date(task.lastModified).toLocaleString()}>

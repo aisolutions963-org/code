@@ -43,6 +43,9 @@ export interface Task {
   fillersAndMissingList?: Attachment[]
   instructions?: string[]
   arabicInstructions?: string[]
+  arabicName?: string[]
+  /** Assigned installation team member names (enriched from the project). */
+  installationTeamNames?: string[]
   managerReviewStatus?: ManagerReviewStatus
   managerComment?: string
   requiresManagerReview?: boolean[]
@@ -168,6 +171,7 @@ export interface Project {
   projectCreatedAt?: string
   clientPhone?: string
   assignedInstallationTeam?: string[]
+  assignedInstallationTeamNames?: string[]
   emirate?: string
   location?: string
   detailedLocation?: string

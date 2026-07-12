@@ -171,6 +171,9 @@ function ProjectOverview({
         })()}
         <InfoRow label="Quotation #"  value={project.quotationNumber} />
         <InfoRow label="Reference"    value={project.quotationReference} />
+        {(project.assignedInstallationTeamNames?.length ?? 0) > 0 && (
+          <InfoRow label="Installation Team" value={project.assignedInstallationTeamNames!.join(', ')} />
+        )}
         <InfoRow label="Payment mode" value={project.paymentMode} />
       </div>
 
@@ -577,6 +580,8 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
   const itemCount = data?.items.length ?? 0
 
   const allTasks = tasksData?.tasks ?? []
+  const installationTeamNames =
+    allTasks.find((t) => (t.installationTeamNames?.length ?? 0) > 0)?.installationTeamNames ?? []
 
   // Separate fetch for docs bar — not role-filtered, so all teams see all attachments
   const { data: docsData } = useSWR<{ tasks: Task[] }>(
@@ -638,6 +643,12 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
             {!isLoading && itemCount > 0 && (
               <p className="text-sm text-gray-500 mt-0.5">
                 {itemCount} item{itemCount !== 1 ? 's' : ''} in production
+              </p>
+            )}
+            {installationTeamNames.length > 0 && (
+              <p className="text-sm text-violet-600 mt-0.5 flex items-center gap-1">
+                <span aria-hidden>👷</span>
+                <span className="font-medium">Installation Team:</span> {installationTeamNames.join(', ')}
               </p>
             )}
           </div>

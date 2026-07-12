@@ -30,6 +30,8 @@ interface ProjectTaskCardProps {
   priorityCount?: number
   /** Tasks the current role can act on now — drives the green "active" glow + pill. */
   activeCount?: number
+  /** Names of the assigned installation team members, if any. */
+  installationTeamNames?: string[]
   isPhase2: boolean
 }
 
@@ -45,6 +47,7 @@ export default function ProjectTaskCard({
   pendingApprovalCount,
   priorityCount = 0,
   activeCount = 0,
+  installationTeamNames = [],
   isPhase2,
 }: ProjectTaskCardProps) {
   const router = useRouter()
@@ -88,6 +91,11 @@ export default function ProjectTaskCard({
         </div>
         {displayName && projectRef && (
           <p className="text-xs text-gray-400 font-mono uppercase tracking-wider mt-0.5">{projectRef}</p>
+        )}
+        {installationTeamNames.length > 0 && (
+          <p className="text-[11px] text-violet-600 mt-0.5 truncate">
+            👷 {installationTeamNames.join(', ')}
+          </p>
         )}
       </div>
 

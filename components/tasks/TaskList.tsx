@@ -232,16 +232,19 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
         const itemCount = new Set(groupTasks.flatMap((t) => t.projectItem ?? [])).size
         const pendingApprovalCount = groupTasks.filter((t) => t.status === 'Pending Approval').length
         const firstTask = groupTasks[0]
-        const projectStage = firstTask?.projectStage?.[0]
-        // In Production, show the Working sub-stage from the furthest active task.
+        const installationTeamNames =
+          groupTasks.find((t) => (t.installationTeamNames?.length ?? 0) > 0)?.installationTeamNames ?? []
+        // The project's current phase is the phase of its furthest active task (each task
+        // carries its template's stage via the Template Stage lookup). In Production, also
+        // show the Working sub-stage derived from that task's order.
+        const activeTasks = groupTasks.filter((t) => t.status === 'To Do' || t.status === 'In Progress')
+        const furthest = activeTasks.reduce<Task | undefined>(
+          (best, t) => ((t.templateOrder?.[0] ?? -1) > (best?.templateOrder?.[0] ?? -1) ? t : best),
+          undefined,
+        )
+        const projectStage = furthest?.projectStage?.[0] ?? firstTask?.projectStage?.[0]
         const subStage = projectStage === 'Production'
-          ? (() => {
-              const orders = groupTasks
-                .filter((t) => t.status === 'To Do' || t.status === 'In Progress')
-                .map((t) => t.templateOrder?.[0])
-                .filter((o): o is number => o != null)
-              return orders.length ? workingSubStage(Math.max(...orders)) : null
-            })()
+          ? workingSubStage(furthest?.templateOrder?.[0])
           : null
 
         return (
@@ -258,6 +261,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
             pendingApprovalCount={pendingApprovalCount}
             priorityCount={priorityCount}
             activeCount={activeCount}
+            installationTeamNames={installationTeamNames}
             isPhase2={isPhase2}
           />
         )

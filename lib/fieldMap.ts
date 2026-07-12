@@ -27,6 +27,7 @@ export const TASK_TEMPLATES = {
   REQUIRES_MANAGER_REVIEW: 'fldypvKqW3vyNsrY4',
   INSTRUCTIONS: 'fldsfoFM1RtZyT5wX',
   ARABIC_INSTRUCTIONS: 'fldT16R9UBY0UybHk',
+  ARABIC_NAME: 'fldBuTNNh858rcPJi',       // Arabic translation of the task name
 } as const
 
 export const TASKS = {
@@ -44,6 +45,7 @@ export const TASKS = {
   FILLERS_MISSING_ITEMS_LIST: 'fldSTM132XO86l19p',
   INSTRUCTIONS: 'fldQUxsUzEi1XQojd',
   ARABIC_INSTRUCTIONS: 'fldHVVySDTIqcJnob',
+  ARABIC_NAME: 'fldUWMiKLKzeYD75q',       // lookup: Arabic Name (from Task Templates)
   MANAGER_REVIEW_STATUS: 'fldii3Ebi2lhAamuq',
   MANAGER_COMMENT: 'fldgHFTWfCZtJ1xOW',
   REQUIRES_MANAGER_REVIEW: 'fldEt5qAV8SiJoLvl',
@@ -67,7 +69,7 @@ export const TASKS = {
   QUOTATION_OUTCOME: 'fldhYsEHetrQxTZ8k',
   QC_CHECK_AT_SITE_DONE: 'fldHrNVNe3abI0FBx',
   FILLERS_DONE: 'fldeITdFvnLVegVIy',
-  PROJECT_STAGE: 'fldcS4LsNaEbpYEze',
+  PROJECT_STAGE: 'fldaYD4f7JUObFeom',  // lookup: template's PROJECT_STAGE via TASK_TEMPLATES_LINK (Preparing/Open/Production/Closing…)
   CLIENT: 'fldyYUTgOc7TNxl14',
   TASK_CREATED: 'fldHsDqsdVz90uAWc',
   TEMPLATE_ORDER: 'fldXxw74bcJFueDDX',
@@ -117,6 +119,7 @@ export const PROJECTS = {
   CLIENT: 'fldwLVEUsKeVLvXSb',
   ASSIGNED_INSTALLATION_TEAM: 'fldXdHwEqZLdgBgy4',
   INSTALLATION_TEAM_MEMBERS: 'fldi1aJVJ94RBk6lP',
+  INSTALLATION_TEAM_NAMES: 'fldMxBhH4cpfBmL60', // lookup: names of assigned installation team members
   NICKNAME: 'fldChERvQwVlxO1nR',
   EMIRATE: 'fldIrxYRfumFm6JjU',
   LOCATION: 'fld5iIjUh9z7jaJFW',

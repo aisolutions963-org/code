@@ -11,7 +11,9 @@ interface TaskGroupedListProps {
   loading?: boolean
 }
 
-const PHASE4_STAGES = ['Phase 4', 'Phase 5', 'Closed', 'Warranty', 'Warranty Done']
+// Late-phase template stages (Template Stage lookup vocabulary) — projects here render
+// ungrouped rather than in a per-project card.
+const PHASE4_STAGES = ['Closing', 'Closed & Valid Maintenance', 'Closed & Warranty Done', 'Archived']
 
 function shouldGroup(tasks: Task[]): boolean {
   if (tasks.length === 0) return false
