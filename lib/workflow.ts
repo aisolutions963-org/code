@@ -18,9 +18,10 @@ import { Task, TaskStatus } from './types'
 import { notifyManagerEscalation, notifyCallClient, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
 import { PHASE_CONFIG, TASK_MARKERS, isAutoTask, isHeadlineTask } from './phases'
+import { planUnlock } from './orderChain'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
-const { CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX, FABRICATION_DONE_MARKER } = TASK_MARKERS
+const { CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX } = TASK_MARKERS
 
 // Sequential position map for Trade/Maintenance client request tasks.
 // These tasks have no templateOrder (computed fields can't be written to),
@@ -169,71 +170,19 @@ async function unlockNextTasks(task: Task): Promise<void> {
   // Fetch all tasks once — used for AND-join check and locked task discovery.
   const allProjectTasks = await getAllTasksForProjectAll(projectId)
 
-  const completedOrder = task.templateOrder![0]
-  const taskPath = task.pathCondition ?? null
+  // Strict scope separation + ordering guard live in a pure, unit-tested helper:
+  // a per-item completion only advances that item; a project-level completion only
+  // advances project-level tasks; and order N waits for every lower-order task in scope.
+  const plan = planUnlock(task, allProjectTasks, PHASE_CONFIG.Working.perItemOrderMin)
+  if (plan.blocked) return
 
-  // AND-join guard: if any sibling tasks at the same order level are still active
-  // (To Do, In Progress, Pending Approval), the chain must not advance yet.
-  // For per-item tasks, scope siblings to the same item so gate completion on one
-  // item doesn't block advancement on another item.
-  //
-  // Exception: "fabrication done" bypasses the AND-join entirely — it unlocks the
-  // next task (e.g. "inform client") immediately without waiting for paint/carpentry
-  // siblings at the same templateOrder to finish.
-  const isFabricationDone = task.taskName.toLowerCase().includes(FABRICATION_DONE_MARKER)
-  const siblingsActive = allProjectTasks.filter(
-    (t) =>
-      t.id !== task.id &&
-      (t.pathCondition ?? null) === taskPath &&
-      t.templateOrder?.[0] === completedOrder &&
-      (task.projectItem?.[0]
-        ? t.projectItem?.[0] === task.projectItem[0]
-        : !t.projectItem?.length) &&
-      (t.status === 'To Do' || t.status === 'In Progress' || t.status === 'Pending Approval'),
-  )
-  if (siblingsActive.length > 0 && !isFabricationDone) return
+  // Per-item gate check (only once advancement is allowed for this item).
+  // maybeUnlockCallClient returns early if not all [gate] tasks are Completed.
+  const itemId = task.projectItem?.[0]
+  if (itemId) await maybeUnlockCallClient(projectId, itemId)
 
-  // Per-item gate check: after AND-join clears for any per-item task, run the item-level
-  // gate check. maybeUnlockCallClient returns early if not all [gate] tasks are Completed.
-  if (task.projectItem?.[0]) {
-    await maybeUnlockCallClient(projectId, task.projectItem[0])
-  }
-
-  // Build locked task list from fetched data (avoids a second Airtable call).
-  const lockedTasks = allProjectTasks.filter(
-    (t) =>
-      t.status === 'Locked' &&
-      (task.projectItem?.[0]
-        ? t.projectItem?.[0] === task.projectItem[0]
-        : !t.projectItem?.length),
-  )
-  if (lockedTasks.length === 0) return
-
-  // Fabrication item paths (Carpentry, Paint) at Phase 3 orders are shown alongside
-  // the universal Fabrication Done task. The team marks applicable ones In Progress.
-  const FAB_ITEM_PATHS = new Set(['Carpentry', 'Paint'])
-  const isPhase3PerItem =
-    !!task.projectItem?.[0] && completedOrder >= PHASE_CONFIG.Working.perItemOrderMin
-
-  // Unlock tasks in the same path (universal tasks use null path).
-  // For Phase 3 per-item completions, also include Carpentry/Paint path tasks so
-  // they surface alongside Fabrication Done — instruction text on the card guides
-  // the team to mark whichever ones apply as In Progress.
-  const samePath = lockedTasks.filter(
-    (t) =>
-      ((t.pathCondition ?? null) === taskPath ||
-        (isPhase3PerItem && FAB_ITEM_PATHS.has(t.pathCondition ?? ''))) &&
-      (t.templateOrder?.[0] ?? 0) > completedOrder,
-  )
-  if (samePath.length === 0) return
-
-  const orders = samePath
-    .map((t) => t.templateOrder?.[0])
-    .filter((o): o is number => typeof o === 'number')
-  if (orders.length === 0) return
-
-  const minOrder = Math.min(...orders)
-  const toUnlock = samePath.filter((t) => (t.templateOrder?.[0] ?? Infinity) === minOrder)
+  const toUnlock = plan.toUnlock
+  if (toUnlock.length === 0) return
 
   // If the next task(s) in the chain are gate-controlled, stop here —
   // they unlock exclusively via maybeUnlockCallClient when all [gate] tasks complete.

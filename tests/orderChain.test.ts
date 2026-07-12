@@ -1,0 +1,115 @@
+import { describe, it, expect } from 'vitest'
+import { planUnlock, isTaskDone } from '@/lib/orderChain'
+import type { Task, TaskStatus } from '@/lib/types'
+
+// Minimal Task factory — only the fields planUnlock reads.
+let idCounter = 0
+function mk(
+  order: number,
+  status: TaskStatus,
+  opts: { item?: string; path?: string | null; name?: string } = {},
+): Task {
+  return {
+    id: `t${idCounter++}`,
+    taskName: opts.name ?? `Task ${order}`,
+    status,
+    department: [],
+    taskOrder: [],
+    templateOrder: [order],
+    projectItem: opts.item ? [opts.item] : undefined,
+    pathCondition: opts.path ?? undefined,
+  } as unknown as Task
+}
+
+const PER_ITEM_MIN = 30
+
+describe('isTaskDone', () => {
+  it('Completed is done', () => expect(isTaskDone(mk(1, 'Completed'))).toBe(true))
+  it('optional-named task is done regardless of status', () =>
+    expect(isTaskDone(mk(1, 'Locked', { name: 'Fabricate if Missing (Optional)' }))).toBe(true))
+  it('unchosen path alternative (To Do + pathCondition) is done', () =>
+    expect(isTaskDone(mk(40, 'To Do', { path: 'Carpentry' }))).toBe(true))
+  it('In Progress is NOT done', () => expect(isTaskDone(mk(1, 'In Progress'))).toBe(false))
+  it('plain To Do (no path) is NOT done', () => expect(isTaskDone(mk(1, 'To Do'))).toBe(false))
+  it('Locked is NOT done', () => expect(isTaskDone(mk(1, 'Locked'))).toBe(false))
+})
+
+describe('planUnlock — single item ordering', () => {
+  it('unlocks the immediate next order when the completed step is the only lower one', () => {
+    const done = mk(38, 'Completed', { item: 'A' })
+    const tasks = [done, mk(40, 'Locked', { item: 'A' }), mk(41, 'Locked', { item: 'A' })]
+    const plan = planUnlock(done, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([40])
+  })
+
+  it('does NOT unlock order 41 while an order-40 fabrication task is still In Progress (the leak)', () => {
+    // Completed the null-path fabrication at 40; a Carpentry path at 40 is still In Progress.
+    const done = mk(40, 'Completed', { item: 'A', path: null })
+    const tasks = [
+      done,
+      mk(40, 'In Progress', { item: 'A', path: 'Carpentry' }),
+      mk(41, 'Locked', { item: 'A', path: null }),
+    ]
+    const plan = planUnlock(done, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(true)
+    expect(plan.toUnlock).toEqual([])
+  })
+
+  it('unchosen Carpentry/Paint (To Do + path) at order 40 does NOT block order 41', () => {
+    const done = mk(40, 'Completed', { item: 'A', path: null })
+    const tasks = [
+      done,
+      mk(40, 'To Do', { item: 'A', path: 'Carpentry' }), // unchosen → done
+      mk(40, 'To Do', { item: 'A', path: 'Paint' }), // unchosen → done
+      mk(41, 'Locked', { item: 'A', path: null }),
+    ]
+    const plan = planUnlock(done, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([41])
+  })
+})
+
+describe('planUnlock — items advance independently', () => {
+  it("completing item A's step never unlocks item B's tasks", () => {
+    const doneA = mk(40, 'Completed', { item: 'A', path: null })
+    const tasks = [
+      doneA,
+      mk(41, 'Locked', { item: 'A', path: null }),
+      // Item B is behind — its lower-order work is still open, but it must be untouched.
+      mk(38, 'In Progress', { item: 'B', path: null }),
+      mk(41, 'Locked', { item: 'B', path: null }),
+    ]
+    const plan = planUnlock(doneA, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    // Only item A's order-41 unlocks; item B's order-41 stays locked.
+    expect(plan.toUnlock.map((t) => t.id)).toEqual([tasks[1].id])
+    expect(plan.scopeTasks.every((t) => t.projectItem?.[0] === 'A')).toBe(true)
+  })
+
+  it("item B being behind does not block item A", () => {
+    const doneA = mk(38, 'Completed', { item: 'A', path: null })
+    const tasks = [
+      doneA,
+      mk(40, 'Locked', { item: 'A', path: null }),
+      mk(30, 'In Progress', { item: 'B', path: null }), // B far behind, still open
+    ]
+    const plan = planUnlock(doneA, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([40])
+  })
+})
+
+describe('planUnlock — scope isolation', () => {
+  it('a project-level completion never touches per-item tasks', () => {
+    const doneProj = mk(20, 'Completed', { path: null }) // no item = project-level
+    const tasks = [
+      doneProj,
+      mk(21, 'Locked', { path: null }), // project-level next
+      mk(40, 'Locked', { item: 'A', path: null }), // per-item — must be ignored
+    ]
+    const plan = planUnlock(doneProj, tasks, PER_ITEM_MIN)
+    expect(plan.scopeTasks.every((t) => !t.projectItem?.length)).toBe(true)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([21])
+  })
+})
