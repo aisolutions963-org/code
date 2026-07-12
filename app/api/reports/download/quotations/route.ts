@@ -47,13 +47,16 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   for (const f of [
     QUOTATIONS.NAME, QUOTATIONS.PROJECT, QUOTATIONS.CLIENT_NAME, QUOTATIONS.QUANTITY,
     QUOTATIONS.UNIT_PRICE, QUOTATIONS.QUOTATION_STATUS, QUOTATIONS.QUOTE_NUMBER,
-    QUOTATIONS.REVISION, QUOTATIONS.QUOTE_DATE, QUOTATIONS.SALES,
+    QUOTATIONS.REVISION, QUOTATIONS.QUOTE_DATE, QUOTATIONS.SENT_DATE, QUOTATIONS.SALES,
     QUOTATIONS.VARIATION_1, QUOTATIONS.VARIATION_2, QUOTATIONS.NOTES,
   ]) quotesParams.append('fields[]', f)
 
   const projParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  for (const f of [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.CLIENT_NAME, PROJECTS.PROJECT_STAGE, PROJECTS.PROJECT_DESCRIPTION])
-    projParams.append('fields[]', f)
+  for (const f of [
+    PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.CLIENT_NAME,
+    PROJECTS.PROJECT_STAGE, PROJECTS.PROJECT_DESCRIPTION, PROJECTS.QUOTATION_NUMBER,
+    PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER_NAME,
+  ]) projParams.append('fields[]', f)
 
   const fuParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   for (const f of [FOLLOW_UP_LOG.QUOTATION, FOLLOW_UP_LOG.DATE, FOLLOW_UP_LOG.NEXT_DATE])
@@ -101,26 +104,31 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     g.var2 += num(f[QUOTATIONS.VARIATION_2])
     g.quoteNumber ||= str(f[QUOTATIONS.QUOTE_NUMBER])
     g.revision ||= str(f[QUOTATIONS.REVISION])
-    g.quoteDate ||= str(f[QUOTATIONS.QUOTE_DATE])
+    // Sent Date is populated by F5; the extended Quote Date field is not.
+    g.quoteDate ||= str(f[QUOTATIONS.SENT_DATE]) || str(f[QUOTATIONS.QUOTE_DATE])
     g.clientName ||= str(f[QUOTATIONS.CLIENT_NAME])
     g.status ||= str(f[QUOTATIONS.QUOTATION_STATUS])
     g.sales ||= collab(f[QUOTATIONS.SALES])
     g.notes ||= str(f[QUOTATIONS.NOTES])
   }
 
+  const firstLookup = (v: unknown): string => (Array.isArray(v) ? String(v[0] ?? '') : '')
+
   const rows = Array.from(groups.values()).map((g) => {
     const proj = g.projId ? projById.get(g.projId) : undefined
     const vat = g.amount * VAT_RATE
     const totalWithVat = g.amount + vat
     return {
-      quoteNumber:   g.quoteNumber,
+      // Quote Number / Sales live on the Project (set at Make-Quotation / F5); the
+      // quote-level fields are unpopulated. Prefer the project value, fall back to quote.
+      quoteNumber:   str(proj?.[PROJECTS.QUOTATION_NUMBER]) || g.quoteNumber,
       revision:      g.revision,
       quoteDate:     g.quoteDate,
       clientName:    g.clientName || str(proj?.[PROJECTS.CLIENT_NAME]),
       projectDetails: str(proj?.[PROJECTS.PROJECT_NAME]) || str(proj?.[PROJECTS.NICKNAME]) || str(proj?.[PROJECTS.PROJECT_DESCRIPTION]),
       status:        g.status,
       projectStatus: str(proj?.[PROJECTS.PROJECT_STAGE]),
-      sales:         g.sales,
+      sales:         g.sales || firstLookup(proj?.[PROJECTS.SALES_OWNER_NAME]),
       quoteAmount:   g.amount,
       vat,
       totalWithVat,
