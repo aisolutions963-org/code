@@ -15,8 +15,10 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, sess
   ])
   const activeProjects = projects.filter((p) => !CLOSED_STAGES.has(p.projectStage))
 
+  // Include the current user: an SED creating a project must be able to assign themselves
+  // as the sales owner. (The Commun-SEDs picker excludes the chosen primary client-side.)
   const seds = users.filter(
-    (u) => u.role === 'sed' && Number(u.active) === 1 && u.airtable_member_id && u.id !== session.id,
+    (u) => u.role === 'sed' && Number(u.active) === 1 && u.airtable_member_id,
   )
 
   return NextResponse.json({
@@ -29,7 +31,7 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, sess
           p.salesOwner?.id === u.airtable_member_id ||
           (!!email && p.salesOwner?.email?.toLowerCase() === email),
       ).length
-      return { id: u.airtable_member_id!, name: u.name, projectCount }
+      return { id: u.airtable_member_id!, name: u.name, projectCount, isSelf: u.id === session.id }
     }),
   })
 })

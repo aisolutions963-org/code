@@ -310,7 +310,10 @@ export function transformTask(record: RawRecord): Task {
     id: record.id,
     taskName: (str(f[TASKS.TASK_NAME]) ?? ''),
     status: (str(f[TASKS.STATUS]) ?? 'To Do') as Task['status'],
-    department: lookupSelectNames(f[TASKS.DEPARTMENT]),
+    // Trim to match getTaskTemplates: the Airtable "Installation" choice has had a stray
+    // trailing space ("Installation "), which otherwise fails the exact-match department
+    // access check (installation gets 403 on status-only completions) and DEPT_ROLE_MAP routing.
+    department: lookupSelectNames(f[TASKS.DEPARTMENT]).map((d) => d.trim()),
     taskOrder: numArr(f[TASKS.TASK_ORDER]),
     templateOrder: lookupNumArr(f[TASKS.TEMPLATE_ORDER]),
     projectId: str(f[TASKS.PROJECT_ID]),

@@ -34,7 +34,7 @@ const DUBAI_LOCATIONS = [
   'The Springs', 'Tilal Al Ghaf', 'Town Square', 'Umm Suqeim',
 ]
 
-interface SedMember { id: string; name: string; projectCount?: number }
+interface SedMember { id: string; name: string; projectCount?: number; isSelf?: boolean }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -72,6 +72,14 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
 
   const { data: sedData } = useSWR<{ members: SedMember[] }>('/api/team/sed', fetcher)
   const sedMembers = sedData?.members ?? []
+
+  // When an SED creates the project, default the Assigned SED to themselves.
+  useEffect(() => {
+    if (selectedSedId) return
+    const self = sedMembers.find((m) => m.isSelf)
+    if (self) setSelectedSedId(self.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sedData])
 
   // Client autocomplete — only fetches when user interacts with the field
   const [clientsNeeded, setClientsNeeded] = useState(false)
@@ -279,7 +287,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
               <option value="">— select SED —</option>
               {sedMembers.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}{m.projectCount != null ? ` — ${m.projectCount} active` : ''}
+                  {m.name}{m.isSelf ? ' (You)' : ''}{m.projectCount != null ? ` — ${m.projectCount} active` : ''}
                 </option>
               ))}
             </select>
