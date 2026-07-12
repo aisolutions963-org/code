@@ -19,7 +19,12 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
   const results: AirtableProject[] = []
   let offset: string | undefined
   do {
-    const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
+    const params = new URLSearchParams({
+      returnFieldsByFieldId: 'true',
+      // Exclude client requests (Trade/Maintenance/Variance) and soft-deleted projects —
+      // matches getProjects()/getAllProjects() filtering used everywhere else.
+      filterByFormula: `AND({${PROJECTS.REQUEST_TYPE}} = "", {${PROJECTS.DELETED_AT}} = BLANK())`,
+    })
     params.append('fields[]', PROJECTS.PROJECT_STAGE)
     params.append('fields[]', PROJECTS.SALES_OWNER)
     params.append('fields[]', PROJECTS.COMMUN_SEDS)

@@ -14,8 +14,9 @@ async function fetchAllProjectStages(): Promise<{ stage: string; remaining: numb
     const params = new URLSearchParams({
       'fields[]': PROJECTS.PROJECT_STAGE,
       returnFieldsByFieldId: 'true',
-      // Exclude client requests (Trade/Maintenance/Variance) — matches getProjects() filter
-      filterByFormula: `{${PROJECTS.REQUEST_TYPE}} = ""`,
+      // Exclude client requests (Trade/Maintenance/Variance) and soft-deleted projects —
+      // matches getProjects()/getAllProjects() filtering so KPI tiles agree with project lists.
+      filterByFormula: `AND({${PROJECTS.REQUEST_TYPE}} = "", {${PROJECTS.DELETED_AT}} = BLANK())`,
     })
     params.append('fields[]', PROJECTS.REMAINING_BALANCE)
     if (offset) params.set('offset', offset)
