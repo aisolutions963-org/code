@@ -17,10 +17,10 @@ import {
 import { Task, TaskStatus } from './types'
 import { notifyManagerEscalation, notifyCallClient, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
-import { PHASE_CONFIG, TASK_MARKERS } from './phases'
+import { PHASE_CONFIG, TASK_MARKERS, isAutoTask, isHeadlineTask } from './phases'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
-const { HEADLINE_PREFIX, AUTO_MARKER: AUTO_TASK_MARKER, CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX, FABRICATION_DONE_MARKER } = TASK_MARKERS
+const { CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX, FABRICATION_DONE_MARKER } = TASK_MARKERS
 
 // Sequential position map for Trade/Maintenance client request tasks.
 // These tasks have no templateOrder (computed fields can't be written to),
@@ -251,11 +251,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
   // Auto-complete tasks: headline banners ("to follow tasks progress...") and system
   // tasks marked "(auto)". All tasks at this level are completed together, and the
   // chain continuation is triggered only once to prevent double-advancing.
-  const autoComplete = toUnlock.filter(
-    (t) =>
-      t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) ||
-      t.taskName.toLowerCase().includes(AUTO_TASK_MARKER),
-  )
+  const autoComplete = toUnlock.filter((t) => isAutoTask(t.taskName))
   const projectLabel = await resolveProjectLabel(task)
 
   if (autoComplete.length > 0) {
@@ -272,7 +268,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
     // team still needs to know the event happened (e.g. "project is now Open").
     // Headline banners are purely visual and generate no notification.
     for (const t of autoComplete) {
-      if (t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX)) continue
+      if (isHeadlineTask(t.taskName)) continue
       // "Send to SED & Fixing Team" is a fabrication-completion signal — send a
       // targeted, human-readable alert to SED and installation instead of a task
       // notification, since the task itself is invisible (auto-completed immediately).
@@ -315,11 +311,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
   }
 
   // Send notifications only for real (non-auto) tasks that just unlocked.
-  const realUnlocked = toUnlock.filter(
-    (t) =>
-      !t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) &&
-      !t.taskName.toLowerCase().includes(AUTO_TASK_MARKER),
-  )
+  const realUnlocked = toUnlock.filter((t) => !isAutoTask(t.taskName))
   if (realUnlocked.length === 0) return
 
   // Build body from completed task's notes and file attachments
@@ -492,8 +484,7 @@ export async function handleTaskCompletion(
 
       // Notify manager when an Installation or Fabrication task is completed,
       // so on-site / production progress isn't invisible until manually checked.
-      const isSystemAuto =
-        taskNameLower.startsWith('to follow tasks progress') || taskNameLower.includes('(auto')
+      const isSystemAuto = isAutoTask(task.taskName)
       const isFixingTeamNote =
         taskNameLower.startsWith('fixing team note') || task.taskName.startsWith('ملاحظة فريق التركيب')
       const completedDept = task.department?.find((d) => d === 'Installation' || d === 'Fabrication')

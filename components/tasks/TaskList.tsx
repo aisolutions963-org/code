@@ -3,6 +3,7 @@
 import React from 'react'
 import { Task, TaskUpdateInput, Role } from '@/lib/types'
 import { workingSubStage } from '@/lib/phases'
+import { isActionableTask } from '@/lib/permissions'
 import TaskCard from './TaskCard'
 import GatewaySection from './GatewaySection'
 import GateGroupCard from './GateGroupCard'
@@ -211,6 +212,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
     projectKey,
     group,
     priorityCount: group.tasks.filter((t) => t.priorityFlag).length,
+    activeCount: group.tasks.filter((t) => isActionableTask(t, role)).length,
     lastActivity: group.tasks.reduce((max, t) => {
       const ts = t.lastModified ? new Date(t.lastModified).getTime() : 0
       return ts > max ? ts : max
@@ -225,7 +227,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
 
   return (
     <div className="space-y-6">
-      {groupEntries.map(({ projectKey, group: { projectRecordId, tasks: groupTasks }, priorityCount }) => {
+      {groupEntries.map(({ projectKey, group: { projectRecordId, tasks: groupTasks }, priorityCount, activeCount }) => {
         const isPhase2 = groupTasks.some((t) => t.projectItem && t.projectItem.length > 0)
         const itemCount = new Set(groupTasks.flatMap((t) => t.projectItem ?? [])).size
         const pendingApprovalCount = groupTasks.filter((t) => t.status === 'Pending Approval').length
@@ -255,6 +257,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
             itemCount={itemCount}
             pendingApprovalCount={pendingApprovalCount}
             priorityCount={priorityCount}
+            activeCount={activeCount}
             isPhase2={isPhase2}
           />
         )

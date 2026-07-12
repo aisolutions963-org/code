@@ -56,7 +56,6 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
       description: item.description,
       notes: item.notes,
       quotationDate: parsed.data.quotationDate,
-      revision: parsed.data.revision,
       recordedBy: session.name,
     })
     results.push({ projectItemId: projectItem.id, quotationId: quotation.id })

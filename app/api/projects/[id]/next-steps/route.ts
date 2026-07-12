@@ -5,24 +5,29 @@ import { Task } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-const isGateway = (name: string) => /\[gateway\]/i.test(name)
-const isGate = (name: string) => /\[gate\]/i.test(name) && !/\[gateway\]/i.test(name)
+// Strip workflow prefixes so the preview reads like a normal step name.
+function cleanName(name: string): string {
+  return name
+    .replace(/^\[gateway\]\s*/i, '')
+    .replace(/^\[gate\]\s*/i, '')
+    .replace(/^\d+\s*[—-]\s*/, '')
+    .trim()
+}
 
-// The single next locked step in a scope, or null when the next thing is a choice
-// (a gateway / multiple path chips / an approval gate) — nothing to preview then.
-function nextSingleStep(locked: Task[]): string | null {
+// The next locked step in a scope, as a short label. Previews the single lowest-order
+// locked task (cleaned); when several tie at that order — e.g. a gateway's path chips or
+// multiple items — it's a choice, so show a generic prompt. Only null when nothing is locked.
+function nextStepLabel(locked: Task[]): string | null {
   const candidates = locked.filter(
     (t) => t.templateOrder?.[0] != null && t.taskName !== 'Follow Up',
   )
   if (candidates.length === 0) return null
   const minOrder = Math.min(...candidates.map((t) => t.templateOrder![0]))
   const atMin = candidates.filter((t) => t.templateOrder![0] === minOrder)
-  if (atMin.length !== 1) return null
-  const t = atMin[0]
-  if (isGateway(t.taskName) || isGate(t.taskName) || (t.pathCondition != null && t.pathCondition !== '')) {
-    return null
+  if (atMin.length === 1) {
+    return cleanName(atMin[0].taskName) || 'Choose the next action'
   }
-  return t.taskName
+  return 'Choose the next action'
 }
 
 export async function GET(
@@ -46,9 +51,9 @@ export async function GET(
       byItem.get(itemId)!.push(t)
     }
     const items: Record<string, string | null> = {}
-    for (const [itemId, tasks] of byItem) items[itemId] = nextSingleStep(tasks)
+    for (const [itemId, tasks] of byItem) items[itemId] = nextStepLabel(tasks)
 
-    return NextResponse.json({ project: nextSingleStep(projectLevel), items })
+    return NextResponse.json({ project: nextStepLabel(projectLevel), items })
   } catch (error) {
     console.error('GET /api/projects/[id]/next-steps error:', error)
     return NextResponse.json({ error: 'Failed to compute next steps' }, { status: 500 })

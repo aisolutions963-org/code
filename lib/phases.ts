@@ -48,3 +48,16 @@ export const TASK_MARKERS = {
   // without waiting for paint/carpentry siblings at the same templateOrder to finish.
   FABRICATION_DONE_MARKER: 'fabrication done',
 } as const
+
+// Headline banners ("to follow tasks progress …") — purely visual, no notification.
+export function isHeadlineTask(taskName: string): boolean {
+  return taskName.toLowerCase().startsWith(TASK_MARKERS.HEADLINE_PREFIX)
+}
+
+// System/auto tasks: headline banners OR tasks explicitly marked "(auto…)". These are
+// driven by the workflow (unlocked → completed automatically) and are never actionable
+// by a user. Single source of truth for both server (workflow/generation) and UI.
+export function isAutoTask(taskName: string): boolean {
+  const lower = taskName.toLowerCase()
+  return lower.startsWith(TASK_MARKERS.HEADLINE_PREFIX) || lower.includes(TASK_MARKERS.AUTO_MARKER)
+}

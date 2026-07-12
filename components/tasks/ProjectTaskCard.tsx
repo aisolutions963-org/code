@@ -28,6 +28,8 @@ interface ProjectTaskCardProps {
   itemCount: number
   pendingApprovalCount: number
   priorityCount?: number
+  /** Tasks the current role can act on now — drives the green "active" glow + pill. */
+  activeCount?: number
   isPhase2: boolean
 }
 
@@ -42,6 +44,7 @@ export default function ProjectTaskCard({
   itemCount,
   pendingApprovalCount,
   priorityCount = 0,
+  activeCount = 0,
   isPhase2,
 }: ProjectTaskCardProps) {
   const router = useRouter()
@@ -49,8 +52,13 @@ export default function ProjectTaskCard({
   const accentClass = ACCENT[stage] ?? 'border-l-gray-300'
   const stageBadgeClass = STAGE_BADGE[stage]
   const displayName = projectNickname ?? projectName
+  const hasActive = activeCount > 0
 
-  const outerClass = isPhase2
+  // A green "active" ring means "there's something here for you to do now" — it takes
+  // precedence over the teal Phase-2 treatment so actionable projects stand out.
+  const outerClass = hasActive
+    ? `border border-green-300 border-l-4 ${accentClass} rounded-xl overflow-hidden ring-2 ring-green-400 shadow-[0_0_0_4px_rgba(74,222,128,0.15)]`
+    : isPhase2
     ? `border border-teal-200 border-l-4 ${accentClass} rounded-xl overflow-hidden shadow-[0_0_0_3px_rgba(20,184,166,0.12)]`
     : `border border-gray-200 border-l-4 ${accentClass} rounded-xl overflow-hidden shadow-sm`
 
@@ -84,6 +92,12 @@ export default function ProjectTaskCard({
       </div>
 
       <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+        {hasActive && (
+          <span className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-50 border border-green-300 px-1.5 py-0.5 rounded-full" title="Tasks waiting for you">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+            {activeCount} for you
+          </span>
+        )}
         {priorityCount > 0 && (
           <span className="flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full" title="Priority tasks">
             🚩 {priorityCount}

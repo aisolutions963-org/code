@@ -47,7 +47,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   for (const f of [
     QUOTATIONS.NAME, QUOTATIONS.PROJECT, QUOTATIONS.CLIENT_NAME, QUOTATIONS.QUANTITY,
     QUOTATIONS.UNIT_PRICE, QUOTATIONS.QUOTATION_STATUS, QUOTATIONS.QUOTE_NUMBER,
-    QUOTATIONS.REVISION, QUOTATIONS.QUOTE_DATE, QUOTATIONS.SENT_DATE, QUOTATIONS.SALES,
+    QUOTATIONS.QUOTE_DATE, QUOTATIONS.SENT_DATE, QUOTATIONS.SALES,
     QUOTATIONS.VARIATION_1, QUOTATIONS.VARIATION_2, QUOTATIONS.NOTES,
   ]) quotesParams.append('fields[]', f)
 
@@ -88,7 +88,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const inWindow = (c: string) => (!from || c >= from) && (!to || c <= `${to}T23:59:59.999Z`)
 
   // Group quotation item-lines by project.
-  interface Group { projId?: string; quoteNumber: string; revision: string; quoteDate: string; clientName: string; status: string; sales: string; amount: number; var1: number; var2: number; notes: string }
+  interface Group { projId?: string; quoteNumber: string; quoteDate: string; clientName: string; status: string; sales: string; amount: number; var1: number; var2: number; notes: string }
   const groups = new Map<string, Group>()
   for (const q of quotes) {
     if (!inWindow(q.createdTime)) continue
@@ -96,14 +96,13 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     const projId = firstLink(f[QUOTATIONS.PROJECT]) ?? `__noproj_${q.id}`
     let g = groups.get(projId)
     if (!g) {
-      g = { projId: firstLink(f[QUOTATIONS.PROJECT]), quoteNumber: '', revision: '', quoteDate: '', clientName: '', status: '', sales: '', amount: 0, var1: 0, var2: 0, notes: '' }
+      g = { projId: firstLink(f[QUOTATIONS.PROJECT]), quoteNumber: '', quoteDate: '', clientName: '', status: '', sales: '', amount: 0, var1: 0, var2: 0, notes: '' }
       groups.set(projId, g)
     }
     g.amount += num(f[QUOTATIONS.QUANTITY]) * num(f[QUOTATIONS.UNIT_PRICE])
     g.var1 += num(f[QUOTATIONS.VARIATION_1])
     g.var2 += num(f[QUOTATIONS.VARIATION_2])
     g.quoteNumber ||= str(f[QUOTATIONS.QUOTE_NUMBER])
-    g.revision ||= str(f[QUOTATIONS.REVISION])
     // Sent Date is populated by F5; the extended Quote Date field is not.
     g.quoteDate ||= str(f[QUOTATIONS.SENT_DATE]) || str(f[QUOTATIONS.QUOTE_DATE])
     g.clientName ||= str(f[QUOTATIONS.CLIENT_NAME])
@@ -122,7 +121,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       // Quote Number / Sales live on the Project (set at Make-Quotation / F5); the
       // quote-level fields are unpopulated. Prefer the project value, fall back to quote.
       quoteNumber:   str(proj?.[PROJECTS.QUOTATION_NUMBER]) || g.quoteNumber,
-      revision:      g.revision,
+      reference:     str(proj?.[PROJECTS.QUOTATION_REFERENCE]),
       quoteDate:     g.quoteDate,
       clientName:    g.clientName || str(proj?.[PROJECTS.CLIENT_NAME]),
       projectDetails: str(proj?.[PROJECTS.PROJECT_NAME]) || str(proj?.[PROJECTS.NICKNAME]) || str(proj?.[PROJECTS.PROJECT_DESCRIPTION]),
@@ -143,7 +142,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
 
   const buffer = await buildXlsx('Quotations', [
     { header: 'Quote Number',                 key: 'quoteNumber',    width: 16 },
-    { header: 'Revision',                      key: 'revision',       width: 10 },
+    { header: 'Reference',                     key: 'reference',      width: 14 },
     { header: 'Quote Date',                    key: 'quoteDate',      width: 14, isDate: true },
     { header: 'Client Name',                   key: 'clientName',     width: 22 },
     { header: 'Project Details',               key: 'projectDetails', width: 30 },

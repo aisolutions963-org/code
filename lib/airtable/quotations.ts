@@ -96,7 +96,6 @@ export async function createQuotation(input: {
   notes?: string
   quotationDate?: string
   recordedBy?: string
-  revision?: string
 }): Promise<Quotation> {
   const fields: Record<string, unknown> = {
     [QUOTATIONS.NAME]: input.itemName,
@@ -105,9 +104,6 @@ export async function createQuotation(input: {
     [QUOTATIONS.QUANTITY]: input.quantity,
     [QUOTATIONS.UNIT_PRICE]: input.unitPrice,
   }
-  // Revision is whatever the SED enters on F5; a resubmission overwrites the old
-  // quotation (the F5 revert wipes prior records), so no counter is kept.
-  if (input.revision) fields[QUOTATIONS.REVISION] = input.revision
   if (input.description) fields[QUOTATIONS.DESCRIPTION] = input.description
   if (input.notes) fields[QUOTATIONS.NOTES] = input.notes
   if (input.quotationDate) fields[QUOTATIONS.SENT_DATE] = input.quotationDate

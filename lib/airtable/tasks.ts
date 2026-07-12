@@ -1,6 +1,6 @@
 // Tasks domain — all task-related Airtable functions
 
-import { PHASE_CONFIG } from '../phases'
+import { PHASE_CONFIG, isAutoTask } from '../phases'
 import {
   Role,
   Task,
@@ -949,10 +949,21 @@ export async function generateTasksForProject(
   const universalOrders = universalOrdered.map((t) => t.templateOrder!).sort((a, b) => a - b)
 
   const firstOrder = universalOrders[0] ?? Infinity
-  const secondOrder = universalOrders[1] ?? Infinity
   const preparingCfg = PHASE_CONFIG.Preparing
   const firstIsAutoCompleted = stage === 'Preparing' && preparingCfg.autoCompleteFirstTask
-  const activeOrder = firstIsAutoCompleted ? secondOrder : firstOrder
+
+  // System/auto tasks (headline banners, "(auto)" steps) must never sit as the active
+  // To-Do step — no one clicks them, so they'd block the chain. Mark any leading auto
+  // universal tasks Completed at generation and hand the active slot to the first real one.
+  const autoCompletedOrders = new Set<number>()
+  let activeOrder = Infinity
+  for (const ord of universalOrders) {
+    if (firstIsAutoCompleted && ord === firstOrder) continue // already auto-completed below
+    const tpl = universalOrdered.find((t) => t.templateOrder === ord)
+    if (tpl && isAutoTask(tpl.taskName)) { autoCompletedOrders.add(ord); continue }
+    activeOrder = ord
+    break
+  }
 
   const pathMinMap = new Map<string, number>()
   Array.from(pathGroups.entries()).forEach(([path, group]) => {
@@ -968,6 +979,7 @@ export async function generateTasksForProject(
       status = t.taskName === 'Follow Up' ? 'Locked' : 'To Do'
     } else if (t.pathCondition === null) {
       if (firstIsAutoCompleted && t.templateOrder === firstOrder) status = 'Completed'
+      else if (autoCompletedOrders.has(t.templateOrder!)) status = 'Completed'
       else if (t.templateOrder === activeOrder) status = 'To Do'
       else status = 'Locked'
     } else {
