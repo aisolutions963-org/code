@@ -35,6 +35,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
   const [rows, setRows] = useState<QuotationRow[]>([emptyRow()])
   const [quotationDate, setQuotationDate] = useState(todayUAE())
   const [quotationRef, setQuotationRef] = useState(task.projectQuotationReference ?? '')
+  const [revision, setRevision] = useState('')
   const [discount, setDiscount] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -77,6 +78,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
         quotationNumber: quotationNumber.trim(),
         quotationReference: quotationRef.trim(),
         quotationDate,
+        revision: revision.trim(),
         totalAmountToPay: total,
         items: rows.map((r) => ({
           itemName: r.itemName.trim(),
@@ -130,13 +132,22 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
             onChange={(e) => setQuotationDate(e.target.value)}
           />
         </div>
-        <div className="col-span-2">
+        <div>
           <label className="block text-xs text-gray-400 mb-0.5">Quotation Reference *</label>
           <input
             className={inp}
             value={quotationRef}
             onChange={(e) => setQuotationRef(e.target.value)}
             placeholder="e.g. REF-2024-001"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-400 mb-0.5">Revision</label>
+          <input
+            className={inp}
+            value={revision}
+            onChange={(e) => setRevision(e.target.value)}
+            placeholder="e.g. R0, R1"
           />
         </div>
       </div>
