@@ -72,7 +72,6 @@ export interface Task {
   fillersDone?: boolean
   priorityFlag?: boolean
   projectStage?: string[]
-  client?: string[]
   taskCreated?: string
   lastModified?: string
   createdAt?: string
@@ -163,7 +162,6 @@ export interface Project {
   paymentProgress?: number
   lastModifiedTasks?: string
   approvalStatus?: string
-  taskIds?: string[]
   projectItemIds?: string[]
   paymentIds?: string[]
   managerNotes?: string

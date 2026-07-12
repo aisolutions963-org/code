@@ -70,11 +70,9 @@ export const TASKS = {
   QC_CHECK_AT_SITE_DONE: 'fldHrNVNe3abI0FBx',
   FILLERS_DONE: 'fldeITdFvnLVegVIy',
   PROJECT_STAGE: 'fldaYD4f7JUObFeom',  // lookup: template's PROJECT_STAGE via TASK_TEMPLATES_LINK (Preparing/Open/Production/Closing…)
-  CLIENT: 'fldyYUTgOc7TNxl14',
   TASK_CREATED: 'fldHsDqsdVz90uAWc',
   TEMPLATE_ORDER: 'fldXxw74bcJFueDDX',
   PRIORITY_FLAG: 'fld5rZ88NiEmAeB4f',
-  PROJECT_RECORD_ID: 'fldKSFnS37UeQmzNQ',
   TASK_TEMPLATES_LINK: 'fld5FPm767CTRLC1R',
   CALL_COUNT: 'fldEw1v5H3SyekCoZ',
   PATH_CONDITION: 'fldG5Mvt5DzharM3i',
@@ -108,7 +106,6 @@ export const PROJECTS = {
   PAYMENT_PROGRESS: 'fld4TAQfEBVufRDez',
   LAST_MODIFIED_TASKS: 'fldl1WQ27xdZREjtv',
   APPROVAL_STATUS: 'fldH2FdeW2yZyNHdz',
-  TASKS: 'fldvTintfFqatyzEk',  // multipleRecordLinks → TASKS (canonical reciprocal; read into Project.taskIds)
   PROJECT_ITEMS: 'fldYcgC7XmHzZk9A1',
   PAYMENTS: 'fldtHlJddB54ZHeNZ',
   PROJECT_CREATED_AT: 'fldj9TQDO0WZEZBCR',
