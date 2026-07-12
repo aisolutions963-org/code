@@ -18,7 +18,7 @@ import { Task, TaskStatus } from './types'
 import { notifyManagerEscalation, notifyCallClient, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
 import { PHASE_CONFIG, TASK_MARKERS, isAutoTask, isHeadlineTask } from './phases'
-import { planUnlock } from './orderChain'
+import { planUnlock, isTaskDone } from './orderChain'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
 const { CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX } = TASK_MARKERS
@@ -125,7 +125,7 @@ async function maybeUnlockCallClient(projectId: string, projectItemId?: string):
   }
 }
 
-async function unlockNextTasks(task: Task): Promise<void> {
+export async function unlockNextTasks(task: Task): Promise<void> {
   const projectId = task.project?.[0]
   if (!projectId) return
 
@@ -334,15 +334,13 @@ async function maybeGeneratePhase4(task: Task): Promise<void> {
   const perItemTasks = allProjectTasks.filter((t) => (t.projectItem?.length ?? 0) > 0)
   if (perItemTasks.length === 0) return
 
-  // An item's per-item task is "done" when Completed, an explicitly optional task, or an
-  // unchosen path alternative (Carpentry/Paint left To-Do). Everything else — Locked (a
-  // lagging item that hasn't reached this step), In Progress, Pending Approval, or a plain
+  // An item's per-item task is "done" when Completed, an explicitly optional task, an
+  // unchosen path alternative (Carpentry/Paint, or an abandoned per-item gateway path —
+  // Select Sample / Measurement / Design / Site Visit — left Locked forever), via the
+  // shared isTaskDone (lib/orderChain.ts). Everything else — a lagging item's own
+  // not-yet-reached step (Locked, no path), In Progress, Pending Approval, or a plain
   // To-Do — means at least one item is still working, so the handover must not start yet.
-  const isDone = (t: Task) =>
-    t.status === 'Completed' ||
-    t.taskName.toLowerCase().includes('optional') ||
-    (t.status === 'To Do' && !!t.pathCondition)
-  if (perItemTasks.some((t) => !isDone(t))) return
+  if (perItemTasks.some((t) => !isTaskDone(t))) return
 
   const { todoTemplates } = await generatePhase4Tasks(projectId)
 

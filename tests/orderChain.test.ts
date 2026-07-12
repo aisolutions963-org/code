@@ -31,7 +31,9 @@ describe('isTaskDone', () => {
     expect(isTaskDone(mk(40, 'To Do', { path: 'Carpentry' }))).toBe(true))
   it('In Progress is NOT done', () => expect(isTaskDone(mk(1, 'In Progress'))).toBe(false))
   it('plain To Do (no path) is NOT done', () => expect(isTaskDone(mk(1, 'To Do'))).toBe(false))
-  it('Locked is NOT done', () => expect(isTaskDone(mk(1, 'Locked'))).toBe(false))
+  it('Locked (no path) is NOT done', () => expect(isTaskDone(mk(1, 'Locked'))).toBe(false))
+  it('Locked + pathCondition (abandoned gateway alternative) is done', () =>
+    expect(isTaskDone(mk(4, 'Locked', { path: 'Order Sample' }))).toBe(true))
 })
 
 describe('planUnlock — single item ordering', () => {
@@ -67,6 +69,29 @@ describe('planUnlock — single item ordering', () => {
     const plan = planUnlock(done, tasks, PER_ITEM_MIN)
     expect(plan.blocked).toBe(false)
     expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([41])
+  })
+})
+
+describe('planUnlock — abandoned gateway paths do not block (regression: F4 stuck bug)', () => {
+  it('an abandoned Locked gateway alternative at an earlier order does not block a later project-level unlock', () => {
+    // Mirrors the live recY7JJNZd0s3LGMV bug: order-4 "Need More Details From Client"
+    // (a gateway path never chosen) sits Locked forever; F4 (order 20, path null)
+    // completes; order 22 must still unlock.
+    const abandoned = mk(4, 'Locked', { path: 'Need More Details' })
+    const done = mk(20, 'Completed', { path: null })
+    const tasks = [abandoned, done, mk(22, 'Locked', { path: null })]
+    const plan = planUnlock(done, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([22])
+  })
+
+  it('a plain Locked task with no path still blocks (universal chain intact)', () => {
+    const stillLocked = mk(19, 'Locked') // no path — genuinely not yet reached
+    const done = mk(20, 'Completed', { path: null })
+    const tasks = [stillLocked, done, mk(22, 'Locked', { path: null })]
+    const plan = planUnlock(done, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(true)
+    expect(plan.toUnlock).toEqual([])
   })
 })
 

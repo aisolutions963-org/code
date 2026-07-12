@@ -19,7 +19,12 @@ export function isTaskDone(t: Task): boolean {
   return (
     t.status === 'Completed' ||
     t.taskName.toLowerCase().includes('optional') ||
-    (t.status === 'To Do' && !!t.pathCondition)
+    (t.status === 'To Do' && !!t.pathCondition) ||
+    // A Locked task with a pathCondition is a gateway alternative that was never chosen —
+    // only the entry step of each path is promoted to To Do at generation (see
+    // generateTasksForProject), so any downstream step of an unchosen path stays Locked
+    // forever. It must not block a later, unrelated completion in the same scope.
+    (t.status === 'Locked' && !!t.pathCondition)
   )
 }
 

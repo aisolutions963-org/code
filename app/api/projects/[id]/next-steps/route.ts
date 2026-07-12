@@ -17,9 +17,15 @@ function cleanName(name: string): string {
 // The next locked step in a scope, as a short label. Previews the single lowest-order
 // locked task (cleaned); when several tie at that order — e.g. a gateway's path chips or
 // multiple items — it's a choice, so show a generic prompt. Only null when nothing is locked.
+//
+// A Locked task with a pathCondition is a gateway alternative that was never chosen (see
+// lib/orderChain.ts isTaskDone for the full rationale) — only the entry step of each path
+// is ever promoted out of Locked, so any downstream step of an unchosen path stays Locked
+// forever. It must be excluded here too, or an abandoned path from early in the workflow
+// permanently shows this generic label instead of the real next step.
 function nextStepLabel(locked: Task[]): string | null {
   const candidates = locked.filter(
-    (t) => t.templateOrder?.[0] != null && t.taskName !== 'Follow Up',
+    (t) => t.templateOrder?.[0] != null && t.taskName !== 'Follow Up' && !t.pathCondition,
   )
   if (candidates.length === 0) return null
   const minOrder = Math.min(...candidates.map((t) => t.templateOrder![0]))
