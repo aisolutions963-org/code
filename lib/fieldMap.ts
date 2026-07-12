@@ -106,7 +106,7 @@ export const PROJECTS = {
   PAYMENT_PROGRESS: 'fld4TAQfEBVufRDez',
   LAST_MODIFIED_TASKS: 'fldl1WQ27xdZREjtv',
   APPROVAL_STATUS: 'fldH2FdeW2yZyNHdz',
-  TASKS: 'fldCezGrdho4OveCs',
+  TASKS: 'fldvTintfFqatyzEk',  // multipleRecordLinks → TASKS (canonical reciprocal; read into Project.taskIds)
   PROJECT_ITEMS: 'fldYcgC7XmHzZk9A1',
   PAYMENTS: 'fldtHlJddB54ZHeNZ',
   PROJECT_CREATED_AT: 'fldj9TQDO0WZEZBCR',
