@@ -88,8 +88,8 @@ function WarrantyView() {
                 <tbody className="divide-y divide-gray-50">
                   {maintenanceRequests.map((r) => (
                     <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{r.tradeReference ?? '—'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-700">{r.parentProjectName ?? '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{r.tradeReference || r.parentProjectRef || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-700">{r.parentProjectName || '—'}</td>
                       <td className="px-4 py-3 text-xs text-gray-500">{r.clientName}</td>
                       <td className="px-4 py-3">
                         <Badge variant={r.projectStage === 'Closed' || r.projectStage === 'Closed and active warranty' ? 'green' : 'blue'} size="sm">

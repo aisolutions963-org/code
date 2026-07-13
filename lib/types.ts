@@ -180,6 +180,7 @@ export interface Project {
   requestType?: 'Trade' | 'Maintenance' | 'Variance'
   parentProjectId?: string
   parentProjectName?: string
+  parentProjectRef?: string
   tradeReference?: string
   deletedAt?: string
 }
@@ -195,6 +196,7 @@ export interface ClientRequest {
   description?: string
   parentProjectId?: string
   parentProjectName?: string
+  parentProjectRef?: string
   tradeReference?: string
   tasks?: Task[]
   payments?: Payment[]

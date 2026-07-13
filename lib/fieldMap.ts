@@ -124,6 +124,8 @@ export const PROJECTS = {
   PROJECT_DESCRIPTION: 'fldhpCCy7ZIrh7pax',
   REQUEST_TYPE:    'fldDlEFv0as7eOxuS',  // single select: Trade | Maintenance | Variance
   PARENT_PROJECT:  'flds3nCf54kT4Ss3s',  // linked record → PROJECTS
+  PARENT_PROJECT_NAME: 'fldu8vYub4DmcSeNf',      // lookup: Project Name (from Parent Project)
+  PARENT_QUOTATION_REFERENCE: 'fldGQ3L2M6hZj0cy2', // lookup: Quotation Reference (from Parent Project)
   TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
   DELETED_AT:      'fldzYRbsAHpdGMKgD',  // dateTime — set on soft-delete, blank when active
   PRODUCTION_START_DATE: 'fldtWKyDyyPN3mCVR', // date — when the project entered production

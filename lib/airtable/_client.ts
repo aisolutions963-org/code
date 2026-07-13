@@ -419,7 +419,13 @@ export function transformProject(record: RawRecord): import('../types').Project 
     communSedIds: communSedIds.length > 0 ? communSedIds : undefined,
     requestType: (str(f[PROJECTS.REQUEST_TYPE]) as 'Trade' | 'Maintenance' | 'Variance' | undefined) ?? undefined,
     parentProjectId: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.id ?? undefined,
-    parentProjectName: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.name ?? undefined,
+    // Linked-record fields return only IDs over REST (no .name), so read the parent's name
+    // and reference from their lookup fields — otherwise both are blank on every client request.
+    parentProjectName:
+      lookupStrArr(f[PROJECTS.PARENT_PROJECT_NAME])[0] ||
+      firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.name ||
+      undefined,
+    parentProjectRef: lookupStrArr(f[PROJECTS.PARENT_QUOTATION_REFERENCE])[0] || undefined,
     tradeReference: str(f[PROJECTS.TRADE_REFERENCE]) ?? undefined,
     deletedAt: str(f[PROJECTS.DELETED_AT]) ?? undefined,
   }

@@ -187,6 +187,7 @@ export async function getClientRequests(options?: {
       description: p.projectDescription,
       parentProjectId: p.parentProjectId,
       parentProjectName: p.parentProjectName,
+      parentProjectRef: p.parentProjectRef,
       tradeReference: p.tradeReference,
       tasks: tasksByProject.get(p.id) ?? [],
     }
@@ -249,6 +250,7 @@ export async function getClientRequestsByParentProject(parentProjectId: string):
       description: p.projectDescription,
       parentProjectId: p.parentProjectId,
       parentProjectName: p.parentProjectName,
+      parentProjectRef: p.parentProjectRef,
       tradeReference: p.tradeReference,
       tasks: tasksByProject.get(p.id) ?? [],
       payments,

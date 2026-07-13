@@ -137,18 +137,18 @@ function RequestCard({ req, onReassigned }: { req: ClientRequest; onReassigned: 
           </span>
         </div>
 
-        {(req.parentProjectName || req.tradeReference) && (
+        {(req.parentProjectName || req.tradeReference || req.parentProjectRef) && (
           <div className="text-xs text-gray-500 mb-2 flex flex-wrap gap-x-3">
             {req.parentProjectName && (
               <span>Project: <span className="font-medium text-gray-700">{req.parentProjectName}</span></span>
             )}
-            {req.tradeReference && (
+            {(req.tradeReference || req.parentProjectRef) && (
               <span>
                 Ref:{' '}
                 <span className={`font-mono font-semibold ${
                   req.requestType === 'Variance' ? 'text-purple-700' : 'text-blue-700'
                 }`}>
-                  {req.tradeReference}
+                  {req.tradeReference || req.parentProjectRef}
                 </span>
               </span>
             )}
