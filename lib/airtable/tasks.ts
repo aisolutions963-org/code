@@ -28,6 +28,7 @@ import {
   str,
   strArr,
   lookupStrArr,
+  lookupNumArr,
   selectName,
   lookupSelectNames,
   firstLinkedRecord,
@@ -1094,15 +1095,25 @@ export async function generatePhase3TasksForItem(
   // so we cannot reliably filter by itemId inside a formula.
   const existingRaw = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}))`,
-    fields: [TASKS.TASK_TEMPLATES_LINK, TASKS.PROJECT_ITEM],
+    fields: [TASKS.TASK_TEMPLATES_LINK, TASKS.PROJECT_ITEM, TASKS.STATUS, TASKS.TEMPLATE_ORDER],
   })
   const existingTemplateIds = new Set<string>()
-  for (const r of existingRaw) {
-    const itemIds = strArr(r.fields[TASKS.PROJECT_ITEM])
-    if (!itemIds.includes(itemId)) continue
+  const itemRaw = existingRaw.filter((r) => strArr(r.fields[TASKS.PROJECT_ITEM]).includes(itemId))
+  for (const r of itemRaw) {
     const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
     if (Array.isArray(links)) links.forEach((id) => existingTemplateIds.add(id as string))
   }
+
+  // Guard against split states: only generate Phase 3 once the item's Phase 2 is complete
+  // (its order-29 trigger step is Completed). The normal auto-trigger fires exactly then, so
+  // it always passes; this blocks the manual "generate phase 3"/advance paths from creating
+  // Phase 3 tasks alongside still-open Phase 2 gates — a state the order guard holds forever.
+  const triggerOrder = PHASE_CONFIG.Working.triggerOrder
+  const triggerTask = itemRaw.find((r) => lookupNumArr(r.fields[TASKS.TEMPLATE_ORDER])[0] === triggerOrder)
+  if (triggerTask && str(triggerTask.fields[TASKS.STATUS]) !== 'Completed') {
+    return { created: 0, todoTemplates: [] }
+  }
+
   const newTemplates = templates.filter((t) => !existingTemplateIds.has(t.id))
   if (newTemplates.length === 0) return { created: 0, todoTemplates: [] }
 
