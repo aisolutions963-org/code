@@ -590,10 +590,10 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
     { revalidateOnFocus: false },
   )
   const docsTasks = docsData?.tasks ?? []
-  // Newest-created task on top (project-detail task list).
+  // Chronological: earliest-generated task first (workflow order, top to bottom).
   const projectLevelTasks = allTasks
     .filter((t) => !t.projectItem?.length)
-    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+    .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
   // During Production, surface which sub-stage the project has reached (Material →
   // Fabrication → Fixing), from the furthest-along active per-item task.
   const currentSubStage = (() => {

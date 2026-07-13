@@ -80,10 +80,13 @@ export default function ItemBoard({ projectId, items, role, onUpdate, onMutate, 
     )
   }
 
-  // Item with the most recently generated task on top (matches the newest-first task order).
-  const newestOf = (item: ItemSummary) =>
-    item.allTasks.reduce((m, t) => (t.createdAt && t.createdAt > m ? t.createdAt : m), '')
-  const orderedItems = [...items].sort((a, b) => newestOf(b).localeCompare(newestOf(a)))
+  // Items in chronological order — earliest-generated first (matches the task order).
+  const earliestOf = (item: ItemSummary) =>
+    item.allTasks.reduce<string>(
+      (m, t) => (t.createdAt && (m === '' || t.createdAt < m) ? t.createdAt : m),
+      '',
+    )
+  const orderedItems = [...items].sort((a, b) => earliestOf(a).localeCompare(earliestOf(b)))
 
   return (
     <>
