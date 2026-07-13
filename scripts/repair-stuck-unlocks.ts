@@ -48,11 +48,21 @@ async function run() {
       if (!lastCompleted) continue
       scopesChecked++
 
+      // Triggers to replay: the scope's last real progress marker, plus any In-Progress
+      // F3 (big-order branch keeps F3 open by design but must still advance the
+      // order-32 AND-join — planUnlock excludes the trigger itself from the blocked scan).
+      const triggers: Task[] = [lastCompleted]
+      for (const t of scopeTasks) {
+        if (t.status === 'In Progress' && t.taskName.toLowerCase().startsWith('f3 —')) {
+          triggers.push(t)
+        }
+      }
+
       // Snapshot statuses before, so we can report exactly what unlockNextTasks changed.
       const before = new Map(tasks.map((t) => [t.id, t.status]))
 
       if (CONFIRM) {
-        await unlockNextTasks(lastCompleted)
+        for (const trigger of triggers) await unlockNextTasks(trigger)
         const after = await getAllTasksForProjectAll(project.id)
         const changed = after.filter((t) => before.get(t.id) && before.get(t.id) !== t.status)
         if (changed.length > 0) {
@@ -72,6 +82,22 @@ async function run() {
         const locked = scopeTasks.filter((t) => t.status === 'Locked')
         const abandonedPath = locked.filter((t) => t.pathCondition)
         const genuinelyLocked = locked.filter((t) => !t.pathCondition)
+        // Flag F3 big-order stalls: F3 In Progress with the order-32 AND-join still Locked.
+        const f3Stuck = triggers.slice(1) // any In-Progress F3 found above
+        for (const f3 of f3Stuck) {
+          const f3Order = f3.templateOrder?.[0] ?? 0
+          const nextLocked = genuinelyLocked
+            .filter((t) => (t.templateOrder?.[0] ?? Infinity) > f3Order)
+            .sort((a, b) => (a.templateOrder?.[0] ?? Infinity) - (b.templateOrder?.[0] ?? Infinity))[0]
+          if (nextLocked) {
+            const label = key === '__project__' ? 'project-level' : `item ${key}`
+            console.log(
+              `? ${project.projectId ?? project.id} (${project.projectName}) — ${label}: ` +
+                `F3 big-order stall — "${f3.taskName}" In Progress (order ${f3Order}), ` +
+                `next Locked: "${nextLocked.taskName}" (order ${nextLocked.templateOrder?.[0]})`,
+            )
+          }
+        }
         if (abandonedPath.length > 0 && genuinelyLocked.length > 0) {
           const label = key === '__project__' ? 'project-level' : `item ${key}`
           const nextCandidate = genuinelyLocked.sort(

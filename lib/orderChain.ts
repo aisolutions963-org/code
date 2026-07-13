@@ -68,8 +68,13 @@ export function planUnlock(
   const minOrder = orders.length > 0 ? Math.min(...orders) : Infinity
 
   // Ordering guard: never unlock `minOrder` while any lower-order task in scope is open.
+  // The triggering task itself is excluded (as in the pre-refactor guard): some flows
+  // advance the chain while deliberately leaving the trigger open — e.g. the F3 "big
+  // order" branch keeps F3 In Progress (store check happens on a separate task) but must
+  // still unlock the order-32 AND-join. Without self-exclusion the freshly-refetched
+  // trigger always counts as an unmet blocker and the chain deadlocks.
   const blocked = scopeTasks.some(
-    (t) => (t.templateOrder?.[0] ?? Infinity) < minOrder && !isTaskDone(t),
+    (t) => t.id !== task.id && (t.templateOrder?.[0] ?? Infinity) < minOrder && !isTaskDone(t),
   )
   const toUnlock = blocked
     ? []

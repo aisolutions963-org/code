@@ -9,7 +9,7 @@ import {
 } from '@/lib/workflow'
 import { TaskUpdateInput } from '@/lib/types'
 import { UpdateTaskSchema } from '@/lib/validation'
-import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
+import { createNotification, ROLE_DASHBOARD, DEPT_ROLE_MAP } from '@/lib/notifications'
 import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole()(
@@ -123,7 +123,7 @@ export const PATCH = requireRole()(
       if (superadminNote.trim()) {
         const depts = noteTask.department ?? []
         const roles = depts
-          .map((d) => ({ SED: 'sed', Fabrication: 'fabrication', Installation: 'installation', Manager: 'manager', Management: 'manager', Purchase: 'manager' })[d])
+          .map((d) => DEPT_ROLE_MAP[d])
           .filter((r): r is string => Boolean(r))
         const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
         const projectRef = noteTask.projectRef ?? noteTask.project?.[0] ?? ''
@@ -132,7 +132,7 @@ export const PATCH = requireRole()(
             recipientRole: role,
             title: `📌 Follow-up note — ${noteTask.taskName}`,
             body: `Superadmin added a note on "${noteTask.taskName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}`,
-            link: `/${role === 'sed' ? 'dashboard/sed' : role === 'fabrication' ? 'dashboard/fab' : role === 'installation' ? 'dashboard/fix' : 'dashboard/mgr'}`,
+            link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
           })
         }
       }

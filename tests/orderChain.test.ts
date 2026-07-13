@@ -72,6 +72,32 @@ describe('planUnlock — single item ordering', () => {
   })
 })
 
+describe('planUnlock — In-Progress trigger advances the chain (regression: F3 big-order stall)', () => {
+  it('the triggering task itself does not block even when left In Progress', () => {
+    // F3 big-order branch: F3 (order 31) stays In Progress by design but must still
+    // unlock the order-32 AND-join. The trigger must be excluded from the blocked scan.
+    const f3 = mk(31, 'In Progress', { item: 'A', name: 'F3 — Fill Order Material Form' })
+    const tasks = [
+      f3,
+      mk(32, 'Locked', { item: 'A', name: 'Store Revised Material List (Big Orders Only)' }),
+      mk(32, 'Locked', { item: 'A', name: 'All Material Estimation Price' }),
+      mk(33, 'Locked', { item: 'A' }),
+    ]
+    const plan = planUnlock(f3, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([32, 32])
+  })
+
+  it('a DIFFERENT still-open lower-order task keeps blocking (self-exclusion is narrow)', () => {
+    const f3 = mk(31, 'In Progress', { item: 'A', name: 'F3 — Fill Order Material Form' })
+    const other = mk(30, 'In Progress', { item: 'A' }) // genuinely open earlier step
+    const tasks = [f3, other, mk(32, 'Locked', { item: 'A' })]
+    const plan = planUnlock(f3, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(true)
+    expect(plan.toUnlock).toEqual([])
+  })
+})
+
 describe('planUnlock — abandoned gateway paths do not block (regression: F4 stuck bug)', () => {
   it('an abandoned Locked gateway alternative at an earlier order does not block a later project-level unlock', () => {
     // Mirrors the live recY7JJNZd0s3LGMV bug: order-4 "Need More Details From Client"
