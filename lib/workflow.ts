@@ -163,12 +163,19 @@ export async function unlockNextTasks(task: Task): Promise<void> {
   // a per-item completion only advances that item; a project-level completion only
   // advances project-level tasks; and order N waits for every lower-order task in scope.
   const plan = planUnlock(task, allProjectTasks, PHASE_CONFIG.Working.perItemOrderMin)
-  if (plan.blocked) return
 
-  // Per-item gate check (only once advancement is allowed for this item).
-  // maybeUnlockCallClient returns early if not all [gate] tasks are Completed.
+  // Per-item gate check runs REGARDLESS of the order-chain block: "Take Approval" unlocks
+  // as soon as all [gate] tasks for the item are Completed — this is independent of the
+  // linear order chain. (If gated behind plan.blocked, an item with an unfinished
+  // lower-order task keeps skipping the check, leaving Take Approval Locked even though
+  // both gates are done — the reported bug.) maybeUnlockCallClient is idempotent and only
+  // unlocks once every [gate] task is Completed.
   const itemId = task.projectItem?.[0]
   if (itemId) await maybeUnlockCallClient(projectId, itemId)
+
+  // Order-chain advancement is still guarded: don't unlock the next linear step while an
+  // earlier task in scope is open.
+  if (plan.blocked) return
 
   const toUnlock = plan.toUnlock
   if (toUnlock.length === 0) return
