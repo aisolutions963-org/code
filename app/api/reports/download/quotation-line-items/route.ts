@@ -18,7 +18,7 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
       `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${p}`,
       { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
     )
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
     const data = await res.json() as { records: typeof records; offset?: string }
     records.push(...data.records)
     offset = data.offset

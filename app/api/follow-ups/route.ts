@@ -55,7 +55,7 @@ async function fetchLogs(userName: string | null): Promise<RawRecord[]> {
       headers: { Authorization: `Bearer ${API_KEY}` },
       cache: 'no-store',
     })
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
     const data = (await res.json()) as { records: RawRecord[]; offset?: string }
     records.push(...data.records)
     offset = data.offset

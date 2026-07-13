@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { getAllLockedTasksForProject } from '@/lib/airtable'
+import { getAllTasksForProjectAll } from '@/lib/airtable'
 import { Task } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -18,14 +18,23 @@ function cleanName(name: string): string {
 // locked task (cleaned); when several tie at that order — e.g. a gateway's path chips or
 // multiple items — it's a choice, so show a generic prompt. Only null when nothing is locked.
 //
-// A Locked task with a pathCondition is a gateway alternative that was never chosen (see
-// lib/orderChain.ts isTaskDone for the full rationale) — only the entry step of each path
-// is ever promoted out of Locked, so any downstream step of an unchosen path stays Locked
-// forever. It must be excluded here too, or an abandoned path from early in the workflow
-// permanently shows this generic label instead of the real next step.
-function nextStepLabel(locked: Task[]): string | null {
-  const candidates = locked.filter(
-    (t) => t.templateOrder?.[0] != null && t.taskName !== 'Follow Up' && !t.pathCondition,
+// Path handling: only the entry step of each gateway path is ever promoted out of Locked
+// at generation (see lib/orderChain.ts isTaskDone), so a Locked+pathCondition task on a
+// path nobody chose stays Locked forever and must not be previewed. But a path that WAS
+// chosen (has ≥1 Completed / In Progress task in this scope) can have a legitimately
+// pending Locked next step — those remain valid candidates.
+function nextStepLabel(scopeTasks: Task[]): string | null {
+  const activePaths = new Set(
+    scopeTasks
+      .filter((t) => t.pathCondition && (t.status === 'Completed' || t.status === 'In Progress'))
+      .map((t) => t.pathCondition!),
+  )
+  const candidates = scopeTasks.filter(
+    (t) =>
+      t.status === 'Locked' &&
+      t.templateOrder?.[0] != null &&
+      t.taskName !== 'Follow Up' &&
+      (!t.pathCondition || activePaths.has(t.pathCondition)),
   )
   if (candidates.length === 0) return null
   const minOrder = Math.min(...candidates.map((t) => t.templateOrder![0]))
@@ -45,12 +54,12 @@ export async function GET(
 
   const { id } = await params
   try {
-    const locked = await getAllLockedTasksForProject(id)
+    const all = await getAllTasksForProjectAll(id)
 
-    const projectLevel = locked.filter((t) => !t.projectItem?.length)
+    const projectLevel = all.filter((t) => !t.projectItem?.length)
 
     const byItem = new Map<string, Task[]>()
-    for (const t of locked) {
+    for (const t of all) {
       const itemId = t.projectItem?.[0]
       if (!itemId) continue
       if (!byItem.has(itemId)) byItem.set(itemId, [])

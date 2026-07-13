@@ -24,7 +24,7 @@ async function fetchAllProjectStages(): Promise<{ stage: string; remaining: numb
       `https://api.airtable.com/v0/${BASE_ID}/${PROJECTS.TABLE_ID}?${params}`,
       { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
     )
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
     const data = await res.json() as { records: { fields: Record<string, unknown> }[]; offset?: string }
     for (const r of data.records) {
       results.push({

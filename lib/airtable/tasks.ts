@@ -748,23 +748,47 @@ export async function getCallClientPendingTasks(): Promise<
 // task — i.e. where each project is currently stuck. Used by smarter stale detection.
 export async function getStuckTaskForProjects(projectIds: string[]): Promise<Record<string, string>> {
   if (projectIds.length === 0) return {}
-  const out: Record<string, string> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) chunks.push(projectIds.slice(i, i + 10))
+
+  interface Candidate { name: string; status: string; order: number; hasPath: boolean }
+  const byProject = new Map<string, Candidate[]>()
+
   await Promise.all(
     chunks.map(async (chunk) => {
       const projFilter = chunk.map((id) => `{${TASKS.PROJECT}} = "${id}"`).join(', ')
       const formula = `AND(OR(${projFilter}), OR({${TASKS.STATUS}}="To Do", {${TASKS.STATUS}}="In Progress"))`
       const records = await fetchAll(TASKS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [TASKS.TASK_NAME, TASKS.PROJECT],
+        fields: [TASKS.TASK_NAME, TASKS.PROJECT, TASKS.STATUS, TASKS.TEMPLATE_ORDER, TASKS.PATH_CONDITION],
       })
       for (const r of records) {
         const pid = str(r.fields[TASKS.PROJECT])
-        if (pid && !out[pid]) out[pid] = str(r.fields[TASKS.TASK_NAME]) ?? ''
+        if (!pid) continue
+        const orders = r.fields[TASKS.TEMPLATE_ORDER]
+        if (!byProject.has(pid)) byProject.set(pid, [])
+        byProject.get(pid)!.push({
+          name: str(r.fields[TASKS.TASK_NAME]) ?? '',
+          status: str(r.fields[TASKS.STATUS]) ?? '',
+          order: Array.isArray(orders) && typeof orders[0] === 'number' ? orders[0] : Infinity,
+          hasPath: !!str(r.fields[TASKS.PATH_CONDITION]),
+        })
       }
     }),
   )
+
+  // Pick the task someone is most plausibly stuck ON: prefer In Progress (lowest order),
+  // then a plain To Do (unchosen gateway chips sit To Do + pathCondition forever and would
+  // otherwise be named arbitrarily), then any To Do as a last resort.
+  const out: Record<string, string> = {}
+  for (const [pid, tasks] of byProject) {
+    const byOrder = (a: Candidate, b: Candidate) => a.order - b.order
+    const pick =
+      tasks.filter((t) => t.status === 'In Progress').sort(byOrder)[0] ??
+      tasks.filter((t) => t.status === 'To Do' && !t.hasPath).sort(byOrder)[0] ??
+      tasks.filter((t) => t.status === 'To Do').sort(byOrder)[0]
+    if (pick) out[pid] = pick.name
+  }
   return out
 }
 

@@ -35,7 +35,7 @@ async function getOverduePaymentsList(): Promise<RawOverduePayment[]> {
       `https://api.airtable.com/v0/${base}/${PAYMENTS.TABLE_ID}?${parts.join('&')}`,
       { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' },
     )
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
     const data = await res.json() as { records: { id: string; fields: Record<string, unknown> }[]; offset?: string }
     for (const rec of data.records) {
       const f = rec.fields

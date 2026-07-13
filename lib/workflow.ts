@@ -534,7 +534,17 @@ export async function handleCallClientOutcome(
         })
 
         for (const t of gateTasks) {
-          resets.push(updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus }))
+          const fields: Record<string, unknown> = { [TASKS.STATUS]: 'To Do' as TaskStatus }
+          // Also clear the round-1 approval values on [GATE] tasks. The legacy field-based
+          // checkAndUnlockCallClientTask (lib/airtable/tasks.ts) reads these directly on any
+          // approval-field PATCH — stale 'Approved' values from before the review would let a
+          // single re-approval re-unlock "Call the Client" while the other gates are unredone.
+          if (t.taskName.toLowerCase().startsWith(GATE_PREFIX)) {
+            fields[TASKS.CONCEPT_DESIGN_APPROVAL] = null
+            fields[TASKS.SAMPLE_APPROVAL] = null
+            fields[TASKS.QUOTATION_OUTCOME] = null
+          }
+          resets.push(updateTaskRaw(t.id, fields))
         }
 
         // Reset the Call the Client task back to Locked so it re-triggers when all gates clear again
