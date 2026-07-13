@@ -96,36 +96,6 @@ function alertBadge(label: string, color: string): string {
 
 // ─── Notification functions ──────────────────────────────────────────────────
 
-export async function notifyManager(task: {
-  taskName: string
-  projectId?: string
-  submittedBy?: string
-}): Promise<void> {
-  const to = process.env.MANAGER_EMAIL
-  if (!to) return
-
-  const projectLabel = task.projectId ?? '—'
-  const dashboardUrl = `${BASE_URL}/dashboard/mgr`
-
-  await getResend().emails.send({
-    from: 'WoodWings <notifications@woodwings.ae>',
-    to,
-    subject: `Action required — Task pending review | ${projectLabel}`,
-    html: emailWrapper(`
-      ${alertBadge('Pending Review', '#f59e0b')}
-      ${heading('A task is awaiting your approval')}
-      ${bodyText('A team member has submitted the following task for manager review. Please log in to approve or reject it.')}
-      ${infoTable([
-        ['Task', task.taskName],
-        ['Project', task.projectId],
-        ['Submitted by', task.submittedBy],
-        ['Submitted at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
-      ])}
-      ${ctaButton('Review Task → Approve or Reject', dashboardUrl)}
-    `),
-  })
-}
-
 export async function notifyManagerEscalation(project: {
   projectName: string
   projectId: string
@@ -206,33 +176,6 @@ export async function notifyAccountantEvent(params: {
         ['Triggered at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
       ])}
     `, false),
-  })
-}
-
-export async function notifyRejection(params: {
-  taskName: string
-  projectId?: string
-  managerComment?: string
-  recipientEmail: string
-}): Promise<void> {
-  const dashboardUrl = `${BASE_URL}/dashboard`
-
-  await getResend().emails.send({
-    from: 'WoodWings <notifications@woodwings.ae>',
-    to: params.recipientEmail,
-    subject: `Task not approved — action required | ${params.projectId ?? 'WoodWings'}`,
-    html: emailWrapper(`
-      ${alertBadge('Not Approved', '#ef4444')}
-      ${heading('Your submitted task was not approved')}
-      ${bodyText('A manager has reviewed your submission and it was not approved. Please review the feedback below, make the necessary changes, and resubmit.')}
-      ${infoTable([
-        ['Task', params.taskName],
-        ['Project', params.projectId],
-        ['Manager feedback', params.managerComment ?? 'No comment provided'],
-        ['Reviewed at', new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai', dateStyle: 'medium', timeStyle: 'short' })],
-      ])}
-      ${ctaButton('Go to Dashboard & Resubmit', dashboardUrl)}
-    `),
   })
 }
 

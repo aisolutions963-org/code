@@ -13,6 +13,7 @@ import {
   createMaintenanceRecord,
   getMaintenanceRecordForProject,
   createMaterialOrder,
+  CR_TASK_SEQUENCE,
 } from './airtable'
 import { Task, TaskStatus } from './types'
 import { notifyManagerEscalation, notifyCallClient, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
@@ -22,18 +23,6 @@ import { planUnlock, isTaskDone } from './orderChain'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
 const { CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX } = TASK_MARKERS
-
-// Sequential position map for Trade/Maintenance client request tasks.
-// These tasks have no templateOrder (computed fields can't be written to),
-// so we derive order from the fixed task names instead.
-const CR_TASK_SEQUENCE: Record<string, number> = {
-  'F3 — Order Trade Material':    1,
-  'F4 — Trade Payment':           2,
-  'Handover to Client':           3,
-  'Site Visit & Assessment':      1,
-  'Carry Out Maintenance Work':   2,
-  'Client Sign-off':              3,
-}
 
 function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([

@@ -7,6 +7,13 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/**/*.test.ts'],
+    // Dummy values so tests can import Airtable modules whose _client.ts calls validateEnv()
+    // at load time. Tests never hit the network — they exercise pure logic only.
+    env: {
+      AIRTABLE_API_KEY: 'test',
+      AIRTABLE_BASE_ID: 'test',
+      SESSION_SECRET: 'test-secret-at-least-32-characters-long',
+    },
     coverage: {
       provider: 'v8',
       include: ['lib/**/*.ts'],

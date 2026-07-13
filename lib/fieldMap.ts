@@ -41,7 +41,6 @@ export const TASKS = {
   PROJECT_ITEM: 'fldzE0IPmOCVnKVmC',
   PROJECT_ID: 'fldBRW5E8ufAGPyJS',
   TASK_DOCUMENTS: 'fldWN2jRTtvVk10g7',
-  HANDOVER_DOCUMENT: 'fldcLem7Z7fofiDoy',
   FILLERS_MISSING_ITEMS_LIST: 'fldSTM132XO86l19p',
   INSTRUCTIONS: 'fldQUxsUzEi1XQojd',
   ARABIC_INSTRUCTIONS: 'fldHVVySDTIqcJnob',
@@ -123,11 +122,9 @@ export const PROJECTS = {
   LOCATION_OTHER: 'fldY5AZs7Rbtg6xOP',  // singleLineText — custom area when Location = "Other"
   DETAILED_LOCATION: 'fldoRWDUaeNKEtrbi',
   PROJECT_DESCRIPTION: 'fldhpCCy7ZIrh7pax',
-  REQUIRED_INTAKE_PATHS: 'fld5jHSFxBU9euELy',
   REQUEST_TYPE:    'fldDlEFv0as7eOxuS',  // single select: Trade | Maintenance | Variance
   PARENT_PROJECT:  'flds3nCf54kT4Ss3s',  // linked record → PROJECTS
   TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
-  CLIENT_STATUS:   'fldwHeIOIoC4yXoua',  // single select: Broker | End-to-End Client | Designer | Contractor | Developer | Other
   DELETED_AT:      'fldzYRbsAHpdGMKgD',  // dateTime — set on soft-delete, blank when active
   PRODUCTION_START_DATE: 'fldtWKyDyyPN3mCVR', // date — when the project entered production
 } as const
@@ -139,12 +136,8 @@ export const PROJECT_ITEMS = {
   PROJECT: 'fldATmKZ7yOVY2MYZ',
   STATUS: 'fldsgg5maMG5Phhvx',
   ITEM_SEQUENCE: 'fldoMCVk5m2mOmfTb',
-  TASKS: 'fldDXnVjg1yq7Ed90',
-  SED_OWNER: 'fldrM4XWKMwkWaDgD',
   ITEM_CREATED_AT: 'fldPVnEc8tCvwEZIB',
-  ITEM_TYPE: 'fldYEzJXbvQEU9i4Z',
   QUANTITY: 'fldkzvi3cCcKzwjFc',
-  QUOTATIONS_LINK: 'fldxjXZbDvK39rqJU',
   // Per-item production milestone columns (single selects) + notes
   DESIGN_STATUS:          'fldsS8s6EBpJTvTZI',
   SAMPLE_STATUS:          'fldsit3QJLnuK7bEa',
@@ -171,27 +164,17 @@ export const QUOTATIONS = {
   RECORDED_BY:         'fldTGURGzlBpkKS2G',
   // Extended fields
   QUOTE_NUMBER:        'fldUeK2IKnnNsuRs6',
-  REVISION:            'fldAWtlLpZyAbuH3n',
   QUOTE_DATE:          'fldq0flcPPVXKykfW',
   CLIENT_NAME:         'fld1rdn0kTrsj3qsf',
-  QUOTE_AMOUNT:        'fldxoR8THEDrkb0WM',
-  VAT_AMOUNT:          'fld9qVK2XBeR0jekW',
-  TOTAL_WITH_VAT:      'fldoXH8Gn6pK4CtN2',
   VARIATION_1:         'fldMU6ccYDJdIRzns',
   VARIATION_2:         'fldY09WeaUDjiRWVy',
-  TOTAL_WITH_VARS:     'fldH6ljH74dudgx5M',
-  LAST_FOLLOWUP:       'fld6hY1TX4MOE9mTl',
-  NEXT_FOLLOWUP:       'fldigTMhuSfIK93ye',
   SALES:               'fldlcf0QiW2hmWB0m',
-  Q_STATUS:            'fldCDFXedfarMSj5F',
-  LINKED_PROJECT:      'fldXDKJcNU4dbfPjy',
 } as const
 
 export const PAYMENTS = {
   TABLE_ID: 'tblTrLUuGRGt5iSwD',
   NAME: 'fldMKBSDwUUYEwzFu',
   NOTES: 'fldUyVVQukyAjcRGX',
-  ASSIGNEE: 'fldx9Ex2woF6NnIzp',
   PROJECT: 'fldzczMvwNb1In9qn',
   AMOUNT: 'fldqduawq8VeBZUY0',
   PAYMENT_TYPE: 'fldoOSKdkyP08LB85',
@@ -409,7 +392,6 @@ export const FOLLOW_UP_LOG = {
   METHOD:         'fld6s5gxI6qjmHii9',
   OUTCOME:        'fld2ZoOMCvXeQpAml',
   NEXT_DATE:      'fldRtzDcV3MoXPYV0',
-  DONE_BY:        'flduFKcUnL4A7pRue',   // singleCollaborator (legacy; can't accept a name string)
   LOGGED_BY:      'fldWnNykJsevxTEft',   // singleLineText — who logged it (by name)
   NOTES:          'fldRa9L9ZY87JVihm',
 } as const

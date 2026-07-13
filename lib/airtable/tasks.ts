@@ -544,12 +544,6 @@ export async function getLockedTasksForScope(
 
 // All locked tasks for a project (project-level + per-item, any department). Used by the
 // next-step preview to show what's coming up.
-export async function getAllLockedTasksForProject(projectId: string): Promise<Task[]> {
-  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.STATUS}} = "Locked")`
-  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })
-  return records.map(transformTask)
-}
-
 export async function getTasksForProject(
   projectId: string,
   role: Role,
@@ -580,12 +574,6 @@ export async function getProjectAttachments(projectId: string): Promise<Task[]> 
       TASKS.FILLERS_MISSING_ITEMS_LIST,
     ],
   })
-  return records.map(transformTask)
-}
-
-export async function getIncompleteTasksForProject(projectId: string): Promise<Task[]> {
-  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.STATUS}} != "Completed", {${TASKS.STATUS}} != "Locked")`
-  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })
   return records.map(transformTask)
 }
 
@@ -835,42 +823,6 @@ export async function getPendingApprovalsCount(): Promise<number> {
     fields: [TASKS.MANAGER_REVIEW_STATUS],
   })
   return records.length
-}
-
-export async function attachFileToTask(
-  taskId: string,
-  fieldId: string,
-  url: string,
-  filename: string,
-): Promise<Task> {
-  const task = await getTaskById(taskId)
-
-  const attachmentFieldMap: Record<string, keyof Task> = {
-    [TASKS.TASK_DOCUMENTS]: 'taskDocuments',
-    [TASKS.FILLERS_MISSING_ITEMS_LIST]: 'fillersAndMissingList',
-  }
-
-  const taskKey = attachmentFieldMap[fieldId]
-  const existing: Attachment[] = taskKey
-    ? ((task[taskKey] as Attachment[]) ?? [])
-    : []
-
-  const preservedExisting = existing.map((a) => ({ id: a.id }))
-  const newAttachment: AttachmentInput = { url, filename }
-
-  const res = await fetchWithRetry(recUrl(TASKS.TABLE_ID, taskId), {
-    method: 'PATCH',
-    headers: airtableHeaders(),
-    body: JSON.stringify({
-      fields: { [fieldId]: [...preservedExisting, newAttachment] },
-    }),
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Airtable error ${res.status}: ${body}`)
-  }
-  const record: RawRecord = await res.json()
-  return transformTask(record)
 }
 
 export async function deleteTasksByProjectId(projectId: string): Promise<number> {
