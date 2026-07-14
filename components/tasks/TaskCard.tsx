@@ -224,7 +224,10 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const isFollowUpTask =
     role === 'superadmin' &&
     task.taskName.toLowerCase().includes(FOLLOW_UP_KEYWORD) &&
-    !isMaterialDeliveryTrackingTask
+    !isMaterialDeliveryTrackingTask &&
+    // "Follow Up — Chase Final Payment" (closing phase) is a plain status task — the
+    // Reject/SED/Manager outcome decision doesn't apply, so it gets no outcome box.
+    !task.taskName.toLowerCase().includes('final payment')
 
   const isSystemAutoTask = isAutoTask(task.taskName)
 
