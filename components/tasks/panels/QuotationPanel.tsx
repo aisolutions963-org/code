@@ -315,39 +315,20 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
         </div>
       ) : (
         <div>
-          <label className={lbl}>
-            Quotation Number <span className="text-red-500">*</span>
-          </label>
-          {task.projectQuotationNumber && task.projectQuotationReference ? (
+          <label className={lbl}>Quotation Number &amp; Reference</label>
+          {/* Read-only: taken from the project. Payment can't be recorded without them,
+              so they're set upstream (Make Quotation / F2) — not editable here. */}
+          {task.projectQuotationNumber ? (
             <p className="text-sm font-mono font-medium text-blue-700 py-1">
               {task.projectQuotationNumber}
-              <span className="ml-2 font-normal text-blue-400">{task.projectQuotationReference}</span>
+              {task.projectQuotationReference && (
+                <span className="ml-2 font-normal text-blue-400">{task.projectQuotationReference}</span>
+              )}
             </p>
-          ) : task.projectQuotationNumber ? (
-            <div>
-              <p className="text-sm font-mono font-medium text-blue-700 py-1">{task.projectQuotationNumber}</p>
-              <input
-                className={inp + ' font-mono mt-1'}
-                placeholder="Ref e.g. R0 *"
-                value={referenceInput}
-                onChange={(e) => setReferenceInput(e.target.value)}
-              />
-            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                className={inp}
-                placeholder="e.g. 2341 *"
-                value={quotationInput}
-                onChange={(e) => setQuotationInput(e.target.value)}
-              />
-              <input
-                className={inp + ' font-mono'}
-                placeholder="Ref e.g. R0 *"
-                value={referenceInput}
-                onChange={(e) => setReferenceInput(e.target.value)}
-              />
-            </div>
+            <p className="text-xs text-red-600 py-1">
+              This project has no quotation number/reference yet — set it on the project before recording payment.
+            </p>
           )}
         </div>
       )}
