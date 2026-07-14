@@ -14,20 +14,16 @@ import { Task } from './types'
 const FAB_ITEM_PATHS = new Set(['Carpentry', 'Paint'])
 
 // A task is "done" (non-blocking for the order guard) when Completed or explicitly optional.
-// Path (gateway / branch) tasks are NOT part of the universal linear chain and generally
-// never block it, whatever their status:
-//   • A Phase-2 gateway choice (Select Sample, Site Visit, Design, Measurement…) that the
-//     SED opened (In Progress), left unchosen (To Do), or that stayed Locked downstream —
-//     none of these should hold up the chain once the real gates close.
-//   • The ONE exception is a fabrication path (Carpentry / Paint): it's real sequential
-//     work, so it blocks a later step while it is actively In Progress.
+// Every path (gateway / branch) task is outside the universal linear chain and NEVER gates
+// it, whatever its status — this includes both the Phase-2 SED gateway choices (Select
+// Sample, Site Visit, Design, Measurement…) AND the fabrication branches Carpentry / Paint.
+// Those branches are not gates; the only real fabrication gate is the null-path
+// "Fabrication Done" step, which the guard already waits for as an ordinary lower-order
+// universal task. So a later step waits for "Fabrication Done", not for Carpentry/Paint.
 export function isTaskDone(t: Task): boolean {
   if (t.status === 'Completed') return true
   if (t.taskName.toLowerCase().includes('optional')) return true
-  if (t.pathCondition) {
-    if (FAB_ITEM_PATHS.has(t.pathCondition)) return t.status !== 'In Progress'
-    return true
-  }
+  if (t.pathCondition) return true
   return false
 }
 

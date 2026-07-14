@@ -36,9 +36,10 @@ describe('isTaskDone', () => {
     expect(isTaskDone(mk(4, 'Locked', { path: 'Order Sample' }))).toBe(true))
   it('In Progress gateway choice (non-fab path) is done — must not block the chain', () =>
     expect(isTaskDone(mk(24, 'In Progress', { path: 'Select Sample (item)' }))).toBe(true))
-  it('In Progress fabrication path (Carpentry/Paint) is NOT done — real work blocks', () => {
-    expect(isTaskDone(mk(40, 'In Progress', { path: 'Carpentry' }))).toBe(false)
-    expect(isTaskDone(mk(40, 'In Progress', { path: 'Paint' }))).toBe(false)
+  it('Carpentry/Paint are branches, not gates — done in any status, never block', () => {
+    expect(isTaskDone(mk(40, 'In Progress', { path: 'Carpentry' }))).toBe(true)
+    expect(isTaskDone(mk(40, 'In Progress', { path: 'Paint' }))).toBe(true)
+    expect(isTaskDone(mk(40, 'Locked', { path: 'Paint' }))).toBe(true)
   })
 })
 
@@ -68,17 +69,32 @@ describe('planUnlock — single item ordering', () => {
     expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([40])
   })
 
-  it('does NOT unlock order 41 while an order-40 fabrication task is still In Progress (the leak)', () => {
-    // Completed the null-path fabrication at 40; a Carpentry path at 40 is still In Progress.
-    const done = mk(40, 'Completed', { item: 'A', path: null })
+  it('order 41 waits for the null-path Fabrication Done (40), not for Carpentry/Paint', () => {
+    // Complete an order-39 universal step. Fabrication Done (40, null-path) is the real gate
+    // and is still Locked → the chain unlocks order 40 next, NOT order 41. Carpentry at 40
+    // being In Progress is irrelevant (it's a branch, not a gate).
+    const done = mk(39, 'Completed', { item: 'A', path: null })
     const tasks = [
       done,
-      mk(40, 'In Progress', { item: 'A', path: 'Carpentry' }),
+      mk(40, 'Locked', { item: 'A', path: null }), // Fabrication Done — the gate
+      mk(40, 'In Progress', { item: 'A', path: 'Carpentry' }), // branch — must not gate
       mk(41, 'Locked', { item: 'A', path: null }),
     ]
     const plan = planUnlock(done, tasks, PER_ITEM_MIN)
-    expect(plan.blocked).toBe(true)
-    expect(plan.toUnlock).toEqual([])
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([40])
+  })
+
+  it('Carpentry/Paint In Progress does NOT hold up order 41 once Fabrication Done (40) is complete', () => {
+    const fabDone = mk(40, 'Completed', { item: 'A', path: null })
+    const tasks = [
+      fabDone,
+      mk(40, 'In Progress', { item: 'A', path: 'Carpentry' }), // still In Progress — must not block
+      mk(41, 'Locked', { item: 'A', path: null }),
+    ]
+    const plan = planUnlock(fabDone, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([41])
   })
 
   it('unchosen Carpentry/Paint (To Do + path) at order 40 does NOT block order 41', () => {
