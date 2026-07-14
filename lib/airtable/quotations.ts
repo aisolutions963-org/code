@@ -204,12 +204,15 @@ function transformInstallationLog(record: RawRecord): InstallationLog {
 }
 
 export async function getInstallationLogsByProject(projectId: string): Promise<InstallationLog[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${INSTALLATION_LOGS.PROJECT}}, ","))`
+  // Filter by the linked project's record ID in memory: ARRAYJOIN on a linked-record field
+  // yields the project's PRIMARY field (its name), not its record ID, so a FIND("rec…")
+  // formula never matches — which made every fetch come back empty (logs "disappeared").
   const records = await fetchAll(INSTALLATION_LOGS.TABLE_ID, {
-    filterByFormula: formula,
     sort: [{ field: INSTALLATION_LOGS.DATE, direction: 'desc' }],
   })
-  return records.map(transformInstallationLog)
+  return records
+    .filter((r) => strArr(r.fields[INSTALLATION_LOGS.PROJECT]).includes(projectId))
+    .map(transformInstallationLog)
 }
 
 export async function createInstallationLog(input: InstallationLogCreateInput): Promise<InstallationLog> {
