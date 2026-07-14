@@ -110,7 +110,7 @@ function ensureSed(map: Record<string, SedEntry>, sedNames: string[], name: stri
 function incrementStage(entry: SedEntry, stage: string) {
   if (stage === 'Preparing') entry.preparing++
   else if (stage === 'Open') entry.open++
-  else if (stage === 'Production') entry.production++
+  else if (stage === 'Production' || stage === 'Closing') entry.production++
   else if (stage === 'Closed') entry.closed++
   else if (stage === 'Closed and active warranty') entry.warranty++
   else if (stage === 'Warranty expired') entry.warrantyExpired++

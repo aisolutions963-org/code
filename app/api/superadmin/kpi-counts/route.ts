@@ -47,7 +47,7 @@ export const GET = requireRole('superadmin')(async () => {
     total++
     if (p.stage === 'Preparing') preparing++
     else if (p.stage === 'Open') open++
-    else if (p.stage === 'Production') production++
+    else if (p.stage === 'Production' || p.stage === 'Closing') production++
     else if (p.stage === 'Not-Approved') notApproved++
     else if (p.stage === 'Closed') finished++
     else if (p.stage === 'Closed and active warranty') maintenanceActive++

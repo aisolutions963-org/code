@@ -14,7 +14,7 @@ const COLUMNS: { title: string; stages: string[] }[] = [
   { title: 'Preparing',  stages: ['Preparing'] },
   { title: 'Open',       stages: ['Open'] },
   { title: 'Production', stages: ['Production'] },
-  { title: 'Closing',    stages: ['Closed'] },
+  { title: 'Closing',    stages: ['Closing', 'Closed'] },
 ]
 
 export default function PipelineClient({ role: _role }: { role: string }) {

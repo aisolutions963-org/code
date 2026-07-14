@@ -541,6 +541,7 @@ const HOME_COLUMNS: { title: string; stages: string[] }[] = [
   { title: 'Preparing',  stages: ['Preparing'] },
   { title: 'Open',       stages: ['Open'] },
   { title: 'Production', stages: ['Production'] },
+  { title: 'Closing',    stages: ['Closing'] },
   { title: 'Done',       stages: ['Closed'] },
   { title: 'Warranty',   stages: ['Closed and active warranty', 'Warranty expired'] },
 ]

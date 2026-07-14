@@ -44,11 +44,11 @@ export const POST = requireRole('superadmin')(async (_req, _session, { params })
           const { todoTemplates: tt } = await generatePhase3TasksForItem(id, item.id)
           todoTemplates.push(...tt)
         }
-      } else if (nextStage === 'Closed and active warranty') {
-        // Phase 4: closing tasks — now triggered when warranty phase begins
+      } else if (nextStage === 'Closing') {
+        // Phase 4: closing tasks (handover → final payment) generate when the Closing stage begins.
         const result = await generatePhase4Tasks(id)
         todoTemplates = result.todoTemplates
-
+      } else if (nextStage === 'Closed and active warranty') {
         // The advance button bypasses the handover + final-payment flow that normally
         // starts the warranty clock, so ensure a maintenance record exists (guarded).
         // Mirrors closeProjectAfterFinalPayment: activate an existing record, else create one.

@@ -1,4 +1,4 @@
-export const STAGE_ORDER = ['Preparing', 'Open', 'Production', 'Closed and active warranty', 'Warranty expired'] as const
+export const STAGE_ORDER = ['Preparing', 'Open', 'Production', 'Closing', 'Closed', 'Closed and active warranty', 'Warranty expired'] as const
 export type Stage = (typeof STAGE_ORDER)[number]
 
 export const PHASE_CONFIG = {
