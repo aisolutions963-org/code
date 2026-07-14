@@ -22,8 +22,11 @@ interface Props {
 // belongs to the project's assigned team. They add a day (date, workers, notes) as they go.
 export default function InstallationDayPanel({ task, onUpdate }: Props) {
   const projectId = task.projectRecordId
+  // The Installation Day task is per-item — scope the day log to this item so items don't
+  // share one merged list. Falls back to project-wide when a task has no item.
+  const itemId = task.projectItem?.[0]
   const { data, error, mutate } = useSWR<{ logs: InstallationLog[] }>(
-    projectId ? `/api/projects/${projectId}/installation-logs` : null,
+    projectId ? `/api/projects/${projectId}/installation-logs${itemId ? `?itemId=${itemId}` : ''}` : null,
     fetcher,
   )
   const logs = (data?.logs ?? []).slice().sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
@@ -42,6 +45,7 @@ export default function InstallationDayPanel({ task, onUpdate }: Props) {
     setSaving(true)
     try {
       const body: Record<string, unknown> = { date }
+      if (itemId) body.projectItem = [itemId]
       if (workers) body.numberOfLaborers = parseInt(workers)
       if (notes.trim()) body.workDescription = notes.trim()
       const res = await fetch(`/api/projects/${projectId}/installation-logs`, {

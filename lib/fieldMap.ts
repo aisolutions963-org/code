@@ -265,6 +265,7 @@ export const INSTALLATION_LOGS = {
   TABLE_ID: 'tbljrel5tmlHMmJxt',
   NAME: 'fldRGWvQykJcVFCbk',
   PROJECT: 'fldrLAT0he9UmGfjQ',
+  PROJECT_ITEM: 'fldhVAfR11lc2x2WO',
   DATE: 'fldp4EbfOqn6ez6x0',
   INSTALLATION_TEAM: 'fldWMb8bIisxlARm4',
   NUMBER_OF_LABORERS: 'fldqcpTULWzwcGhq9',

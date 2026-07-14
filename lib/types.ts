@@ -401,6 +401,7 @@ export interface InstallationLog {
   id: string
   name: string
   project: string[]
+  projectItem?: string[]
   date: string
   installationTeam?: string
   numberOfLaborers?: number
@@ -411,6 +412,7 @@ export interface InstallationLog {
 
 export interface InstallationLogCreateInput {
   project: string[]
+  projectItem?: string[]
   date: string
   installationTeam?: string
   numberOfLaborers?: number

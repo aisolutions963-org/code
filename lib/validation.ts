@@ -195,6 +195,7 @@ export const CreatePurchaseOrderSchema = z.object({
 
 export const CreateInstallationLogSchema = z.object({
   project: z.array(z.string().min(1)).min(1),
+  projectItem: z.array(z.string().min(1)).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   installationTeam: z.enum(['Engr. Abdulkarim', 'Mr. Al Mahdi', 'Mr. Yahia']).optional(),
   numberOfLaborers: z.number().int().min(1).max(100).optional(),
