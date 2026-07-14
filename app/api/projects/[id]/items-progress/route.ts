@@ -23,10 +23,21 @@ export const GET = requireRole()(async (_req, session, { params }) => {
 
   const itemIds = Array.from(new Set(tasks.flatMap((t) => t.projectItem ?? [])))
   const nameMap = await getProjectItemNameMap(itemIds)
+  // getAllTasksForProjectAll skips enrichTasksWithProjectRef (it's the workflow-engine
+  // fetch), so tasks arrive without the project's quotation context. Every task here
+  // belongs to this one project, so attach it from the already-fetched `project` — the
+  // F4 payment panel needs projectQuotationNumber/Reference to record a payment.
   const enriched: Task[] = tasks.map((t) => {
     const itemId = t.projectItem?.[0]
-    if (itemId && nameMap[itemId]) return { ...t, projectItemName: nameMap[itemId] }
-    return t
+    return {
+      ...t,
+      projectRecordId: t.projectRecordId ?? id,
+      projectQuotationNumber: t.projectQuotationNumber ?? project.quotationNumber,
+      projectQuotationReference: t.projectQuotationReference ?? project.quotationReference,
+      projectRequestType: t.projectRequestType ?? project.requestType,
+      projectTradeReference: t.projectTradeReference ?? project.tradeReference,
+      ...(itemId && nameMap[itemId] ? { projectItemName: nameMap[itemId] } : {}),
+    }
   })
 
   const itemTasks = enriched.filter((t) => t.projectItem && t.projectItem.length > 0)
