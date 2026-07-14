@@ -13,19 +13,22 @@ import { Task } from './types'
 
 const FAB_ITEM_PATHS = new Set(['Carpentry', 'Paint'])
 
-// A task is "done" (non-blocking) when Completed, explicitly optional, or an unchosen
-// path alternative (To-Do with a pathCondition — e.g. Carpentry/Paint that isn't needed).
+// A task is "done" (non-blocking for the order guard) when Completed or explicitly optional.
+// Path (gateway / branch) tasks are NOT part of the universal linear chain and generally
+// never block it, whatever their status:
+//   • A Phase-2 gateway choice (Select Sample, Site Visit, Design, Measurement…) that the
+//     SED opened (In Progress), left unchosen (To Do), or that stayed Locked downstream —
+//     none of these should hold up the chain once the real gates close.
+//   • The ONE exception is a fabrication path (Carpentry / Paint): it's real sequential
+//     work, so it blocks a later step while it is actively In Progress.
 export function isTaskDone(t: Task): boolean {
-  return (
-    t.status === 'Completed' ||
-    t.taskName.toLowerCase().includes('optional') ||
-    (t.status === 'To Do' && !!t.pathCondition) ||
-    // A Locked task with a pathCondition is a gateway alternative that was never chosen —
-    // only the entry step of each path is promoted to To Do at generation (see
-    // generateTasksForProject), so any downstream step of an unchosen path stays Locked
-    // forever. It must not block a later, unrelated completion in the same scope.
-    (t.status === 'Locked' && !!t.pathCondition)
-  )
+  if (t.status === 'Completed') return true
+  if (t.taskName.toLowerCase().includes('optional')) return true
+  if (t.pathCondition) {
+    if (FAB_ITEM_PATHS.has(t.pathCondition)) return t.status !== 'In Progress'
+    return true
+  }
+  return false
 }
 
 export interface UnlockPlan {

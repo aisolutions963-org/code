@@ -34,6 +34,29 @@ describe('isTaskDone', () => {
   it('Locked (no path) is NOT done', () => expect(isTaskDone(mk(1, 'Locked'))).toBe(false))
   it('Locked + pathCondition (abandoned gateway alternative) is done', () =>
     expect(isTaskDone(mk(4, 'Locked', { path: 'Order Sample' }))).toBe(true))
+  it('In Progress gateway choice (non-fab path) is done — must not block the chain', () =>
+    expect(isTaskDone(mk(24, 'In Progress', { path: 'Select Sample (item)' }))).toBe(true))
+  it('In Progress fabrication path (Carpentry/Paint) is NOT done — real work blocks', () => {
+    expect(isTaskDone(mk(40, 'In Progress', { path: 'Carpentry' }))).toBe(false)
+    expect(isTaskDone(mk(40, 'In Progress', { path: 'Paint' }))).toBe(false)
+  })
+})
+
+describe('planUnlock — In-Progress Phase-2 gateway chips do not block (regression: tables item)', () => {
+  it('unlocks Click Done (29) after Take Approval (28) even with In-Progress order-24 gateway chips', () => {
+    const takeApproval = mk(28, 'Completed', { item: 'tables' })
+    const tasks = [
+      takeApproval,
+      mk(24, 'In Progress', { item: 'tables', path: 'Select Sample (item)' }),
+      mk(24, 'In Progress', { item: 'tables', path: 'Site Visit (item)' }),
+      mk(26, 'Completed', { item: 'tables', name: '[GATE] Sample Approved' }),
+      mk(26, 'Completed', { item: 'tables', name: '[GATE] Design Approved' }),
+      mk(29, 'Locked', { item: 'tables' }), // Click Done — must unlock
+    ]
+    const plan = planUnlock(takeApproval, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([29])
+  })
 })
 
 describe('planUnlock — single item ordering', () => {
