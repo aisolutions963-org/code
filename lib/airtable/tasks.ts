@@ -1141,6 +1141,16 @@ export async function generatePhase3TasksForItem(
   return { created: ids.length, todoTemplates }
 }
 
+// Idempotent + self-normalizing Phase 4 (Closing) generation.
+//
+// Creates a task for every Closing / maintenance template that doesn't have one yet, then
+// normalizes the whole closing chain so the active head is always the lowest-order
+// not-yet-Completed step. This heals projects that generated their closing chain under an
+// OLDER template set (e.g. before the "Handing Over Form" head at ord 56 was added): a plain
+// "create only the missing templates and flip the min NEW one to To Do" would leave two active
+// heads (the newly-created handover AND the previously-created auto-close), letting the project
+// auto-close before handover. Re-running is safe — dedup is by template link, and existing tasks
+// are ranked by their template's CURRENT order (task-side templateOrder is a stale snapshot).
 export async function generatePhase4Tasks(
   projectId: string,
 ): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
@@ -1152,37 +1162,68 @@ export async function generatePhase4Tasks(
     (t) => t.templateOrder !== null,
   )
   if (templates.length === 0) return { created: 0, todoTemplates: [] }
+  const orderByTemplateId = new Map(templates.map((t) => [t.id, t.templateOrder!]))
 
   const existingRaw = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}))`,
-    fields: [TASKS.TASK_TEMPLATES_LINK],
+    fields: [TASKS.TASK_TEMPLATES_LINK, TASKS.STATUS],
   })
+  // Existing closing tasks, ranked by their template's CURRENT order (not the task's stale
+  // stored order). One entry per task that links to a live closing/maintenance template.
+  const existingClosing: Array<{ id: string; order: number; status: string }> = []
   const existingTemplateIds = new Set<string>()
   for (const r of existingRaw) {
     const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
-    if (Array.isArray(links)) links.forEach((id) => existingTemplateIds.add(id as string))
+    const linkId = Array.isArray(links)
+      ? (links as string[]).find((id) => orderByTemplateId.has(id))
+      : undefined
+    if (!linkId) continue
+    existingTemplateIds.add(linkId)
+    existingClosing.push({
+      id: r.id,
+      order: orderByTemplateId.get(linkId)!,
+      status: str(r.fields[TASKS.STATUS]) ?? '',
+    })
   }
+
   const newTemplates = templates.filter((t) => !existingTemplateIds.has(t.id))
-  if (newTemplates.length === 0) return { created: 0, todoTemplates: [] }
 
-  const minOrder = Math.min(...newTemplates.map((t) => t.templateOrder!))
-  const todoTemplates: TaskTemplate[] = []
+  // Head = lowest order among all not-yet-Completed closing tasks (existing + about-to-create).
+  // Newly-created tasks are never Completed, so they always participate.
+  const activeOrders = [
+    ...existingClosing.filter((t) => t.status !== 'Completed').map((t) => t.order),
+    ...newTemplates.map((t) => t.templateOrder!),
+  ]
+  if (activeOrders.length === 0) return { created: 0, todoTemplates: [] }
+  const head = Math.min(...activeOrders)
 
+  // Create the missing templates: head-order ones open as To Do, everything else Locked.
   const records = newTemplates.map((t) => {
-    const status: TaskStatus = t.templateOrder === minOrder ? 'To Do' : 'Locked'
-    if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
       [TASKS.PROJECT]: projectId,
-      [TASKS.STATUS]: status,
+      [TASKS.STATUS]: (t.templateOrder === head ? 'To Do' : 'Locked') as TaskStatus,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }
-    if (t.pathCondition !== null) {
-      record[TASKS.PATH_CONDITION] = t.pathCondition
-    }
+    if (t.pathCondition !== null) record[TASKS.PATH_CONDITION] = t.pathCondition
     return record
   })
+  const ids = records.length > 0 ? await createTasksBatch(records) : []
 
-  const ids = await createTasksBatch(records)
+  // Re-normalize existing tasks: head-order → To Do, later → Locked. Leave Completed and
+  // In Progress untouched, and only PATCH when the status actually changes.
+  await Promise.all(
+    existingClosing
+      .filter((t) => t.status !== 'Completed' && t.status !== 'In Progress')
+      .map((t) => {
+        const desired: TaskStatus = t.order === head ? 'To Do' : 'Locked'
+        return t.status === desired
+          ? null
+          : updateTaskRaw(t.id, { [TASKS.STATUS]: desired })
+      })
+      .filter((p): p is Promise<Task> => p !== null),
+  )
+
+  const todoTemplates = templates.filter((t) => t.templateOrder === head)
   return { created: ids.length, todoTemplates }
 }
