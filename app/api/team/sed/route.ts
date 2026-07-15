@@ -24,12 +24,15 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, sess
   return NextResponse.json({
     members: seds.map((u) => {
       const email = u.email?.toLowerCase()
-      // SALES_OWNER links to Team Members, so salesOwner.id is the member record id
-      // (== airtable_member_id). Match by email too for robustness.
+      // A SED's active load includes projects they OWN (SALES_OWNER) and projects where
+      // they're a Commun (secondary) SED — otherwise a SED assigned only as a secondary
+      // shows 0. SALES_OWNER / COMMUN_SEDS link to Team Members, so the ids are member
+      // record ids (== airtable_member_id). Match owner by email too for robustness.
       const projectCount = activeProjects.filter(
         (p) =>
           p.salesOwner?.id === u.airtable_member_id ||
-          (!!email && p.salesOwner?.email?.toLowerCase() === email),
+          (!!email && p.salesOwner?.email?.toLowerCase() === email) ||
+          (p.communSedIds ?? []).includes(u.airtable_member_id!),
       ).length
       return { id: u.airtable_member_id!, name: u.name, projectCount, isSelf: u.id === session.id }
     }),
