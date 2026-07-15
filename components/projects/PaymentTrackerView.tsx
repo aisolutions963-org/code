@@ -13,6 +13,11 @@ function fmt(n: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
+// Contract payment types that carry the project's quotation number + reference.
+// Trade/Variance use their own tradeReference; Maintenance stays manual.
+const CONTRACT_QUOTATION_TYPES = ['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment']
+const composeQuoteRef = (num?: string, ref?: string) => [num, ref].filter(Boolean).join(' — ')
+
 function PaymentDetail({ project: p }: { project: Project }) {
   const { data, isLoading, mutate } = useSWR<{ project: { payments?: Payment[] } }>(
     `/api/projects/${p.id}`,
@@ -28,7 +33,11 @@ function PaymentDetail({ project: p }: { project: Project }) {
     paymentType: 'Advance',
     paymentStatus: 'Received',
     paymentMethod: 'Bank Transfer',
-    referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : '',
+    referenceNo: isTradeOrVariance
+      ? (p.tradeReference ?? '')
+      : composeQuoteRef(p.quotationNumber, p.quotationReference),
+    quotationNumber: p.quotationNumber ?? '',
+    quotationReference: p.quotationReference ?? '',
     receivedDate: today,
     dueDate: '',
     payerType: '',
@@ -42,6 +51,16 @@ function PaymentDetail({ project: p }: { project: Project }) {
 
   function setF(key: string, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
+  }
+  // Editing a quotation field (only when the project has none) live-refreshes referenceNo
+  function setQuote(key: 'quotationNumber' | 'quotationReference', value: string) {
+    setForm((f) => {
+      const next = { ...f, [key]: value }
+      if (!isTradeOrVariance && CONTRACT_QUOTATION_TYPES.includes(next.paymentType)) {
+        next.referenceNo = composeQuoteRef(next.quotationNumber, next.quotationReference)
+      }
+      return next
+    })
   }
 
   async function submitPayment(e: React.FormEvent) {
@@ -66,6 +85,10 @@ function PaymentDetail({ project: p }: { project: Project }) {
       if (form.payerName.trim()) body.payerName = form.payerName.trim()
       if (form.payerType === 'Broker' && form.commission) body.commissionAmount = parseFloat(form.commission)
       if (form.notes.trim()) body.notes = form.notes.trim()
+      if (!isTradeOrVariance && CONTRACT_QUOTATION_TYPES.includes(form.paymentType)) {
+        if (form.quotationNumber.trim()) body.quotationNumber = form.quotationNumber.trim()
+        if (form.quotationReference.trim()) body.quotationReference = form.quotationReference.trim()
+      }
 
       const res = await fetch('/api/payments', {
         method: 'POST',
@@ -74,7 +97,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
       setSaved(true)
-      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
+      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : composeQuoteRef(p.quotationNumber, p.quotationReference), quotationNumber: p.quotationNumber ?? '', quotationReference: p.quotationReference ?? '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
       mutate()
       globalMutate('/api/projects')
       globalMutate('/api/projects?all=true')
@@ -167,11 +190,11 @@ function PaymentDetail({ project: p }: { project: Project }) {
                 const v = e.target.value
                 setForm((f) => {
                   let referenceNo = f.referenceNo
-                  if (v === 'Delivery' && p.quotationNumber) {
-                    // Delivery payments carry the project's quotation number + reference
-                    referenceNo = [p.quotationNumber, p.quotationReference].filter(Boolean).join(' — ')
-                  } else if (f.paymentType === 'Delivery') {
-                    // switching away from Delivery — restore the default reference
+                  if (!isTradeOrVariance && CONTRACT_QUOTATION_TYPES.includes(v)) {
+                    // Contract payments carry the project's quotation number + reference
+                    referenceNo = composeQuoteRef(f.quotationNumber, f.quotationReference)
+                  } else {
+                    // Trade/Variance keep their tradeReference; others reset
                     referenceNo = isTradeOrVariance ? (p.tradeReference ?? '') : ''
                   }
                   return { ...f, paymentType: v, referenceNo }
@@ -188,16 +211,27 @@ function PaymentDetail({ project: p }: { project: Project }) {
               {['Received', 'Pending', 'Overdue'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
-          {form.paymentType === 'Delivery' && (
+          {!isTradeOrVariance && CONTRACT_QUOTATION_TYPES.includes(form.paymentType) && (
             <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs">
-              <p className="font-semibold text-blue-800 mb-0.5">Quotation</p>
+              <p className="font-semibold text-blue-800 mb-1.5">Quotation</p>
               {p.quotationNumber ? (
                 <p className="text-blue-700 font-mono">
                   {p.quotationNumber}
                   {p.quotationReference && <span className="ml-2 text-blue-500">{p.quotationReference}</span>}
                 </p>
               ) : (
-                <p className="text-orange-600">No quotation number set on this project yet.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-blue-800 block mb-0.5">Quotation No.</label>
+                    <input type="text" value={form.quotationNumber} onChange={(e) => setQuote('quotationNumber', e.target.value)}
+                      className="w-full border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Quotation number" />
+                  </div>
+                  <div>
+                    <label className="text-blue-800 block mb-0.5">Reference</label>
+                    <input type="text" value={form.quotationReference} onChange={(e) => setQuote('quotationReference', e.target.value)}
+                      className="w-full border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Reference" />
+                  </div>
+                </div>
               )}
             </div>
           )}

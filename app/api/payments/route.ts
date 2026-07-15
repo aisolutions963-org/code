@@ -106,6 +106,18 @@ export const POST = requireRole('manager', 'superadmin')(
 
     const payment = await createPayment({ ...body, recordedBy: session.name, stageAtPayment, ...(name ? { name } : {}) })
 
+    // If the user captured a quotation number/reference on a contract payment for a
+    // project that had none, persist it to the project so later payments auto-fill it.
+    // Best-effort — never fail the payment on this.
+    if ((body.quotationNumber || body.quotationReference) && project && !project.quotationNumber) {
+      const quoteFields: Record<string, unknown> = {}
+      if (body.quotationNumber) quoteFields[PROJECTS.QUOTATION_NUMBER] = body.quotationNumber
+      if (body.quotationReference) quoteFields[PROJECTS.QUOTATION_REFERENCE] = body.quotationReference
+      await updateProject(body.project[0], quoteFields).catch((err: unknown) =>
+        console.error('[Payment] quotation persist failed:', err),
+      )
+    }
+
     // No calendar event here — getCalendarEvents already surfaces a richer payment-received
     // event (with amount/type) from the Payments table; a custom copy would duplicate it.
 
