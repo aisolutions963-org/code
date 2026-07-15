@@ -70,26 +70,45 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       sort: [{ field: INSTALLATION_LOGS.DATE, direction: 'asc' }],
     }),
     fetchAll(PROJECTS.TABLE_ID, {
-      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID, PROJECTS.NICKNAME],
+      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID, PROJECTS.NICKNAME, PROJECTS.DELETED_AT],
     }),
   ])
 
   const projectNameMap = new Map<string, string>()
   const projectRefMap = new Map<string, string>()
+  // Projects that currently exist AND are not soft-deleted. An event tied to any project
+  // NOT in this set — soft-deleted (DELETED_AT set) or fully purged (record gone) — is
+  // excluded, so deleting a project drops its calendar events from every source.
+  const validProjectIds = new Set<string>()
   for (const p of allProjects) {
     const label = str(p.fields[PROJECTS.NICKNAME]) ?? str(p.fields[PROJECTS.PROJECT_NAME]) ?? str(p.fields[PROJECTS.PROJECT_ID])
     if (label) projectNameMap.set(p.id, label)
     const ref = str(p.fields[PROJECTS.PROJECT_ID])
     if (ref) projectRefMap.set(p.id, ref)
+    if (!str(p.fields[PROJECTS.DELETED_AT])) validProjectIds.add(p.id)
+  }
+
+  // A source's project reference may be a text rec-id (TASKS.PROJECT) or a linked-record
+  // array (CALENDAR_EVENTS/PAYMENTS/INSTALLATION_LOGS) — normalise to the rec id.
+  const projectRecId = (val: unknown): string | undefined => {
+    if (typeof val === 'string') return val || undefined
+    if (Array.isArray(val)) return typeof val[0] === 'string' ? val[0] : undefined
+    return undefined
+  }
+  // True when the event references a project that no longer exists or is soft-deleted.
+  // Events with no project reference (personal notes, reminders) are kept.
+  const isRemovedProject = (val: unknown): boolean => {
+    const id = projectRecId(val)
+    return !!id && !validProjectIds.has(id)
   }
 
   const getProjectName = (val: unknown): string | undefined => {
-    const pid = str(val)
+    const pid = projectRecId(val)
     return pid ? projectNameMap.get(pid) : undefined
   }
 
   const getProjectRef = (val: unknown): string | undefined => {
-    const pid = str(val)
+    const pid = projectRecId(val)
     return pid ? projectRefMap.get(pid) : undefined
   }
 
@@ -145,6 +164,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
 
   for (const r of tasks) {
     if (linkedTaskIds.has(r.id)) continue // superseded by its custom calendar event
+    if (isRemovedProject(r.fields[TASKS.PROJECT])) continue
     const f = r.fields
     const date = str(f[TASKS.TASK_START_DATE]) ?? str(f[TASKS.COMPLETION_DATE])
     const dept = strArr(f[TASKS.DEPARTMENT])
@@ -177,6 +197,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
 
   for (const r of fabTasks) {
     if (linkedTaskIds.has(r.id)) continue // superseded by its custom calendar event
+    if (isRemovedProject(r.fields[TASKS.PROJECT])) continue
     const f = r.fields
     const projectId = str(f[TASKS.PROJECT_ID])
     const startDate = str(f[TASKS.PLANNED_PROD_START_DATE])
@@ -205,6 +226,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
 
   for (const r of payments) {
     const f = r.fields
+    if (isRemovedProject(f[PAYMENTS.PROJECT])) continue
     const name = str(f[PAYMENTS.NAME]) ?? str(f[PAYMENTS.PAYMENT_TYPE]) ?? 'Payment'
     const amount = num(f[PAYMENTS.AMOUNT])
     const receivedDate = str(f[PAYMENTS.RECEIVED_DATE])
@@ -225,6 +247,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const date = str(f[CALENDAR_EVENTS.DATE])
     const title = str(f[CALENDAR_EVENTS.TITLE])
     if (!date || !title) continue
+    if (isRemovedProject(f[CALENDAR_EVENTS.PROJECT])) continue
     const customTask = str(f[CALENDAR_EVENTS.CUSTOM_TASK])
     const segs = customTask?.split('|') ?? []
     const typeSeg = segs.find((p) => p.startsWith('type:'))
@@ -254,6 +277,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
 
   for (const r of installationLogs) {
     const f = r.fields
+    if (isRemovedProject(f[INSTALLATION_LOGS.PROJECT])) continue
     const date = str(f[INSTALLATION_LOGS.DATE])
     if (!date) continue
     const desc = str(f[INSTALLATION_LOGS.WORK_DESCRIPTION])
