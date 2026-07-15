@@ -48,7 +48,9 @@ export const POST = requireRole('superadmin')(async (req: NextRequest) => {
     const msg = error instanceof Error ? error.message : 'Failed to create user'
     if (msg.includes('UNIQUE constraint')) {
       if (airtable_member_id && !providedMemberId) {
-        await deleteTeamMember(airtable_member_id).catch(() => {})
+        await deleteTeamMember(airtable_member_id).catch((rollbackErr) =>
+          console.error(`[users POST] failed to remove orphaned Airtable member ${airtable_member_id} after user create failed:`, rollbackErr),
+        )
       }
       return NextResponse.json({ error: 'Email already exists' }, { status: 409 })
     }

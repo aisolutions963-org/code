@@ -26,12 +26,21 @@ export async function createMaintenanceRecord(
   projectId: string,
   dates: { startDate: string; endDate: string; status?: string },
 ): Promise<string> {
+  // End Date is a computed Airtable field (1 year from Start Date) — writing it 422s.
+  // Status choices are Active/Hold/Completed/Expired (no "Pending" → treat as Hold);
+  // Warranty Type choices are "1 Year"/"6 Months"/"No Warranty".
+  const VALID_STATUS = new Set(['Active', 'Hold', 'Completed', 'Expired'])
+  const status =
+    dates.status === 'Pending'
+      ? 'Hold'
+      : dates.status && VALID_STATUS.has(dates.status)
+        ? dates.status
+        : 'Active'
   const fields: Record<string, unknown> = {
     [MAINTENANCE.PROJECTS]: [projectId],
-    [MAINTENANCE.STATUS]: dates.status ?? 'Active',
+    [MAINTENANCE.STATUS]: status,
     [MAINTENANCE.START_DATE]: dates.startDate,
-    [MAINTENANCE.END_DATE]: dates.endDate,
-    [MAINTENANCE.WARRANTY_TYPE]: 'Standard 1-Year',
+    [MAINTENANCE.WARRANTY_TYPE]: '1 Year',
   }
   const res = await fetchWithRetry(tblUrl(MAINTENANCE.TABLE_ID), {
     method: 'POST',

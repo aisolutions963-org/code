@@ -18,7 +18,7 @@ async function fetchAll<T>(tableId: string, params: URLSearchParams): Promise<T[
       `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${p}`,
       { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
     )
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
     const data = (await res.json()) as { records: T[]; offset?: string }
     records.push(...data.records)
     offset = data.offset
@@ -28,6 +28,7 @@ async function fetchAll<T>(tableId: string, params: URLSearchParams): Promise<T[
 
 export const GET = requireRole('superadmin')(async () => {
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
+  params.append('fields[]', PAYABLES.PAYABLE_NAME)
   params.append('fields[]', PAYABLES.PAYABLE_TO)
   params.append('fields[]', PAYABLES.CATEGORY)
   params.append('fields[]', PAYABLES.INVOICE_NUMBER)
@@ -47,6 +48,7 @@ export const GET = requireRole('superadmin')(async () => {
   const rows = records.map((r) => {
     const f = r.fields
     return {
+      payableName:   (f[PAYABLES.PAYABLE_NAME] as string) ?? '',
       payableTo:     (f[PAYABLES.PAYABLE_TO] as string) ?? '',
       category:      (f[PAYABLES.CATEGORY] as string) ?? '',
       invoiceNumber: (f[PAYABLES.INVOICE_NUMBER] as string) ?? '',
@@ -62,6 +64,7 @@ export const GET = requireRole('superadmin')(async () => {
   })
 
   const buffer = await buildXlsx('Payables', [
+    { header: 'Payable Name',       key: 'payableName',   width: 25 },
     { header: 'Payable To',         key: 'payableTo',     width: 25 },
     { header: 'Category',           key: 'category',      width: 18 },
     { header: 'Invoice #',          key: 'invoiceNumber', width: 16 },

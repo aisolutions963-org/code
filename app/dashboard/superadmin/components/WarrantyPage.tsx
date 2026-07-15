@@ -6,12 +6,14 @@ import { MaintenanceWithExtra } from './types'
 import { fetcher, Spinner, MetricCard } from './shared'
 import { Project, ClientRequest } from '@/lib/types'
 
+const WARRANTY_STAGES = new Set(['Closed and active warranty', 'Warranty expired'])
+
 export default function WarrantyPage() {
   const { data, isLoading } = useSWR<{ records: MaintenanceWithExtra[] }>(
     '/api/maintenance', fetcher, { refreshInterval: 300_000 },
   )
   const { data: projectData, isLoading: projectsLoading } = useSWR<{ projects: Project[] }>(
-    '/api/projects?stage=Closed%20and%20active%20warranty',
+    '/api/projects?all=true',
     fetcher,
     { refreshInterval: 300_000 },
   )
@@ -22,7 +24,8 @@ export default function WarrantyPage() {
   )
 
   const records = data?.records ?? []
-  const warrantyProjects = projectData?.projects ?? []
+  const warrantyProjects = (projectData?.projects ?? []).filter((p) => WARRANTY_STAGES.has(p.projectStage))
+  const activeWarrantyCount = warrantyProjects.filter((p) => p.projectStage === 'Closed and active warranty').length
   const maintenanceRequests = (crData?.requests ?? []).filter((r) => r.requestType === 'Maintenance')
 
   const expired = records.filter((r) => r.daysRemaining < 0).length
@@ -40,11 +43,11 @@ export default function WarrantyPage() {
       {/* Active warranty projects */}
       <div>
         <h3 className="text-sm font-semibold text-gray-700 mb-2">
-          Active Warranty Projects
+          Warranty Projects
           <span className="ml-2 text-xs font-normal text-gray-400">({warrantyProjects.length})</span>
         </h3>
         {warrantyProjects.length === 0 ? (
-          <p className="text-sm text-gray-400 py-3">No projects currently in active warranty.</p>
+          <p className="text-sm text-gray-400 py-3">No projects currently in warranty.</p>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <table className="w-full text-sm">
@@ -53,6 +56,7 @@ export default function WarrantyPage() {
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -61,6 +65,11 @@ export default function WarrantyPage() {
                     <td className="px-4 py-3 font-medium text-gray-900">{p.projectName}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName ?? '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{p.projectId ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={p.projectStage === 'Warranty expired' ? 'red' : 'green'} size="sm">
+                        {p.projectStage === 'Warranty expired' ? 'Expired' : 'Active'}
+                      </Badge>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -116,7 +125,7 @@ export default function WarrantyPage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <MetricCard label="Active Warranty" value={warrantyProjects.length} color="text-teal-600" />
+        <MetricCard label="Active Warranty" value={activeWarrantyCount} color="text-teal-600" />
         <MetricCard label="Maintenance Requests" value={maintenanceRequests.length} color="text-teal-600" />
         <MetricCard label="Expiring Soon (< 30d)" value={expiringSoon} color="text-orange-500" />
         <MetricCard label="Expired" value={expired} color="text-red-600" />

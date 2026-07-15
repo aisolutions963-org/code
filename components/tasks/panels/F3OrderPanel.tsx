@@ -59,6 +59,7 @@ export default function F3OrderPanel({ task, onUpdate }: F3OrderPanelProps) {
           ? 'Order submitted'
           : 'Sent to Fabrication for store check',
       )
+      // (path 'small' = order directly; 'big' = store check first — internal value kept)
       await onUpdate(task.id, {})
     } catch (e) {
       setF3Error(e instanceof Error ? e.message : 'Failed')
@@ -85,8 +86,8 @@ export default function F3OrderPanel({ task, onUpdate }: F3OrderPanelProps) {
               : 'border-gray-200 bg-white text-gray-700 hover:border-emerald-300'
           }`}
         >
-          <div className="font-bold">Small Order</div>
-          <div className="font-normal mt-0.5 opacity-80">Order directly</div>
+          <div className="font-bold">Order Directly</div>
+          <div className="font-normal mt-0.5 opacity-80">Order without a store check</div>
         </button>
         <button
           type="button"
@@ -217,7 +218,7 @@ export default function F3OrderPanel({ task, onUpdate }: F3OrderPanelProps) {
             {f3Saving
               ? 'Submitting…'
               : f3Path === 'small'
-                ? `Submit Small Order (${f3Items.filter((r) => r.name.trim()).length} item${f3Items.filter((r) => r.name.trim()).length !== 1 ? 's' : ''})`
+                ? `Submit Order (${f3Items.filter((r) => r.name.trim()).length} item${f3Items.filter((r) => r.name.trim()).length !== 1 ? 's' : ''})`
                 : 'Send to Fabrication for Store Check'}
           </button>
         </>

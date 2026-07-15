@@ -6,9 +6,9 @@ import Button from '@/components/ui/Button'
 
 interface FollowUpLog {
   id: string
-  quotationId: string
-  quotationNumber: string
-  quotationReference?: string
+  projectId: string
+  projectRef: string
+  projectName: string
   clientName: string
   date: string
   method: string
@@ -18,19 +18,18 @@ interface FollowUpLog {
   notes?: string
 }
 
-interface QuotationOption {
+interface ProjectOption {
   id: string
-  quoteNumber: string
-  quotationReference?: string
+  projectRef: string
+  projectName: string
   clientName: string
-  projectName?: string
 }
 
 const METHOD_COLORS: Record<string, string> = {
-  Phone:       'bg-blue-100 text-blue-700',
-  WhatsApp:    'bg-green-100 text-green-700',
-  Email:       'bg-purple-100 text-purple-700',
-  'In-Person': 'bg-amber-100 text-amber-700',
+  'Phone Call': 'bg-blue-100 text-blue-700',
+  WhatsApp:     'bg-green-100 text-green-700',
+  Email:        'bg-purple-100 text-purple-700',
+  'In Person':  'bg-amber-100 text-amber-700',
 }
 function methodColor(m: string) {
   return METHOD_COLORS[m] ?? 'bg-gray-100 text-gray-500'
@@ -39,9 +38,9 @@ function methodColor(m: string) {
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const EMPTY_FORM = {
-  quotationId: '',
+  projectId: '',
   date: new Date().toISOString().slice(0, 10),
-  method: 'Phone',
+  method: 'Phone Call',
   outcome: '',
   nextDate: '',
   notes: '',
@@ -53,13 +52,13 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
-  const { data, mutate, isLoading } = useSWR<{ logs: FollowUpLog[]; quotations: QuotationOption[] }>(
+  const { data, mutate, isLoading } = useSWR<{ logs: FollowUpLog[]; projects: ProjectOption[] }>(
     '/api/follow-ups',
     fetcher,
     { refreshInterval: 300_000 },
   )
   const logs = data?.logs ?? []
-  const quotations = data?.quotations ?? []
+  const projects = data?.projects ?? []
 
   function setField(k: string, v: string) {
     setForm((f) => ({ ...f, [k]: v }))
@@ -73,7 +72,7 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          quotationId: form.quotationId || undefined,
+          projectId: form.projectId || undefined,
           date: form.date,
           method: form.method,
           outcome: form.outcome,
@@ -128,12 +127,13 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-xs font-semibold text-gray-800 truncate">
-                      {log.clientName || log.quotationNumber || '—'}
+                      {log.projectName || log.clientName || '—'}
                     </span>
-                    {log.quotationNumber && (
-                      <span className="font-mono text-[11px] text-gray-400">
-                        {log.quotationNumber}{log.quotationReference ?? ''}
-                      </span>
+                    {log.projectRef && (
+                      <span className="font-mono text-[11px] text-gray-400">{log.projectRef}</span>
+                    )}
+                    {log.clientName && log.projectName && (
+                      <span className="text-[11px] text-gray-400">{log.clientName}</span>
                     )}
                     <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${methodColor(log.method)}`}>
                       {log.method}
@@ -189,19 +189,17 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
             </div>
             <form onSubmit={handleAdd} className="px-5 py-4 space-y-3">
               <label className="block">
-                <span className="text-xs font-medium text-gray-600">Project / Quotation</span>
+                <span className="text-xs font-medium text-gray-600">Project</span>
                 <select
-                  value={form.quotationId}
-                  onChange={(e) => setField('quotationId', e.target.value)}
+                  value={form.projectId}
+                  onChange={(e) => setField('projectId', e.target.value)}
                   className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
                 >
                   <option value="">— None —</option>
-                  {quotations.map((q) => (
-                    <option key={q.id} value={q.id}>
-                      {q.quoteNumber
-                        ? `${q.quoteNumber}${q.quotationReference ?? ''} — `
-                        : ''}
-                      {q.projectName || q.clientName || 'Unnamed project'}
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.projectRef ? `${p.projectRef} — ` : ''}
+                      {p.projectName || p.clientName || 'Unnamed project'}
                     </option>
                   ))}
                 </select>
@@ -225,7 +223,7 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
                     onChange={(e) => setField('method', e.target.value)}
                     className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
                   >
-                    {['Phone', 'WhatsApp', 'Email', 'In-Person', 'Other'].map((m) => (
+                    {['Phone Call', 'WhatsApp', 'Email', 'In Person', 'Other'].map((m) => (
                       <option key={m}>{m}</option>
                     ))}
                   </select>
@@ -233,13 +231,17 @@ export default function FollowUpsView({ title = 'Follow-Ups', editable = false }
               </div>
               <label className="block">
                 <span className="text-xs font-medium text-gray-600">Outcome *</span>
-                <input
+                <select
                   required
                   value={form.outcome}
                   onChange={(e) => setField('outcome', e.target.value)}
-                  placeholder="What was discussed or decided…"
-                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400"
-                />
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white"
+                >
+                  <option value="">— select outcome —</option>
+                  {['Contacted Client', 'Scheduled Follow-Up', 'Sent Proposal', 'Escalated to Manager', 'Project Cancelled', 'No Action Needed', 'No Answer'].map((o) => (
+                    <option key={o}>{o}</option>
+                  ))}
+                </select>
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-600">Next Follow-Up Date</span>

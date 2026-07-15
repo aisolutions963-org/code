@@ -4,7 +4,6 @@ export const DEPT_ROLE_MAP: Record<string, string> = {
   SED: 'sed',
   Fabrication: 'fabrication',
   Installation: 'installation',
-  'Installation / Fixing Team': 'installation',
   Manager: 'manager',
   Management: 'manager',
   Purchase: 'manager',

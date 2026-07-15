@@ -4,9 +4,10 @@ import { getInstallationLogsByProject, createInstallationLog } from '@/lib/airta
 import { CreateInstallationLogSchema } from '@/lib/validation'
 
 export const GET = requireRole('installation', 'manager', 'superadmin')(
-  async (_req: NextRequest, _session, { params }) => {
+  async (req: NextRequest, _session, { params }) => {
     try {
-      const logs = await getInstallationLogsByProject(params.id)
+      const itemId = new URL(req.url).searchParams.get('itemId')
+      const logs = await getInstallationLogsByProject(params.id, itemId ?? undefined)
       return NextResponse.json({ logs })
     } catch (error) {
       console.error('GET /api/projects/[id]/installation-logs error:', error)

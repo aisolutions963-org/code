@@ -91,7 +91,9 @@ export const PATCH = requireRole('superadmin')(
           name: existing.name,
           email: existing.email,
           role: existing.role,
-        }).catch(() => {})
+        }).catch((rollbackErr) =>
+          console.error(`[users PATCH] Airtable rollback failed for member ${resolvedAirtableId} — DB/Airtable now out of sync:`, rollbackErr),
+        )
       }
       throw error
     }
@@ -121,8 +123,9 @@ export const DELETE = requireRole('superadmin')(
     if (existing.airtable_member_id) {
       try {
         await updateTeamMember(existing.airtable_member_id, { active: false })
-      } catch {
-        // best-effort
+      } catch (err) {
+        // Best-effort: DB user is already (soft-)deleted; surface the Airtable drift.
+        console.error(`[users DELETE] failed to deactivate Airtable member ${existing.airtable_member_id} — DB/Airtable now out of sync:`, err)
       }
     }
 

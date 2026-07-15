@@ -59,7 +59,10 @@ export async function createPayment(input: PaymentCreateInput): Promise<Payment>
   const res = await fetchWithRetry(tblUrl(PAYMENTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
-    body: JSON.stringify({ fields }),
+    // typecast lets the write accept the project's current stage for "Stage at Payment":
+    // that singleSelect only had Preparing/Open/Closed, so a payment during Production
+    // (e.g. a Delivery payment) was rejected — typecast adds the missing choice instead.
+    body: JSON.stringify({ fields, typecast: true }),
   })
   if (!res.ok) {
     const body = await res.text()

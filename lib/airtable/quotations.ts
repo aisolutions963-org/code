@@ -194,6 +194,7 @@ function transformInstallationLog(record: RawRecord): InstallationLog {
     id: record.id,
     name: str(f[INSTALLATION_LOGS.NAME]) ?? '',
     project: strArr(f[INSTALLATION_LOGS.PROJECT]),
+    projectItem: strArr(f[INSTALLATION_LOGS.PROJECT_ITEM]),
     date: str(f[INSTALLATION_LOGS.DATE]) ?? '',
     installationTeam: str(f[INSTALLATION_LOGS.INSTALLATION_TEAM]),
     numberOfLaborers: num(f[INSTALLATION_LOGS.NUMBER_OF_LABORERS]),
@@ -203,13 +204,22 @@ function transformInstallationLog(record: RawRecord): InstallationLog {
   }
 }
 
-export async function getInstallationLogsByProject(projectId: string): Promise<InstallationLog[]> {
-  const formula = `FIND("${projectId}", ARRAYJOIN({${INSTALLATION_LOGS.PROJECT}}, ","))`
+export async function getInstallationLogsByProject(
+  projectId: string,
+  itemId?: string,
+): Promise<InstallationLog[]> {
+  // Filter by the linked project's record ID in memory: ARRAYJOIN on a linked-record field
+  // yields the project's PRIMARY field (its name), not its record ID, so a FIND("rec…")
+  // formula never matches — which made every fetch come back empty (logs "disappeared").
   const records = await fetchAll(INSTALLATION_LOGS.TABLE_ID, {
-    filterByFormula: formula,
     sort: [{ field: INSTALLATION_LOGS.DATE, direction: 'desc' }],
   })
-  return records.map(transformInstallationLog)
+  return records
+    .filter((r) => strArr(r.fields[INSTALLATION_LOGS.PROJECT]).includes(projectId))
+    // The Installation Day task is per-item; when an item is given, scope the days to it so a
+    // day logged on one item doesn't surface under the project's other items.
+    .filter((r) => !itemId || strArr(r.fields[INSTALLATION_LOGS.PROJECT_ITEM]).includes(itemId))
+    .map(transformInstallationLog)
 }
 
 export async function createInstallationLog(input: InstallationLogCreateInput): Promise<InstallationLog> {
@@ -217,6 +227,7 @@ export async function createInstallationLog(input: InstallationLogCreateInput): 
     [INSTALLATION_LOGS.PROJECT]: input.project,
     [INSTALLATION_LOGS.DATE]: input.date,
   }
+  if (input.projectItem?.length) fields[INSTALLATION_LOGS.PROJECT_ITEM] = input.projectItem
   if (input.installationTeam) fields[INSTALLATION_LOGS.INSTALLATION_TEAM] = input.installationTeam
   if (input.numberOfLaborers != null) fields[INSTALLATION_LOGS.NUMBER_OF_LABORERS] = input.numberOfLaborers
   if (input.workDescription) fields[INSTALLATION_LOGS.WORK_DESCRIPTION] = input.workDescription

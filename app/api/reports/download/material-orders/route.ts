@@ -18,7 +18,7 @@ async function fetchAll(tableId: string, params: URLSearchParams) {
       `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${p}`,
       { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
     )
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
     const data = await res.json() as { records: typeof records; offset?: string }
     records.push(...data.records)
     offset = data.offset
@@ -92,11 +92,11 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       qty,
       unit:            selectName(f[MATERIALS_NEEDED.UNIT]),
       project:         (proj?.[PROJECTS.PROJECT_NAME] as string) ?? '',
-      projectRef:      (proj?.[PROJECTS.PROJECT_ID] as string) ?? '',
       status:          selectName(f[MATERIALS_NEEDED.ORDER_STATUS]),
       reqDate:         (f[MATERIALS_NEEDED.REQUEST_DATE] as string) ?? '',
-      expectedArrival: (f[MATERIALS_NEEDED.EXPECTED_ARRIVAL_DATE] as string) ?? '',
-      actualArrival:   (f[MATERIALS_NEEDED.ACTUAL_ARRIVAL_DATE] as string) ?? '',
+      // No dedicated "order placed" date exists on the table — emitted empty (data gap).
+      orderDate:       '',
+      deliveryDate:    (f[MATERIALS_NEEDED.ACTUAL_ARRIVAL_DATE] as string) ?? '',
       total:           (f[MATERIALS_NEEDED.TOTAL_AMOUNT] as number) ?? qty * unitCost,
       paid:            (f[MATERIALS_NEEDED.AMOUNT_PAID] as number) ?? 0,
       payable:         (f[MATERIALS_NEEDED.AMOUNT_PAYABLE] as number) ?? 0,
@@ -106,17 +106,16 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   })
 
   const buffer = await buildXlsx('Material Orders', [
-    { header: 'Material Name',       key: 'name',            width: 28 },
+    { header: 'Material Name (EN)',  key: 'name',            width: 28 },
     { header: 'Material Name (AR)',  key: 'nameAr',          width: 24, isArabic: true },
     { header: 'Supplier',            key: 'supplier',        width: 22 },
     { header: 'Qty',                 key: 'qty',             width: 8 },
     { header: 'Unit',                key: 'unit',            width: 10 },
     { header: 'Project',             key: 'project',         width: 26 },
-    { header: 'Project Ref',         key: 'projectRef',      width: 14 },
     { header: 'Status',              key: 'status',          width: 16 },
     { header: 'Req. Date',           key: 'reqDate',         width: 14, isDate: true },
-    { header: 'Expected Arrival',    key: 'expectedArrival', width: 16, isDate: true },
-    { header: 'Actual Arrival',      key: 'actualArrival',   width: 14, isDate: true },
+    { header: 'Order Date',          key: 'orderDate',       width: 14, isDate: true },
+    { header: 'Delivery Date',       key: 'deliveryDate',    width: 14, isDate: true },
     { header: 'Total (AED)',         key: 'total',           width: 14, isCurrency: true },
     { header: 'Paid (AED)',          key: 'paid',            width: 14, isCurrency: true },
     { header: 'Payable (AED)',       key: 'payable',         width: 14, isCurrency: true },

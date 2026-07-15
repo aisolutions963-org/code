@@ -22,6 +22,16 @@ const TYPE_CFG: Record<EventType, { label: string; dot: string; pill: string; bo
   personal:           { label: 'My Activity',  dot: 'bg-yellow-400',  pill: 'bg-yellow-50 text-yellow-700 border-yellow-200',   border: 'border-l-yellow-400'  },
 }
 
+const DEPT_CHIP: Record<string, string> = {
+  SED:          'bg-purple-50 text-purple-700 border-purple-200',
+  Fabrication:  'bg-amber-50 text-amber-700 border-amber-200',
+  Installation: 'bg-blue-50 text-blue-700 border-blue-200',
+  Management:   'bg-green-50 text-green-700 border-green-200',
+  Manager:      'bg-green-50 text-green-700 border-green-200',
+  Finance:      'bg-red-50 text-red-700 border-red-200',
+  Purchase:     'bg-teal-50 text-teal-700 border-teal-200',
+}
+
 export interface TabDef {
   id: string
   label: string
@@ -368,12 +378,37 @@ function EventCard({ ev, showInstallAssign }: { ev: CalendarEvent; showInstallAs
             )}
           </div>
           <p className="text-sm font-semibold text-gray-900 leading-snug">{ev.title}</p>
-          {ev.projectName && (
+          {(ev.projectRef || ev.projectName) && (
             <p className="text-xs text-gray-500 font-medium">
-              {ev.projectName}{ev.itemName ? <span className="text-gray-400"> › {ev.itemName}</span> : null}
+              {ev.projectRef && <span className="font-mono text-gray-400">{ev.projectRef}</span>}
+              {ev.projectRef && ev.projectName ? ' · ' : ''}
+              {ev.projectName}
+              {ev.itemName ? <span className="text-gray-400"> › {ev.itemName}</span> : null}
             </p>
           )}
-          {ev.createdBy && <p className="text-xs text-gray-400">{ev.createdBy}</p>}
+
+          {/* Responsible + Team — at-a-glance "who owns this" */}
+          {(ev.responsible || (ev.department && ev.department.length > 0)) && (
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              {ev.responsible && (
+                <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                  <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span className="font-medium text-gray-700">{ev.responsible}</span>
+                </span>
+              )}
+              {(ev.department ?? []).map(d => (
+                <span key={d} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${DEPT_CHIP[d] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                  {d}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {ev.createdBy && ev.createdBy !== ev.responsible && (
+            <p className="text-xs text-gray-400">Logged by {ev.createdBy}</p>
+          )}
           {ev.notes && (
             <p className="text-xs text-gray-500 leading-relaxed border-t border-gray-100 pt-1.5 mt-1">{ev.notes}</p>
           )}
@@ -661,8 +696,11 @@ export default function UnifiedCalendar({
                         <span
                           key={ev.id}
                           className={`text-[10px] leading-snug px-1.5 py-0.5 rounded font-medium truncate border ${cfg.pill}`}
+                          title={ev.title}
                         >
-                          {ev.title}
+                          {ev.projectName
+                            ? `${ev.projectRef ? ev.projectRef + ' · ' : ''}${ev.projectName}`
+                            : ev.title}
                         </span>
                       )
                     })}

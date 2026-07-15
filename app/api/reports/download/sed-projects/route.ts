@@ -1,49 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { PROJECTS } from '@/lib/fieldMap'
+import { PROJECTS, QUOTATIONS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
+import { formatProjectRef } from '@/lib/reportUtils'
 
 export const dynamic = 'force-dynamic'
 
 const BASE_ID = process.env.AIRTABLE_BASE_ID!
 const API_KEY = process.env.AIRTABLE_API_KEY!
+const VAT_RATE = 0.05 // computed here until F5 persists explicit VAT/amounts
 
 type AirtableRecord = { id: string; fields: Record<string, unknown> }
 
+async function fetchAll(tableId: string, params: URLSearchParams): Promise<AirtableRecord[]> {
+  const records: AirtableRecord[] = []
+  let offset: string | undefined
+  do {
+    const p = new URLSearchParams(params)
+    if (offset) p.set('offset', offset)
+    const res = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${tableId}?${p}`,
+      { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
+    )
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
+    const data = await res.json() as { records: AirtableRecord[]; offset?: string }
+    records.push(...data.records)
+    offset = data.offset
+  } while (offset)
+  return records
+}
+
+const num = (v: unknown): number => (typeof v === 'number' ? v : 0)
+const firstLink = (v: unknown): string | undefined =>
+  Array.isArray(v) && v[0] ? ((v[0] as { id?: string }).id ?? (v[0] as string)) : undefined
+
 const getOwnerName = (f: Record<string, unknown>): string => {
-  const raw = f[PROJECTS.SALES_OWNER]
-  const entry = Array.isArray(raw) ? raw[0] : raw
-  if (!entry || typeof entry === 'string') return ''
-  return (entry as { name?: string }).name ?? ''
-}
-
-const getRequestTypeName = (f: Record<string, unknown>): string => {
-  const raw = f[PROJECTS.REQUEST_TYPE]
-  if (typeof raw === 'string') return raw
-  if (raw && typeof raw === 'object') return (raw as { name?: string }).name ?? ''
-  return ''
-}
-
-const getChildLabel = (child: AirtableRecord): string => {
-  const tradeRef = (child.fields[PROJECTS.TRADE_REFERENCE] as string | undefined) ?? ''
-  const requestType = getRequestTypeName(child.fields)
-  return tradeRef ? `${requestType} (${tradeRef})` : requestType
-}
-
-function buildRow(f: Record<string, unknown>, sedName: string, type: string, clientRequests: string) {
-  return {
-    sedName,
-    reference: (f[PROJECTS.PROJECT_ID] as string) ?? '',
-    quotationNo: (f[PROJECTS.QUOTATION_NUMBER] as string) ?? '',
-    type,
-    projectName: (f[PROJECTS.PROJECT_NAME] as string) ?? '',
-    client: (f[PROJECTS.CLIENT_NAME] as string) ?? '',
-    stage: (f[PROJECTS.PROJECT_STAGE] as string) ?? '',
-    totalCost: (f[PROJECTS.PROJECT_TOTAL_COST] as number) ?? 0,
-    createdAt: (f[PROJECTS.PROJECT_CREATED_AT] as string) ?? '',
-    notes: (f[PROJECTS.MANAGER_NOTES] as string) ?? '',
-    clientRequests,
-  }
+  // Sales Owner links return record-ID strings over REST; use the name lookup instead.
+  const lookup = f[PROJECTS.SALES_OWNER_NAME]
+  return Array.isArray(lookup) ? String(lookup[0] ?? '') : ''
 }
 
 export const GET = requireRole('superadmin')(async (req: NextRequest) => {
@@ -52,18 +46,10 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const to   = sp.get('to')   ?? ''
 
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
-  params.append('fields[]', PROJECTS.PROJECT_ID)
-  params.append('fields[]', PROJECTS.PROJECT_NAME)
-  params.append('fields[]', PROJECTS.CLIENT_NAME)
-  params.append('fields[]', PROJECTS.PROJECT_STAGE)
-  params.append('fields[]', PROJECTS.SALES_OWNER)
-  params.append('fields[]', PROJECTS.PROJECT_TOTAL_COST)
-  params.append('fields[]', PROJECTS.PROJECT_CREATED_AT)
-  params.append('fields[]', PROJECTS.MANAGER_NOTES)
-  params.append('fields[]', PROJECTS.QUOTATION_NUMBER)
-  params.append('fields[]', PROJECTS.REQUEST_TYPE)
-  params.append('fields[]', PROJECTS.PARENT_PROJECT)
-  params.append('fields[]', PROJECTS.TRADE_REFERENCE)
+  for (const f of [
+    PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.CLIENT_NAME, PROJECTS.PROJECT_STAGE,
+    PROJECTS.SALES_OWNER_NAME, PROJECTS.PRODUCTION_START_DATE, PROJECTS.MANAGER_NOTES, PROJECTS.PROJECT_CREATED_AT,
+  ]) params.append('fields[]', f)
 
   const dateParts: string[] = []
   if (from) dateParts.push(`IS_AFTER({${PROJECTS.PROJECT_CREATED_AT}}, "${from}")`)
@@ -71,74 +57,61 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   if (dateParts.length === 1) params.set('filterByFormula', dateParts[0])
   if (dateParts.length === 2) params.set('filterByFormula', `AND(${dateParts.join(',')})`)
 
-  const records: AirtableRecord[] = []
-  let offset: string | undefined
-  do {
-    const p = new URLSearchParams(params)
-    if (offset) p.set('offset', offset)
-    const res = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${PROJECTS.TABLE_ID}?${p}`,
-      { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
-    )
-    if (!res.ok) break
-    const data = await res.json() as { records: AirtableRecord[]; offset?: string }
-    records.push(...data.records)
-    offset = data.offset
-  } while (offset)
+  const quoteParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
+  for (const f of [QUOTATIONS.PROJECT, QUOTATIONS.QUANTITY, QUOTATIONS.UNIT_PRICE, QUOTATIONS.VARIATION_1, QUOTATIONS.VARIATION_2])
+    quoteParams.append('fields[]', f)
 
-  // Build parent/child maps
-  const parentMap = new Map<string, AirtableRecord>()
-  const children = new Map<string, AirtableRecord[]>()
+  const [projects, quotes] = await Promise.all([
+    fetchAll(PROJECTS.TABLE_ID, params),
+    fetchAll(QUOTATIONS.TABLE_ID, quoteParams),
+  ])
 
-  for (const r of records) {
-    const requestType = r.fields[PROJECTS.REQUEST_TYPE] as string | undefined
-    if (!requestType) {
-      parentMap.set(r.id, r)
-      if (!children.has(r.id)) children.set(r.id, [])
-    }
+  // Sum quotation item-lines per project → amount / variations.
+  const amountByProject = new Map<string, { amount: number; var1: number; var2: number }>()
+  for (const q of quotes) {
+    const projId = firstLink(q.fields[QUOTATIONS.PROJECT])
+    if (!projId) continue
+    const acc = amountByProject.get(projId) ?? { amount: 0, var1: 0, var2: 0 }
+    acc.amount += num(q.fields[QUOTATIONS.QUANTITY]) * num(q.fields[QUOTATIONS.UNIT_PRICE])
+    acc.var1 += num(q.fields[QUOTATIONS.VARIATION_1])
+    acc.var2 += num(q.fields[QUOTATIONS.VARIATION_2])
+    amountByProject.set(projId, acc)
   }
 
-  for (const r of records) {
-    const requestType = r.fields[PROJECTS.REQUEST_TYPE] as string | undefined
-    if (requestType) {
-      const parentArr = r.fields[PROJECTS.PARENT_PROJECT]
-      const parentId = Array.isArray(parentArr) ? (parentArr[0] as string) : undefined
-      if (parentId && children.has(parentId)) {
-        children.get(parentId)!.push(r)
-      } else {
-        parentMap.set(r.id, r)
-        children.set(r.id, [])
+  const rows = projects
+    .sort((a, b) => getOwnerName(a.fields).localeCompare(getOwnerName(b.fields))
+      || String(a.fields[PROJECTS.PROJECT_ID] ?? '').localeCompare(String(b.fields[PROJECTS.PROJECT_ID] ?? '')))
+    .map((proj) => {
+      const f = proj.fields
+      const amt = amountByProject.get(proj.id) ?? { amount: 0, var1: 0, var2: 0 }
+      const totalWithVars = amt.amount + amt.amount * VAT_RATE + amt.var1 + amt.var2
+      return {
+        sedName:        getOwnerName(f),
+        projectId:      formatProjectRef((f[PROJECTS.PROJECT_ID] as string) ?? ''),
+        projectName:    (f[PROJECTS.PROJECT_NAME] as string) ?? '',
+        client:         (f[PROJECTS.CLIENT_NAME] as string) ?? '',
+        stage:          (f[PROJECTS.PROJECT_STAGE] as string) ?? '',
+        quoteAmount:    amt.amount,
+        variation1:     amt.var1,
+        variation2:     amt.var2,
+        totalWithVars,
+        productionStart:(f[PROJECTS.PRODUCTION_START_DATE] as string) ?? '',
+        notes:          (f[PROJECTS.MANAGER_NOTES] as string) ?? '',
       }
-    }
-  }
-
-  // Sort parents by SED name, then emit parent row followed by children
-  const sortedParents = Array.from(parentMap.values())
-    .sort((a, b) => getOwnerName(a.fields).localeCompare(getOwnerName(b.fields)))
-
-  const rows: ReturnType<typeof buildRow>[] = []
-  for (const parent of sortedParents) {
-    const sedName = getOwnerName(parent.fields)
-    const childRecords = children.get(parent.id) ?? []
-    const clientRequests = childRecords.map(getChildLabel).join(', ')
-    rows.push(buildRow(parent.fields, sedName, '', clientRequests))
-    for (const child of childRecords) {
-      rows.push(buildRow(child.fields, sedName, getChildLabel(child), ''))
-    }
-  }
+    })
 
   const buffer = await buildXlsx('SED Projects', [
-    { header: 'SED Name',         key: 'sedName',      width: 20 },
-    { header: 'Reference',        key: 'reference',    width: 14 },
-    { header: 'Quotation No.',    key: 'quotationNo',  width: 18 },
-    { header: 'Type',             key: 'type',         width: 14 },
-    { header: 'Project Name',     key: 'projectName',  width: 28 },
-    { header: 'Client',           key: 'client',       width: 22 },
-    { header: 'Stage',            key: 'stage',        width: 16 },
-    { header: 'Total Cost (AED)', key: 'totalCost',    width: 18, isCurrency: true },
-    { header: 'Created At',       key: 'createdAt',    width: 14, isDate: true },
-    { header: 'Notes',            key: 'notes',        width: 30 },
-    { header: 'Client Requests',  key: 'clientRequests', width: 28 },
+    { header: 'SED Name',                    key: 'sedName',         width: 20 },
+    { header: 'Project ID',                  key: 'projectId',       width: 14 },
+    { header: 'Project Name',                key: 'projectName',     width: 28 },
+    { header: 'Client',                      key: 'client',          width: 22 },
+    { header: 'Stage',                       key: 'stage',           width: 16 },
+    { header: 'Quote Amount (AED)',          key: 'quoteAmount',     width: 18, isCurrency: true },
+    { header: 'Variation 1 (AED)',           key: 'variation1',      width: 16, isCurrency: true },
+    { header: 'Variation 2 (AED)',           key: 'variation2',      width: 16, isCurrency: true },
+    { header: 'Total with Variations (AED)', key: 'totalWithVars',   width: 22, isCurrency: true },
+    { header: 'Production Start Date',       key: 'productionStart', width: 18, isDate: true },
+    { header: 'Notes',                       key: 'notes',           width: 30 },
   ], rows)
 
   return xlsxResponse(buffer, 'SED_Projects_Status')

@@ -43,6 +43,9 @@ export interface Task {
   fillersAndMissingList?: Attachment[]
   instructions?: string[]
   arabicInstructions?: string[]
+  arabicName?: string[]
+  /** Assigned installation team member names (enriched from the project). */
+  installationTeamNames?: string[]
   managerReviewStatus?: ManagerReviewStatus
   managerComment?: string
   requiresManagerReview?: boolean[]
@@ -69,9 +72,9 @@ export interface Task {
   fillersDone?: boolean
   priorityFlag?: boolean
   projectStage?: string[]
-  client?: string[]
   taskCreated?: string
   lastModified?: string
+  createdAt?: string
   clientPhone?: string
   projectItemName?: string
   assignedTo?: string[]
@@ -100,7 +103,6 @@ export interface Task {
 
 export interface TaskUpdateInput {
   status?: TaskStatus
-  managerReviewStatus?: ManagerReviewStatus
   managerComment?: string
   postVisitOutcome?: string
   taskStartDate?: string
@@ -123,7 +125,6 @@ export interface TaskUpdateInput {
   fillersDone?: boolean
   taskDocuments?: AttachmentInput[]
   fillersAndMissingList?: AttachmentInput[]
-  requiresManagerReviewManually?: boolean
   priorityFlag?: boolean
   callCount?: number
   sedNote?: string
@@ -161,7 +162,6 @@ export interface Project {
   paymentProgress?: number
   lastModifiedTasks?: string
   approvalStatus?: string
-  taskIds?: string[]
   projectItemIds?: string[]
   paymentIds?: string[]
   managerNotes?: string
@@ -169,6 +169,7 @@ export interface Project {
   projectCreatedAt?: string
   clientPhone?: string
   assignedInstallationTeam?: string[]
+  assignedInstallationTeamNames?: string[]
   emirate?: string
   location?: string
   detailedLocation?: string
@@ -179,6 +180,7 @@ export interface Project {
   requestType?: 'Trade' | 'Maintenance' | 'Variance'
   parentProjectId?: string
   parentProjectName?: string
+  parentProjectRef?: string
   tradeReference?: string
   deletedAt?: string
 }
@@ -194,6 +196,7 @@ export interface ClientRequest {
   description?: string
   parentProjectId?: string
   parentProjectName?: string
+  parentProjectRef?: string
   tradeReference?: string
   tasks?: Task[]
   payments?: Payment[]
@@ -398,6 +401,7 @@ export interface InstallationLog {
   id: string
   name: string
   project: string[]
+  projectItem?: string[]
   date: string
   installationTeam?: string
   numberOfLaborers?: number
@@ -408,6 +412,7 @@ export interface InstallationLog {
 
 export interface InstallationLogCreateInput {
   project: string[]
+  projectItem?: string[]
   date: string
   installationTeam?: string
   numberOfLaborers?: number
@@ -427,6 +432,7 @@ export interface HandoverSheet {
   installationDifficulty?: string
   newsletterOptIn?: boolean
   recordedBy?: string
+  documentUrl?: string
 }
 
 export interface ProjectItem {

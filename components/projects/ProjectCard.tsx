@@ -6,6 +6,7 @@ import Badge from '@/components/ui/Badge'
 const STAGE_VARIANT: Record<string, 'blue' | 'green' | 'gray' | 'orange'> = {
   Preparing: 'orange',
   Open: 'blue',
+  Closing: 'blue',
   Closed: 'green',
 }
 

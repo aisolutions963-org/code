@@ -24,6 +24,7 @@ function openHandoverPrint(
   logs: InstallationLog[] = [],
   quotationNumber?: string,
   quotationReference?: string,
+  documentUrl?: string,
 ) {
   const date = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
   const html = `<!DOCTYPE html>
@@ -79,6 +80,10 @@ function openHandoverPrint(
       <span class="field-label">Status</span>
       <span class="field-value">Generated — Client Signature Pending</span>
     </div>
+    ${documentUrl ? `<div class="field-row">
+      <span class="field-label">Signed Document</span>
+      <span class="field-value"><a href="${documentUrl}" target="_blank" rel="noopener">View / print attached document</a></span>
+    </div>` : ''}
   </div>
 
   <div class="section">
@@ -167,6 +172,7 @@ export default function HandoverModal({
   const [handoverId, setHandoverId] = useState('')
   const [savedData, setSavedData] = useState<Parameters<typeof openHandoverPrint>[1] | null>(null)
   const [savedLogs, setSavedLogs] = useState<InstallationLog[]>([])
+  const [savedDocumentUrl, setSavedDocumentUrl] = useState<string | undefined>(undefined)
 
   async function handleGenerate() {
     setErr('')
@@ -175,7 +181,7 @@ export default function HandoverModal({
     if (!installationDifficulty) { setErr('Installation difficulty is required'); return }
     // Signed document is optional — can be added later if client signs on site
     const file = fileRef.current?.files?.[0]
-    if (file && file.size > 20 * 1024 * 1024) { setErr('File must be under 20 MB'); return }
+    if (file && file.size > 5 * 1024 * 1024) { setErr('File must be under 5 MB'); return }
 
     setSaving(true)
     try {
@@ -192,6 +198,7 @@ export default function HandoverModal({
       const data = await res.json()
       const id = data.sheet.handoverId ?? data.sheet.id
       const logs: InstallationLog[] = data.logs ?? []
+      const documentUrl: string | undefined = data.sheet.documentUrl
 
       const printData = {
         finalInstallationDate,
@@ -202,10 +209,11 @@ export default function HandoverModal({
       }
       setSavedData(printData)
       setSavedLogs(logs)
+      setSavedDocumentUrl(documentUrl)
       setHandoverId(id)
       setDone(true)
       onCreated()
-      openHandoverPrint(projectName, printData, id, logs, quotationNumber, quotationReference)
+      openHandoverPrint(projectName, printData, id, logs, quotationNumber, quotationReference, documentUrl)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to generate')
     } finally {
@@ -228,8 +236,13 @@ export default function HandoverModal({
             <p className="text-xs text-gray-500 mt-0.5">{projectName}</p>
           </div>
           <p className="text-xs text-gray-400">Print dialog opened — save as PDF or print directly.</p>
+          {savedDocumentUrl && (
+            <a href={savedDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:text-brand-700 underline underline-offset-2 block">
+              View signed document
+            </a>
+          )}
           <div className="flex justify-center gap-3">
-            <Button variant="secondary" onClick={() => openHandoverPrint(projectName, savedData, handoverId, savedLogs, quotationNumber, quotationReference)}>
+            <Button variant="secondary" onClick={() => openHandoverPrint(projectName, savedData, handoverId, savedLogs, quotationNumber, quotationReference, savedDocumentUrl)}>
               Re-open PDF
             </Button>
             <Button onClick={onClose}>Done</Button>
@@ -332,7 +345,7 @@ export default function HandoverModal({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
             </svg>
             <span className={`text-sm ${fileName ? 'text-gray-900' : 'text-gray-400'}`}>
-              {fileName || 'Choose file (PDF, JPG, PNG — max 20 MB)'}
+              {fileName || 'Choose file (PDF, JPG, PNG — max 5 MB)'}
             </span>
           </div>
           <input

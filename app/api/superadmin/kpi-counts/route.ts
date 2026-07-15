@@ -14,8 +14,9 @@ async function fetchAllProjectStages(): Promise<{ stage: string; remaining: numb
     const params = new URLSearchParams({
       'fields[]': PROJECTS.PROJECT_STAGE,
       returnFieldsByFieldId: 'true',
-      // Exclude client requests (Trade/Maintenance/Variance) — matches getProjects() filter
-      filterByFormula: `{${PROJECTS.REQUEST_TYPE}} = ""`,
+      // Exclude client requests (Trade/Maintenance/Variance) and soft-deleted projects —
+      // matches getProjects()/getAllProjects() filtering so KPI tiles agree with project lists.
+      filterByFormula: `AND({${PROJECTS.REQUEST_TYPE}} = "", {${PROJECTS.DELETED_AT}} = BLANK())`,
     })
     params.append('fields[]', PROJECTS.REMAINING_BALANCE)
     if (offset) params.set('offset', offset)
@@ -23,7 +24,7 @@ async function fetchAllProjectStages(): Promise<{ stage: string; remaining: numb
       `https://api.airtable.com/v0/${BASE_ID}/${PROJECTS.TABLE_ID}?${params}`,
       { headers: { Authorization: `Bearer ${API_KEY}` }, cache: 'no-store' },
     )
-    if (!res.ok) break
+    if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
     const data = await res.json() as { records: { fields: Record<string, unknown> }[]; offset?: string }
     for (const r of data.records) {
       results.push({
@@ -46,7 +47,7 @@ export const GET = requireRole('superadmin')(async () => {
     total++
     if (p.stage === 'Preparing') preparing++
     else if (p.stage === 'Open') open++
-    else if (p.stage === 'Production') production++
+    else if (p.stage === 'Production' || p.stage === 'Closing') production++
     else if (p.stage === 'Not-Approved') notApproved++
     else if (p.stage === 'Closed') finished++
     else if (p.stage === 'Closed and active warranty') maintenanceActive++

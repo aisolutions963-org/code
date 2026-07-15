@@ -643,7 +643,7 @@ Auto-prunes records older than 30 days.
 |-----------|--------------|
 | SED | sed |
 | Fabrication | fabrication |
-| Installation / Fixing Team | installation |
+| Installation | installation |
 | Manager / Management | manager |
 | Purchase | manager |
 

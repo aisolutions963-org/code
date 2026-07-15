@@ -5,13 +5,11 @@ import { PROJECTS } from '@/lib/fieldMap'
 import { canEditField, filterAllowedFields, ROLE_TO_DEPARTMENT } from '@/lib/permissions'
 import {
   handleTaskCompletion,
-  handleManagerApproval,
-  handleManagerRejection,
   handleCallCountEscalation,
 } from '@/lib/workflow'
 import { TaskUpdateInput } from '@/lib/types'
 import { UpdateTaskSchema } from '@/lib/validation'
-import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
+import { createNotification, ROLE_DASHBOARD, DEPT_ROLE_MAP } from '@/lib/notifications'
 import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole()(
@@ -91,7 +89,7 @@ export const PATCH = requireRole()(
       }
     }
 
-    const { status, managerReviewStatus, callCount, followUpOutcome, superadminNote, ...otherFields } = fields as Partial<TaskUpdateInput>
+    const { status, callCount, followUpOutcome, superadminNote, ...otherFields } = fields as Partial<TaskUpdateInput>
 
     // F5 quotation reset — reverting a completed F5 task back to an editable status
     // wipes the prior quotation line items, project items, and per-item tasks so the
@@ -125,7 +123,7 @@ export const PATCH = requireRole()(
       if (superadminNote.trim()) {
         const depts = noteTask.department ?? []
         const roles = depts
-          .map((d) => ({ SED: 'sed', Fabrication: 'fabrication', Installation: 'installation', Manager: 'manager', Management: 'manager', Purchase: 'manager' })[d])
+          .map((d) => DEPT_ROLE_MAP[d])
           .filter((r): r is string => Boolean(r))
         const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
         const projectRef = noteTask.projectRef ?? noteTask.project?.[0] ?? ''
@@ -134,7 +132,7 @@ export const PATCH = requireRole()(
             recipientRole: role,
             title: `📌 Follow-up note — ${noteTask.taskName}`,
             body: `Superadmin added a note on "${noteTask.taskName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}`,
-            link: `/${role === 'sed' ? 'dashboard/sed' : role === 'fabrication' ? 'dashboard/fab' : role === 'installation' ? 'dashboard/fix' : 'dashboard/mgr'}`,
+            link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
           })
         }
       }
@@ -218,16 +216,6 @@ export const PATCH = requireRole()(
       await updateTask(params.id, { status: 'In Progress', startedAt: new Date().toISOString() })
     } else if (status) {
       await updateTask(params.id, { status })
-    }
-
-    if (managerReviewStatus === 'Approved') {
-      await updateTask(params.id, { managerReviewStatus: 'Approved' })
-      await handleManagerApproval(params.id)
-    } else if (managerReviewStatus === 'Rejected') {
-      await updateTask(params.id, { managerReviewStatus: 'Rejected' })
-      await handleManagerRejection(params.id)
-    } else if (managerReviewStatus) {
-      await updateTask(params.id, { managerReviewStatus })
     }
 
     const refreshed = await getTaskById(params.id)

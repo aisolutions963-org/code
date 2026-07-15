@@ -6,6 +6,7 @@ import {
   CALENDAR_EVENTS,
   INSTALLATION_LOGS,
   PROJECTS,
+  TEAM_MEMBERS,
   fetchAll,
   fetchWithRetry,
   airtableHeaders,
@@ -27,6 +28,7 @@ export interface CalendarEvent {
   type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication' | 'personal'
   projectId?: string
   projectName?: string
+  projectRef?: string
   itemName?: string
   amount?: number
   notes?: string
@@ -34,6 +36,10 @@ export interface CalendarEvent {
   createdBy?: string
   createdAt?: string
   teamMemberIds?: string[]
+  /** Person responsible (assignee for tasks, recorder for logs/payments/custom events) */
+  responsible?: string
+  /** Department(s) / team the event belongs to */
+  department?: string[]
 }
 
 export type CalendarEventType = CalendarEvent['type']
@@ -42,12 +48,12 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
   const [tasks, fabTasks, payments, customEvents, installationLogs, allProjects] = await Promise.all([
     fetchAll(TASKS.TABLE_ID, {
       filterByFormula: `AND(NOT({${TASKS.TASK_START_DATE}}=BLANK()), OR({${TASKS.STATUS}}="In Progress", {${TASKS.STATUS}}="To Do"))`,
-      fields: [TASKS.TASK_NAME, TASKS.TASK_START_DATE, TASKS.COMPLETION_DATE, TASKS.DEPARTMENT, TASKS.PROJECT_ID, TASKS.PROJECT],
+      fields: [TASKS.TASK_NAME, TASKS.TASK_START_DATE, TASKS.COMPLETION_DATE, TASKS.DEPARTMENT, TASKS.ASSIGNED_TO, TASKS.PROJECT_ID, TASKS.PROJECT],
       sort: [{ field: TASKS.TASK_START_DATE, direction: 'asc' }],
     }),
     fetchAll(TASKS.TABLE_ID, {
       filterByFormula: `OR(NOT({${TASKS.PLANNED_PROD_START_DATE}}=BLANK()), NOT({${TASKS.EXPECTED_FAB_END_DATE}}=BLANK()))`,
-      fields: [TASKS.TASK_NAME, TASKS.PLANNED_PROD_START_DATE, TASKS.EXPECTED_FAB_END_DATE, TASKS.PROJECT_ID, TASKS.PROJECT_ITEM, TASKS.PROJECT],
+      fields: [TASKS.TASK_NAME, TASKS.PLANNED_PROD_START_DATE, TASKS.EXPECTED_FAB_END_DATE, TASKS.DEPARTMENT, TASKS.ASSIGNED_TO, TASKS.PROJECT_ID, TASKS.PROJECT_ITEM, TASKS.PROJECT],
       sort: [{ field: TASKS.PLANNED_PROD_START_DATE, direction: 'asc' }],
     }),
     fetchAll(PAYMENTS.TABLE_ID, {
@@ -69,14 +75,52 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
   ])
 
   const projectNameMap = new Map<string, string>()
+  const projectRefMap = new Map<string, string>()
   for (const p of allProjects) {
     const label = str(p.fields[PROJECTS.NICKNAME]) ?? str(p.fields[PROJECTS.PROJECT_NAME]) ?? str(p.fields[PROJECTS.PROJECT_ID])
     if (label) projectNameMap.set(p.id, label)
+    const ref = str(p.fields[PROJECTS.PROJECT_ID])
+    if (ref) projectRefMap.set(p.id, ref)
   }
 
   const getProjectName = (val: unknown): string | undefined => {
     const pid = str(val)
     return pid ? projectNameMap.get(pid) : undefined
+  }
+
+  const getProjectRef = (val: unknown): string | undefined => {
+    const pid = str(val)
+    return pid ? projectRefMap.get(pid) : undefined
+  }
+
+  // Resolve assignee (Team Member) names for task/fabrication events so each event
+  // can show who is responsible.
+  const assigneeIds = new Set<string>()
+  for (const r of [...tasks, ...fabTasks]) {
+    const ids = r.fields[TASKS.ASSIGNED_TO] as string[] | undefined
+    if (ids?.[0]) assigneeIds.add(ids[0])
+  }
+  const memberNameMap = new Map<string, string>()
+  if (assigneeIds.size > 0) {
+    const ids = Array.from(assigneeIds)
+    const chunks: string[][] = []
+    for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10))
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
+        const records = await fetchAll(TEAM_MEMBERS.TABLE_ID, {
+          filterByFormula: formula,
+          fields: [TEAM_MEMBERS.NAME],
+        })
+        for (const r of records) memberNameMap.set(r.id, str(r.fields[TEAM_MEMBERS.NAME]) ?? '')
+      }),
+    )
+  }
+
+  const getAssignee = (val: unknown): string | undefined => {
+    const ids = val as string[] | undefined
+    const id = ids?.[0]
+    return id ? memberNameMap.get(id) || undefined : undefined
   }
 
   // Build dedup set from manually created calendar events (title + date) so task-based
@@ -102,11 +146,14 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const type: CalendarEvent['type'] = dept.includes('Installation') ? 'installation' : 'activity'
     events.push({
       id: r.id,
-      title,
+      title: taskName,
       date,
       type,
       projectId: str(f[TASKS.PROJECT_ID]),
       projectName: projectLabel,
+      projectRef: getProjectRef(f[TASKS.PROJECT]),
+      responsible: getAssignee(f[TASKS.ASSIGNED_TO]),
+      department: dept.length > 0 ? dept : undefined,
       createdAt: r.createdTime,
     })
   }
@@ -127,6 +174,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const d = startDate || endDate
     if (d) {
       const itemIds = f[TASKS.PROJECT_ITEM] as string[] | undefined
+      const fabDept = strArr(f[TASKS.DEPARTMENT])
       events.push({
         id: `${r.id}-fab`,
         title: label,
@@ -135,7 +183,10 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
         type: 'fabrication',
         projectId,
         projectName: getProjectName(f[TASKS.PROJECT]),
+        projectRef: getProjectRef(f[TASKS.PROJECT]),
         itemName: itemIds?.[0] ? itemNameMap[itemIds[0]] : undefined,
+        responsible: getAssignee(f[TASKS.ASSIGNED_TO]),
+        department: fabDept.length > 0 ? fabDept : ['Fabrication'],
         createdAt: r.createdTime,
       })
     }
@@ -148,12 +199,13 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const receivedDate = str(f[PAYMENTS.RECEIVED_DATE])
     const dueDate = str(f[PAYMENTS.DUE_DATE])
     const projectName = getProjectName(f[PAYMENTS.PROJECT])
+    const projectRef = getProjectRef(f[PAYMENTS.PROJECT])
     const createdBy = str(f[PAYMENTS.RECORDED_BY])
     if (receivedDate) {
-      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', amount, projectName, createdBy, createdAt: r.createdTime })
+      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', amount, projectName, projectRef, createdBy, responsible: createdBy, department: ['Finance'], createdAt: r.createdTime })
     }
     if (dueDate && dueDate !== receivedDate) {
-      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', amount, projectName, createdBy, createdAt: r.createdTime })
+      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', amount, projectName, projectRef, createdBy, responsible: createdBy, department: ['Finance'], createdAt: r.createdTime })
     }
   }
 
@@ -180,7 +232,9 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       notes: str(f[CALENDAR_EVENTS.NOTES]),
       customTask,
       createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
+      responsible: str(f[CALENDAR_EVENTS.CREATED_BY]),
       projectName: getProjectName(f[CALENDAR_EVENTS.PROJECT]),
+      projectRef: getProjectRef(f[CALENDAR_EVENTS.PROJECT]),
       createdAt: r.createdTime,
       teamMemberIds,
     })
@@ -192,14 +246,20 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     if (!date) continue
     const desc = str(f[INSTALLATION_LOGS.WORK_DESCRIPTION])
     const name = str(f[INSTALLATION_LOGS.NAME])
+    const recordedByTeam = str(f[INSTALLATION_LOGS.RECORDED_BY])
     events.push({
       id: `instlog-${r.id}`,
       title: desc || name || 'Installation Day',
       date,
       type: 'installation',
       notes: desc,
-      createdBy: str(f[INSTALLATION_LOGS.RECORDED_BY]),
+      createdBy: recordedByTeam,
+      // Installation crews work as teams (one shared login per team), so the
+      // recorder is the responsible team.
+      responsible: recordedByTeam,
+      department: ['Installation'],
       projectName: getProjectName(f[INSTALLATION_LOGS.PROJECT]),
+      projectRef: getProjectRef(f[INSTALLATION_LOGS.PROJECT]),
       createdAt: r.createdTime,
     })
   }

@@ -24,7 +24,6 @@ export const UpdateUserSchema = z.object({
 
 export const UpdateTaskSchema = z.object({
   status: z.enum(['To Do', 'In Progress', 'Completed', 'Locked', 'Pending Approval']).optional(),
-  managerReviewStatus: z.enum(['Not Needed', 'Pending', 'Approved', 'Rejected']).optional(),
   managerComment: z.string().max(2000).optional(),
   postVisitOutcome: z.string().max(500).optional(),
   taskStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -46,7 +45,6 @@ export const UpdateTaskSchema = z.object({
   qcCheckAtSiteDone: z.boolean().optional(),
   fillersDone: z.boolean().optional(),
   priorityFlag: z.boolean().optional(),
-  requiresManagerReviewManually: z.boolean().optional(),
   callCount: z.number().int().min(0).max(10).optional(),
   sedNote: z.string().max(2000).optional(),
   superadminNote: z.string().max(2000).optional(),
@@ -197,6 +195,7 @@ export const CreatePurchaseOrderSchema = z.object({
 
 export const CreateInstallationLogSchema = z.object({
   project: z.array(z.string().min(1)).min(1),
+  projectItem: z.array(z.string().min(1)).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   installationTeam: z.enum(['Engr. Abdulkarim', 'Mr. Al Mahdi', 'Mr. Yahia']).optional(),
   numberOfLaborers: z.number().int().min(1).max(100).optional(),

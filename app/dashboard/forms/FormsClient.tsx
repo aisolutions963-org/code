@@ -31,8 +31,9 @@ const inp = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:
 const sel = `${inp} bg-white`
 const lbl = 'text-xs text-gray-500 block mb-1'
 
-// F6 handover is only relevant once a project has reached the Closing stage.
-const HANDOVER_STAGE = 'Closing'
+// F6 handover is available for every project except those already closed/terminal.
+const HANDOVER_TERMINAL_STAGES = ['Closed', 'Closed and active warranty', 'Warranty expired', 'Not-Approved']
+const canHandoverStage = (stage: string) => !HANDOVER_TERMINAL_STAGES.includes(stage)
 
 // ─── Payment Form ─────────────────────────────────────────────────────────────
 
@@ -500,8 +501,8 @@ export default function FormsClient({ role }: { role: Role }) {
 
   const allProjects = data?.projects ?? []
 
-  // For handover: only show projects that have reached the Closing stage
-  const handoverProjects = allProjects.filter((p) => p.projectStage === HANDOVER_STAGE)
+  // For handover: show every project that isn't already closed/terminal
+  const handoverProjects = allProjects.filter((p) => canHandoverStage(p.projectStage))
 
   // For payment: show all active projects
   const paymentProjects = canPay ? allProjects : []
@@ -617,9 +618,7 @@ export default function FormsClient({ role }: { role: Role }) {
         {/* Project cards — only for roles that have payment or handover actions */}
         {(canPay || canHandover) && !isLoading && !error && cardProjects.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-sm font-semibold text-gray-700">
-              {canHandover && !canPay ? 'No projects in the Closing stage' : 'No active projects'}
-            </p>
+            <p className="text-sm font-semibold text-gray-700">No active projects</p>
             <p className="text-xs text-gray-400 mt-1">Projects will appear here once they reach the relevant stage.</p>
           </div>
         )}
@@ -629,7 +628,7 @@ export default function FormsClient({ role }: { role: Role }) {
             key={project.id}
             project={project}
             canPay={canPay}
-            canHandover={project.projectStage === HANDOVER_STAGE}
+            canHandover={canHandoverStage(project.projectStage)}
             onRefresh={() => mutate()}
           />
         ))}

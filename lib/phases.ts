@@ -1,4 +1,4 @@
-export const STAGE_ORDER = ['Preparing', 'Open', 'Production', 'Closed and active warranty', 'Warranty expired'] as const
+export const STAGE_ORDER = ['Preparing', 'Open', 'Production', 'Closing', 'Closed', 'Closed and active warranty', 'Warranty expired'] as const
 export type Stage = (typeof STAGE_ORDER)[number]
 
 export const PHASE_CONFIG = {
@@ -26,6 +26,18 @@ export const PHASE_CONFIG = {
   },
 } as const
 
+// Phase 3 (Working) sub-stages — mirrors the Airtable "Sub-stage" field
+// (Material → Fabrication → Fixing), derived from the template order ranges so the
+// app can surface which part of Production a project is currently in.
+export type WorkingSubStage = 'Material' | 'Fabrication' | 'Fixing'
+export function workingSubStage(order: number | null | undefined): WorkingSubStage | null {
+  if (order == null) return null
+  if (order >= 30 && order <= 37) return 'Material'
+  if (order >= 38 && order <= 43) return 'Fabrication'
+  if (order >= 44 && order <= 55) return 'Fixing'
+  return null
+}
+
 export const TASK_MARKERS = {
   GATE_PREFIX: '[gate]',
   AUTO_MARKER: '(auto',
@@ -36,3 +48,16 @@ export const TASK_MARKERS = {
   // without waiting for paint/carpentry siblings at the same templateOrder to finish.
   FABRICATION_DONE_MARKER: 'fabrication done',
 } as const
+
+// Headline banners ("to follow tasks progress …") — purely visual, no notification.
+export function isHeadlineTask(taskName: string): boolean {
+  return taskName.toLowerCase().startsWith(TASK_MARKERS.HEADLINE_PREFIX)
+}
+
+// System/auto tasks: headline banners OR tasks explicitly marked "(auto…)". These are
+// driven by the workflow (unlocked → completed automatically) and are never actionable
+// by a user. Single source of truth for both server (workflow/generation) and UI.
+export function isAutoTask(taskName: string): boolean {
+  const lower = taskName.toLowerCase()
+  return lower.startsWith(TASK_MARKERS.HEADLINE_PREFIX) || lower.includes(TASK_MARKERS.AUTO_MARKER)
+}

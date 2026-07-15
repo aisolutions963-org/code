@@ -199,6 +199,11 @@ export default function ProjectFormsSection({ projectId, role }: Props) {
                       {s.notes && (
                         <p className="text-[11px] text-gray-500 mt-0.5 italic">{s.notes}</p>
                       )}
+                      {s.documentUrl && (
+                        <a href={s.documentUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-purple-600 hover:text-purple-700 underline underline-offset-2 mt-0.5 inline-block">
+                          View signed document
+                        </a>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${

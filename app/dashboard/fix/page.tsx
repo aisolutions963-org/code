@@ -26,7 +26,7 @@ function WarrantyView() {
     '/api/maintenance', fetcher, { refreshInterval: 300_000 },
   )
   const { data: pData, isLoading: pLoading } = useSWR<{ projects: Project[] }>(
-    '/api/projects?stage=Closed%20and%20active%20warranty', fetcher, { refreshInterval: 300_000 },
+    '/api/projects?all=true', fetcher, { refreshInterval: 300_000 },
   )
   const { data: crData, isLoading: crLoading } = useSWR<{ requests: ClientRequest[] }>(
     '/api/client-requests', fetcher, { refreshInterval: 300_000 },
@@ -41,7 +41,10 @@ function WarrantyView() {
   }
 
   const records = mData?.records ?? []
-  const warrantyProjects = pData?.projects ?? []
+  const warrantyProjects = (pData?.projects ?? []).filter(
+    (p) => p.projectStage === 'Closed and active warranty' || p.projectStage === 'Warranty expired',
+  )
+  const activeWarrantyCount = warrantyProjects.filter((p) => p.projectStage === 'Closed and active warranty').length
   const maintenanceRequests = (crData?.requests ?? []).filter((r) => r.requestType === 'Maintenance')
   const expiringSoon = records.filter((r) => r.daysRemaining >= 0 && r.daysRemaining < 30).length
   const expired = records.filter((r) => r.daysRemaining < 0).length
@@ -51,7 +54,7 @@ function WarrantyView() {
       {/* Summary chips */}
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: 'Active Warranty', value: warrantyProjects.length, color: 'text-teal-600' },
+          { label: 'Active Warranty', value: activeWarrantyCount, color: 'text-teal-600' },
           { label: 'Maintenance Jobs', value: maintenanceRequests.length, color: 'text-blue-600' },
           { label: 'Expiring < 30d', value: expiringSoon, color: 'text-orange-500' },
           { label: 'Expired', value: expired, color: 'text-red-600' },
@@ -85,8 +88,8 @@ function WarrantyView() {
                 <tbody className="divide-y divide-gray-50">
                   {maintenanceRequests.map((r) => (
                     <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{r.tradeReference ?? '—'}</td>
-                      <td className="px-4 py-3 text-xs text-gray-700">{r.parentProjectName ?? '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{r.tradeReference || r.parentProjectRef || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-gray-700">{r.parentProjectName || '—'}</td>
                       <td className="px-4 py-3 text-xs text-gray-500">{r.clientName}</td>
                       <td className="px-4 py-3">
                         <Badge variant={r.projectStage === 'Closed' || r.projectStage === 'Closed and active warranty' ? 'green' : 'blue'} size="sm">
@@ -105,10 +108,10 @@ function WarrantyView() {
       {/* Active warranty projects */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-          Active Warranty Projects ({warrantyProjects.length})
+          Warranty Projects ({warrantyProjects.length})
         </p>
         {warrantyProjects.length === 0 ? (
-          <p className="text-sm text-gray-400 py-3">No projects currently in active warranty.</p>
+          <p className="text-sm text-gray-400 py-3">No projects currently in warranty.</p>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <table className="w-full text-sm">
@@ -117,6 +120,7 @@ function WarrantyView() {
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Project</th>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -125,6 +129,11 @@ function WarrantyView() {
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{p.projectName}</td>
                     <td className="px-4 py-3 text-xs text-gray-500">{p.clientName ?? '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{p.projectId ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={p.projectStage === 'Warranty expired' ? 'red' : 'green'} size="sm">
+                        {p.projectStage === 'Warranty expired' ? 'Expired' : 'Active'}
+                      </Badge>
+                    </td>
                   </tr>
                 ))}
               </tbody>

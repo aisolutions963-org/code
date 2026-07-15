@@ -11,6 +11,8 @@ interface Props {
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
   onMutate: () => void
+  /** Per-item next single locked step (keyed by item id). */
+  nextStepByItem?: Record<string, string | null>
 }
 
 function SummaryStrip({ items }: { items: ItemSummary[] }) {
@@ -64,7 +66,7 @@ function SummaryStrip({ items }: { items: ItemSummary[] }) {
   )
 }
 
-export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }: Props) {
+export default function ItemBoard({ projectId, items, role, onUpdate, onMutate, nextStepByItem }: Props) {
   const handleUpdate = async (id: string, fields: Partial<TaskUpdateInput>) => {
     await onUpdate(id, fields)
     onMutate()
@@ -78,12 +80,20 @@ export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }
     )
   }
 
+  // Items in chronological order — earliest-generated first (matches the task order).
+  const earliestOf = (item: ItemSummary) =>
+    item.allTasks.reduce<string>(
+      (m, t) => (t.createdAt && (m === '' || t.createdAt < m) ? t.createdAt : m),
+      '',
+    )
+  const orderedItems = [...items].sort((a, b) => earliestOf(a).localeCompare(earliestOf(b)))
+
   return (
     <>
       <SummaryStrip items={items} />
 
       <div className="space-y-4">
-        {items.map((item) => {
+        {orderedItems.map((item) => {
           const phase2Min = PHASE_CONFIG.Open.perItemOrderMin        // 23
       const phase3Min = PHASE_CONFIG.Working.perItemOrderMin     // 30
       const hasPhase3 = item.allTasks.some(
@@ -108,6 +118,7 @@ export default function ItemBoard({ projectId, items, role, onUpdate, onMutate }
               role={role}
               onUpdate={handleUpdate}
               onMutate={onMutate}
+              nextStep={nextStepByItem?.[item.id] ?? null}
             />
           )
         })}

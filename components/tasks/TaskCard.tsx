@@ -3,7 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput, Role, Attachment, DocLink } from '@/lib/types'
-import { EDITABLE_FIELDS } from '@/lib/permissions'
+import { EDITABLE_FIELDS, isActionableTask } from '@/lib/permissions'
+import { isAutoTask } from '@/lib/phases'
 import TaskStatusBadge from './TaskStatusBadge'
 import FieldEditor from './FieldEditor'
 import F3OrderPanel from './panels/F3OrderPanel'
@@ -20,6 +21,7 @@ import CallClientDecisionPanelComponent from './panels/CallClientDecisionPanel'
 import MeasurementTeamPanel from './panels/MeasurementTeamPanel'
 import MaintenanceTeamPanel from './panels/MaintenanceTeamPanel'
 import StoreReviewPanel from './panels/StoreReviewPanel'
+import InstallationDayPanel from './panels/InstallationDayPanel'
 
 
 interface TaskCardProps {
@@ -201,10 +203,12 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     .toLowerCase()
     .startsWith('choose installation team')
   const isF2ProductionTask = task.taskName.toLowerCase().startsWith('f2 production list')
+  // "Installation Day N (Flexible — Repeats as Needed)" — dedicated team logs actual days
+  // (date, workers, notes). Distinct from the Arabic day/worker *planning* note below.
+  const isInstallationDayTask = task.taskName.toLowerCase().startsWith('installation day')
   const isFixingTeamNoteTask =
     task.taskName.toLowerCase().startsWith('fixing team note') ||
     task.taskName.toLowerCase().startsWith('how many days') ||
-    task.taskName.toLowerCase().startsWith('installation day') ||
     task.taskName.startsWith('ملاحظة فريق التركيب')
   const isFabricateMissingTask = task.taskName === 'Fabricate if Any Missing Item (Between Days — Optional)'
   const isStoreRevisedMaterialTask = task.taskName.toLowerCase().startsWith('store revised material list')
@@ -220,19 +224,27 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const isFollowUpTask =
     role === 'superadmin' &&
     task.taskName.toLowerCase().includes(FOLLOW_UP_KEYWORD) &&
-    !isMaterialDeliveryTrackingTask
+    !isMaterialDeliveryTrackingTask &&
+    // "Follow Up — Chase Final Payment" (closing phase) is a plain status task — the
+    // Reject/SED/Manager outcome decision doesn't apply, so it gets no outcome box.
+    !task.taskName.toLowerCase().includes('final payment')
 
-  const isSystemAutoTask =
-    task.taskName.toLowerCase().startsWith('to follow tasks progress') ||
-    task.taskName.toLowerCase().includes('(auto')
+  const isSystemAutoTask = isAutoTask(task.taskName)
 
   const ar = isArabicRole(role)
   const urgent = isUrgent(task)
+  const actionable = isActionableTask(task, role)
+  // Arabic name: prefer the Airtable-driven translation, then the legacy hardcoded map, then English.
+  const taskDisplayName = ar
+    ? ((task.arabicName?.[0] || '').trim() || AR_TASK_NAMES[task.taskName] || task.taskName)
+    : task.taskName
   const isDecisionTask = isCallClientDecisionTask(task, role)
   const isPerItem = !!task.projectItem?.length
+  // Measurement tasks (standalone Phase-1 OR per-item) — SED/manager/superadmin assign a
+  // team + date via the panel. Per-item ones must be recognised too, otherwise they fall
+  // through to isDateTask and get wrongly blocked by the "add a date first" completion guard.
   const isMeasurementTask =
     task.taskName.toLowerCase().includes('take measurement') &&
-    !isPerItem &&
     (role === 'manager' || role === 'sed' || role === 'superadmin')
   const isMaintenanceTask =
     task.taskName.toLowerCase().includes('carry out maintenance work') &&
@@ -483,6 +495,37 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
   const arabicInstructions = task.arabicInstructions?.join(' ') ?? ''
   const hintText = ar ? (arabicInstructions || instructions) : instructions
 
+  // System/auto task — driven by the workflow, not the user. Render a compact,
+  // non-clickable card so the team sees it exists but can't touch or be confused by it.
+  if (isSystemAutoTask) {
+    const done = task.status === 'Completed'
+    return (
+      <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden border-l-4 border-l-gray-300 opacity-90">
+        <div className="px-4 py-3 flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                ⚙ {ar ? 'تلقائي' : 'System'}
+              </span>
+              <span className="text-sm font-medium text-gray-600 truncate" dir={ar ? 'rtl' : 'ltr'}>
+                {taskDisplayName}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {projectLabel && <span className="text-xs text-gray-400">{projectLabel}</span>}
+              <span className="text-xs text-gray-400">
+                {done
+                  ? (ar ? 'اكتمل تلقائيًا' : 'Completed automatically')
+                  : (ar ? 'يعمل تلقائيًا — لا حاجة لإجراء' : 'Runs automatically — no action needed')}
+              </span>
+            </div>
+          </div>
+          <span className="text-gray-300 text-sm shrink-0 mt-0.5" title={ar ? 'مهمة نظام — غير قابلة للتعديل' : "System task — you can't edit this"}>🔒</span>
+        </div>
+      </div>
+    )
+  }
+
   if (isDecisionTask) {
     return (
       <div className="bg-white rounded-xl border border-teal-200 shadow-sm overflow-hidden">
@@ -508,7 +551,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
     <div
       className={`bg-white rounded-xl border-gray-200 border shadow-sm overflow-hidden transition-shadow hover:shadow-md border-l-4 ${
         urgent ? 'border-l-orange-500' : deptBorder(task.department)
-      }`}
+      } ${actionable ? 'ring-2 ring-green-400 shadow-[0_0_0_4px_rgba(74,222,128,0.18)]' : ''}`}
       onMouseEnter={() => setShowHint(true)}
       onMouseLeave={() => setShowHint(false)}
     >
@@ -557,6 +600,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
             <TaskStatusBadge status={task.status} />
             {task.department.length > 0 && (
               <span className="text-xs text-gray-400">{task.department.join(', ')}</span>
+            )}
+            {(task.installationTeamNames?.length ?? 0) > 0 && (
+              <span className="text-xs text-violet-600 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded" title="Assigned installation team">
+                👷 {task.installationTeamNames!.join(', ')}
+              </span>
             )}
             {task.lastModified && (
               <span className="text-xs text-gray-400" title={new Date(task.lastModified).toLocaleString()}>
@@ -686,6 +734,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           {/* Fixing team note — log installation days */}
           {isFixingTeamNoteTask && (
             <FixingTeamNotePanel task={task} onUpdate={onUpdate} />
+          )}
+
+          {/* Installation Day — dedicated team logs each day (date, workers, notes) as they go */}
+          {isInstallationDayTask && (role === 'installation' || role === 'manager' || role === 'superadmin') && (
+            <InstallationDayPanel task={task} onUpdate={onUpdate} />
           )}
 
           {/* Fabricate if any missing item — skip or proceed */}

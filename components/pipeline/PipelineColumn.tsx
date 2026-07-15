@@ -7,24 +7,21 @@ const COLUMN_GLOW: Record<string, string> = {
   Preparing:  'border-orange-500/20',
   Open:       'border-blue-500/20',
   Production: 'border-purple-500/20',
-  Done:       'border-gray-600/20',
-  Warranty:   'border-teal-500/20',
+  Closing:    'border-gray-600/20',
 }
 
 const COLUMN_DOT: Record<string, string> = {
   Preparing:  'bg-orange-400',
   Open:       'bg-blue-400',
   Production: 'bg-purple-400',
-  Done:       'bg-gray-600',
-  Warranty:   'bg-teal-400',
+  Closing:    'bg-gray-600',
 }
 
 const COLUMN_BADGE: Record<string, string> = {
   Preparing:  'bg-orange-500/15 text-orange-300',
   Open:       'bg-blue-500/15 text-blue-300',
   Production: 'bg-purple-500/15 text-purple-300',
-  Done:       'bg-gray-600/15 text-gray-400',
-  Warranty:   'bg-teal-500/15 text-teal-300',
+  Closing:    'bg-gray-600/15 text-gray-400',
 }
 
 export default function PipelineColumn({

@@ -27,6 +27,7 @@ export const TASK_TEMPLATES = {
   REQUIRES_MANAGER_REVIEW: 'fldypvKqW3vyNsrY4',
   INSTRUCTIONS: 'fldsfoFM1RtZyT5wX',
   ARABIC_INSTRUCTIONS: 'fldT16R9UBY0UybHk',
+  ARABIC_NAME: 'fldBuTNNh858rcPJi',       // Arabic translation of the task name
 } as const
 
 export const TASKS = {
@@ -40,10 +41,10 @@ export const TASKS = {
   PROJECT_ITEM: 'fldzE0IPmOCVnKVmC',
   PROJECT_ID: 'fldBRW5E8ufAGPyJS',
   TASK_DOCUMENTS: 'fldWN2jRTtvVk10g7',
-  HANDOVER_DOCUMENT: 'fldcLem7Z7fofiDoy',
   FILLERS_MISSING_ITEMS_LIST: 'fldSTM132XO86l19p',
   INSTRUCTIONS: 'fldQUxsUzEi1XQojd',
   ARABIC_INSTRUCTIONS: 'fldHVVySDTIqcJnob',
+  ARABIC_NAME: 'fldUWMiKLKzeYD75q',       // lookup: Arabic Name (from Task Templates)
   MANAGER_REVIEW_STATUS: 'fldii3Ebi2lhAamuq',
   MANAGER_COMMENT: 'fldgHFTWfCZtJ1xOW',
   REQUIRES_MANAGER_REVIEW: 'fldEt5qAV8SiJoLvl',
@@ -67,12 +68,10 @@ export const TASKS = {
   QUOTATION_OUTCOME: 'fldhYsEHetrQxTZ8k',
   QC_CHECK_AT_SITE_DONE: 'fldHrNVNe3abI0FBx',
   FILLERS_DONE: 'fldeITdFvnLVegVIy',
-  PROJECT_STAGE: 'fldcS4LsNaEbpYEze',
-  CLIENT: 'fldyYUTgOc7TNxl14',
+  PROJECT_STAGE: 'fldaYD4f7JUObFeom',  // lookup: template's PROJECT_STAGE via TASK_TEMPLATES_LINK (Preparing/Open/Production/Closing…)
   TASK_CREATED: 'fldHsDqsdVz90uAWc',
   TEMPLATE_ORDER: 'fldXxw74bcJFueDDX',
   PRIORITY_FLAG: 'fld5rZ88NiEmAeB4f',
-  PROJECT_RECORD_ID: 'fldKSFnS37UeQmzNQ',
   TASK_TEMPLATES_LINK: 'fld5FPm767CTRLC1R',
   CALL_COUNT: 'fldEw1v5H3SyekCoZ',
   PATH_CONDITION: 'fldG5Mvt5DzharM3i',
@@ -97,6 +96,8 @@ export const PROJECTS = {
   PROJECT_STAGE: 'fldnINS8WLH5nkNGK',
   CLIENT_NAME: 'fldq8KO7c05etvfo2',
   SALES_OWNER: 'fld2JiufpGFcKCC6U',
+  SALES_OWNER_NAME: 'fldQJJhey8t2G6eN5', // lookup: Name (from Sales Owner) — resolves the SED name directly
+
   PAYMENT_MODE: 'fldmdHxh00sNkHqsj',
   PROJECT_TOTAL_COST: 'fldGFCLmYsTam1SIJ',
   TOTAL_PAID: 'fld6BdgaLcTcAMIEH',
@@ -104,7 +105,6 @@ export const PROJECTS = {
   PAYMENT_PROGRESS: 'fld4TAQfEBVufRDez',
   LAST_MODIFIED_TASKS: 'fldl1WQ27xdZREjtv',
   APPROVAL_STATUS: 'fldH2FdeW2yZyNHdz',
-  TASKS: 'fldCezGrdho4OveCs',
   PROJECT_ITEMS: 'fldYcgC7XmHzZk9A1',
   PAYMENTS: 'fldtHlJddB54ZHeNZ',
   PROJECT_CREATED_AT: 'fldj9TQDO0WZEZBCR',
@@ -115,18 +115,20 @@ export const PROJECTS = {
   CLIENT: 'fldwLVEUsKeVLvXSb',
   ASSIGNED_INSTALLATION_TEAM: 'fldXdHwEqZLdgBgy4',
   INSTALLATION_TEAM_MEMBERS: 'fldi1aJVJ94RBk6lP',
+  INSTALLATION_TEAM_NAMES: 'fldMxBhH4cpfBmL60', // lookup: names of assigned installation team members
   NICKNAME: 'fldChERvQwVlxO1nR',
   EMIRATE: 'fldIrxYRfumFm6JjU',
   LOCATION: 'fld5iIjUh9z7jaJFW',
   LOCATION_OTHER: 'fldY5AZs7Rbtg6xOP',  // singleLineText — custom area when Location = "Other"
   DETAILED_LOCATION: 'fldoRWDUaeNKEtrbi',
   PROJECT_DESCRIPTION: 'fldhpCCy7ZIrh7pax',
-  REQUIRED_INTAKE_PATHS: 'fld5jHSFxBU9euELy',
   REQUEST_TYPE:    'fldDlEFv0as7eOxuS',  // single select: Trade | Maintenance | Variance
   PARENT_PROJECT:  'flds3nCf54kT4Ss3s',  // linked record → PROJECTS
+  PARENT_PROJECT_NAME: 'fldu8vYub4DmcSeNf',      // lookup: Project Name (from Parent Project)
+  PARENT_QUOTATION_REFERENCE: 'fldGQ3L2M6hZj0cy2', // lookup: Quotation Reference (from Parent Project)
   TRADE_REFERENCE: 'fldt1VT7rmjxcbo2q',  // text, e.g. "2341Tr1R3"
-  CLIENT_STATUS:   'fldwHeIOIoC4yXoua',  // single select: Broker | End-to-End Client | Designer | Contractor | Developer | Other
   DELETED_AT:      'fldzYRbsAHpdGMKgD',  // dateTime — set on soft-delete, blank when active
+  PRODUCTION_START_DATE: 'fldtWKyDyyPN3mCVR', // date — when the project entered production
 } as const
 
 export const PROJECT_ITEMS = {
@@ -136,12 +138,17 @@ export const PROJECT_ITEMS = {
   PROJECT: 'fldATmKZ7yOVY2MYZ',
   STATUS: 'fldsgg5maMG5Phhvx',
   ITEM_SEQUENCE: 'fldoMCVk5m2mOmfTb',
-  TASKS: 'fldDXnVjg1yq7Ed90',
-  SED_OWNER: 'fldrM4XWKMwkWaDgD',
   ITEM_CREATED_AT: 'fldPVnEc8tCvwEZIB',
-  ITEM_TYPE: 'fldYEzJXbvQEU9i4Z',
   QUANTITY: 'fldkzvi3cCcKzwjFc',
-  QUOTATIONS_LINK: 'fldxjXZbDvK39rqJU',
+  // Per-item production milestone columns (single selects) + notes
+  DESIGN_STATUS:          'fldsS8s6EBpJTvTZI',
+  SAMPLE_STATUS:          'fldsit3QJLnuK7bEa',
+  MATERIAL_STATUS:        'fldzIRxgy8ImlsLpy',
+  SUBMITTED_TO_PRODUCTION:'fld6t5qJHPZ4M1rDM',
+  PRODUCTION_STATUS:      'fldSR4z6Iom2Jtw0U',
+  DELIVERY_FIXING_STATUS: 'fldORPesygKoWeMlI',
+  EXPECTED_DELIVERY_DATE: 'fldVRJFPh8rKrGsE0',
+  ITEM_NOTES:             'fldgHxnBO4mMeD662',
 } as const
 
 export const QUOTATIONS = {
@@ -159,27 +166,17 @@ export const QUOTATIONS = {
   RECORDED_BY:         'fldTGURGzlBpkKS2G',
   // Extended fields
   QUOTE_NUMBER:        'fldUeK2IKnnNsuRs6',
-  REVISION:            'fldAWtlLpZyAbuH3n',
   QUOTE_DATE:          'fldq0flcPPVXKykfW',
   CLIENT_NAME:         'fld1rdn0kTrsj3qsf',
-  QUOTE_AMOUNT:        'fldxoR8THEDrkb0WM',
-  VAT_AMOUNT:          'fld9qVK2XBeR0jekW',
-  TOTAL_WITH_VAT:      'fldoXH8Gn6pK4CtN2',
   VARIATION_1:         'fldMU6ccYDJdIRzns',
   VARIATION_2:         'fldY09WeaUDjiRWVy',
-  TOTAL_WITH_VARS:     'fldH6ljH74dudgx5M',
-  LAST_FOLLOWUP:       'fld6hY1TX4MOE9mTl',
-  NEXT_FOLLOWUP:       'fldigTMhuSfIK93ye',
   SALES:               'fldlcf0QiW2hmWB0m',
-  Q_STATUS:            'fldCDFXedfarMSj5F',
-  LINKED_PROJECT:      'fldXDKJcNU4dbfPjy',
 } as const
 
 export const PAYMENTS = {
   TABLE_ID: 'tblTrLUuGRGt5iSwD',
   NAME: 'fldMKBSDwUUYEwzFu',
   NOTES: 'fldUyVVQukyAjcRGX',
-  ASSIGNEE: 'fldx9Ex2woF6NnIzp',
   PROJECT: 'fldzczMvwNb1In9qn',
   AMOUNT: 'fldqduawq8VeBZUY0',
   PAYMENT_TYPE: 'fldoOSKdkyP08LB85',
@@ -268,6 +265,7 @@ export const INSTALLATION_LOGS = {
   TABLE_ID: 'tbljrel5tmlHMmJxt',
   NAME: 'fldRGWvQykJcVFCbk',
   PROJECT: 'fldrLAT0he9UmGfjQ',
+  PROJECT_ITEM: 'fldhVAfR11lc2x2WO',
   DATE: 'fldp4EbfOqn6ez6x0',
   INSTALLATION_TEAM: 'fldWMb8bIisxlARm4',
   NUMBER_OF_LABORERS: 'fldqcpTULWzwcGhq9',
@@ -392,11 +390,12 @@ export const FOLLOW_UP_LOG = {
   TABLE:          'tblHzJiOoOTqWPUwq',
   FOLLOW_UP_NAME: 'fldGXvvFmKw0zHAFA',
   QUOTATION:      'fldYqfBIQ6eLx7O4o',
+  PROJECT:        'fldELIt8PfV90Zwnd',   // multipleRecordLinks → PROJECTS
   DATE:           'fldnqDwE5a0nktqO1',
   METHOD:         'fld6s5gxI6qjmHii9',
   OUTCOME:        'fld2ZoOMCvXeQpAml',
   NEXT_DATE:      'fldRtzDcV3MoXPYV0',
-  DONE_BY:        'flduFKcUnL4A7pRue',
+  LOGGED_BY:      'fldWnNykJsevxTEft',   // singleLineText — who logged it (by name)
   NOTES:          'fldRa9L9ZY87JVihm',
 } as const
 
@@ -426,6 +425,7 @@ export const RECEIVABLES = {
   COLLECTED:       'fldbcZImdyDd150py',
   BALANCE_DUE:     'fldv2CuId6P226OYi',
   INVOICE_DATE:    'flda547dHl6Anp7te',
+  LAST_PAYMENT_DATE: 'fldjvJEcaCORLdhjj',
   LAST_CONTACT:    'fldjAwuCpkznkqdf4',
   AGREED_DATE:     'fldkCH47PwDWWTBBQ',
   DEBT_AGE:        'fldbS9y117PMRS95o',

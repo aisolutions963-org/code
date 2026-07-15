@@ -381,13 +381,6 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
   ],
 }
 
-const VIEW_AS_LINKS = [
-  { label: 'Manager', href: '/dashboard/mgr', color: 'text-green-400' },
-  { label: 'SED', href: '/dashboard/sed', color: 'text-purple-400' },
-  { label: 'Fabrication', href: '/dashboard/fab', color: 'text-amber-400' },
-  { label: 'Installation', href: '/dashboard/fix', color: 'text-blue-400' },
-]
-
 const ROLE_LABELS: Record<Role, string> = {
   installation: 'Installation',
   sed: 'SED',
@@ -429,7 +422,6 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
   const router = useRouter()
   const searchParams = useSearchParams()
   const [confirmLogout, setConfirmLogout] = useState(false)
-  const [viewAsOpen, setViewAsOpen] = useState(false)
 
   const { data: materialsData } = useSWR<{ pendingCount: number }>(
     '/api/materials',
@@ -546,40 +538,6 @@ export default function IconSidebar({ role, name }: { role: Role; name: string }
           </div>
         ))}
       </nav>
-
-      {/* View as — superadmin only */}
-      {role === 'superadmin' && (
-        <div className="px-3 py-2 border-t border-white/[0.06] relative">
-          <button
-            onClick={() => setViewAsOpen((o) => !o)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]
-              text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all"
-          >
-            <svg className="w-[18px] h-[18px] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-            <span className="truncate">View as…</span>
-          </button>
-          {viewAsOpen && (
-            <div
-              className="absolute bottom-12 left-2 right-2 rounded-xl overflow-hidden border border-white/[0.08] shadow-2xl z-50 py-1"
-              style={{ background: 'rgba(20,20,34,0.99)' }}
-            >
-              {VIEW_AS_LINKS.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  onClick={(e) => { setViewAsOpen(false); navigate(e, l.href) }}
-                  className={`flex items-center px-4 py-2.5 text-[13px] hover:bg-white/[0.06] transition-colors ${l.color}`}
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* User + sign out */}
       <div className="px-3 py-3 border-t border-white/[0.06] space-y-1">

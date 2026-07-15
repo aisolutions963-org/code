@@ -5,6 +5,7 @@ import { Task, TaskUpdateInput, Role } from '@/lib/types'
 import TaskCard from './TaskCard'
 import GateGroupCard from './GateGroupCard'
 import GatewaySection from './GatewaySection'
+import NextUpPreview from './NextUpPreview'
 
 interface QuotationDetails {
   description?: string | null
@@ -20,6 +21,8 @@ interface ItemGroupSectionProps {
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
   onMutate?: () => void
+  /** Preview of this item's next single locked step, shown at the top. */
+  nextStep?: string | null
 }
 
 export default function ItemGroupSection({
@@ -29,6 +32,7 @@ export default function ItemGroupSection({
   tasks,
   role,
   onUpdate,
+  nextStep,
 }: ItemGroupSectionProps) {
   const [details, setDetails] = useState<QuotationDetails | null>(null)
   const [fetching, setFetching] = useState(false)
@@ -74,9 +78,11 @@ export default function ItemGroupSection({
   const rest = tasks.filter((t) => !gateIds.has(t.id))
   // Per-item action tasks carry a path condition — render them as gateway chips,
   // exactly like the Phase 1 Preparing gateway. Non-path tasks (Take Approval,
-  // Click Done…) render as regular cards.
+  // Click Done…) render as regular cards in chronological (earliest-generated first) order.
   const pathTasks = rest.filter((t) => !!t.pathCondition)
-  const otherTasks = rest.filter((t) => !t.pathCondition)
+  const otherTasks = rest
+    .filter((t) => !t.pathCondition)
+    .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
 
   return (
     <div className="border border-teal-100 rounded-xl overflow-hidden">
@@ -135,6 +141,8 @@ export default function ItemGroupSection({
 
       {/* Tasks inside the item group */}
       <div className="space-y-2 p-2">
+        {nextStep && <NextUpPreview label={nextStep} />}
+
         {/* Per-item action chips — same UI as the Phase 1 Preparing gateway */}
         {pathTasks.length > 0 && (
           <GatewaySection pathTasks={pathTasks} role={role} onUpdate={onUpdate} />

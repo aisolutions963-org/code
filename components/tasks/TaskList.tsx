@@ -2,11 +2,14 @@
 
 import React from 'react'
 import { Task, TaskUpdateInput, Role } from '@/lib/types'
+import { workingSubStage } from '@/lib/phases'
+import { isActionableTask } from '@/lib/permissions'
 import TaskCard from './TaskCard'
 import GatewaySection from './GatewaySection'
 import GateGroupCard from './GateGroupCard'
 import ItemGroupSection from './ItemGroupSection'
 import ProjectTaskCard from './ProjectTaskCard'
+import NextUpPreview from './NextUpPreview'
 
 interface TaskListProps {
   tasks: Task[]
@@ -16,6 +19,8 @@ interface TaskListProps {
   loading?: boolean
   /** Float projects with the most recently modified tasks to the top (used by fabrication) */
   sortByRecent?: boolean
+  /** Preview of the next single locked step (project-level), shown at the top. */
+  nextStep?: string | null
 }
 
 function isGatewayTask(name: string) {
@@ -65,6 +70,7 @@ function renderTasksInOrder(
   role: Role,
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>,
   projectId?: string,
+  nextStep?: string | null,
 ): React.ReactNode[] {
   // Split per-item (Phase 2) tasks from project-level tasks
   const itemTasks = tasks.filter((t) => t.projectItem && t.projectItem.length > 0)
@@ -159,10 +165,12 @@ function renderTasksInOrder(
     }
   }
 
+  if (nextStep) mainNodes.unshift(<NextUpPreview key="next-up" label={nextStep} />)
+
   return mainNodes
 }
 
-export default function TaskList({ tasks, role, onUpdate, groupByProject = true, loading, sortByRecent = false }: TaskListProps) {
+export default function TaskList({ tasks, role, onUpdate, groupByProject = true, loading, sortByRecent = false, nextStep }: TaskListProps) {
   if (loading) {
     return <TaskListSkeleton />
   }
@@ -185,7 +193,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
   if (!groupByProject) {
     return (
       <div className="space-y-2">
-        {renderTasksInOrder(tasks, role, onUpdate)}
+        {renderTasksInOrder(tasks, role, onUpdate, undefined, nextStep)}
       </div>
     )
   }
@@ -204,6 +212,7 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
     projectKey,
     group,
     priorityCount: group.tasks.filter((t) => t.priorityFlag).length,
+    activeCount: group.tasks.filter((t) => isActionableTask(t, role)).length,
     lastActivity: group.tasks.reduce((max, t) => {
       const ts = t.lastModified ? new Date(t.lastModified).getTime() : 0
       return ts > max ? ts : max
@@ -218,12 +227,25 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
 
   return (
     <div className="space-y-6">
-      {groupEntries.map(({ projectKey, group: { projectRecordId, tasks: groupTasks }, priorityCount }) => {
+      {groupEntries.map(({ projectKey, group: { projectRecordId, tasks: groupTasks }, priorityCount, activeCount }) => {
         const isPhase2 = groupTasks.some((t) => t.projectItem && t.projectItem.length > 0)
         const itemCount = new Set(groupTasks.flatMap((t) => t.projectItem ?? [])).size
         const pendingApprovalCount = groupTasks.filter((t) => t.status === 'Pending Approval').length
         const firstTask = groupTasks[0]
-        const projectStage = firstTask?.projectStage?.[0]
+        const installationTeamNames =
+          groupTasks.find((t) => (t.installationTeamNames?.length ?? 0) > 0)?.installationTeamNames ?? []
+        // The project's current phase is the phase of its furthest active task (each task
+        // carries its template's stage via the Template Stage lookup). In Production, also
+        // show the Working sub-stage derived from that task's order.
+        const activeTasks = groupTasks.filter((t) => t.status === 'To Do' || t.status === 'In Progress')
+        const furthest = activeTasks.reduce<Task | undefined>(
+          (best, t) => ((t.templateOrder?.[0] ?? -1) > (best?.templateOrder?.[0] ?? -1) ? t : best),
+          undefined,
+        )
+        const projectStage = furthest?.projectStage?.[0] ?? firstTask?.projectStage?.[0]
+        const subStage = projectStage === 'Production'
+          ? workingSubStage(furthest?.templateOrder?.[0])
+          : null
 
         return (
           <ProjectTaskCard
@@ -233,10 +255,13 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
             projectName={firstTask?.projectName}
             projectNickname={firstTask?.projectNickname}
             projectStage={projectStage}
+            subStage={subStage}
             taskCount={groupTasks.length}
             itemCount={itemCount}
             pendingApprovalCount={pendingApprovalCount}
             priorityCount={priorityCount}
+            activeCount={activeCount}
+            installationTeamNames={installationTeamNames}
             isPhase2={isPhase2}
           />
         )

@@ -39,6 +39,15 @@ const MAINTENANCE_TASKS = [
   { name: 'Client Sign-off',           order: 102, templateId: CR_TEMPLATE_SED },
 ] as const
 
+// Sequential position (1-based) of each client-request task within its chain, keyed by
+// exact task name. CR tasks have no writable templateOrder, so lib/workflow.ts drives their
+// unlock from this map. Derived from the arrays above so it can NEVER silently desync — a
+// task-name edit here updates both the created records and the unlock sequence at once.
+export const CR_TASK_SEQUENCE: Record<string, number> = Object.fromEntries([
+  ...TRADE_TASKS.map((t, i) => [t.name, i + 1] as const),
+  ...MAINTENANCE_TASKS.map((t, i) => [t.name, i + 1] as const),
+])
+
 export async function createClientRequest(
   input: ClientRequestCreateInput,
 ): Promise<{ project: import('../types').Project; tasksCreated: number; taskGenerationFailed?: boolean }> {
@@ -178,6 +187,7 @@ export async function getClientRequests(options?: {
       description: p.projectDescription,
       parentProjectId: p.parentProjectId,
       parentProjectName: p.parentProjectName,
+      parentProjectRef: p.parentProjectRef,
       tradeReference: p.tradeReference,
       tasks: tasksByProject.get(p.id) ?? [],
     }
@@ -240,19 +250,13 @@ export async function getClientRequestsByParentProject(parentProjectId: string):
       description: p.projectDescription,
       parentProjectId: p.parentProjectId,
       parentProjectName: p.parentProjectName,
+      parentProjectRef: p.parentProjectRef,
       tradeReference: p.tradeReference,
       tasks: tasksByProject.get(p.id) ?? [],
       payments,
       paymentTotal,
     }
   })
-}
-
-export async function updateClientRequestTradeReference(
-  requestProjectId: string,
-  tradeReference: string,
-): Promise<void> {
-  await updateProject(requestProjectId, { [PROJECTS.TRADE_REFERENCE]: tradeReference })
 }
 
 // Maps every parent project ID to a formatted, comma-joined label of its linked

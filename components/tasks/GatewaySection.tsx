@@ -46,6 +46,8 @@ function getInitialValues(task: Task, keys: (keyof TaskUpdateInput)[]): Partial<
 }
 
 const CHIP_CLASS: Record<string, string> = {
+  // Available choice — neutral outline. Not green: green means Completed here, so a green
+  // To-Do chip read as "already done."
   'To Do':            'border-gray-300 bg-white text-gray-700 hover:border-brand-400 hover:bg-brand-50',
   'In Progress':      'border-brand-500 bg-brand-50 text-brand-700',
   'Pending Approval': 'border-amber-400 bg-amber-50 text-amber-700',

@@ -11,29 +11,19 @@ import {
   generatePhase3TasksForItem,
   generatePhase4Tasks,
   createMaintenanceRecord,
+  activateMaintenanceRecord,
   getMaintenanceRecordForProject,
   createMaterialOrder,
+  CR_TASK_SEQUENCE,
 } from './airtable'
 import { Task, TaskStatus } from './types'
-import { notifyManager, notifyManagerEscalation, notifyCallClient, notifyRejection, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
+import { notifyManagerEscalation, notifyCallClient, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
-import { getUsersByRole } from './db'
-import { PHASE_CONFIG, TASK_MARKERS } from './phases'
+import { PHASE_CONFIG, TASK_MARKERS, isAutoTask, isHeadlineTask } from './phases'
+import { planUnlock, isTaskDone } from './orderChain'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
-const { HEADLINE_PREFIX, AUTO_MARKER: AUTO_TASK_MARKER, CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX, FABRICATION_DONE_MARKER } = TASK_MARKERS
-
-// Sequential position map for Trade/Maintenance client request tasks.
-// These tasks have no templateOrder (computed fields can't be written to),
-// so we derive order from the fixed task names instead.
-const CR_TASK_SEQUENCE: Record<string, number> = {
-  'F3 — Order Trade Material':    1,
-  'F4 — Trade Payment':           2,
-  'Handover to Client':           3,
-  'Site Visit & Assessment':      1,
-  'Carry Out Maintenance Work':   2,
-  'Client Sign-off':              3,
-}
+const { CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX } = TASK_MARKERS
 
 function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([
@@ -125,7 +115,7 @@ async function maybeUnlockCallClient(projectId: string, projectItemId?: string):
   }
 }
 
-async function unlockNextTasks(task: Task): Promise<void> {
+export async function unlockNextTasks(task: Task): Promise<void> {
   const projectId = task.project?.[0]
   if (!projectId) return
 
@@ -170,71 +160,26 @@ async function unlockNextTasks(task: Task): Promise<void> {
   // Fetch all tasks once — used for AND-join check and locked task discovery.
   const allProjectTasks = await getAllTasksForProjectAll(projectId)
 
-  const completedOrder = task.templateOrder![0]
-  const taskPath = task.pathCondition ?? null
+  // Strict scope separation + ordering guard live in a pure, unit-tested helper:
+  // a per-item completion only advances that item; a project-level completion only
+  // advances project-level tasks; and order N waits for every lower-order task in scope.
+  const plan = planUnlock(task, allProjectTasks, PHASE_CONFIG.Working.perItemOrderMin)
 
-  // AND-join guard: if any sibling tasks at the same order level are still active
-  // (To Do, In Progress, Pending Approval), the chain must not advance yet.
-  // For per-item tasks, scope siblings to the same item so gate completion on one
-  // item doesn't block advancement on another item.
-  //
-  // Exception: "fabrication done" bypasses the AND-join entirely — it unlocks the
-  // next task (e.g. "inform client") immediately without waiting for paint/carpentry
-  // siblings at the same templateOrder to finish.
-  const isFabricationDone = task.taskName.toLowerCase().includes(FABRICATION_DONE_MARKER)
-  const siblingsActive = allProjectTasks.filter(
-    (t) =>
-      t.id !== task.id &&
-      (t.pathCondition ?? null) === taskPath &&
-      t.templateOrder?.[0] === completedOrder &&
-      (task.projectItem?.[0]
-        ? t.projectItem?.[0] === task.projectItem[0]
-        : !t.projectItem?.length) &&
-      (t.status === 'To Do' || t.status === 'In Progress' || t.status === 'Pending Approval'),
-  )
-  if (siblingsActive.length > 0 && !isFabricationDone) return
+  // Per-item gate check runs REGARDLESS of the order-chain block: "Take Approval" unlocks
+  // as soon as all [gate] tasks for the item are Completed — this is independent of the
+  // linear order chain. (If gated behind plan.blocked, an item with an unfinished
+  // lower-order task keeps skipping the check, leaving Take Approval Locked even though
+  // both gates are done — the reported bug.) maybeUnlockCallClient is idempotent and only
+  // unlocks once every [gate] task is Completed.
+  const itemId = task.projectItem?.[0]
+  if (itemId) await maybeUnlockCallClient(projectId, itemId)
 
-  // Per-item gate check: after AND-join clears for any per-item task, run the item-level
-  // gate check. maybeUnlockCallClient returns early if not all [gate] tasks are Completed.
-  if (task.projectItem?.[0]) {
-    await maybeUnlockCallClient(projectId, task.projectItem[0])
-  }
+  // Order-chain advancement is still guarded: don't unlock the next linear step while an
+  // earlier task in scope is open.
+  if (plan.blocked) return
 
-  // Build locked task list from fetched data (avoids a second Airtable call).
-  const lockedTasks = allProjectTasks.filter(
-    (t) =>
-      t.status === 'Locked' &&
-      (task.projectItem?.[0]
-        ? t.projectItem?.[0] === task.projectItem[0]
-        : !t.projectItem?.length),
-  )
-  if (lockedTasks.length === 0) return
-
-  // Fabrication item paths (Carpentry, Paint) at Phase 3 orders are shown alongside
-  // the universal Fabrication Done task. The team marks applicable ones In Progress.
-  const FAB_ITEM_PATHS = new Set(['Carpentry', 'Paint'])
-  const isPhase3PerItem =
-    !!task.projectItem?.[0] && completedOrder >= PHASE_CONFIG.Working.perItemOrderMin
-
-  // Unlock tasks in the same path (universal tasks use null path).
-  // For Phase 3 per-item completions, also include Carpentry/Paint path tasks so
-  // they surface alongside Fabrication Done — instruction text on the card guides
-  // the team to mark whichever ones apply as In Progress.
-  const samePath = lockedTasks.filter(
-    (t) =>
-      ((t.pathCondition ?? null) === taskPath ||
-        (isPhase3PerItem && FAB_ITEM_PATHS.has(t.pathCondition ?? ''))) &&
-      (t.templateOrder?.[0] ?? 0) > completedOrder,
-  )
-  if (samePath.length === 0) return
-
-  const orders = samePath
-    .map((t) => t.templateOrder?.[0])
-    .filter((o): o is number => typeof o === 'number')
-  if (orders.length === 0) return
-
-  const minOrder = Math.min(...orders)
-  const toUnlock = samePath.filter((t) => (t.templateOrder?.[0] ?? Infinity) === minOrder)
+  const toUnlock = plan.toUnlock
+  if (toUnlock.length === 0) return
 
   // If the next task(s) in the chain are gate-controlled, stop here —
   // they unlock exclusively via maybeUnlockCallClient when all [gate] tasks complete.
@@ -252,11 +197,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
   // Auto-complete tasks: headline banners ("to follow tasks progress...") and system
   // tasks marked "(auto)". All tasks at this level are completed together, and the
   // chain continuation is triggered only once to prevent double-advancing.
-  const autoComplete = toUnlock.filter(
-    (t) =>
-      t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) ||
-      t.taskName.toLowerCase().includes(AUTO_TASK_MARKER),
-  )
+  const autoComplete = toUnlock.filter((t) => isAutoTask(t.taskName))
   const projectLabel = await resolveProjectLabel(task)
 
   if (autoComplete.length > 0) {
@@ -269,11 +210,22 @@ async function unlockNextTasks(task: Task): Promise<void> {
         }),
       ),
     )
+    // Auto-completed closing tasks (e.g. order 57 "Change Project Status to Closed Project
+    // List (auto)") carry the phase transition — apply it here since they never pass through
+    // handleTaskCompletion.
+    const autoProjectId = task.project?.[0]
+    if (autoProjectId) {
+      for (const t of autoComplete) {
+        await applyClosingStageTransition(t.taskName, autoProjectId).catch((err) =>
+          console.error('[CLOSE-STAGE-AUTO]', err),
+        )
+      }
+    }
     // Notify each auto task's departments — they fire automatically but the
     // team still needs to know the event happened (e.g. "project is now Open").
     // Headline banners are purely visual and generate no notification.
     for (const t of autoComplete) {
-      if (t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX)) continue
+      if (isHeadlineTask(t.taskName)) continue
       // "Send to SED & Fixing Team" is a fabrication-completion signal — send a
       // targeted, human-readable alert to SED and installation instead of a task
       // notification, since the task itself is invisible (auto-completed immediately).
@@ -316,11 +268,7 @@ async function unlockNextTasks(task: Task): Promise<void> {
   }
 
   // Send notifications only for real (non-auto) tasks that just unlocked.
-  const realUnlocked = toUnlock.filter(
-    (t) =>
-      !t.taskName.toLowerCase().startsWith(HEADLINE_PREFIX) &&
-      !t.taskName.toLowerCase().includes(AUTO_TASK_MARKER),
-  )
+  const realUnlocked = toUnlock.filter((t) => !isAutoTask(t.taskName))
   if (realUnlocked.length === 0) return
 
   // Build body from completed task's notes and file attachments
@@ -382,37 +330,34 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
 }
 
 async function maybeGeneratePhase4(task: Task): Promise<void> {
-  // "Attach Site Photo (After Final Installation Day)" is the end-of-production
-  // project-level task (order 55). Completing it triggers Phase 4 directly.
-  const isEndOfProductionTask =
-    task.taskName.toLowerCase() === 'attach site photo (after final installation day)'
-
-  // Phase 4 triggers either from the end-of-production project-level task,
-  // or when all meaningful per-item (Phase 2/3) tasks are done.
-  if (!isEndOfProductionTask && !(task.projectItem?.length)) return
+  // Phase 4 (handover) is project-level and must wait until EVERY item has finished
+  // its per-item installation. Installation tasks (Installation Day, Approval to
+  // Complete Installation, Attach Site Photo, QC) are all per-item, so only a per-item
+  // task completion can be the one that finishes the last item.
+  if (!task.projectItem?.length) return
   const projectId = task.project?.[0]
   if (!projectId) return
 
-  if (!isEndOfProductionTask) {
-    const allProjectTasks = await getAllTasksForProjectAll(projectId)
-    const perItemTasks = allProjectTasks.filter((t) => (t.projectItem?.length ?? 0) > 0)
-    if (perItemTasks.length === 0) return
+  const allProjectTasks = await getAllTasksForProjectAll(projectId)
+  const perItemTasks = allProjectTasks.filter((t) => (t.projectItem?.length ?? 0) > 0)
+  if (perItemTasks.length === 0) return
 
-    // Unchosen path tasks (Carpentry/Paint not selected) remain "To Do" below the
-    // completing task's order. Don't let them block the Closing phase from starting.
-    // Only block on: tasks actively in progress/pending, OR "To Do" tasks at or above
-    // the completing task's order (AND-join partners or future steps that still need work).
-    const completedTaskOrder = task.templateOrder?.[0] ?? 0
-    const blockingTasks = perItemTasks.filter(
-      (t) =>
-        t.status === 'In Progress' ||
-        t.status === 'Pending Approval' ||
-        (t.status === 'To Do' && (t.templateOrder?.[0] ?? 0) >= completedTaskOrder),
-    )
-    if (blockingTasks.length > 0) return
-  }
+  // An item's per-item task is "done" when Completed, an explicitly optional task, an
+  // unchosen path alternative (Carpentry/Paint, or an abandoned per-item gateway path —
+  // Select Sample / Measurement / Design / Site Visit — left Locked forever), via the
+  // shared isTaskDone (lib/orderChain.ts). Everything else — a lagging item's own
+  // not-yet-reached step (Locked, no path), In Progress, Pending Approval, or a plain
+  // To-Do — means at least one item is still working, so the handover must not start yet.
+  if (perItemTasks.some((t) => !isTaskDone(t))) return
 
   const { todoTemplates } = await generatePhase4Tasks(projectId)
+
+  // Enter the Closing stage now that every item's installation is done and the handover
+  // chain exists. Idempotent: only advance forward from Production.
+  const closingProject = await getProjectById(projectId).catch(() => null)
+  if (closingProject?.projectStage === 'Production') {
+    await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closing' })
+  }
 
   // Warranty clock starts when all per-item tasks finish, regardless of whether
   // Phase 4 tasks were pre-generated. Only create if record doesn't already exist.
@@ -437,6 +382,42 @@ async function maybeGeneratePhase4(task: Task): Promise<void> {
   )
 }
 
+// The closing tasks named "Change …" carry the canonical PROJECT_STAGE transitions. Driven
+// off task completion (both the auto path in unlockNextTasks and the manual path here) so the
+// phase advances no matter how the task completes. Idempotent — never downgrades a later stage.
+const CLOSED_OR_LATER = new Set(['Closed', 'Closed and active warranty', 'Warranty expired'])
+async function applyClosingStageTransition(taskName: string, projectId: string): Promise<void> {
+  const name = taskName.toLowerCase()
+  const toClosed = name.includes('change project status to closed project list')
+  const toWarranty = name.includes('closed and valid maintenance')
+  if (!toClosed && !toWarranty) return
+
+  const project = await getProjectById(projectId).catch(() => null)
+  if (!project) return
+  const stage = project.projectStage
+
+  if (toWarranty) {
+    if (stage === 'Closed and active warranty' || stage === 'Warranty expired') return
+    // Start / activate the 1-year maintenance record (mirrors closeProjectAfterFinalPayment).
+    const existing = await getMaintenanceRecordForProject(projectId).catch(() => null)
+    if (existing) {
+      await activateMaintenanceRecord(existing.id)
+    } else {
+      const start = new Date()
+      const end = new Date(start)
+      end.setFullYear(end.getFullYear() + 1)
+      await createMaintenanceRecord(projectId, {
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
+        status: 'Active',
+      })
+    }
+    await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed and active warranty' })
+  } else if (toClosed && !CLOSED_OR_LATER.has(stage)) {
+    await updateProject(projectId, { [PROJECTS.PROJECT_STAGE]: 'Closed' })
+  }
+}
+
 export async function handleTaskCompletion(
   taskId: string,
   submittedBy?: string,
@@ -444,32 +425,6 @@ export async function handleTaskCompletion(
   return withTimeout(
     (async () => {
       const task = await getTaskById(taskId)
-
-      const needsReview =
-        task.requiresManagerReview?.[0] === true ||
-        task.requiresManagerReviewManually === true
-
-      const alreadyApproved =
-        task.managerReviewStatus === 'Approved' ||
-        task.managerReviewStatus === 'Not Needed'
-
-      // F1 is an info-capture intake form — it completes directly, no manager review needed
-      const isF1Task = task.taskName.toLowerCase().startsWith('f1 —')
-
-      if (needsReview && !alreadyApproved && !isF1Task) {
-        await updateTaskRaw(taskId, {
-          [TASKS.STATUS]: 'Pending Approval' as TaskStatus,
-          [TASKS.MANAGER_REVIEW_STATUS]: 'Pending',
-        })
-        if (process.env.MANAGER_EMAIL && process.env.RESEND_API_KEY) {
-          notifyManager({
-            taskName: task.taskName,
-            projectId: task.projectId,
-            submittedBy,
-          }).catch((err) => console.error('[A12] Manager notify failed:', err))
-        }
-        return { finalStatus: 'Pending Approval' as TaskStatus }
-      }
 
       await updateTaskRaw(taskId, {
         [TASKS.STATUS]: 'Completed' as TaskStatus,
@@ -479,6 +434,15 @@ export async function handleTaskCompletion(
       await unlockNextTasks(task)
       maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
       maybeGeneratePhase4(task).catch((err) => console.error('[P4-GEN]', err))
+
+      // Closing tasks completed manually (e.g. order 64 "Change Status to Closed and Valid
+      // Maintenance") carry the phase transition — advance the project stage accordingly.
+      const closingProjectId = task.project?.[0]
+      if (closingProjectId) {
+        await applyClosingStageTransition(task.taskName, closingProjectId).catch((err) =>
+          console.error('[CLOSE-STAGE]', err),
+        )
+      }
 
       // After F4 (advance payment), notify SED to submit quotation line items (F5)
       if (task.taskName.toLowerCase().startsWith('f4 —')) {
@@ -527,8 +491,7 @@ export async function handleTaskCompletion(
 
       // Notify manager when an Installation or Fabrication task is completed,
       // so on-site / production progress isn't invisible until manually checked.
-      const isSystemAuto =
-        taskNameLower.startsWith('to follow tasks progress') || taskNameLower.includes('(auto')
+      const isSystemAuto = isAutoTask(task.taskName)
       const isFixingTeamNote =
         taskNameLower.startsWith('fixing team note') || task.taskName.startsWith('ملاحظة فريق التركيب')
       const completedDept = task.department?.find((d) => d === 'Installation' || d === 'Fabrication')
@@ -546,57 +509,6 @@ export async function handleTaskCompletion(
       return { finalStatus: 'Completed' as TaskStatus }
     })(),
   )
-}
-
-export async function handleManagerApproval(taskId: string): Promise<void> {
-  return withTimeout(
-    (async () => {
-      const task = await getTaskById(taskId)
-
-      await updateTaskRaw(taskId, {
-        [TASKS.STATUS]: 'Completed' as TaskStatus,
-        [TASKS.COMPLETED_AT]: new Date().toISOString(),
-      })
-
-      await unlockNextTasks(task)
-      maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
-      maybeGeneratePhase4(task).catch((err) => console.error('[P4-GEN]', err))
-    })(),
-  )
-}
-
-export async function handleManagerRejection(taskId: string): Promise<void> {
-  const task = await withTimeout(getTaskById(taskId))
-  await withTimeout(
-    updateTaskRaw(taskId, {
-      [TASKS.STATUS]: 'To Do' as TaskStatus,
-    }),
-  )
-  const projectRef = task.projectId ?? task.project?.[0] ?? ''
-  // In-app notification to the task's department
-  await notifyTasksReady(
-    [{ taskName: task.taskName, departments: task.department ?? [] }],
-    `Rejected by manager — task returned for rework (${projectRef})` +
-      (task.managerComment ? `\nNote: ${task.managerComment}` : ''),
-  )
-  // Email all active users in the task's department role
-  if (process.env.RESEND_API_KEY) {
-    const roles = (task.department ?? [])
-      .map((d) => DEPT_ROLE_MAP[d])
-      .filter((r): r is string => Boolean(r))
-    const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['sed']))
-    for (const role of uniqueRoles) {
-      const users = await getUsersByRole(role)
-      for (const user of users) {
-        notifyRejection({
-          taskName: task.taskName,
-          projectId: projectRef,
-          managerComment: task.managerComment ?? undefined,
-          recipientEmail: user.email,
-        }).catch((err) => console.error('[A14] Rejection email failed:', err))
-      }
-    }
-  }
 }
 
 export async function handleCallClientOutcome(
@@ -682,7 +594,17 @@ export async function handleCallClientOutcome(
         })
 
         for (const t of gateTasks) {
-          resets.push(updateTaskRaw(t.id, { [TASKS.STATUS]: 'To Do' as TaskStatus }))
+          const fields: Record<string, unknown> = { [TASKS.STATUS]: 'To Do' as TaskStatus }
+          // Also clear the round-1 approval values on [GATE] tasks. The legacy field-based
+          // checkAndUnlockCallClientTask (lib/airtable/tasks.ts) reads these directly on any
+          // approval-field PATCH — stale 'Approved' values from before the review would let a
+          // single re-approval re-unlock "Call the Client" while the other gates are unredone.
+          if (t.taskName.toLowerCase().startsWith(GATE_PREFIX)) {
+            fields[TASKS.CONCEPT_DESIGN_APPROVAL] = null
+            fields[TASKS.SAMPLE_APPROVAL] = null
+            fields[TASKS.QUOTATION_OUTCOME] = null
+          }
+          resets.push(updateTaskRaw(t.id, fields))
         }
 
         // Reset the Call the Client task back to Locked so it re-triggers when all gates clear again

@@ -9,9 +9,6 @@ import TaskList from '@/components/tasks/TaskList'
 import ProjectCard from '@/components/projects/ProjectCard'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import PaymentTrackerView from '@/components/projects/PaymentTrackerView'
-import QuotationModal from '@/components/projects/QuotationModal'
-import MaterialOrderModal from '@/components/projects/MaterialOrderModal'
-import HandoverModal from '@/components/projects/HandoverModal'
 import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
 import AllMaterialsView from '@/components/materials/AllMaterialsView'
 import AssignInstallationModal, { TeamMember } from '@/components/projects/AssignInstallationModal'
@@ -34,11 +31,7 @@ export default function MgrDashboard() {
   const searchParams = useSearchParams()
   const view = searchParams.get('view') ?? 'tasks'
   const [assignProject, setAssignProject] = useState<Project | null>(null)
-  const [quotationProject, setQuotationProject] = useState<Project | null>(null)
-  const [showMaterialModal, setShowMaterialModal] = useState(false)
-  const [handoverProject, setHandoverProject] = useState<Project | null>(null)
   const [projectSearch, setProjectSearch] = useState('')
-  const [approvalsOnly, setApprovalsOnly] = useState(false)
 
 
   const { data: taskData, error: taskError, isLoading: taskLoading, mutate: mutateTasks } =
@@ -87,7 +80,6 @@ export default function MgrDashboard() {
     mutateTasks()
   }
 
-  const pendingReview = tasks.filter(t => t.status === 'Pending Approval')
   const open = tasks.filter(t => t.status !== 'Completed')
   const unassignedProjects = projects.filter(
     (p) => !p.assignedInstallationTeam || p.assignedInstallationTeam.length === 0,
@@ -99,18 +91,14 @@ export default function MgrDashboard() {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Manager Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Project oversight and approvals</p>
+          <p className="text-sm text-gray-500 mt-0.5">Project oversight</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-6">
+      <div className="grid grid-cols-2 gap-2 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-2 sm:p-4 text-center shadow-sm">
           <p className="text-2xl font-bold text-gray-900">{open.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">Open Tasks</p>
-        </div>
-        <div className="bg-white rounded-xl border border-orange-200 p-2 sm:p-4 text-center shadow-sm">
-          <p className="text-2xl font-bold text-orange-600">{pendingReview.length}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Awaiting Approval</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-2 sm:p-4 text-center shadow-sm">
           <p className="text-2xl font-bold text-gray-900">{projects.length}</p>
@@ -119,24 +107,8 @@ export default function MgrDashboard() {
       </div>
 
       {/* Action Center — at-a-glance manager priorities on the default dashboard */}
-      {view === 'tasks' && (pendingReview.length > 0 || unassignedProjects.length > 0 || outstandingCount > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-          <button
-            onClick={() => setApprovalsOnly((v) => !v)}
-            className={`text-left rounded-xl border px-4 py-3 transition-colors ${
-              pendingReview.length === 0
-                ? 'border-gray-200 bg-white opacity-60 cursor-default'
-                : approvalsOnly
-                  ? 'border-orange-300 bg-orange-100'
-                  : 'border-orange-200 bg-orange-50 hover:bg-orange-100'
-            }`}
-            disabled={pendingReview.length === 0}
-          >
-            <p className="text-2xl font-bold text-orange-600">{pendingReview.length}</p>
-            <p className="text-xs font-medium text-orange-900 mt-0.5">Awaiting your approval</p>
-            <p className="text-[11px] text-orange-500 mt-0.5">{approvalsOnly ? 'Showing only these — tap to clear' : 'Tap to filter the list'}</p>
-          </button>
-
+      {view === 'tasks' && (unassignedProjects.length > 0 || outstandingCount > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           <Link
             href="/dashboard/mgr?view=installation"
             className={`rounded-xl border px-4 py-3 transition-colors ${
@@ -227,9 +199,7 @@ export default function MgrDashboard() {
               tasks={
                 view === 'deliveries'
                   ? tasks.filter(t => !!t.completionDate)
-                  : approvalsOnly
-                    ? pendingReview
-                    : tasks
+                  : tasks
               }
               role="manager"
               onUpdate={handleUpdate}
@@ -302,17 +272,6 @@ export default function MgrDashboard() {
                             />
                           </div>
                         </ProjectCard>
-                        <div className="flex flex-wrap gap-3 px-1">
-                          <button onClick={() => setQuotationProject(p)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
-                            F5 — Add Quotation Items
-                          </button>
-                          <button onClick={() => setShowMaterialModal(true)} className="text-xs text-green-600 hover:text-green-700 font-medium">
-                            F3 — Order Materials
-                          </button>
-                          <button onClick={() => setHandoverProject(p)} className="text-xs text-purple-600 hover:text-purple-700 font-medium">
-                            F6 — Handover Sheet
-                          </button>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -460,34 +419,6 @@ export default function MgrDashboard() {
           onSaved={() => mutateProjects()}
         />
       )}
-
-      {quotationProject && (
-        <QuotationModal
-          project={quotationProject}
-          onClose={() => setQuotationProject(null)}
-          onCreated={() => mutateProjects()}
-        />
-      )}
-
-      {showMaterialModal && (
-        <MaterialOrderModal
-          projects={projects}
-          onClose={() => setShowMaterialModal(false)}
-          onCreated={() => setShowMaterialModal(false)}
-        />
-      )}
-
-      {handoverProject && (
-        <HandoverModal
-          projectId={handoverProject.id}
-          projectName={handoverProject.projectName}
-          quotationNumber={handoverProject.quotationNumber}
-          quotationReference={handoverProject.quotationReference}
-          onClose={() => setHandoverProject(null)}
-          onCreated={() => mutateProjects()}
-        />
-      )}
-
 
     </div>
   )

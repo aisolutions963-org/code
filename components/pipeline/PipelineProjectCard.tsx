@@ -9,6 +9,7 @@ const STAGE_DOT: Record<string, string> = {
   'Preparing': 'bg-orange-400',
   'Open': 'bg-blue-400',
   'Production': 'bg-purple-400',
+  'Closing': 'bg-amber-400',
   'Closed': 'bg-gray-600',
   'Closed and active warranty': 'bg-teal-400',
   'Warranty expired': 'bg-gray-500',

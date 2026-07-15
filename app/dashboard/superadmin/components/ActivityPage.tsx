@@ -89,6 +89,47 @@ function PersonSection({ group }: { group: TeamGroup }) {
   )
 }
 
+interface DeptPerf { department: string; avgHours: number; completed: number }
+
+function RolePerformanceCard() {
+  const { data } = useSWR<{ byDepartment: DeptPerf[] }>('/api/superadmin/performance', fetcher, { refreshInterval: 300_000 })
+  const rows = data?.byDepartment ?? []
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <p className="text-sm font-semibold text-gray-700 mb-1">Team Performance</p>
+      <p className="text-xs text-gray-400 mb-3">Completed tasks & average duration — last 30 days</p>
+      {!data ? (
+        <div className="h-16 bg-gray-50 rounded animate-pulse" />
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-gray-400 py-2">No completed tasks in the last 30 days.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-gray-400 border-b border-gray-100">
+                <th className="py-1.5 font-medium">Team</th>
+                <th className="py-1.5 font-medium text-right">Completed</th>
+                <th className="py-1.5 font-medium text-right">Avg duration</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {rows.map((r) => (
+                <tr key={r.department}>
+                  <td className="py-1.5 text-gray-700">{r.department}</td>
+                  <td className="py-1.5 text-right font-semibold text-gray-800">{r.completed}</td>
+                  <td className="py-1.5 text-right text-gray-600">
+                    {r.avgHours > 0 ? (r.avgHours >= 48 ? `${(r.avgHours / 24).toFixed(1)}d` : `${r.avgHours}h`) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ActivityPage() {
   const [viewMode, setViewMode] = useState<'task' | 'person'>('task')
   const [dept, setDept] = useState<Dept>('All')
@@ -231,6 +272,9 @@ export default function ActivityPage() {
           )}
         </>
       )}
+
+      {/* ── Team Performance ──────────────────────────────── */}
+      <RolePerformanceCard />
     </div>
   )
 }

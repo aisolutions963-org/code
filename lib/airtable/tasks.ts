@@ -1,6 +1,6 @@
 // Tasks domain — all task-related Airtable functions
 
-import { PHASE_CONFIG } from '../phases'
+import { PHASE_CONFIG, isAutoTask } from '../phases'
 import {
   Role,
   Task,
@@ -27,6 +27,8 @@ import {
   RawRecord,
   str,
   strArr,
+  lookupStrArr,
+  lookupNumArr,
   selectName,
   lookupSelectNames,
   firstLinkedRecord,
@@ -37,7 +39,6 @@ import {
 
 const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   status: TASKS.STATUS,
-  managerReviewStatus: TASKS.MANAGER_REVIEW_STATUS,
   managerComment: TASKS.MANAGER_COMMENT,
   postVisitOutcome: TASKS.POST_VISIT_OUTCOME,
   taskStartDate: TASKS.TASK_START_DATE,
@@ -60,7 +61,6 @@ const TASK_FIELD_TO_ID: Record<keyof TaskUpdateInput, string> = {
   fillersDone: TASKS.FILLERS_DONE,
   taskDocuments: TASKS.TASK_DOCUMENTS,
   fillersAndMissingList: TASKS.FILLERS_MISSING_ITEMS_LIST,
-  requiresManagerReviewManually: TASKS.REQUIRES_MANAGER_REVIEW_MANUALLY,
   priorityFlag: TASKS.PRIORITY_FLAG,
   callCount: TASKS.CALL_COUNT,
   sedNote: TASKS.SED_NOTE,
@@ -207,7 +207,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
   const projectIds = Array.from(new Set(tasks.flatMap((t) => t.project ?? [])))
   if (projectIds.length === 0) return tasks
 
-  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null; salesOwnerName: string | null; communSeds: string[]; requestType: string | null; tradeReference: string | null; description: string | null }> = {}
+  const infoMap: Record<string, { ref: string; name: string; nickname: string | null; quotationNumber: string | null; quotationReference: string | null; salesOwnerName: string | null; communSeds: string[]; requestType: string | null; tradeReference: string | null; description: string | null; installationTeamNames: string[] }> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) {
     chunks.push(projectIds.slice(i, i + 10))
@@ -218,7 +218,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
       const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const records = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS, PROJECTS.REQUEST_TYPE, PROJECTS.TRADE_REFERENCE, PROJECTS.PROJECT_DESCRIPTION],
+        fields: [PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER, PROJECTS.COMMUN_SEDS, PROJECTS.REQUEST_TYPE, PROJECTS.TRADE_REFERENCE, PROJECTS.PROJECT_DESCRIPTION, PROJECTS.INSTALLATION_TEAM_NAMES],
       })
       for (const r of records) {
         const ref = str(r.fields[PROJECTS.PROJECT_ID])
@@ -233,7 +233,8 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
         const requestType = str(r.fields[PROJECTS.REQUEST_TYPE]) ?? null
         const tradeReference = str(r.fields[PROJECTS.TRADE_REFERENCE]) ?? null
         const description = str(r.fields[PROJECTS.PROJECT_DESCRIPTION]) ?? null
-        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference, salesOwnerName: owner?.name ?? null, communSeds, requestType, tradeReference, description }
+        const installationTeamNames = lookupStrArr(r.fields[PROJECTS.INSTALLATION_TEAM_NAMES])
+        if (ref) infoMap[r.id] = { ref, name, nickname, quotationNumber, quotationReference, salesOwnerName: owner?.name ?? null, communSeds, requestType, tradeReference, description, installationTeamNames }
       }
     }),
   )
@@ -257,6 +258,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
             projectRequestType: (info.requestType as 'Trade' | 'Maintenance' | 'Variance' | null) ?? undefined,
             projectTradeReference: info.tradeReference ?? undefined,
             projectDescription: info.description ?? undefined,
+            installationTeamNames: info.installationTeamNames.length > 0 ? info.installationTeamNames : undefined,
           }
         : {}),
     }
@@ -541,6 +543,8 @@ export async function getLockedTasksForScope(
   return itemId ? tasks.filter((t) => t.projectItem?.[0] === itemId) : tasks
 }
 
+// All locked tasks for a project (project-level + per-item, any department). Used by the
+// next-step preview to show what's coming up.
 export async function getTasksForProject(
   projectId: string,
   role: Role,
@@ -571,12 +575,6 @@ export async function getProjectAttachments(projectId: string): Promise<Task[]> 
       TASKS.FILLERS_MISSING_ITEMS_LIST,
     ],
   })
-  return records.map(transformTask)
-}
-
-export async function getIncompleteTasksForProject(projectId: string): Promise<Task[]> {
-  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", {${TASKS.STATUS}} != "Completed", {${TASKS.STATUS}} != "Locked")`
-  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula })
   return records.map(transformTask)
 }
 
@@ -739,23 +737,47 @@ export async function getCallClientPendingTasks(): Promise<
 // task — i.e. where each project is currently stuck. Used by smarter stale detection.
 export async function getStuckTaskForProjects(projectIds: string[]): Promise<Record<string, string>> {
   if (projectIds.length === 0) return {}
-  const out: Record<string, string> = {}
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) chunks.push(projectIds.slice(i, i + 10))
+
+  interface Candidate { name: string; status: string; order: number; hasPath: boolean }
+  const byProject = new Map<string, Candidate[]>()
+
   await Promise.all(
     chunks.map(async (chunk) => {
       const projFilter = chunk.map((id) => `{${TASKS.PROJECT}} = "${id}"`).join(', ')
       const formula = `AND(OR(${projFilter}), OR({${TASKS.STATUS}}="To Do", {${TASKS.STATUS}}="In Progress"))`
       const records = await fetchAll(TASKS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [TASKS.TASK_NAME, TASKS.PROJECT],
+        fields: [TASKS.TASK_NAME, TASKS.PROJECT, TASKS.STATUS, TASKS.TEMPLATE_ORDER, TASKS.PATH_CONDITION],
       })
       for (const r of records) {
         const pid = str(r.fields[TASKS.PROJECT])
-        if (pid && !out[pid]) out[pid] = str(r.fields[TASKS.TASK_NAME]) ?? ''
+        if (!pid) continue
+        const orders = r.fields[TASKS.TEMPLATE_ORDER]
+        if (!byProject.has(pid)) byProject.set(pid, [])
+        byProject.get(pid)!.push({
+          name: str(r.fields[TASKS.TASK_NAME]) ?? '',
+          status: str(r.fields[TASKS.STATUS]) ?? '',
+          order: Array.isArray(orders) && typeof orders[0] === 'number' ? orders[0] : Infinity,
+          hasPath: !!str(r.fields[TASKS.PATH_CONDITION]),
+        })
       }
     }),
   )
+
+  // Pick the task someone is most plausibly stuck ON: prefer In Progress (lowest order),
+  // then a plain To Do (unchosen gateway chips sit To Do + pathCondition forever and would
+  // otherwise be named arbitrarily), then any To Do as a last resort.
+  const out: Record<string, string> = {}
+  for (const [pid, tasks] of byProject) {
+    const byOrder = (a: Candidate, b: Candidate) => a.order - b.order
+    const pick =
+      tasks.filter((t) => t.status === 'In Progress').sort(byOrder)[0] ??
+      tasks.filter((t) => t.status === 'To Do' && !t.hasPath).sort(byOrder)[0] ??
+      tasks.filter((t) => t.status === 'To Do').sort(byOrder)[0]
+    if (pick) out[pid] = pick.name
+  }
   return out
 }
 
@@ -802,42 +824,6 @@ export async function getPendingApprovalsCount(): Promise<number> {
     fields: [TASKS.MANAGER_REVIEW_STATUS],
   })
   return records.length
-}
-
-export async function attachFileToTask(
-  taskId: string,
-  fieldId: string,
-  url: string,
-  filename: string,
-): Promise<Task> {
-  const task = await getTaskById(taskId)
-
-  const attachmentFieldMap: Record<string, keyof Task> = {
-    [TASKS.TASK_DOCUMENTS]: 'taskDocuments',
-    [TASKS.FILLERS_MISSING_ITEMS_LIST]: 'fillersAndMissingList',
-  }
-
-  const taskKey = attachmentFieldMap[fieldId]
-  const existing: Attachment[] = taskKey
-    ? ((task[taskKey] as Attachment[]) ?? [])
-    : []
-
-  const preservedExisting = existing.map((a) => ({ id: a.id }))
-  const newAttachment: AttachmentInput = { url, filename }
-
-  const res = await fetchWithRetry(recUrl(TASKS.TABLE_ID, taskId), {
-    method: 'PATCH',
-    headers: airtableHeaders(),
-    body: JSON.stringify({
-      fields: { [fieldId]: [...preservedExisting, newAttachment] },
-    }),
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Airtable error ${res.status}: ${body}`)
-  }
-  const record: RawRecord = await res.json()
-  return transformTask(record)
 }
 
 export async function deleteTasksByProjectId(projectId: string): Promise<number> {
@@ -943,10 +929,21 @@ export async function generateTasksForProject(
   const universalOrders = universalOrdered.map((t) => t.templateOrder!).sort((a, b) => a - b)
 
   const firstOrder = universalOrders[0] ?? Infinity
-  const secondOrder = universalOrders[1] ?? Infinity
   const preparingCfg = PHASE_CONFIG.Preparing
   const firstIsAutoCompleted = stage === 'Preparing' && preparingCfg.autoCompleteFirstTask
-  const activeOrder = firstIsAutoCompleted ? secondOrder : firstOrder
+
+  // System/auto tasks (headline banners, "(auto)" steps) must never sit as the active
+  // To-Do step — no one clicks them, so they'd block the chain. Mark any leading auto
+  // universal tasks Completed at generation and hand the active slot to the first real one.
+  const autoCompletedOrders = new Set<number>()
+  let activeOrder = Infinity
+  for (const ord of universalOrders) {
+    if (firstIsAutoCompleted && ord === firstOrder) continue // already auto-completed below
+    const tpl = universalOrdered.find((t) => t.templateOrder === ord)
+    if (tpl && isAutoTask(tpl.taskName)) { autoCompletedOrders.add(ord); continue }
+    activeOrder = ord
+    break
+  }
 
   const pathMinMap = new Map<string, number>()
   Array.from(pathGroups.entries()).forEach(([path, group]) => {
@@ -962,6 +959,7 @@ export async function generateTasksForProject(
       status = t.taskName === 'Follow Up' ? 'Locked' : 'To Do'
     } else if (t.pathCondition === null) {
       if (firstIsAutoCompleted && t.templateOrder === firstOrder) status = 'Completed'
+      else if (autoCompletedOrders.has(t.templateOrder!)) status = 'Completed'
       else if (t.templateOrder === activeOrder) status = 'To Do'
       else status = 'Locked'
     } else {
@@ -1097,15 +1095,25 @@ export async function generatePhase3TasksForItem(
   // so we cannot reliably filter by itemId inside a formula.
   const existingRaw = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}))`,
-    fields: [TASKS.TASK_TEMPLATES_LINK, TASKS.PROJECT_ITEM],
+    fields: [TASKS.TASK_TEMPLATES_LINK, TASKS.PROJECT_ITEM, TASKS.STATUS, TASKS.TEMPLATE_ORDER],
   })
   const existingTemplateIds = new Set<string>()
-  for (const r of existingRaw) {
-    const itemIds = strArr(r.fields[TASKS.PROJECT_ITEM])
-    if (!itemIds.includes(itemId)) continue
+  const itemRaw = existingRaw.filter((r) => strArr(r.fields[TASKS.PROJECT_ITEM]).includes(itemId))
+  for (const r of itemRaw) {
     const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
     if (Array.isArray(links)) links.forEach((id) => existingTemplateIds.add(id as string))
   }
+
+  // Guard against split states: only generate Phase 3 once the item's Phase 2 is complete
+  // (its order-29 trigger step is Completed). The normal auto-trigger fires exactly then, so
+  // it always passes; this blocks the manual "generate phase 3"/advance paths from creating
+  // Phase 3 tasks alongside still-open Phase 2 gates — a state the order guard holds forever.
+  const triggerOrder = PHASE_CONFIG.Working.triggerOrder
+  const triggerTask = itemRaw.find((r) => lookupNumArr(r.fields[TASKS.TEMPLATE_ORDER])[0] === triggerOrder)
+  if (triggerTask && str(triggerTask.fields[TASKS.STATUS]) !== 'Completed') {
+    return { created: 0, todoTemplates: [] }
+  }
+
   const newTemplates = templates.filter((t) => !existingTemplateIds.has(t.id))
   if (newTemplates.length === 0) return { created: 0, todoTemplates: [] }
 
@@ -1133,6 +1141,16 @@ export async function generatePhase3TasksForItem(
   return { created: ids.length, todoTemplates }
 }
 
+// Idempotent + self-normalizing Phase 4 (Closing) generation.
+//
+// Creates a task for every Closing / maintenance template that doesn't have one yet, then
+// normalizes the whole closing chain so the active head is always the lowest-order
+// not-yet-Completed step. This heals projects that generated their closing chain under an
+// OLDER template set (e.g. before the "Handing Over Form" head at ord 56 was added): a plain
+// "create only the missing templates and flip the min NEW one to To Do" would leave two active
+// heads (the newly-created handover AND the previously-created auto-close), letting the project
+// auto-close before handover. Re-running is safe — dedup is by template link, and existing tasks
+// are ranked by their template's CURRENT order (task-side templateOrder is a stale snapshot).
 export async function generatePhase4Tasks(
   projectId: string,
 ): Promise<{ created: number; todoTemplates: TaskTemplate[] }> {
@@ -1144,37 +1162,68 @@ export async function generatePhase4Tasks(
     (t) => t.templateOrder !== null,
   )
   if (templates.length === 0) return { created: 0, todoTemplates: [] }
+  const orderByTemplateId = new Map(templates.map((t) => [t.id, t.templateOrder!]))
 
   const existingRaw = await fetchAll(TASKS.TABLE_ID, {
     filterByFormula: `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}))`,
-    fields: [TASKS.TASK_TEMPLATES_LINK],
+    fields: [TASKS.TASK_TEMPLATES_LINK, TASKS.STATUS],
   })
+  // Existing closing tasks, ranked by their template's CURRENT order (not the task's stale
+  // stored order). One entry per task that links to a live closing/maintenance template.
+  const existingClosing: Array<{ id: string; order: number; status: string }> = []
   const existingTemplateIds = new Set<string>()
   for (const r of existingRaw) {
     const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
-    if (Array.isArray(links)) links.forEach((id) => existingTemplateIds.add(id as string))
+    const linkId = Array.isArray(links)
+      ? (links as string[]).find((id) => orderByTemplateId.has(id))
+      : undefined
+    if (!linkId) continue
+    existingTemplateIds.add(linkId)
+    existingClosing.push({
+      id: r.id,
+      order: orderByTemplateId.get(linkId)!,
+      status: str(r.fields[TASKS.STATUS]) ?? '',
+    })
   }
+
   const newTemplates = templates.filter((t) => !existingTemplateIds.has(t.id))
-  if (newTemplates.length === 0) return { created: 0, todoTemplates: [] }
 
-  const minOrder = Math.min(...newTemplates.map((t) => t.templateOrder!))
-  const todoTemplates: TaskTemplate[] = []
+  // Head = lowest order among all not-yet-Completed closing tasks (existing + about-to-create).
+  // Newly-created tasks are never Completed, so they always participate.
+  const activeOrders = [
+    ...existingClosing.filter((t) => t.status !== 'Completed').map((t) => t.order),
+    ...newTemplates.map((t) => t.templateOrder!),
+  ]
+  if (activeOrders.length === 0) return { created: 0, todoTemplates: [] }
+  const head = Math.min(...activeOrders)
 
+  // Create the missing templates: head-order ones open as To Do, everything else Locked.
   const records = newTemplates.map((t) => {
-    const status: TaskStatus = t.templateOrder === minOrder ? 'To Do' : 'Locked'
-    if (status === 'To Do') todoTemplates.push(t)
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
       [TASKS.PROJECT]: projectId,
-      [TASKS.STATUS]: status,
+      [TASKS.STATUS]: (t.templateOrder === head ? 'To Do' : 'Locked') as TaskStatus,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }
-    if (t.pathCondition !== null) {
-      record[TASKS.PATH_CONDITION] = t.pathCondition
-    }
+    if (t.pathCondition !== null) record[TASKS.PATH_CONDITION] = t.pathCondition
     return record
   })
+  const ids = records.length > 0 ? await createTasksBatch(records) : []
 
-  const ids = await createTasksBatch(records)
+  // Re-normalize existing tasks: head-order → To Do, later → Locked. Leave Completed and
+  // In Progress untouched, and only PATCH when the status actually changes.
+  await Promise.all(
+    existingClosing
+      .filter((t) => t.status !== 'Completed' && t.status !== 'In Progress')
+      .map((t) => {
+        const desired: TaskStatus = t.order === head ? 'To Do' : 'Locked'
+        return t.status === desired
+          ? null
+          : updateTaskRaw(t.id, { [TASKS.STATUS]: desired })
+      })
+      .filter((p): p is Promise<Task> => p !== null),
+  )
+
+  const todoTemplates = templates.filter((t) => t.templateOrder === head)
   return { created: ids.length, todoTemplates }
 }

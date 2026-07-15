@@ -27,6 +27,7 @@ import {
   num,
   bool,
   strArr,
+  attachments,
   firstLinkedRecord,
   transformProject,
   deleteByProject,
@@ -426,7 +427,38 @@ function transformHandoverSheet(record: RawRecord): HandoverSheet {
     installationDifficulty: str(f[HANDOVER_SHEETS.INSTALLATION_DIFFICULTY]),
     newsletterOptIn: f[HANDOVER_SHEETS.NEWSLETTER_OPT_IN] === true,
     recordedBy: str(f[HANDOVER_SHEETS.RECORDED_BY]),
+    documentUrl: attachments(f[HANDOVER_SHEETS.PDF])[0]?.url,
   }
+}
+
+/**
+ * Upload a signed handover document to the sheet's PDF attachment field using
+ * Airtable's content upload API (no external hosting needed). Returns the sheet
+ * refreshed with the attachment URL. Airtable caps this endpoint at ~5 MB.
+ */
+export async function uploadHandoverDocument(
+  sheetId: string,
+  file: { buffer: Buffer; filename: string; contentType: string },
+): Promise<HandoverSheet> {
+  const base64 = file.buffer.toString('base64')
+  const res = await fetchWithRetry(
+    `https://content.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${sheetId}/${HANDOVER_SHEETS.PDF}/uploadAttachment`,
+    {
+      method: 'POST',
+      headers: airtableHeaders(),
+      body: JSON.stringify({ contentType: file.contentType, filename: file.filename, file: base64 }),
+    },
+  )
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable attachment upload error ${res.status}: ${body}`)
+  }
+  // Re-fetch the record so we return the attachment URL in our standard shape.
+  const recRes = await fetchWithRetry(recUrl(HANDOVER_SHEETS.TABLE_ID, sheetId), {
+    headers: airtableHeaders(),
+  })
+  const record = (await recRes.json()) as RawRecord
+  return transformHandoverSheet(record)
 }
 
 export async function createHandoverSheet(

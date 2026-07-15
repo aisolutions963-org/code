@@ -4,6 +4,7 @@ import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project, Payment, ClientRequest, Role } from '@/lib/types'
+import { workingSubStage } from '@/lib/phases'
 import { useSession } from '@/app/dashboard/layout-client'
 import ItemBoard from '@/components/projects/ItemBoard'
 import TaskList, { TaskListSkeleton } from '@/components/tasks/TaskList'
@@ -170,6 +171,9 @@ function ProjectOverview({
         })()}
         <InfoRow label="Quotation #"  value={project.quotationNumber} />
         <InfoRow label="Reference"    value={project.quotationReference} />
+        {(project.assignedInstallationTeamNames?.length ?? 0) > 0 && (
+          <InfoRow label="Installation Team" value={project.assignedInstallationTeamNames!.join(', ')} />
+        )}
         <InfoRow label="Payment mode" value={project.paymentMode} />
       </div>
 
@@ -538,6 +542,13 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
     { refreshInterval: 300_000 },
   )
 
+  // Next single locked step (project-level + per-item), any department — a heads-up preview.
+  const { data: nextStepsData } = useSWR<{ project: string | null; items: Record<string, string | null> }>(
+    `/api/projects/${id}/next-steps`,
+    fetcher,
+    { refreshInterval: 300_000 },
+  )
+
   // Report
   const { data: reportData, isLoading: reportLoading, mutate: mutateReport } = useSWR<ReportResponse>(
     tab === 'report' ? `/api/projects/${id}/report` : null,
@@ -569,6 +580,8 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
   const itemCount = data?.items.length ?? 0
 
   const allTasks = tasksData?.tasks ?? []
+  const installationTeamNames =
+    allTasks.find((t) => (t.installationTeamNames?.length ?? 0) > 0)?.installationTeamNames ?? []
 
   // Separate fetch for docs bar — not role-filtered, so all teams see all attachments
   const { data: docsData } = useSWR<{ tasks: Task[] }>(
@@ -577,7 +590,22 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
     { revalidateOnFocus: false },
   )
   const docsTasks = docsData?.tasks ?? []
-  const projectLevelTasks = allTasks.filter((t) => !t.projectItem?.length)
+  // Chronological: earliest-generated task first (workflow order, top to bottom).
+  const projectLevelTasks = allTasks
+    .filter((t) => !t.projectItem?.length)
+    .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
+  // During Production, surface which sub-stage the project has reached (Material →
+  // Fabrication → Fixing), from the furthest-along active per-item task.
+  const currentSubStage = (() => {
+    if (data?.projectStage !== 'Production') return null
+    const orders = (data?.items ?? [])
+      .flatMap((i) => i.allTasks)
+      .filter((t) => t.status === 'To Do' || t.status === 'In Progress')
+      .map((t) => t.templateOrder?.[0])
+      .filter((o): o is number => o != null)
+    return orders.length ? workingSubStage(Math.max(...orders)) : null
+  })()
+
   const hasItems = !isLoading && !error && (data?.items.length ?? 0) > 0
   const hasProjectTasks = !tasksLoading && projectLevelTasks.length > 0
   const bothLoaded = !isLoading && !tasksLoading
@@ -607,7 +635,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
               <span className="font-mono text-xs text-gray-400 uppercase tracking-wider">{projectRef}</span>
               {data?.projectStage && (
                 <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-medium border border-teal-200">
-                  {data.projectStage}
+                  {data.projectStage}{currentSubStage ? ` · ${currentSubStage}` : ''}
                 </span>
               )}
             </div>
@@ -615,6 +643,12 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
             {!isLoading && itemCount > 0 && (
               <p className="text-sm text-gray-500 mt-0.5">
                 {itemCount} item{itemCount !== 1 ? 's' : ''} in production
+              </p>
+            )}
+            {installationTeamNames.length > 0 && (
+              <p className="text-sm text-violet-600 mt-0.5 flex items-center gap-1">
+                <span aria-hidden>👷</span>
+                <span className="font-medium">Installation Team:</span> {installationTeamNames.join(', ')}
               </p>
             )}
           </div>
@@ -666,6 +700,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
                 role={role}
                 onUpdate={handleUpdate}
                 groupByProject={false}
+                nextStep={nextStepsData?.project ?? null}
               />
             </section>
           )}
@@ -703,6 +738,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
                 role={role}
                 onUpdate={handleUpdate}
                 onMutate={() => mutate()}
+                nextStepByItem={nextStepsData?.items}
               />
             </section>
           )}

@@ -67,7 +67,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
         </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">
-          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : p.projectStage === 'Production' ? 'green' : 'gray'}>
+          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : p.projectStage === 'Production' ? 'green' : p.projectStage === 'Closing' ? 'blue' : 'gray'}>
             {p.projectStage === 'Not-Approved' ? 'Not Approved' : p.projectStage}
           </Badge>
         </td>
