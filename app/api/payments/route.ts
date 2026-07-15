@@ -10,7 +10,6 @@ import {
   activateMaintenanceRecord,
   createMaintenanceRecord,
   updateProject,
-  createCalendarEvent,
 } from '@/lib/airtable'
 import { notifyAccountant, notifyAccountantEvent } from '@/lib/email'
 import { CreatePaymentSchema } from '@/lib/validation'
@@ -107,18 +106,8 @@ export const POST = requireRole('manager', 'superadmin')(
 
     const payment = await createPayment({ ...body, recordedBy: session.name, stageAtPayment, ...(name ? { name } : {}) })
 
-    if (body.receivedDate && project) {
-      const projectLabel = project.nickname
-        ? `${project.nickname} — ${project.projectName}`
-        : project.projectName
-      createCalendarEvent({
-        title: `${body.paymentType} — ${projectLabel}`,
-        date: body.receivedDate,
-        projectId: body.project[0],
-        eventType: 'activity',
-        createdBy: session.name,
-      }).catch((err: unknown) => console.error('[Payment] createCalendarEvent failed:', err))
-    }
+    // No calendar event here — getCalendarEvents already surfaces a richer payment-received
+    // event (with amount/type) from the Payments table; a custom copy would duplicate it.
 
     if (process.env.RESEND_API_KEY && project) {
       notifyAccountant({

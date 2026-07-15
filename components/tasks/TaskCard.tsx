@@ -371,6 +371,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           date: calendarDate,
           projectId: task.projectRecordId,
           eventType,
+          taskId: task.id,
         }),
       })
       if (!res.ok) throw new Error('Failed')

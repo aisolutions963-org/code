@@ -92,6 +92,18 @@ export async function markAllReadForUser(role: string, userId: number): Promise<
   })
 }
 
+// Delete every notification visible to this user (role-wide + user-specific), regardless
+// of read state or age. Powers the "Clear all" button.
+export async function deleteAllForUser(role: string, userId: number): Promise<number> {
+  const c = await db()
+  const res = await c.execute({
+    sql: `DELETE FROM notifications
+          WHERE recipient_role = ? AND (recipient_user_id IS NULL OR recipient_user_id = ?)`,
+    args: [role, userId],
+  })
+  return Number(res.rowsAffected ?? 0)
+}
+
 export async function getNotificationsForRole(role: string, limit = 50): Promise<DBNotification[]> {
   const c = await db()
   const result = await c.execute({

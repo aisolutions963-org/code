@@ -36,6 +36,7 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
         projectId,
         eventType: 'installation',
         createdBy: session.name,
+        taskId: params.id, // dedup against this task's own derived event
       }),
       createNotification({
         recipientRole: 'installation',
