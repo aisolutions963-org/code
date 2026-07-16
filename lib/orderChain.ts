@@ -23,6 +23,16 @@ function isFabBranch(t: Task): boolean {
   return name.startsWith('carpentry') || name.startsWith('paint')
 }
 
+// "Take Measurement" is an assigned installation side-task, not a sequencing gate. When the SED
+// assigns a measurement, /api/tasks/[id]/assign-measurement spawns a fresh Take-Measurement task
+// WITHOUT a pathCondition; because it sits at a low order (5 project-level / 25 per-item) a plain
+// path-less Locked/To-Do measurement would otherwise block the whole AND-join and deadlock every
+// higher-order step (F5 quotation, order-22 notifications, per-item work). Like Carpentry/Paint,
+// measurement must never gate the chain — the administrative flow proceeds in parallel with it.
+function isMeasurementSideTask(t: Task): boolean {
+  return t.taskName.toLowerCase().includes('take measurement')
+}
+
 // A task is "done" (non-blocking for the order guard) when Completed or explicitly optional.
 // Carpentry/Paint fabrication branches never block, whatever their status — so once
 // "Fabrication Done" completes the chain advances even if a branch is untouched or mid-work.
@@ -32,6 +42,7 @@ export function isTaskDone(t: Task): boolean {
   if (t.status === 'Completed') return true
   if (t.taskName.toLowerCase().includes('optional')) return true
   if (isFabBranch(t)) return true
+  if (isMeasurementSideTask(t)) return true
   if (t.pathCondition && (t.status === 'To Do' || t.status === 'Locked')) return true
   return false
 }

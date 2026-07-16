@@ -50,6 +50,15 @@ describe('isTaskDone', () => {
     expect(isTaskDone(mk(40, 'To Do', { name: 'Paint (item-level)', path: null }))).toBe(true)
     expect(isTaskDone(mk(40, 'Locked', { name: 'Carpentry (item-level)', path: null }))).toBe(true)
   })
+
+  // /api/tasks/[id]/assign-measurement spawns a path-less "Take Measurement" task at a low order.
+  // It's an assigned installation side-task, not a sequencing gate — like Carpentry/Paint it must
+  // never block the AND-join, in any status (regression: it deadlocked F5 from unlocking).
+  it('null-path Take Measurement (by name) is a side-task — done in any status', () => {
+    expect(isTaskDone(mk(5, 'Locked', { name: 'Take Measurement', path: null }))).toBe(true)
+    expect(isTaskDone(mk(5, 'To Do', { name: 'Take Measurement', path: null }))).toBe(true)
+    expect(isTaskDone(mk(25, 'In Progress', { name: 'Take measurements for item', path: null }))).toBe(true)
+  })
 })
 
 describe('planUnlock — single item ordering', () => {
@@ -164,6 +173,19 @@ describe('planUnlock — abandoned gateway paths do not block (regression: F4 st
     const plan = planUnlock(done, tasks, PER_ITEM_MIN)
     expect(plan.blocked).toBe(true)
     expect(plan.toUnlock).toEqual([])
+  })
+
+  it('a path-less Locked "Take Measurement" at order 5 does NOT block F5 at order 21', () => {
+    // Live prod deadlock (rec48Dw95qDRmEEbo): F4 (20) completed but F5 (21) stayed Locked because a
+    // spawned path-less Take-Measurement (order 5) counted as an unmet blocker. It must be treated as
+    // a non-gating side-task so completing F4 unlocks F5.
+    const measurement = mk(5, 'Locked', { name: 'Take Measurement', path: null })
+    const f4 = mk(20, 'Completed', { path: null })
+    const f5 = mk(21, 'Locked', { path: null })
+    const tasks = [measurement, f4, f5, mk(22, 'Locked', { path: null })]
+    const plan = planUnlock(f4, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([21])
   })
 })
 

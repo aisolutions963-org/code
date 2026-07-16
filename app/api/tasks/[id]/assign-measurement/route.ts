@@ -55,6 +55,12 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
       [TASKS.TASK_START_DATE]: date,
       [TASKS.TASK_TEMPLATES_LINK]: [template.id],
     }
+    // Carry the template's path condition so the spawned task is never path-less: a path-less
+    // Take-Measurement at a low order would otherwise block the order-chain AND-join (see
+    // isTaskDone/isMeasurementSideTask in lib/orderChain.ts).
+    if (template.pathCondition) {
+      newTask[TASKS.PATH_CONDITION] = template.pathCondition
+    }
     if (isPerItem && task.projectItem?.length) {
       newTask[TASKS.PROJECT_ITEM] = task.projectItem
     }
