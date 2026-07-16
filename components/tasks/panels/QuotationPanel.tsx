@@ -316,8 +316,8 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
       ) : (
         <div>
           <label className={lbl}>Quotation Number &amp; Reference</label>
-          {/* Read-only: taken from the project. Payment can't be recorded without them,
-              so they're set upstream (Make Quotation / F2) — not editable here. */}
+          {/* If the project already has them, show read-only (set upstream via Make Quotation / F2).
+              If not, capture them here — they're saved to the project on submit. */}
           {task.projectQuotationNumber ? (
             <p className="text-sm font-mono font-medium text-blue-700 py-1">
               {task.projectQuotationNumber}
@@ -326,9 +326,26 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
               )}
             </p>
           ) : (
-            <p className="text-xs text-red-600 py-1">
-              This project has no quotation number/reference yet — set it on the project before recording payment.
-            </p>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <label className="text-xs text-gray-500 block mb-0.5">Quotation No. <span className="text-red-500">*</span></label>
+                <input
+                  className={inp}
+                  placeholder="e.g. 2341"
+                  value={quotationInput}
+                  onChange={(e) => { setQuotationInput(e.target.value); setFormError('') }}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-0.5">Reference <span className="text-red-500">*</span></label>
+                <input
+                  className={inp + ' font-mono'}
+                  placeholder="e.g. R0, R1…"
+                  value={referenceInput}
+                  onChange={(e) => { setReferenceInput(e.target.value); setFormError('') }}
+                />
+              </div>
+            </div>
           )}
         </div>
       )}
