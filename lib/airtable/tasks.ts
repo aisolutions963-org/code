@@ -1,6 +1,6 @@
 // Tasks domain — all task-related Airtable functions
 
-import { PHASE_CONFIG, isAutoTask } from '../phases'
+import { PHASE_CONFIG, TASK_MARKERS, isAutoTask } from '../phases'
 import {
   Role,
   Task,
@@ -889,6 +889,14 @@ export async function getTaskCountForProject(projectId: string): Promise<number>
   return records.length
 }
 
+// Gate-controlled decision tasks (Call the Client / Take Approval) are unlocked ONLY by
+// maybeUnlockCallClient once every [gate] task is Completed — never by the order chain and
+// never at generation. Mirrors the isGateControlled skip in workflow.ts → unlockNextTasks.
+function isGateControlledTask(taskName: string): boolean {
+  const l = taskName.toLowerCase()
+  return l.startsWith(TASK_MARKERS.CALL_CLIENT_PREFIX) || l.startsWith(TASK_MARKERS.TAKE_APPROVAL_PREFIX)
+}
+
 export async function generateTasksForProject(
   projectId: string,
   stage: string,
@@ -941,6 +949,9 @@ export async function generateTasksForProject(
     if (firstIsAutoCompleted && ord === firstOrder) continue // already auto-completed below
     const tpl = universalOrdered.find((t) => t.templateOrder === ord)
     if (tpl && isAutoTask(tpl.taskName)) { autoCompletedOrders.add(ord); continue }
+    // Gate-controlled decision tasks are never the active To-Do — they wait for the gate
+    // check (all [gate] tasks Completed), so skip past them when picking the active step.
+    if (tpl && isGateControlledTask(tpl.taskName)) continue
     activeOrder = ord
     break
   }
@@ -958,7 +969,10 @@ export async function generateTasksForProject(
     if (t.templateOrder === null) {
       status = t.taskName === 'Follow Up' ? 'Locked' : 'To Do'
     } else if (t.pathCondition === null) {
-      if (firstIsAutoCompleted && t.templateOrder === firstOrder) status = 'Completed'
+      // Gate-controlled decision tasks start Locked — unlocked only by maybeUnlockCallClient
+      // once every [gate] task is Completed (never at generation, never via the order chain).
+      if (isGateControlledTask(t.taskName)) status = 'Locked'
+      else if (firstIsAutoCompleted && t.templateOrder === firstOrder) status = 'Completed'
       else if (autoCompletedOrders.has(t.templateOrder!)) status = 'Completed'
       else if (t.templateOrder === activeOrder) status = 'To Do'
       else status = 'Locked'
