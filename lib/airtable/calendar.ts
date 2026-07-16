@@ -160,6 +160,24 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     }
   }
 
+  // Collect the project item referenced by any task/fab event so each item-related event
+  // can be labelled with its item name (not just the project). Also map linked task → item
+  // so custom events created from a per-item task can surface that item too.
+  const allItemIds = new Set<string>()
+  const taskItemId = new Map<string, string>()
+  for (const r of [...tasks, ...fabTasks]) {
+    const ids = r.fields[TASKS.PROJECT_ITEM] as string[] | undefined
+    if (ids?.[0]) {
+      allItemIds.add(ids[0])
+      taskItemId.set(r.id, ids[0])
+    }
+  }
+  const itemNameMap = allItemIds.size > 0 ? await getProjectItemNameMap(Array.from(allItemIds)) : {}
+  const itemNameFor = (val: unknown): string | undefined => {
+    const ids = val as string[] | undefined
+    return ids?.[0] ? itemNameMap[ids[0]] : undefined
+  }
+
   const events: CalendarEvent[] = []
 
   for (const r of tasks) {
@@ -182,18 +200,12 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       projectId: str(f[TASKS.PROJECT_ID]),
       projectName: projectLabel,
       projectRef: getProjectRef(f[TASKS.PROJECT]),
+      itemName: itemNameFor(f[TASKS.PROJECT_ITEM]),
       responsible: getAssignee(f[TASKS.ASSIGNED_TO]),
       department: dept.length > 0 ? dept : undefined,
       createdAt: r.createdTime,
     })
   }
-
-  const allItemIds = new Set<string>()
-  for (const r of fabTasks) {
-    const ids = r.fields[TASKS.PROJECT_ITEM] as string[] | undefined
-    if (ids?.[0]) allItemIds.add(ids[0])
-  }
-  const itemNameMap = allItemIds.size > 0 ? await getProjectItemNameMap(Array.from(allItemIds)) : {}
 
   for (const r of fabTasks) {
     if (linkedTaskIds.has(r.id)) continue // superseded by its custom calendar event
@@ -259,6 +271,12 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     else if (typeSeg === 'type:personal')     evType = 'personal'
     const teamPart = segs.find((p) => p.startsWith('team:'))
     const teamMemberIds = teamPart ? teamPart.slice(5).split(',').filter(Boolean) : undefined
+    // If this custom event was created from a per-item task (task:/f2: segment), show that item.
+    let custItemName: string | undefined
+    for (const seg of segs) {
+      const tid = seg.startsWith('task:') ? seg.slice(5) : seg.startsWith('f2:') ? seg.slice(3) : undefined
+      if (tid && taskItemId.has(tid)) { custItemName = itemNameMap[taskItemId.get(tid)!]; break }
+    }
     events.push({
       id: r.id,
       title,
@@ -270,6 +288,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       responsible: str(f[CALENDAR_EVENTS.CREATED_BY]),
       projectName: getProjectName(f[CALENDAR_EVENTS.PROJECT]),
       projectRef: getProjectRef(f[CALENDAR_EVENTS.PROJECT]),
+      itemName: custItemName,
       createdAt: r.createdTime,
       teamMemberIds,
     })
