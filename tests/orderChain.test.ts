@@ -41,6 +41,15 @@ describe('isTaskDone', () => {
   })
   it('an In-Progress non-fab gateway alternative still blocks (unchanged)', () =>
     expect(isTaskDone(mk(24, 'In Progress', { path: 'Select Sample (item)' }))).toBe(false))
+
+  // Phase-3 per-item generation creates Carpentry/Paint WITHOUT a pathCondition, so they must
+  // also be recognised as non-blocking branches by name (regression for the reported bug where
+  // Fabrication Done couldn't advance because null-path Carpentry/Paint blocked the AND-join).
+  it('null-path Carpentry/Paint (by name) are branches — done in any status', () => {
+    expect(isTaskDone(mk(40, 'In Progress', { name: 'Carpentry (item-level)', path: null }))).toBe(true)
+    expect(isTaskDone(mk(40, 'To Do', { name: 'Paint (item-level)', path: null }))).toBe(true)
+    expect(isTaskDone(mk(40, 'Locked', { name: 'Carpentry (item-level)', path: null }))).toBe(true)
+  })
 })
 
 describe('planUnlock — single item ordering', () => {
@@ -89,6 +98,21 @@ describe('planUnlock — single item ordering', () => {
       mk(41, 'Locked', { item: 'A', path: null }),
     ]
     const plan = planUnlock(done, tasks, PER_ITEM_MIN)
+    expect(plan.blocked).toBe(false)
+    expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([41])
+  })
+
+  it('null-path Carpentry/Paint (as actually generated) do NOT block order 41 once Fabrication Done completes', () => {
+    // Real-world shape: Phase-3 generation gives Carpentry/Paint no pathCondition. Before the
+    // fix these blocked the order-40 AND-join, so completing Fabrication Done never reached 41.
+    const fabDone = mk(40, 'Completed', { item: 'A', path: null })
+    const tasks = [
+      fabDone,
+      mk(40, 'In Progress', { item: 'A', name: 'Carpentry (item-level)', path: null }),
+      mk(40, 'Locked', { item: 'A', name: 'Paint (item-level)', path: null }),
+      mk(41, 'Locked', { item: 'A', path: null }),
+    ]
+    const plan = planUnlock(fabDone, tasks, PER_ITEM_MIN)
     expect(plan.blocked).toBe(false)
     expect(plan.toUnlock.map((t) => t.templateOrder[0])).toEqual([41])
   })

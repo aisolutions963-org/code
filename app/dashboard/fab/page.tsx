@@ -104,6 +104,9 @@ export default function FabDashboard() {
                         ? `${t.projectNickname} — ${t.projectName}`
                         : t.projectNickname
                       : (t.projectName ?? t.projectRef ?? t.projectId ?? '')}
+                    {t.projectItemName && (
+                      <span className="text-teal-700 font-medium"> › {t.projectItemName}</span>
+                    )}
                   </p>
                 </div>
                 <div className="text-left text-xs text-gray-500 space-y-0.5">

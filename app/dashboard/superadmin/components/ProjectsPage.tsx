@@ -8,6 +8,7 @@ import { Project } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
+import { stageBadgeVariant, stageLabel } from '@/lib/stageDisplay'
 import { fetcher, Spinner, isStale } from './shared'
 
 const CLOSED_STAGES = new Set(['Closed', 'Closed and active warranty', 'Warranty expired'])
@@ -67,8 +68,8 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
         </td>
         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
         <td className="px-4 py-3">
-          <Badge variant={p.projectStage === 'Open' ? 'blue' : p.projectStage === 'Preparing' ? 'orange' : p.projectStage === 'Not-Approved' ? 'red' : p.projectStage === 'Production' ? 'green' : p.projectStage === 'Closing' ? 'blue' : 'gray'}>
-            {p.projectStage === 'Not-Approved' ? 'Not Approved' : p.projectStage}
+          <Badge variant={stageBadgeVariant(p.projectStage)}>
+            {stageLabel(p.projectStage)}
           </Badge>
         </td>
         <td className="px-4 py-3">
@@ -310,8 +311,8 @@ export default function ProjectsPage() {
 
   async function handleAdvance(id: string) {
     const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
+    const d = await res.json().catch(() => ({}))
     if (!res.ok) {
-      const d = await res.json()
       throw new Error(
         d.blockingTasks
           ? `${d.error}: ${d.blockingTasks.map((t: { taskName: string }) => t.taskName).join(', ')}`
@@ -319,6 +320,8 @@ export default function ProjectsPage() {
       )
     }
     mutate()
+    // Stage advanced but the new phase's tasks failed to generate — surface it (row catches this).
+    if (d.warning) throw new Error(d.warning)
   }
 
   async function handleDelete(id: string, name: string) {

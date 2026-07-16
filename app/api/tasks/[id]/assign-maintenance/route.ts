@@ -36,11 +36,12 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
         projectId,
         eventType: 'installation',
         createdBy: session.name,
+        taskId: params.id, // dedup against this task's own derived event
       }),
       createNotification({
         recipientRole: 'installation',
-        title: `Maintenance work scheduled — ${projectLabel || 'project'}`,
-        body: `Date: ${date} · Assigned to: ${teamMemberName} · By: ${session.name}`,
+        title: `تم جدولة أعمال الصيانة — ${projectLabel || 'مشروع'}`,
+        body: `التاريخ: ${date} · المكلَّف: ${teamMemberName} · بواسطة: ${session.name}`,
         link: '/dashboard/fix',
       }),
     ])

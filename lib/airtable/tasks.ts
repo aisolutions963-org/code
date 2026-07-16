@@ -1,6 +1,7 @@
 // Tasks domain — all task-related Airtable functions
 
-import { PHASE_CONFIG, isAutoTask } from '../phases'
+import { PHASE_CONFIG, TASK_MARKERS, isAutoTask } from '../phases'
+import { applyClosingStageTransition } from './closing'
 import {
   Role,
   Task,
@@ -361,6 +362,7 @@ export interface TaskTemplate {
   phaseLabel: string | null
   instructions: string | null
   arabicInstructions: string | null
+  arabicName: string | null
 }
 
 export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> {
@@ -395,6 +397,7 @@ export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> 
           : (rawPhase as string | null) ?? null,
         instructions: (f[TASK_TEMPLATES.INSTRUCTIONS] as string) ?? null,
         arabicInstructions: (f[TASK_TEMPLATES.ARABIC_INSTRUCTIONS] as string) ?? null,
+        arabicName: (f[TASK_TEMPLATES.ARABIC_NAME] as string) ?? null,
       }
     })
     .filter((t) => t.taskName !== '')
@@ -889,6 +892,14 @@ export async function getTaskCountForProject(projectId: string): Promise<number>
   return records.length
 }
 
+// Gate-controlled decision tasks (Call the Client / Take Approval) are unlocked ONLY by
+// maybeUnlockCallClient once every [gate] task is Completed — never by the order chain and
+// never at generation. Mirrors the isGateControlled skip in workflow.ts → unlockNextTasks.
+function isGateControlledTask(taskName: string): boolean {
+  const l = taskName.toLowerCase()
+  return l.startsWith(TASK_MARKERS.CALL_CLIENT_PREFIX) || l.startsWith(TASK_MARKERS.TAKE_APPROVAL_PREFIX)
+}
+
 export async function generateTasksForProject(
   projectId: string,
   stage: string,
@@ -941,6 +952,9 @@ export async function generateTasksForProject(
     if (firstIsAutoCompleted && ord === firstOrder) continue // already auto-completed below
     const tpl = universalOrdered.find((t) => t.templateOrder === ord)
     if (tpl && isAutoTask(tpl.taskName)) { autoCompletedOrders.add(ord); continue }
+    // Gate-controlled decision tasks are never the active To-Do — they wait for the gate
+    // check (all [gate] tasks Completed), so skip past them when picking the active step.
+    if (tpl && isGateControlledTask(tpl.taskName)) continue
     activeOrder = ord
     break
   }
@@ -958,7 +972,10 @@ export async function generateTasksForProject(
     if (t.templateOrder === null) {
       status = t.taskName === 'Follow Up' ? 'Locked' : 'To Do'
     } else if (t.pathCondition === null) {
-      if (firstIsAutoCompleted && t.templateOrder === firstOrder) status = 'Completed'
+      // Gate-controlled decision tasks start Locked — unlocked only by maybeUnlockCallClient
+      // once every [gate] task is Completed (never at generation, never via the order chain).
+      if (isGateControlledTask(t.taskName)) status = 'Locked'
+      else if (firstIsAutoCompleted && t.templateOrder === firstOrder) status = 'Completed'
       else if (autoCompletedOrders.has(t.templateOrder!)) status = 'Completed'
       else if (t.templateOrder === activeOrder) status = 'To Do'
       else status = 'Locked'
@@ -1168,9 +1185,11 @@ export async function generatePhase4Tasks(
     filterByFormula: `FIND("${projectId}", ARRAYJOIN({${TASKS.PROJECT}}))`,
     fields: [TASKS.TASK_TEMPLATES_LINK, TASKS.STATUS],
   })
+  const templateById = new Map(templates.map((t) => [t.id, t]))
+
   // Existing closing tasks, ranked by their template's CURRENT order (not the task's stale
   // stored order). One entry per task that links to a live closing/maintenance template.
-  const existingClosing: Array<{ id: string; order: number; status: string }> = []
+  const existingClosing: Array<{ id: string; templateId: string; order: number; status: string; taskName: string }> = []
   const existingTemplateIds = new Set<string>()
   for (const r of existingRaw) {
     const links = r.fields[TASKS.TASK_TEMPLATES_LINK]
@@ -1181,48 +1200,75 @@ export async function generatePhase4Tasks(
     existingTemplateIds.add(linkId)
     existingClosing.push({
       id: r.id,
+      templateId: linkId,
       order: orderByTemplateId.get(linkId)!,
       status: str(r.fields[TASKS.STATUS]) ?? '',
+      taskName: templateById.get(linkId)?.taskName ?? '',
     })
   }
 
   const newTemplates = templates.filter((t) => !existingTemplateIds.has(t.id))
 
-  // Head = lowest order among all not-yet-Completed closing tasks (existing + about-to-create).
-  // Newly-created tasks are never Completed, so they always participate.
-  const activeOrders = [
-    ...existingClosing.filter((t) => t.status !== 'Completed').map((t) => t.order),
-    ...newTemplates.map((t) => t.templateOrder!),
-  ]
-  if (activeOrders.length === 0) return { created: 0, todoTemplates: [] }
-  const head = Math.min(...activeOrders)
+  const incompleteExisting = existingClosing.filter((t) => t.status !== 'Completed')
+  if (incompleteExisting.length === 0 && newTemplates.length === 0) {
+    return { created: 0, todoTemplates: [] }
+  }
 
-  // Create the missing templates: head-order ones open as To Do, everything else Locked.
+  // The active head is the lowest-order NON-auto incomplete task. Auto (System) tasks —
+  // "Change Project Status to Closed Project List" (57) and "Change Status to Closed and Valid
+  // Maintenance" (64) — must never be parked as an active To-Do (nobody acts on them, so the
+  // closing chain would dead-end). So any incomplete auto task at or before the head is
+  // completed here and its stage transition applied, making the chain self-healing.
+  const nonAutoOrders = [
+    ...incompleteExisting.filter((t) => !isAutoTask(t.taskName)).map((t) => t.order),
+    ...newTemplates.filter((t) => !isAutoTask(t.taskName)).map((t) => t.templateOrder!),
+  ]
+  const head = nonAutoOrders.length > 0 ? Math.min(...nonAutoOrders) : Infinity
+  const now = new Date().toISOString()
+
+  // Create the missing templates: auto-at-or-before-head → Completed; head → To Do; else Locked.
   const records = newTemplates.map((t) => {
+    const complete = isAutoTask(t.taskName) && t.templateOrder! <= head
+    const status: TaskStatus = complete ? 'Completed' : t.templateOrder === head ? 'To Do' : 'Locked'
     const record: Record<string, unknown> = {
       [TASKS.TASK_NAME]: t.taskName,
       [TASKS.PROJECT]: projectId,
-      [TASKS.STATUS]: (t.templateOrder === head ? 'To Do' : 'Locked') as TaskStatus,
+      [TASKS.STATUS]: status,
       [TASKS.TASK_TEMPLATES_LINK]: [t.id],
     }
+    if (complete) record[TASKS.COMPLETED_AT] = now
     if (t.pathCondition !== null) record[TASKS.PATH_CONDITION] = t.pathCondition
     return record
   })
   const ids = records.length > 0 ? await createTasksBatch(records) : []
 
-  // Re-normalize existing tasks: head-order → To Do, later → Locked. Leave Completed and
-  // In Progress untouched, and only PATCH when the status actually changes.
+  // Re-normalize existing tasks: auto-at-or-before-head → Completed; head → To Do; else Locked.
+  // Leave Completed and In Progress untouched, and only PATCH when the status actually changes.
   await Promise.all(
     existingClosing
       .filter((t) => t.status !== 'Completed' && t.status !== 'In Progress')
       .map((t) => {
-        const desired: TaskStatus = t.order === head ? 'To Do' : 'Locked'
-        return t.status === desired
-          ? null
-          : updateTaskRaw(t.id, { [TASKS.STATUS]: desired })
+        const desired: TaskStatus =
+          isAutoTask(t.taskName) && t.order <= head ? 'Completed' : t.order === head ? 'To Do' : 'Locked'
+        if (t.status === desired) return null
+        const fields: Record<string, unknown> = { [TASKS.STATUS]: desired }
+        if (desired === 'Completed') fields[TASKS.COMPLETED_AT] = now
+        return updateTaskRaw(t.id, fields)
       })
       .filter((p): p is Promise<Task> => p !== null),
   )
+
+  // Apply the stage transition for every auto task we just force-completed, in ascending order
+  // (57 → 'Closed', then 64 → 'Closed and active warranty' + maintenance). Idempotent.
+  const completedAutoNames = [
+    ...incompleteExisting.filter((t) => isAutoTask(t.taskName) && t.order <= head).map((t) => ({ order: t.order, name: t.taskName })),
+    ...newTemplates.filter((t) => isAutoTask(t.taskName) && t.templateOrder! <= head).map((t) => ({ order: t.templateOrder!, name: t.taskName })),
+  ].sort((a, b) => a.order - b.order)
+  for (const a of completedAutoNames) {
+    await applyClosingStageTransition(a.name, projectId).catch((err) =>
+      console.error('[P4-HEAL] stage transition failed:', err),
+    )
+  }
 
   const todoTemplates = templates.filter((t) => t.templateOrder === head)
   return { created: ids.length, todoTemplates }

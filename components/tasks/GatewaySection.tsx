@@ -102,6 +102,7 @@ function ExpandedContent({ task, role, onUpdate }: ExpandedContentProps) {
           date: calendarDate,
           projectId: task.projectRecordId,
           eventType: calendarEventType(task.taskName),
+          taskId: task.id,
         }),
       })
       if (!res.ok) throw new Error('Failed')

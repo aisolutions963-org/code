@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import { Project, Client } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
+import { stageBadgeClass, stageLabel } from '@/lib/stageDisplay'
 import { fetcher } from './shared'
 
 export default function ClientsReportView() {
@@ -54,16 +55,6 @@ export default function ClientsReportView() {
   }
 
   const isLoading = clientsLoading || projectsLoading
-
-  const STAGE_COLOR: Record<string, string> = {
-    Preparing: 'bg-amber-100 text-amber-700',
-    Open: 'bg-green-100 text-green-700',
-    Production: 'bg-blue-100 text-blue-700',
-    Closed: 'bg-gray-100 text-gray-500',
-    'Not-Approved': 'bg-red-100 text-red-600',
-    'Closed and active warranty': 'bg-teal-100 text-teal-700',
-    'Warranty expired': 'bg-gray-100 text-gray-400',
-  }
 
   return (
     <div className="space-y-3 pb-2">
@@ -157,9 +148,9 @@ export default function ClientsReportView() {
                           <div className="flex items-center gap-2">
                             <span className="text-[11px] font-mono text-gray-400">{p.projectId}</span>
                             <span
-                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STAGE_COLOR[p.projectStage] ?? 'bg-gray-100 text-gray-500'}`}
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${stageBadgeClass(p.projectStage)}`}
                             >
-                              {p.projectStage}
+                              {stageLabel(p.projectStage)}
                             </span>
                           </div>
                           <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{p.projectName}</p>

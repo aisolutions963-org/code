@@ -371,6 +371,7 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
           date: calendarDate,
           projectId: task.projectRecordId,
           eventType,
+          taskId: task.id,
         }),
       })
       if (!res.ok) throw new Error('Failed')
@@ -426,6 +427,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
       }
       if (isFabricateMissingTask && task.status !== 'Completed') {
         toast.error(ar ? 'استخدم اللوحة أدناه' : 'Use the panel below to complete or skip')
+        return
+      }
+      // Final Payment F4: completion must record the payment — force the panel below.
+      if (isF4Task && task.taskName.toLowerCase().includes('final') && task.status !== 'Completed') {
+        toast.error(ar ? 'سجّل الدفعة النهائية في اللوحة أدناه لإتمام المهمة' : 'Record the final payment in the panel below to complete')
         return
       }
       if (isStoreRevisedMaterialTask && task.status === 'To Do') {

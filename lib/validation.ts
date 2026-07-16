@@ -62,6 +62,8 @@ export const CreatePaymentSchema = z.object({
   paymentStatus: z.enum(['Received', 'Pending', 'Overdue']),
   paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Cheque']),
   referenceNo: z.string().max(100).optional(),
+  quotationNumber: z.string().max(100).optional(),
+  quotationReference: z.string().max(100).optional(),
   receivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   stageAtPayment: z.string().max(100).optional(),
@@ -211,6 +213,7 @@ export const CreateCalendarEventSchema = z.object({
   customTask: z.string().max(500).optional(),
   eventType: z.enum(['activity', 'installation', 'fabrication', 'delivery', 'personal']).optional(),
   teamMemberIds: z.array(z.string()).optional(),
+  taskId: z.string().optional(),
 })
 
 export const CreateProjectSchema = z.object({

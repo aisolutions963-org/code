@@ -70,26 +70,45 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       sort: [{ field: INSTALLATION_LOGS.DATE, direction: 'asc' }],
     }),
     fetchAll(PROJECTS.TABLE_ID, {
-      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID, PROJECTS.NICKNAME],
+      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID, PROJECTS.NICKNAME, PROJECTS.DELETED_AT],
     }),
   ])
 
   const projectNameMap = new Map<string, string>()
   const projectRefMap = new Map<string, string>()
+  // Projects that currently exist AND are not soft-deleted. An event tied to any project
+  // NOT in this set — soft-deleted (DELETED_AT set) or fully purged (record gone) — is
+  // excluded, so deleting a project drops its calendar events from every source.
+  const validProjectIds = new Set<string>()
   for (const p of allProjects) {
     const label = str(p.fields[PROJECTS.NICKNAME]) ?? str(p.fields[PROJECTS.PROJECT_NAME]) ?? str(p.fields[PROJECTS.PROJECT_ID])
     if (label) projectNameMap.set(p.id, label)
     const ref = str(p.fields[PROJECTS.PROJECT_ID])
     if (ref) projectRefMap.set(p.id, ref)
+    if (!str(p.fields[PROJECTS.DELETED_AT])) validProjectIds.add(p.id)
+  }
+
+  // A source's project reference may be a text rec-id (TASKS.PROJECT) or a linked-record
+  // array (CALENDAR_EVENTS/PAYMENTS/INSTALLATION_LOGS) — normalise to the rec id.
+  const projectRecId = (val: unknown): string | undefined => {
+    if (typeof val === 'string') return val || undefined
+    if (Array.isArray(val)) return typeof val[0] === 'string' ? val[0] : undefined
+    return undefined
+  }
+  // True when the event references a project that no longer exists or is soft-deleted.
+  // Events with no project reference (personal notes, reminders) are kept.
+  const isRemovedProject = (val: unknown): boolean => {
+    const id = projectRecId(val)
+    return !!id && !validProjectIds.has(id)
   }
 
   const getProjectName = (val: unknown): string | undefined => {
-    const pid = str(val)
+    const pid = projectRecId(val)
     return pid ? projectNameMap.get(pid) : undefined
   }
 
   const getProjectRef = (val: unknown): string | undefined => {
-    const pid = str(val)
+    const pid = projectRecId(val)
     return pid ? projectRefMap.get(pid) : undefined
   }
 
@@ -123,18 +142,47 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     return id ? memberNameMap.get(id) || undefined : undefined
   }
 
-  // Build dedup set from manually created calendar events (title + date) so task-based
-  // events don't show alongside a richer manually created event for the same thing.
+  // Reliable, title-independent dedup: any task whose id is referenced by a custom event's
+  // `task:{id}` / `f2:{id}` CUSTOM_TASK segment is represented by that custom event — its
+  // task-derived twin is suppressed. (title-based calEventDedup kept as a harmless fallback.)
   const calEventDedup = new Set<string>()
+  const linkedTaskIds = new Set<string>()
   for (const r of customEvents) {
     const t = str(r.fields[CALENDAR_EVENTS.TITLE])
     const d = str(r.fields[CALENDAR_EVENTS.DATE])
     if (t && d) calEventDedup.add(`${d}|${t}`)
+    const ct = str(r.fields[CALENDAR_EVENTS.CUSTOM_TASK])
+    if (ct) {
+      for (const seg of ct.split('|')) {
+        if (seg.startsWith('task:')) linkedTaskIds.add(seg.slice(5))
+        else if (seg.startsWith('f2:')) linkedTaskIds.add(seg.slice(3))
+      }
+    }
+  }
+
+  // Collect the project item referenced by any task/fab event so each item-related event
+  // can be labelled with its item name (not just the project). Also map linked task → item
+  // so custom events created from a per-item task can surface that item too.
+  const allItemIds = new Set<string>()
+  const taskItemId = new Map<string, string>()
+  for (const r of [...tasks, ...fabTasks]) {
+    const ids = r.fields[TASKS.PROJECT_ITEM] as string[] | undefined
+    if (ids?.[0]) {
+      allItemIds.add(ids[0])
+      taskItemId.set(r.id, ids[0])
+    }
+  }
+  const itemNameMap = allItemIds.size > 0 ? await getProjectItemNameMap(Array.from(allItemIds)) : {}
+  const itemNameFor = (val: unknown): string | undefined => {
+    const ids = val as string[] | undefined
+    return ids?.[0] ? itemNameMap[ids[0]] : undefined
   }
 
   const events: CalendarEvent[] = []
 
   for (const r of tasks) {
+    if (linkedTaskIds.has(r.id)) continue // superseded by its custom calendar event
+    if (isRemovedProject(r.fields[TASKS.PROJECT])) continue
     const f = r.fields
     const date = str(f[TASKS.TASK_START_DATE]) ?? str(f[TASKS.COMPLETION_DATE])
     const dept = strArr(f[TASKS.DEPARTMENT])
@@ -152,20 +200,16 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       projectId: str(f[TASKS.PROJECT_ID]),
       projectName: projectLabel,
       projectRef: getProjectRef(f[TASKS.PROJECT]),
+      itemName: itemNameFor(f[TASKS.PROJECT_ITEM]),
       responsible: getAssignee(f[TASKS.ASSIGNED_TO]),
       department: dept.length > 0 ? dept : undefined,
       createdAt: r.createdTime,
     })
   }
 
-  const allItemIds = new Set<string>()
   for (const r of fabTasks) {
-    const ids = r.fields[TASKS.PROJECT_ITEM] as string[] | undefined
-    if (ids?.[0]) allItemIds.add(ids[0])
-  }
-  const itemNameMap = allItemIds.size > 0 ? await getProjectItemNameMap(Array.from(allItemIds)) : {}
-
-  for (const r of fabTasks) {
+    if (linkedTaskIds.has(r.id)) continue // superseded by its custom calendar event
+    if (isRemovedProject(r.fields[TASKS.PROJECT])) continue
     const f = r.fields
     const projectId = str(f[TASKS.PROJECT_ID])
     const startDate = str(f[TASKS.PLANNED_PROD_START_DATE])
@@ -194,6 +238,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
 
   for (const r of payments) {
     const f = r.fields
+    if (isRemovedProject(f[PAYMENTS.PROJECT])) continue
     const name = str(f[PAYMENTS.NAME]) ?? str(f[PAYMENTS.PAYMENT_TYPE]) ?? 'Payment'
     const amount = num(f[PAYMENTS.AMOUNT])
     const receivedDate = str(f[PAYMENTS.RECEIVED_DATE])
@@ -214,16 +259,24 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const date = str(f[CALENDAR_EVENTS.DATE])
     const title = str(f[CALENDAR_EVENTS.TITLE])
     if (!date || !title) continue
+    if (isRemovedProject(f[CALENDAR_EVENTS.PROJECT])) continue
     const customTask = str(f[CALENDAR_EVENTS.CUSTOM_TASK])
-    const typePart = customTask?.split('|')[0]
+    const segs = customTask?.split('|') ?? []
+    const typeSeg = segs.find((p) => p.startsWith('type:'))
     let evType: CalendarEvent['type'] = 'activity'
-    if (typePart?.startsWith('f2:')) evType = 'delivery'
-    else if (typePart?.startsWith('type:installation')) evType = 'installation'
-    else if (typePart?.startsWith('type:fabrication'))  evType = 'fabrication'
-    else if (typePart?.startsWith('type:delivery'))     evType = 'delivery'
-    else if (typePart?.startsWith('type:personal'))     evType = 'personal'
-    const teamPart = customTask?.split('|').find((p) => p.startsWith('team:'))
+    if (segs.some((p) => p.startsWith('f2:'))) evType = 'delivery'
+    else if (typeSeg === 'type:installation') evType = 'installation'
+    else if (typeSeg === 'type:fabrication')  evType = 'fabrication'
+    else if (typeSeg === 'type:delivery')     evType = 'delivery'
+    else if (typeSeg === 'type:personal')     evType = 'personal'
+    const teamPart = segs.find((p) => p.startsWith('team:'))
     const teamMemberIds = teamPart ? teamPart.slice(5).split(',').filter(Boolean) : undefined
+    // If this custom event was created from a per-item task (task:/f2: segment), show that item.
+    let custItemName: string | undefined
+    for (const seg of segs) {
+      const tid = seg.startsWith('task:') ? seg.slice(5) : seg.startsWith('f2:') ? seg.slice(3) : undefined
+      if (tid && taskItemId.has(tid)) { custItemName = itemNameMap[taskItemId.get(tid)!]; break }
+    }
     events.push({
       id: r.id,
       title,
@@ -235,6 +288,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       responsible: str(f[CALENDAR_EVENTS.CREATED_BY]),
       projectName: getProjectName(f[CALENDAR_EVENTS.PROJECT]),
       projectRef: getProjectRef(f[CALENDAR_EVENTS.PROJECT]),
+      itemName: custItemName,
       createdAt: r.createdTime,
       teamMemberIds,
     })
@@ -242,6 +296,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
 
   for (const r of installationLogs) {
     const f = r.fields
+    if (isRemovedProject(f[INSTALLATION_LOGS.PROJECT])) continue
     const date = str(f[INSTALLATION_LOGS.DATE])
     if (!date) continue
     const desc = str(f[INSTALLATION_LOGS.WORK_DESCRIPTION])
@@ -276,6 +331,9 @@ export async function createCalendarEvent(input: {
   customTask?: string
   eventType?: string
   teamMemberIds?: string[]
+  /** When set, the event is tagged `task:{taskId}` and upserted — so it dedups against the
+   *  task-derived event (see getCalendarEvents) and re-saving a date moves the one event. */
+  taskId?: string
 }): Promise<void> {
   const fields: Record<string, unknown> = {
     [CALENDAR_EVENTS.TITLE]: input.title,
@@ -284,11 +342,38 @@ export async function createCalendarEvent(input: {
   if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
   if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
   if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
-  const baseKey = input.customTask
-    ?? (input.eventType && input.eventType !== 'activity' ? `type:${input.eventType}` : undefined)
-  const teamSuffix = input.teamMemberIds?.length ? `|team:${input.teamMemberIds.join(',')}` : ''
-  const taskKey = baseKey ? `${baseKey}${teamSuffix}` : undefined
-  if (taskKey) fields[CALENDAR_EVENTS.CUSTOM_TASK] = taskKey
+
+  // Build the CUSTOM_TASK key as pipe-delimited segments. Task-scoped events lead with a
+  // stable `task:{id}` segment (used for upsert + dedup); type/team ride along as segments.
+  const segments: string[] = []
+  if (input.taskId) {
+    segments.push(`task:${input.taskId}`)
+    if (input.eventType && input.eventType !== 'activity') segments.push(`type:${input.eventType}`)
+  } else if (input.customTask) {
+    segments.push(input.customTask)
+  } else if (input.eventType && input.eventType !== 'activity') {
+    segments.push(`type:${input.eventType}`)
+  }
+  if (input.teamMemberIds?.length) segments.push(`team:${input.teamMemberIds.join(',')}`)
+  if (segments.length) fields[CALENDAR_EVENTS.CUSTOM_TASK] = segments.join('|')
+
+  // Upsert on the task key so re-scheduling updates the single event instead of adding another.
+  if (input.taskId) {
+    const existing = await fetchAll(CALENDAR_EVENTS.TABLE_ID, {
+      filterByFormula: `FIND("task:${input.taskId}", {${CALENDAR_EVENTS.CUSTOM_TASK}}) = 1`,
+      fields: [CALENDAR_EVENTS.TITLE],
+    })
+    if (existing.length > 0) {
+      const res = await fetchWithRetry(recUrl(CALENDAR_EVENTS.TABLE_ID, existing[0].id), {
+        method: 'PATCH',
+        headers: airtableHeaders(),
+        body: JSON.stringify({ fields }),
+      })
+      if (!res.ok) throw new Error(`Airtable error ${res.status}: ${await res.text()}`)
+      return
+    }
+  }
+
   const res = await fetchWithRetry(tblUrl(CALENDAR_EVENTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),

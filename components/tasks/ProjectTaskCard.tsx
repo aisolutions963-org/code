@@ -1,20 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-
-const STAGE_BADGE: Record<string, string> = {
-  Preparing: 'bg-orange-100 text-orange-700 border-orange-200',
-  Open: 'bg-teal-100 text-teal-700 border-teal-200',
-  Production: 'bg-purple-100 text-purple-700 border-purple-200',
-  Closed: 'bg-green-100 text-green-700 border-green-200',
-}
-
-const ACCENT: Record<string, string> = {
-  Preparing: 'border-l-orange-400',
-  Open: 'border-l-teal-400',
-  Production: 'border-l-purple-400',
-  Closed: 'border-l-green-400',
-}
+import { stageBadgeClass, stageAccentClass, stageLabel } from '@/lib/stageDisplay'
 
 interface ProjectTaskCardProps {
   projectRef: string
@@ -52,8 +39,7 @@ export default function ProjectTaskCard({
 }: ProjectTaskCardProps) {
   const router = useRouter()
   const stage = projectStage ?? (isPhase2 ? 'Open' : '')
-  const accentClass = ACCENT[stage] ?? 'border-l-gray-300'
-  const stageBadgeClass = STAGE_BADGE[stage]
+  const accentClass = stageAccentClass(stage)
   const displayName = projectNickname ?? projectName
   const hasActive = activeCount > 0
 
@@ -83,9 +69,9 @@ export default function ProjectTaskCard({
           <span className="text-sm font-bold text-gray-800 truncate">
             {displayName ?? projectRef}
           </span>
-          {stageBadgeClass && (
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border ${stageBadgeClass}`}>
-              {stage}{subStage ? ` · ${subStage}` : ''}
+          {stage && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border ${stageBadgeClass(stage)}`}>
+              {stageLabel(stage)}{subStage ? ` · ${subStage}` : ''}
             </span>
           )}
         </div>

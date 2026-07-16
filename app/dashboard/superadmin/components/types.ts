@@ -35,6 +35,7 @@ export interface KpiCounts {
   preparing: number
   open: number
   production: number
+  closing: number
   notApproved: number
   finished: number
   maintenanceActive: number

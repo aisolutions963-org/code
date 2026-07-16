@@ -12,8 +12,9 @@ interface TaskGroupedListProps {
 }
 
 // Late-phase template stages (Template Stage lookup vocabulary) — projects here render
-// ungrouped rather than in a per-project card.
-const PHASE4_STAGES = ['Closing', 'Closed & Valid Maintenance', 'Closed & Warranty Done', 'Archived']
+// ungrouped rather than in a per-project card. These are the actual template-stage values
+// used by closing/maintenance task templates.
+const PHASE4_STAGES = ['Closing', 'Closed & Valid Maintenance']
 
 function shouldGroup(tasks: Task[]): boolean {
   if (tasks.length === 0) return false

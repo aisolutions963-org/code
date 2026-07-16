@@ -126,6 +126,12 @@ export default function NotificationsPage() {
     mutate()
   }
 
+  async function clearAll() {
+    if (!window.confirm('Delete all notifications? This cannot be undone.')) return
+    await fetch('/api/notifications', { method: 'DELETE' })
+    mutate()
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       {/* Header */}
@@ -157,6 +163,14 @@ export default function NotificationsPage() {
               className="text-xs text-blue-600 hover:text-blue-700 transition-colors px-2 py-1.5 font-medium"
             >
               Mark all read
+            </button>
+          )}
+          {all.length > 0 && (
+            <button
+              onClick={clearAll}
+              className="text-xs text-red-500 hover:text-red-600 transition-colors px-2 py-1.5 font-medium"
+            >
+              Clear all
             </button>
           )}
         </div>

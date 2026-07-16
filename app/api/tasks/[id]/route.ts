@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById, upsertF2DeliveryEvent, deleteQuotationsByProject, deleteProjectItemsByProject, deletePerItemTasksByProject } from '@/lib/airtable'
+import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById, getPaymentsByProject, upsertF2DeliveryEvent, deleteQuotationsByProject, deleteProjectItemsByProject, deletePerItemTasksByProject } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 import { canEditField, filterAllowedFields, ROLE_TO_DEPARTMENT } from '@/lib/permissions'
 import {
@@ -9,7 +9,7 @@ import {
 } from '@/lib/workflow'
 import { TaskUpdateInput } from '@/lib/types'
 import { UpdateTaskSchema } from '@/lib/validation'
-import { createNotification, ROLE_DASHBOARD, DEPT_ROLE_MAP } from '@/lib/notifications'
+import { createNotification, ROLE_DASHBOARD, DEPT_ROLE_MAP, pickForRole } from '@/lib/notifications'
 import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole()(
@@ -127,11 +127,17 @@ export const PATCH = requireRole()(
           .filter((r): r is string => Boolean(r))
         const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
         const projectRef = noteTask.projectRef ?? noteTask.project?.[0] ?? ''
+        const arName = noteTask.arabicName?.[0]?.trim() || noteTask.taskName
         for (const role of uniqueRoles) {
+          const text = pickForRole(
+            role,
+            { title: `📌 ملاحظة متابعة — ${arName}`, body: `أضاف المشرف ملاحظة على "${arName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}` },
+            { title: `📌 Follow-up note — ${noteTask.taskName}`, body: `Superadmin added a note on "${noteTask.taskName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}` },
+          )
           await createNotification({
             recipientRole: role,
-            title: `📌 Follow-up note — ${noteTask.taskName}`,
-            body: `Superadmin added a note on "${noteTask.taskName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}`,
+            title: text.title,
+            body: text.body,
             link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
           })
         }
@@ -154,6 +160,25 @@ export const PATCH = requireRole()(
       const taskNameLC = taskForValidation.taskName.toLowerCase()
       const isMakeQuotationTask = taskNameLC.includes('make quotation') || taskForValidation.pathCondition === 'Make Quotation'
       const isF4Task = taskNameLC.startsWith('f4 —')
+
+      // Final Payment F4 (order 62): must have a recorded Final payment before it can complete,
+      // so the project can't reach active warranty without the money being booked.
+      const isFinalF4 = taskNameLC.includes('final') &&
+        (taskNameLC.includes('f4') || (taskForValidation.templateOrder ?? []).includes(62))
+      if (isFinalF4) {
+        const projectId = taskForValidation.project?.[0]
+        if (projectId) {
+          const payments = await getPaymentsByProject(projectId)
+          const hasFinal = payments.some((p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled')
+          if (!hasFinal) {
+            return NextResponse.json(
+              { error: 'Record the final payment first before completing this task' },
+              { status: 400 },
+            )
+          }
+        }
+      }
+
       if (isMakeQuotationTask || isF4Task) {
         const projectId = taskForValidation.project?.[0]
         if (projectId) {

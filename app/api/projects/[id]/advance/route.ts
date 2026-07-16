@@ -32,57 +32,60 @@ export const POST = requireRole('superadmin')(async (_req, _session, { params })
   const nextStage = STAGE_ORDER[currentIndex + 1]
   const updated = await updateProject(id, { [PROJECTS.PROJECT_STAGE]: nextStage })
 
-  // Fire-and-forget: generate tasks for the new stage using the correct function per phase
-  ;(async () => {
-    try {
-      let todoTemplates: TaskTemplate[] = []
+  // Generate the new stage's tasks synchronously (awaited) so they exist before we respond.
+  // A detached fire-and-forget promise is unreliable on serverless — once the response is
+  // sent the function context can freeze, leaving the stage advanced but no tasks created.
+  let warning: string | undefined
+  try {
+    let todoTemplates: TaskTemplate[] = []
 
-      if (nextStage === 'Production') {
-        // Phase 3: per-item tasks — generate for every project item
-        const items = await getProjectItemsForProject(id)
-        for (const item of items) {
-          const { todoTemplates: tt } = await generatePhase3TasksForItem(id, item.id)
-          todoTemplates.push(...tt)
-        }
-      } else if (nextStage === 'Closing') {
-        // Phase 4: closing tasks (handover → final payment) generate when the Closing stage begins.
-        const result = await generatePhase4Tasks(id)
-        todoTemplates = result.todoTemplates
-      } else if (nextStage === 'Closed and active warranty') {
-        // The advance button bypasses the handover + final-payment flow that normally
-        // starts the warranty clock, so ensure a maintenance record exists (guarded).
-        // Mirrors closeProjectAfterFinalPayment: activate an existing record, else create one.
-        const existingMaintenance = await getMaintenanceRecordForProject(id).catch(() => null)
-        if (existingMaintenance) {
-          await activateMaintenanceRecord(existingMaintenance.id)
-        } else {
-          const start = new Date()
-          const end = new Date(start)
-          end.setFullYear(end.getFullYear() + 1)
-          await createMaintenanceRecord(id, {
-            startDate: start.toISOString().slice(0, 10),
-            endDate: end.toISOString().slice(0, 10),
-            status: 'Active',
-          })
-        }
-      } else if (nextStage === 'Warranty expired') {
-        // Terminal stage — no task generation
+    if (nextStage === 'Production') {
+      // Phase 3: per-item tasks — generate for every project item
+      const items = await getProjectItemsForProject(id)
+      for (const item of items) {
+        const { todoTemplates: tt } = await generatePhase3TasksForItem(id, item.id)
+        todoTemplates.push(...tt)
+      }
+    } else if (nextStage === 'Closing') {
+      // Phase 4: closing tasks (handover → final payment) generate when the Closing stage begins.
+      const result = await generatePhase4Tasks(id)
+      todoTemplates = result.todoTemplates
+    } else if (nextStage === 'Closed and active warranty') {
+      // The advance button bypasses the handover + final-payment flow that normally
+      // starts the warranty clock, so ensure a maintenance record exists (guarded).
+      // Mirrors closeProjectAfterFinalPayment: activate an existing record, else create one.
+      const existingMaintenance = await getMaintenanceRecordForProject(id).catch(() => null)
+      if (existingMaintenance) {
+        await activateMaintenanceRecord(existingMaintenance.id)
       } else {
-        // Preparing / Open: standard project-level templates
-        const result = await generateTasksForProject(id, nextStage)
-        todoTemplates = result.todoTemplates
+        const start = new Date()
+        const end = new Date(start)
+        end.setFullYear(end.getFullYear() + 1)
+        await createMaintenanceRecord(id, {
+          startDate: start.toISOString().slice(0, 10),
+          endDate: end.toISOString().slice(0, 10),
+          status: 'Active',
+        })
       }
-
-      if (todoTemplates.length > 0) {
-        await notifyTasksReady(
-          todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
-          `${nextStage} phase started for project ${updated.projectId ?? id}`,
-        )
-      }
-    } catch (err) {
-      console.error('[A19] Task generation failed after advance to', nextStage, ':', err)
+    } else if (nextStage === 'Warranty expired') {
+      // Terminal stage — no task generation
+    } else {
+      // Preparing / Open: standard project-level templates
+      const result = await generateTasksForProject(id, nextStage)
+      todoTemplates = result.todoTemplates
     }
-  })()
 
-  return NextResponse.json({ project: updated, newStage: nextStage })
+    if (todoTemplates.length > 0) {
+      // Best-effort — a notification hiccup must not fail the request or lose the created tasks.
+      await notifyTasksReady(
+        todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
+        `${nextStage} phase started for project ${updated.projectId ?? id}`,
+      ).catch(() => {})
+    }
+  } catch (err) {
+    console.error('[A19] Task generation failed after advance to', nextStage, ':', err)
+    warning = 'Stage advanced, but task generation failed — retry or use "Generate tasks".'
+  }
+
+  return NextResponse.json({ project: updated, newStage: nextStage, ...(warning ? { warning } : {}) })
 })

@@ -2,13 +2,7 @@ import Link from 'next/link'
 import { Project } from '@/lib/types'
 import PaymentBar from './PaymentBar'
 import Badge from '@/components/ui/Badge'
-
-const STAGE_VARIANT: Record<string, 'blue' | 'green' | 'gray' | 'orange'> = {
-  Preparing: 'orange',
-  Open: 'blue',
-  Closing: 'blue',
-  Closed: 'green',
-}
+import { stageBadgeVariant, stageLabel } from '@/lib/stageDisplay'
 
 interface ProjectCardProps {
   project: Project
@@ -17,15 +11,13 @@ interface ProjectCardProps {
 }
 
 export default function ProjectCard({ project, showPayments = false, children }: ProjectCardProps) {
-  const stageVariant = STAGE_VARIANT[project.projectStage] ?? 'gray'
-
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-mono text-xs text-gray-400">{project.projectId}</span>
-            <Badge variant={stageVariant}>{project.projectStage}</Badge>
+            <Badge variant={stageBadgeVariant(project.projectStage)}>{stageLabel(project.projectStage)}</Badge>
           </div>
           <h3 className="text-sm font-semibold text-gray-900 mt-0.5 truncate">
             {project.projectName}

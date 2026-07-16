@@ -48,15 +48,21 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
   const [formError, setFormError] = useState('')
 
   const projectId = task.projectRecordId ?? task.project?.[0] ?? ''
+  const isFinalPaymentTask = task.taskName.toLowerCase().includes('final')
 
   const { data: paymentsData } = useSWR<{ payments: Payment[] }>(
-    variant === 'f4' && task.status === 'Completed' && projectId
+    // For Final-payment tasks we also fetch while still open, to detect a Final payment that
+    // was already recorded elsewhere (Payment Tracker) and offer a plain "Mark Complete".
+    variant === 'f4' && projectId && (task.status === 'Completed' || isFinalPaymentTask)
       ? `/api/payments?projectId=${projectId}`
       : null,
     fetcher,
     { revalidateOnFocus: false },
   )
   const payments = paymentsData?.payments ?? []
+  const existingFinalPayment = isFinalPaymentTask
+    ? payments.find((p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled')
+    : undefined
 
   async function patchProjectQuotation(qn: string, ref: string): Promise<void> {
     if (!projectId) throw new Error('No project linked to this task')
@@ -292,6 +298,37 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     )
   }
 
+  // Final payment already recorded elsewhere (e.g. Payment Tracker) — offer a plain complete
+  // instead of the record form, so the task isn't stranded by the duplicate-Final guard.
+  if (isFinalPaymentTask && existingFinalPayment) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-2">
+        <p className="text-xs font-semibold text-blue-800">Final payment already recorded</p>
+        <p className="text-xs text-blue-700">
+          AED {existingFinalPayment.amount.toLocaleString()} · {existingFinalPayment.paymentMethod}
+          {existingFinalPayment.receivedDate ? ` · ${existingFinalPayment.receivedDate}` : ''}
+        </p>
+        <button
+          onClick={async () => {
+            setSaving(true)
+            try {
+              await onUpdate(task.id, { status: 'Completed' } as Partial<TaskUpdateInput>)
+              toast.success('Completed')
+            } catch {
+              toast.error('Failed to complete')
+            } finally {
+              setSaving(false)
+            }
+          }}
+          disabled={saving}
+          className="w-full py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving ? 'Saving…' : '✓ Mark Complete'}
+        </button>
+      </div>
+    )
+  }
+
   // ── F4 variant — form ───────────────────────────────────────────────────
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-3">
@@ -316,8 +353,8 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
       ) : (
         <div>
           <label className={lbl}>Quotation Number &amp; Reference</label>
-          {/* Read-only: taken from the project. Payment can't be recorded without them,
-              so they're set upstream (Make Quotation / F2) — not editable here. */}
+          {/* If the project already has them, show read-only (set upstream via Make Quotation / F2).
+              If not, capture them here — they're saved to the project on submit. */}
           {task.projectQuotationNumber ? (
             <p className="text-sm font-mono font-medium text-blue-700 py-1">
               {task.projectQuotationNumber}
@@ -326,9 +363,26 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
               )}
             </p>
           ) : (
-            <p className="text-xs text-red-600 py-1">
-              This project has no quotation number/reference yet — set it on the project before recording payment.
-            </p>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <label className="text-xs text-gray-500 block mb-0.5">Quotation No. <span className="text-red-500">*</span></label>
+                <input
+                  className={inp}
+                  placeholder="e.g. 2341"
+                  value={quotationInput}
+                  onChange={(e) => { setQuotationInput(e.target.value); setFormError('') }}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-0.5">Reference <span className="text-red-500">*</span></label>
+                <input
+                  className={inp + ' font-mono'}
+                  placeholder="e.g. R0, R1…"
+                  value={referenceInput}
+                  onChange={(e) => { setReferenceInput(e.target.value); setFormError('') }}
+                />
+              </div>
+            </div>
           )}
         </div>
       )}

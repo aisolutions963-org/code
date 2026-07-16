@@ -4,6 +4,7 @@ import {
   getNotificationsForUser,
   getUnreadCountForUser,
   markAllReadForUser,
+  deleteAllForUser,
 } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
@@ -28,4 +29,12 @@ export async function PATCH() {
 
   await markAllReadForUser(session.role, session.id)
   return NextResponse.json({ ok: true })
+}
+
+export async function DELETE() {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const deleted = await deleteAllForUser(session.role, session.id)
+  return NextResponse.json({ ok: true, deleted })
 }
