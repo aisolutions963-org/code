@@ -310,8 +310,8 @@ export default function ProjectsPage() {
 
   async function handleAdvance(id: string) {
     const res = await fetch(`/api/projects/${id}/advance`, { method: 'POST' })
+    const d = await res.json().catch(() => ({}))
     if (!res.ok) {
-      const d = await res.json()
       throw new Error(
         d.blockingTasks
           ? `${d.error}: ${d.blockingTasks.map((t: { taskName: string }) => t.taskName).join(', ')}`
@@ -319,6 +319,8 @@ export default function ProjectsPage() {
       )
     }
     mutate()
+    // Stage advanced but the new phase's tasks failed to generate — surface it (row catches this).
+    if (d.warning) throw new Error(d.warning)
   }
 
   async function handleDelete(id: string, name: string) {
