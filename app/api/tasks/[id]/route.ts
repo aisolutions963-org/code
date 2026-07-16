@@ -9,7 +9,7 @@ import {
 } from '@/lib/workflow'
 import { TaskUpdateInput } from '@/lib/types'
 import { UpdateTaskSchema } from '@/lib/validation'
-import { createNotification, ROLE_DASHBOARD, DEPT_ROLE_MAP } from '@/lib/notifications'
+import { createNotification, ROLE_DASHBOARD, DEPT_ROLE_MAP, pickForRole } from '@/lib/notifications'
 import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole()(
@@ -127,11 +127,17 @@ export const PATCH = requireRole()(
           .filter((r): r is string => Boolean(r))
         const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
         const projectRef = noteTask.projectRef ?? noteTask.project?.[0] ?? ''
+        const arName = noteTask.arabicName?.[0]?.trim() || noteTask.taskName
         for (const role of uniqueRoles) {
+          const text = pickForRole(
+            role,
+            { title: `📌 ملاحظة متابعة — ${arName}`, body: `أضاف المشرف ملاحظة على "${arName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}` },
+            { title: `📌 Follow-up note — ${noteTask.taskName}`, body: `Superadmin added a note on "${noteTask.taskName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}` },
+          )
           await createNotification({
             recipientRole: role,
-            title: `📌 Follow-up note — ${noteTask.taskName}`,
-            body: `Superadmin added a note on "${noteTask.taskName}"${projectRef ? ` (${projectRef})` : ''}:\n${superadminNote.trim()}`,
+            title: text.title,
+            body: text.body,
             link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
           })
         }

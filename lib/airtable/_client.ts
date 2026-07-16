@@ -370,6 +370,12 @@ export function transformTask(record: RawRecord): Task {
 export function transformProject(record: RawRecord): import('../types').Project {
   const f = record.fields
   const owner = firstLinkedRecord(f[PROJECTS.SALES_OWNER])
+  // SALES_OWNER is a linked-record field, so it returns only rec-ids (name/email empty).
+  // Resolve the display name from the SALES_OWNER_NAME lookup so the SED shows in the UI.
+  if (owner && !owner.name) {
+    const ownerName = lookupStrArr(f[PROJECTS.SALES_OWNER_NAME])[0]
+    if (ownerName) owner.name = ownerName
+  }
   const rawCommun = f[PROJECTS.COMMUN_SEDS]
   const communRaw: Array<string | { name?: string; email?: string; id?: string }> =
     Array.isArray(rawCommun) ? rawCommun : []

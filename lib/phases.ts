@@ -59,5 +59,11 @@ export function isHeadlineTask(taskName: string): boolean {
 // by a user. Single source of truth for both server (workflow/generation) and UI.
 export function isAutoTask(taskName: string): boolean {
   const lower = taskName.toLowerCase()
-  return lower.startsWith(TASK_MARKERS.HEADLINE_PREFIX) || lower.includes(TASK_MARKERS.AUTO_MARKER)
+  if (lower.startsWith(TASK_MARKERS.HEADLINE_PREFIX) || lower.includes(TASK_MARKERS.AUTO_MARKER)) return true
+  // The final closing task ("Change Status to Closed and Valid Maintenance …") is a System
+  // stage-transition step with no user action — treat it as an auto task so it self-completes
+  // when the chain reaches it and applyClosingStageTransition advances the project to warranty.
+  // (Its order-57 sibling already carries the "(auto)" marker; this one historically did not.)
+  if (lower.includes('closed and valid maintenance')) return true
+  return false
 }

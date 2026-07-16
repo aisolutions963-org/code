@@ -18,7 +18,7 @@ import {
 } from './airtable'
 import { Task, TaskStatus } from './types'
 import { notifyManagerEscalation, notifyCallClient, notifyAccountantEvent, notifyAutoTaskEvent } from './email'
-import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD } from './notifications'
+import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD, isArabicRole, arTaskReady, pickForRole } from './notifications'
 import { PHASE_CONFIG, TASK_MARKERS, isAutoTask, isHeadlineTask } from './phases'
 import { planUnlock, isTaskDone } from './orderChain'
 
@@ -143,10 +143,13 @@ export async function unlockNextTasks(task: Task): Promise<void> {
         const roles = depts.map((d) => DEPT_ROLE_MAP[d]).filter((r): r is string => Boolean(r))
         const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
         for (const role of uniqueRoles) {
+          const text = isArabicRole(role)
+            ? arTaskReady(role, { taskName: nextTask.taskName, arabicName: nextTask.arabicName?.[0], arabicInstructions: nextTask.arabicInstructions })
+            : { title: `New task ready: ${nextTask.taskName}`, body: `Project ${crProjectLabel}` }
           await createNotification({
             recipientRole: role,
-            title: `New task ready: ${nextTask.taskName}`,
-            body: `Project ${crProjectLabel}`,
+            title: text.title,
+            body: text.body,
             link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
           })
         }
@@ -231,10 +234,15 @@ export async function unlockNextTasks(task: Task): Promise<void> {
       // notification, since the task itself is invisible (auto-completed immediately).
       if (t.taskName.toLowerCase().includes('send to sed') && t.taskName.toLowerCase().includes('fixing team')) {
         for (const role of ['sed', 'installation'] as const) {
+          const text = pickForRole(
+            role,
+            { title: `اكتمل التصنيع — يومان لفحص العناصر والأدوات`, body: `العناصر جاهزة لمشروع ${projectLabel}. تحقّق من جميع العناصر والأدوات قبل التسليم.` },
+            { title: `Fabrication complete — 2 days to check items & tools`, body: `Items for project ${projectLabel} are ready. Verify all items and tools before delivery.` },
+          )
           await createNotification({
             recipientRole: role,
-            title: `Fabrication complete — 2 days to check items & tools`,
-            body: `Items for project ${projectLabel} are ready. Verify all items and tools before delivery.`,
+            title: text.title,
+            body: text.body,
             link: ROLE_DASHBOARD[role],
           })
         }
@@ -246,11 +254,17 @@ export async function unlockNextTasks(task: Task): Promise<void> {
         .filter((r): r is string => Boolean(r))
       const uniqueRoles = Array.from(new Set(roles.length > 0 ? roles : ['manager']))
       const title = t.taskName.replace(/\s*\(auto[^)]*\)\s*/gi, '').trim()
+      const arTitle = (t.arabicName?.[0]?.trim() || title).replace(/\s*\(auto[^)]*\)\s*/gi, '').trim()
       for (const role of uniqueRoles) {
+        const text = pickForRole(
+          role,
+          { title: arTitle, body: `المشروع: ${projectLabel}` },
+          { title, body: `Project ${projectLabel}` },
+        )
         await createNotification({
           recipientRole: role,
-          title,
-          body: `Project ${projectLabel}`,
+          title: text.title,
+          body: text.body,
           link: ROLE_DASHBOARD[role] ?? '/dashboard/mgr',
         })
       }
@@ -296,12 +310,20 @@ export async function unlockNextTasks(task: Task): Promise<void> {
 
     for (const role of uniqueRoles) {
       const dashboard = ROLE_DASHBOARD[role] ?? '/dashboard/sed'
+      // Fabrication/installation: Arabic, driven by the NEW task's own Arabic name +
+      // instructions (not the completed task's). Other roles keep the English "Completed: …".
+      const text = isArabicRole(role)
+        ? arTaskReady(role, { taskName: t.taskName, arabicName: t.arabicName?.[0], arabicInstructions: t.arabicInstructions })
+        : {
+            title: `New task ready: ${t.taskName}`,
+            body: body
+              ? `Completed: ${task.taskName} (${projectLabel})\n${body}`
+              : `Completed: ${task.taskName} (${projectLabel})`,
+          }
       await createNotification({
         recipientRole: role,
-        title: `New task ready: ${t.taskName}`,
-        body: body
-          ? `Completed: ${task.taskName} (${projectLabel})\n${body}`
-          : `Completed: ${task.taskName} (${projectLabel})`,
+        title: text.title,
+        body: text.body,
         link: dashboard,
       })
     }
@@ -324,7 +346,7 @@ async function maybeGeneratePhase3(task: Task): Promise<void> {
 
   const projectLabel = await resolveProjectLabel(task)
   await notifyTasksReady(
-    todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
+    todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [], arabicName: t.arabicName, arabicInstructions: t.arabicInstructions })),
     `Phase 3 started for item (${projectLabel})`,
   )
 }
@@ -377,7 +399,7 @@ async function maybeGeneratePhase4(task: Task): Promise<void> {
 
   const projectLabel = await resolveProjectLabel(task)
   await notifyTasksReady(
-    todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [] })),
+    todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department ?? [], arabicName: t.arabicName, arabicInstructions: t.arabicInstructions })),
     `Phase 4 — Closing started for project ${projectLabel}`,
   )
 }
@@ -464,10 +486,15 @@ export async function handleTaskCompletion(
         const projectLabel = await resolveProjectLabel(task)
         const f5Body = `SED has submitted the quotation line items and chosen actions per item. Review the project to proceed.`
         for (const role of ['manager', 'fabrication', 'installation', 'superadmin'] as const) {
+          const text = pickForRole(
+            role,
+            { title: `تم إرسال تفاصيل عرض السعر (F5) — ${projectLabel}`, body: `قام مسؤول المبيعات بإرسال بنود عرض السعر واختيار الإجراءات لكل عنصر. راجع المشروع للمتابعة.` },
+            { title: `Quotation details submitted (F5) — ${projectLabel}`, body: f5Body },
+          )
           await createNotification({
             recipientRole: role,
-            title: `Quotation details submitted (F5) — ${projectLabel}`,
-            body: f5Body,
+            title: text.title,
+            body: text.body,
             link: ROLE_DASHBOARD[role],
           })
         }
@@ -543,7 +570,7 @@ export async function handleCallClientOutcome(
             const { todoTemplates } = await generateTasksForProject(projectId, 'Open')
             const projectRef = task.projectId ?? projectId
             await notifyTasksReady(
-              todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department })),
+              todoTemplates.map((t) => ({ taskName: t.taskName, departments: t.department, arabicName: t.arabicName, arabicInstructions: t.arabicInstructions })),
               `Phase 2 started — client approved (${projectRef})`,
             )
           } catch (err) {
@@ -698,13 +725,13 @@ export async function handleOrderSampleBranch(
       const sampleNote = task.sedNote?.trim()
       const linkCount = task.taskDocLinks?.length ?? 0
       const notifyBody =
-        `A sample is ready to build for ${projectLabel}.` +
-        (sampleNote ? `\nNote: ${sampleNote}` : '') +
-        (linkCount > 0 ? `\n${linkCount} reference link${linkCount !== 1 ? 's' : ''} attached — open the fabrication dashboard.` : '')
+        `عينة جاهزة للتصنيع لمشروع ${projectLabel}.` +
+        (sampleNote ? `\nملاحظة: ${sampleNote}` : '') +
+        (linkCount > 0 ? `\nتم إرفاق ${linkCount} رابط مرجعي — افتح لوحة التصنيع.` : '')
 
       await createNotification({
         recipientRole: 'fabrication',
-        title: `Sample to build — ${projectLabel}`,
+        title: `عينة للتصنيع — ${projectLabel}`,
         body: notifyBody,
         link: ROLE_DASHBOARD['fabrication'] ?? '/dashboard/fab',
         category: 'fabrication',
@@ -784,9 +811,9 @@ export async function handleF3Order(input: {
         // Material List / All Material Estimation Price) still needs unlocking here —
         // otherwise it stays Locked forever since only the "small" path used to unlock it.
         await unlockNextTasks(task)
-        const fabBody = `F3 Big Order for ${projectRef}: please check the store for ${materials.length} item(s) marked "Pending approval" in the materials list and confirm what needs ordering.${input.generalNotes ? `\nManager notes: ${input.generalNotes}` : ''}`
+        const fabBody = `طلب F3 كبير للمشروع ${projectRef}: يرجى التحقق من المخزن لعدد ${materials.length} عنصر معلّم بـ"بانتظار الموافقة" في قائمة المواد وتأكيد ما يلزم طلبه.${input.generalNotes ? `\nملاحظات المدير: ${input.generalNotes}` : ''}`
         const bigOrderBody = `F3 Big Order submitted for ${projectRef}. ${materials.length} item(s) pending fabrication store check.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`
-        await createNotification({ recipientRole: 'fabrication', title: `Store Check Required — F3 for ${projectRef}`, body: fabBody, link: ROLE_DASHBOARD['fabrication'] })
+        await createNotification({ recipientRole: 'fabrication', title: `التحقق من المخزن مطلوب — F3 للمشروع ${projectRef}`, body: fabBody, link: ROLE_DASHBOARD['fabrication'] })
         await createNotification({ recipientRole: 'manager', title: `F3 Big Order pending store check — ${projectRef}`, body: bigOrderBody, link: '/dashboard/mgr?view=materials' })
         await createNotification({ recipientRole: 'superadmin', title: `F3 Big Order — ${projectRef}`, body: bigOrderBody, link: '/dashboard/superadmin?view=materials' })
         return { created: materials.length, finalStatus: 'In Progress' as TaskStatus }

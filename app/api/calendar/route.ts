@@ -45,10 +45,11 @@ export const POST = requireRole('manager', 'superadmin', 'sed', 'installation', 
     if (teamMemberIds && teamMemberIds.length > 0 &&
         (parsed.data.eventType === 'fabrication' || parsed.data.eventType === 'installation')) {
       const isInstall  = parsed.data.eventType === 'installation'
+      // Recipient is always the installation role (Arabic dashboard) → Arabic text.
       const notifTitle = isInstall
-        ? `Installation assigned — ${parsed.data.title}`
-        : `Factory work assigned — ${parsed.data.title}`
-      const notifBody  = `${parsed.data.date} — Assigned by ${session.name}`
+        ? `تم إسناد التركيب — ${parsed.data.title}`
+        : `تم إسناد عمل المصنع — ${parsed.data.title}`
+      const notifBody  = `${parsed.data.date} — بواسطة ${session.name}`
       await Promise.all(
         teamMemberIds.map(async (airtableId) => {
           const user = await getUserByAirtableMemberId(airtableId)

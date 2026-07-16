@@ -73,8 +73,8 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
       }),
       createNotification({
         recipientRole: 'installation',
-        title: `Measurement scheduled — ${projectLabel || 'project'}`,
-        body: `Date: ${date} · Assigned to: ${teamMemberName} · By: ${session.name}`,
+        title: `تم جدولة القياس — ${projectLabel || 'مشروع'}`,
+        body: `التاريخ: ${date} · المكلَّف: ${teamMemberName} · بواسطة: ${session.name}`,
         link: '/dashboard/fix',
       }),
     ])

@@ -361,6 +361,7 @@ export interface TaskTemplate {
   phaseLabel: string | null
   instructions: string | null
   arabicInstructions: string | null
+  arabicName: string | null
 }
 
 export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> {
@@ -395,6 +396,7 @@ export async function getTaskTemplates(stage?: string): Promise<TaskTemplate[]> 
           : (rawPhase as string | null) ?? null,
         instructions: (f[TASK_TEMPLATES.INSTRUCTIONS] as string) ?? null,
         arabicInstructions: (f[TASK_TEMPLATES.ARABIC_INSTRUCTIONS] as string) ?? null,
+        arabicName: (f[TASK_TEMPLATES.ARABIC_NAME] as string) ?? null,
       }
     })
     .filter((t) => t.taskName !== '')
