@@ -168,6 +168,7 @@ export default function OverviewPage() {
         <KpiCard label="Preparing" value={kpi?.preparing ?? 0} href={`${BASE_PROJECTS_URL}&stage=Preparing`} downloadHref="/api/reports/download/projects-by-stage?stage=Preparing" loading={kpiLoading} />
         <KpiCard label="Open" value={kpi?.open ?? 0} href={`${BASE_PROJECTS_URL}&stage=Open`} downloadHref="/api/reports/download/projects-by-stage?stage=Open" loading={kpiLoading} />
         <KpiCard label="Production" value={kpi?.production ?? 0} href={`${BASE_PROJECTS_URL}&stage=Production`} downloadHref="/api/reports/download/projects-by-stage?stage=Production" loading={kpiLoading} />
+        <KpiCard label="Closing" value={kpi?.closing ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closing`} downloadHref="/api/reports/download/projects-by-stage?stage=Closing" loading={kpiLoading} />
         <KpiCard label="Not Approved" value={kpi?.notApproved ?? 0} href={`${BASE_PROJECTS_URL}&stage=Not-Approved`} downloadHref="/api/reports/download/projects-by-stage?stage=Not-Approved" loading={kpiLoading} />
         <KpiCard label="Closed" value={kpi?.finished ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed" loading={kpiLoading} />
         <KpiCard label="Active Warranty" value={kpi?.maintenanceActive ?? 0} href={`${BASE_PROJECTS_URL}&stage=Closed+and+active+warranty`} downloadHref="/api/reports/download/projects-by-stage?stage=Closed+and+active+warranty" loading={kpiLoading} />
