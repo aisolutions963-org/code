@@ -432,8 +432,12 @@ export async function handleTaskCompletion(
       })
 
       await unlockNextTasks(task)
-      maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
-      maybeGeneratePhase4(task).catch((err) => console.error('[P4-GEN]', err))
+      // Await phase 3/4 generation. A detached (fire-and-forget) promise is unreliable on
+      // serverless — once the completion response is sent the function context can freeze,
+      // so the next phase's tasks would never be created. The .catch keeps a generation
+      // failure from breaking the task completion itself (both are best-effort side effects).
+      await maybeGeneratePhase3(task).catch((err) => console.error('[P3-GEN]', err))
+      await maybeGeneratePhase4(task).catch((err) => console.error('[P4-GEN]', err))
 
       // Closing tasks completed manually (e.g. order 64 "Change Status to Closed and Valid
       // Maintenance") carry the phase transition — advance the project stage accordingly.
