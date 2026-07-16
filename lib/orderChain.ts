@@ -13,16 +13,25 @@ import { Task } from './types'
 
 const FAB_ITEM_PATHS = new Set(['Carpentry', 'Paint'])
 
+// Carpentry/Paint item-level tasks are optional fabrication BRANCHES, identified by their
+// pathCondition OR — since Phase-3 per-item generation creates them without one — by name
+// ("Carpentry (item-level)" / "Paint (item-level)"). The only real fabrication gate is the
+// "Fabrication Done" step; the branches must never hold up the order-40 AND-join.
+function isFabBranch(t: Task): boolean {
+  if (t.pathCondition && FAB_ITEM_PATHS.has(t.pathCondition)) return true
+  const name = t.taskName.toLowerCase()
+  return name.startsWith('carpentry') || name.startsWith('paint')
+}
+
 // A task is "done" (non-blocking for the order guard) when Completed or explicitly optional.
-// Carpentry/Paint are fabrication BRANCHES, not gates — the fab team may or may not do them,
-// and the only real fabrication gate is the null-path "Fabrication Done" step. So they never
-// block, whatever their status. Every other gateway alternative keeps its original behaviour:
-// an unchosen (To Do) or abandoned-downstream (Locked) path doesn't block, but one being
-// actively worked still does.
+// Carpentry/Paint fabrication branches never block, whatever their status — so once
+// "Fabrication Done" completes the chain advances even if a branch is untouched or mid-work.
+// Every other gateway alternative keeps its original behaviour: an unchosen (To Do) or
+// abandoned-downstream (Locked) path doesn't block, but one being actively worked still does.
 export function isTaskDone(t: Task): boolean {
   if (t.status === 'Completed') return true
   if (t.taskName.toLowerCase().includes('optional')) return true
-  if (t.pathCondition && FAB_ITEM_PATHS.has(t.pathCondition)) return true
+  if (isFabBranch(t)) return true
   if (t.pathCondition && (t.status === 'To Do' || t.status === 'Locked')) return true
   return false
 }
