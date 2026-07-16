@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById, upsertF2DeliveryEvent, deleteQuotationsByProject, deleteProjectItemsByProject, deletePerItemTasksByProject } from '@/lib/airtable'
+import { getTaskById, updateTask, checkAndUnlockCallClientTask, updateProject, getProjectById, getPaymentsByProject, upsertF2DeliveryEvent, deleteQuotationsByProject, deleteProjectItemsByProject, deletePerItemTasksByProject } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 import { canEditField, filterAllowedFields, ROLE_TO_DEPARTMENT } from '@/lib/permissions'
 import {
@@ -160,6 +160,25 @@ export const PATCH = requireRole()(
       const taskNameLC = taskForValidation.taskName.toLowerCase()
       const isMakeQuotationTask = taskNameLC.includes('make quotation') || taskForValidation.pathCondition === 'Make Quotation'
       const isF4Task = taskNameLC.startsWith('f4 —')
+
+      // Final Payment F4 (order 62): must have a recorded Final payment before it can complete,
+      // so the project can't reach active warranty without the money being booked.
+      const isFinalF4 = taskNameLC.includes('final') &&
+        (taskNameLC.includes('f4') || (taskForValidation.templateOrder ?? []).includes(62))
+      if (isFinalF4) {
+        const projectId = taskForValidation.project?.[0]
+        if (projectId) {
+          const payments = await getPaymentsByProject(projectId)
+          const hasFinal = payments.some((p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled')
+          if (!hasFinal) {
+            return NextResponse.json(
+              { error: 'Record the final payment first before completing this task' },
+              { status: 400 },
+            )
+          }
+        }
+      }
+
       if (isMakeQuotationTask || isF4Task) {
         const projectId = taskForValidation.project?.[0]
         if (projectId) {

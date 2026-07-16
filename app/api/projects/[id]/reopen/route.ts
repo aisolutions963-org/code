@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getProjectById, updateProject } from '@/lib/airtable'
+import { getProjectById, updateProject, deleteTasksByProjectId, generateTasksForProject } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 
@@ -36,6 +36,13 @@ export const POST = requireRole('superadmin')(async (req, session, { params }) =
 
   const targetStage = isNotApproved ? 'Preparing' : 'Production'
   const updated = await updateProject(id, { [PROJECTS.PROJECT_STAGE]: targetStage })
+
+  // Reopening a Not-Approved project is a clean restart — wipe any tasks generated on the
+  // previous attempt and regenerate Phase 1 fresh, exactly as if the project was just created.
+  if (isNotApproved) {
+    await deleteTasksByProjectId(id)
+    await generateTasksForProject(id, 'Preparing')
+  }
 
   if (isClosed) {
     const projectRef = project.projectId ?? id

@@ -429,6 +429,11 @@ export default function TaskCard({ task, role, onUpdate }: TaskCardProps) {
         toast.error(ar ? 'استخدم اللوحة أدناه' : 'Use the panel below to complete or skip')
         return
       }
+      // Final Payment F4: completion must record the payment — force the panel below.
+      if (isF4Task && task.taskName.toLowerCase().includes('final') && task.status !== 'Completed') {
+        toast.error(ar ? 'سجّل الدفعة النهائية في اللوحة أدناه لإتمام المهمة' : 'Record the final payment in the panel below to complete')
+        return
+      }
       if (isStoreRevisedMaterialTask && task.status === 'To Do') {
         toast.error(ar ? 'أضف ملاحظات المراجعة أدناه أولاً' : 'Add your store review notes in the panel below first')
         return

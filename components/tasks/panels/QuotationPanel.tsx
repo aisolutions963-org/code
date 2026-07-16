@@ -48,15 +48,21 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
   const [formError, setFormError] = useState('')
 
   const projectId = task.projectRecordId ?? task.project?.[0] ?? ''
+  const isFinalPaymentTask = task.taskName.toLowerCase().includes('final')
 
   const { data: paymentsData } = useSWR<{ payments: Payment[] }>(
-    variant === 'f4' && task.status === 'Completed' && projectId
+    // For Final-payment tasks we also fetch while still open, to detect a Final payment that
+    // was already recorded elsewhere (Payment Tracker) and offer a plain "Mark Complete".
+    variant === 'f4' && projectId && (task.status === 'Completed' || isFinalPaymentTask)
       ? `/api/payments?projectId=${projectId}`
       : null,
     fetcher,
     { revalidateOnFocus: false },
   )
   const payments = paymentsData?.payments ?? []
+  const existingFinalPayment = isFinalPaymentTask
+    ? payments.find((p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled')
+    : undefined
 
   async function patchProjectQuotation(qn: string, ref: string): Promise<void> {
     if (!projectId) throw new Error('No project linked to this task')
@@ -288,6 +294,37 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
             {pm.recordedBy && <p className="text-gray-400">Recorded by {pm.recordedBy}</p>}
           </div>
         ))}
+      </div>
+    )
+  }
+
+  // Final payment already recorded elsewhere (e.g. Payment Tracker) — offer a plain complete
+  // instead of the record form, so the task isn't stranded by the duplicate-Final guard.
+  if (isFinalPaymentTask && existingFinalPayment) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-2">
+        <p className="text-xs font-semibold text-blue-800">Final payment already recorded</p>
+        <p className="text-xs text-blue-700">
+          AED {existingFinalPayment.amount.toLocaleString()} · {existingFinalPayment.paymentMethod}
+          {existingFinalPayment.receivedDate ? ` · ${existingFinalPayment.receivedDate}` : ''}
+        </p>
+        <button
+          onClick={async () => {
+            setSaving(true)
+            try {
+              await onUpdate(task.id, { status: 'Completed' } as Partial<TaskUpdateInput>)
+              toast.success('Completed')
+            } catch {
+              toast.error('Failed to complete')
+            } finally {
+              setSaving(false)
+            }
+          }}
+          disabled={saving}
+          className="w-full py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving ? 'Saving…' : '✓ Mark Complete'}
+        </button>
       </div>
     )
   }
