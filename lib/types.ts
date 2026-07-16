@@ -9,6 +9,15 @@ export type TaskStatus =
 
 export type ManagerReviewStatus = 'Not Needed' | 'Pending' | 'Approved' | 'Rejected'
 
+// A per-scope "what's next" hint shown above a task list / item group.
+// When `waiting` is true the current step belongs to a department the viewer can't act on
+// (`by` = that department), so the UI shows "Waiting on <by>: <label>" instead of "Next up: <label>".
+export interface NextStepHint {
+  label: string
+  waiting?: boolean
+  by?: string
+}
+
 export interface Attachment {
   id: string
   url: string

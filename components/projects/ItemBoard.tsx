@@ -1,6 +1,6 @@
 'use client'
 
-import { Task, TaskUpdateInput, Role } from '@/lib/types'
+import { Task, TaskUpdateInput, Role, NextStepHint } from '@/lib/types'
 import { ItemSummary } from './ItemProgressCard'
 import ItemGroupSection from '@/components/tasks/ItemGroupSection'
 import { PHASE_CONFIG } from '@/lib/phases'
@@ -11,8 +11,8 @@ interface Props {
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
   onMutate: () => void
-  /** Per-item next single locked step (keyed by item id). */
-  nextStepByItem?: Record<string, string | null>
+  /** Per-item next step / "waiting on" hint (keyed by item id). */
+  nextStepByItem?: Record<string, NextStepHint | null>
 }
 
 function SummaryStrip({ items }: { items: ItemSummary[] }) {

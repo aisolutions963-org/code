@@ -3,7 +3,7 @@
 import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Task, TaskUpdateInput, Project, Payment, ClientRequest, Role } from '@/lib/types'
+import { Task, TaskUpdateInput, Project, Payment, ClientRequest, Role, NextStepHint } from '@/lib/types'
 import { workingSubStage } from '@/lib/phases'
 import { useSession } from '@/app/dashboard/layout-client'
 import ItemBoard from '@/components/projects/ItemBoard'
@@ -543,7 +543,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
   )
 
   // Next single locked step (project-level + per-item), any department — a heads-up preview.
-  const { data: nextStepsData } = useSWR<{ project: string | null; items: Record<string, string | null> }>(
+  const { data: nextStepsData } = useSWR<{ project: NextStepHint | null; items: Record<string, NextStepHint | null> }>(
     `/api/projects/${id}/next-steps`,
     fetcher,
     { refreshInterval: 300_000 },

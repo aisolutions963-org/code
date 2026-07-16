@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Task, TaskUpdateInput, Role } from '@/lib/types'
+import { Task, TaskUpdateInput, Role, NextStepHint } from '@/lib/types'
 import TaskCard from './TaskCard'
 import GateGroupCard from './GateGroupCard'
 import GatewaySection from './GatewaySection'
@@ -21,8 +21,8 @@ interface ItemGroupSectionProps {
   role: Role
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>
   onMutate?: () => void
-  /** Preview of this item's next single locked step, shown at the top. */
-  nextStep?: string | null
+  /** Preview of this item's next step (or "waiting on" hint), shown at the top. */
+  nextStep?: NextStepHint | null
 }
 
 export default function ItemGroupSection({
@@ -84,6 +84,15 @@ export default function ItemGroupSection({
     .filter((t) => !t.pathCondition)
     .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
 
+  // Once the item has advanced past the Phase-2 gateway (a later non-path step is Completed),
+  // the unchosen action chips are historical alternatives, not pending work — dim + collapse
+  // them so they stop signalling "SED still has to do these". They stay reachable (Round-2)
+  // inside the collapsed panel.
+  const maxPathOrder = Math.max(0, ...pathTasks.map((t) => t.templateOrder?.[0] ?? 0))
+  const gatewayPast =
+    pathTasks.length > 0 &&
+    rest.some((t) => !t.pathCondition && t.status === 'Completed' && (t.templateOrder?.[0] ?? 0) > maxPathOrder)
+
   return (
     <div className="border border-teal-100 rounded-xl overflow-hidden">
       {/* Item group header */}
@@ -141,11 +150,23 @@ export default function ItemGroupSection({
 
       {/* Tasks inside the item group */}
       <div className="space-y-2 p-2">
-        {nextStep && <NextUpPreview label={nextStep} />}
+        {nextStep && <NextUpPreview hint={nextStep} />}
 
-        {/* Per-item action chips — same UI as the Phase 1 Preparing gateway */}
+        {/* Per-item action chips — same UI as the Phase 1 Preparing gateway. Once the item has
+            advanced past the gateway, collapse + dim them as "Earlier options". */}
         {pathTasks.length > 0 && (
-          <GatewaySection pathTasks={pathTasks} role={role} onUpdate={onUpdate} />
+          gatewayPast ? (
+            <details className="rounded-lg border border-gray-100 bg-gray-50/60">
+              <summary className="cursor-pointer select-none px-3 py-2 text-[11px] font-medium text-gray-400">
+                Earlier options (already past this step)
+              </summary>
+              <div className="opacity-60 p-2 pt-0">
+                <GatewaySection pathTasks={pathTasks} role={role} onUpdate={onUpdate} />
+              </div>
+            </details>
+          ) : (
+            <GatewaySection pathTasks={pathTasks} role={role} onUpdate={onUpdate} />
+          )
         )}
 
         {otherTasks.map((task) => (

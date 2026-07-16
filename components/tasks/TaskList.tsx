@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Task, TaskUpdateInput, Role } from '@/lib/types'
+import { Task, TaskUpdateInput, Role, NextStepHint } from '@/lib/types'
 import { workingSubStage } from '@/lib/phases'
 import { isActionableTask } from '@/lib/permissions'
 import TaskCard from './TaskCard'
@@ -19,8 +19,8 @@ interface TaskListProps {
   loading?: boolean
   /** Float projects with the most recently modified tasks to the top (used by fabrication) */
   sortByRecent?: boolean
-  /** Preview of the next single locked step (project-level), shown at the top. */
-  nextStep?: string | null
+  /** Preview of the next step (or "waiting on" hint) for this scope, shown at the top. */
+  nextStep?: NextStepHint | null
 }
 
 function isGatewayTask(name: string) {
@@ -70,7 +70,7 @@ function renderTasksInOrder(
   role: Role,
   onUpdate: (id: string, fields: Partial<TaskUpdateInput>) => Promise<void>,
   projectId?: string,
-  nextStep?: string | null,
+  nextStep?: NextStepHint | null,
 ): React.ReactNode[] {
   // Split per-item (Phase 2) tasks from project-level tasks
   const itemTasks = tasks.filter((t) => t.projectItem && t.projectItem.length > 0)
@@ -165,7 +165,7 @@ function renderTasksInOrder(
     }
   }
 
-  if (nextStep) mainNodes.unshift(<NextUpPreview key="next-up" label={nextStep} />)
+  if (nextStep) mainNodes.unshift(<NextUpPreview key="next-up" hint={nextStep} />)
 
   return mainNodes
 }
