@@ -732,7 +732,7 @@ export async function handleF3Order(input: {
         items: input.items,
       })
 
-      const notifyBody = `F3 material order submitted for ${projectRef}. ${materials.length} item(s) added — status: ${input.path === 'small' ? '"Not ordered" — ready for procurement' : '"Pending approval" — awaiting fabrication store check'}.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`
+      const notifyBody = `F3 material order submitted for ${projectRef}. ${materials.length} item(s) added — status: ${input.path === 'small' ? '"Not ordered" — ready for procurement' : '"Not ordered" — awaiting fabrication store check'}.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`
 
       if (input.path === 'small') {
         await updateTaskRaw(input.taskId, {
@@ -776,7 +776,7 @@ export async function handleF3Order(input: {
         // Material List / All Material Estimation Price) still needs unlocking here —
         // otherwise it stays Locked forever since only the "small" path used to unlock it.
         await unlockNextTasks(task)
-        const fabBody = `طلب F3 كبير للمشروع ${projectRef}: يرجى التحقق من المخزن لعدد ${materials.length} عنصر معلّم بـ"بانتظار الموافقة" في قائمة المواد وتأكيد ما يلزم طلبه.${input.generalNotes ? `\nملاحظات المدير: ${input.generalNotes}` : ''}`
+        const fabBody = `طلب F3 كبير للمشروع ${projectRef}: يرجى التحقق من المخزن لعدد ${materials.length} عنصر معلّم بـ"غير مطلوبة" في قائمة المواد وتأكيد ما يلزم طلبه.${input.generalNotes ? `\nملاحظات المدير: ${input.generalNotes}` : ''}`
         const bigOrderBody = `F3 Big Order submitted for ${projectRef}. ${materials.length} item(s) pending fabrication store check.${input.generalNotes ? `\nNotes: ${input.generalNotes}` : ''}`
         await createNotification({ recipientRole: 'fabrication', title: `التحقق من المخزن مطلوب — F3 للمشروع ${projectRef}`, body: fabBody, link: ROLE_DASHBOARD['fabrication'] })
         await createNotification({ recipientRole: 'manager', title: `F3 Big Order pending store check — ${projectRef}`, body: bigOrderBody, link: '/dashboard/mgr?view=materials' })
