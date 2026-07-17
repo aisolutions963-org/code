@@ -17,17 +17,19 @@ export default function StoreReviewPanel({ task, onUpdate }: StoreReviewPanelPro
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Read-only view of the ordered materials so fabrication can base the store check
-  // on the actual list the SED submitted. They can see it but not change it.
+  // Read-only view of the material list the SED submitted (F3) so fabrication can base the
+  // store check on it. F3 creates rows as "Not ordered", so show everything that hasn't been
+  // received or cancelled yet — including "Not ordered" and any "Pending…" — not only "pending".
   const projectId = task.projectRecordId ?? task.project?.[0]
   const { data: matData, isLoading: matLoading } = useSWR<{ materials: Material[] }>(
     projectId ? `/api/projects/${projectId}/materials` : null,
     fetcher,
     { revalidateOnFocus: false },
   )
-  const materials = (matData?.materials ?? []).filter(
-    (m) => (m.orderStatus ?? '').toLowerCase().startsWith('pending'),
-  )
+  const materials = (matData?.materials ?? []).filter((m) => {
+    const s = (m.orderStatus ?? '').toLowerCase()
+    return !s.startsWith('received') && !s.startsWith('cancelled')
+  })
 
   async function handleSubmit() {
     setError('')
@@ -66,13 +68,13 @@ export default function StoreReviewPanel({ task, onUpdate }: StoreReviewPanelPro
       {/* Ordered materials — read-only reference for the store check */}
       <div className="bg-white border border-emerald-200 rounded-lg overflow-hidden">
         <div className="px-3 py-1.5 bg-emerald-100/60 border-b border-emerald-200 flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wide">Ordered Materials</span>
+          <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wide">Submitted Materials</span>
           <span className="text-[10px] text-emerald-600">view only</span>
         </div>
         {matLoading ? (
           <p className="px-3 py-2 text-xs text-gray-400">Loading materials…</p>
         ) : materials.length === 0 ? (
-          <p className="px-3 py-2 text-xs text-gray-400">No pending materials found for this project.</p>
+          <p className="px-3 py-2 text-xs text-gray-400">No materials submitted for this project yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">

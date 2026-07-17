@@ -156,7 +156,9 @@ export default function MyTasksPage() {
         <FollowUpDecisionPanel key={t.id} task={t} onDone={mutate} />
       ))}
 
-      <TaskList loading={isLoading} tasks={regularTasks} role="superadmin" onUpdate={handleUpdate} />
+      {/* Ungrouped so the Superadmin's own tasks (payments, approvals, dept tasks) show as
+          individual actionable cards — not collapsed into per-project summaries. */}
+      <TaskList loading={isLoading} tasks={regularTasks} role="superadmin" onUpdate={handleUpdate} groupByProject={false} />
       </>
       )}
     </div>

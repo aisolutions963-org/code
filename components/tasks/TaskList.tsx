@@ -1,7 +1,8 @@
 'use client'
 
-import React from 'react'
-import { Task, TaskUpdateInput, Role, NextStepHint } from '@/lib/types'
+import React, { useMemo } from 'react'
+import useSWR from 'swr'
+import { Task, TaskUpdateInput, Role, NextStepHint, Project } from '@/lib/types'
 import { workingSubStage } from '@/lib/phases'
 import { isActionableTask } from '@/lib/permissions'
 import TaskCard from './TaskCard'
@@ -171,6 +172,20 @@ function renderTasksInOrder(
 }
 
 export default function TaskList({ tasks, role, onUpdate, groupByProject = true, loading, sortByRecent = false, nextStep }: TaskListProps) {
+  // Project-card stage badges must reflect the project's REAL stage (same source the homescreen
+  // pipeline uses), not the furthest active task's TEMPLATE-stage lookup. Fetch the projects list
+  // (only when grouping into per-project cards) and map recordId → projectStage.
+  const { data: projectsData } = useSWR<{ projects: Project[] }>(
+    groupByProject ? '/api/projects' : null,
+    (url: string) => fetch(url).then((r) => r.json()),
+    { refreshInterval: 300_000 },
+  )
+  const stageByRecordId = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const p of projectsData?.projects ?? []) if (p.id) m[p.id] = p.projectStage
+    return m
+  }, [projectsData])
+
   if (loading) {
     return <TaskListSkeleton />
   }
@@ -234,15 +249,15 @@ export default function TaskList({ tasks, role, onUpdate, groupByProject = true,
         const firstTask = groupTasks[0]
         const installationTeamNames =
           groupTasks.find((t) => (t.installationTeamNames?.length ?? 0) > 0)?.installationTeamNames ?? []
-        // The project's current phase is the phase of its furthest active task (each task
-        // carries its template's stage via the Template Stage lookup). In Production, also
-        // show the Working sub-stage derived from that task's order.
+        // Prefer the project's REAL stage (matches the homescreen pipeline). Fall back to the
+        // furthest active task's template-stage lookup only if the project isn't loaded yet.
         const activeTasks = groupTasks.filter((t) => t.status === 'To Do' || t.status === 'In Progress')
         const furthest = activeTasks.reduce<Task | undefined>(
           (best, t) => ((t.templateOrder?.[0] ?? -1) > (best?.templateOrder?.[0] ?? -1) ? t : best),
           undefined,
         )
-        const projectStage = furthest?.projectStage?.[0] ?? firstTask?.projectStage?.[0]
+        const projectStage =
+          stageByRecordId[projectRecordId] ?? furthest?.projectStage?.[0] ?? firstTask?.projectStage?.[0]
         const subStage = projectStage === 'Production'
           ? workingSubStage(furthest?.templateOrder?.[0])
           : null
