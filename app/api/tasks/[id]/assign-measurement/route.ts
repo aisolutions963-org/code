@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, createCalendarEvent, createTasksBatch, getTaskTemplates } from '@/lib/airtable'
+import { getTaskById, updateTask, createCalendarEvent, createTasksBatch, getTaskTemplates, getProjectById, getProjectItemNameMap } from '@/lib/airtable'
 import { TASKS } from '@/lib/fieldMap'
 import { createNotification } from '@/lib/notifications'
 import { z } from 'zod'
@@ -43,10 +43,22 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
       )
     }
 
-    const projectLabel = task.projectNickname
-      ? task.projectName ? `${task.projectNickname} — ${task.projectName}` : task.projectNickname
-      : (task.projectName ?? task.projectRef ?? '')
-    const eventTitle = projectLabel ? `Take Measurements — ${projectLabel}` : 'Take Measurements'
+    // getTaskById returns an UNENRICHED task (no projectNickname/projectName/projectRef — those are
+    // only added in the getTasksByRole feed path), so resolve the label from the project directly.
+    // Include the item name for per-item measurements so the calendar event identifies exactly what
+    // is being measured: "Take Measurements — <ref> · <project> › <item>".
+    const project = await getProjectById(projectId).catch(() => null)
+    const ref = project?.projectId ?? task.projectRef ?? ''
+    const label = project?.nickname ?? project?.projectName ?? ''
+    let itemName = ''
+    const measuredItemId = task.projectItem?.[0]
+    if (measuredItemId) {
+      const nameMap = await getProjectItemNameMap([measuredItemId]).catch(() => ({} as Record<string, string>))
+      itemName = nameMap[measuredItemId] ?? ''
+    }
+    const labelParts = [ref, label].filter(Boolean).join(' · ')
+    const eventTitle = `Take Measurements${labelParts ? ` — ${labelParts}` : ''}${itemName ? ` › ${itemName}` : ''}`
+    const projectLabel = label || ref // used by the Arabic scheduling notification below
 
     const newTask: Record<string, unknown> = {
       [TASKS.TASK_NAME]: isPerItem ? 'Take measurements for item' : 'Take Measurement',
