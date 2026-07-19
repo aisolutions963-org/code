@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { Project } from '@/lib/types'
+import { projectRefLabel } from '@/lib/projectRef'
 import { todayUAE } from '@/lib/dateUtils'
 
 const PURPOSE_OPTIONS = ['Project', 'Office', 'Factory', 'Cars', 'Other'] as const
@@ -160,7 +161,7 @@ export default function MaterialOrderModal({
                 <select className={sel} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
                   <option value="">Select project…</option>
                   {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.projectId} — {p.projectName}</option>
+                    <option key={p.id} value={p.id}>{projectRefLabel(p)} — {p.projectName}</option>
                   ))}
                 </select>
               </div>

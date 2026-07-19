@@ -108,7 +108,7 @@ async function maybeUnlockCallClient(projectId: string, projectItemId?: string):
         .then((project) =>
           notifyCallClient({
             projectName: project.projectName,
-            projectId: project.projectId,
+            projectId: projectRefLabel(project),
             clientName: project.clientName,
           }),
         )
@@ -829,7 +829,7 @@ export async function handleCallCountEscalation(task: Task): Promise<void> {
   if (process.env.MANAGER_EMAIL && process.env.RESEND_API_KEY) {
     notifyManagerEscalation({
       projectName: project.projectName,
-      projectId: project.projectId,
+      projectId: projectRefLabel(project),
       clientName: project.clientName,
     }).catch((err) => console.error('[A8] Escalation notify failed:', err))
   }

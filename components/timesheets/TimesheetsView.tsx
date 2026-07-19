@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { TimesheetEntry, WorkerOption } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
 import { Project } from '@/lib/types'
+import { projectRefLabel } from '@/lib/projectRef'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -288,7 +289,7 @@ function LogEntryForm({
             <option value="">Select project…</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.projectId} — {p.projectName}
+                {projectRefLabel(p)} — {p.projectName}
               </option>
             ))}
           </select>

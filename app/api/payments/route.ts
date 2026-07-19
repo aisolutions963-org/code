@@ -12,6 +12,7 @@ import {
   updateProject,
 } from '@/lib/airtable'
 import { notifyAccountant, notifyAccountantEvent } from '@/lib/email'
+import { projectRefLabel } from '@/lib/projectRef'
 import { CreatePaymentSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
@@ -124,7 +125,7 @@ export const POST = requireRole('manager', 'superadmin')(
     if (process.env.RESEND_API_KEY && project) {
       notifyAccountant({
         projectName: project.projectName,
-        projectId: project.projectId,
+        projectId: projectRefLabel(project),
         amount: body.amount,
         paymentType: body.paymentType,
         method: body.paymentMethod,

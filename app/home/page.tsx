@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Announcement, Project, Task } from '@/lib/types'
+import { projectRefLabel } from '@/lib/projectRef'
 import { useSession } from '@/app/dashboard/layout-client'
 import UnifiedCalendar, { TabDef } from '@/components/calendar/UnifiedCalendar'
 import CommissionCard from '@/components/sed/CommissionCard'
@@ -274,7 +275,7 @@ function AddActivityModal({
               <option value="">— No project —</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.projectId ? `${p.projectId} — ` : ''}{p.nickname ?? p.projectName}
+                  {projectRefLabel(p) ? `${projectRefLabel(p)} — ` : ''}{p.nickname ?? p.projectName}
                 </option>
               ))}
             </select>
@@ -486,7 +487,7 @@ function AddInstallationModal({
               <option value="">Select a project...</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.projectId} — {p.projectName}
+                  {projectRefLabel(p)} — {p.projectName}
                 </option>
               ))}
             </select>

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import { Project, Client } from '@/lib/types'
+import { projectRefLabel } from '@/lib/projectRef'
 import { todayUAE } from '@/lib/dateUtils'
 import { stageBadgeClass, stageLabel } from '@/lib/stageDisplay'
 import { fetcher } from './shared'
@@ -146,7 +147,7 @@ export default function ClientsReportView() {
                       <div key={p.id} className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-gray-50">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-mono text-gray-400">{p.projectId}</span>
+                            <span className="text-[11px] font-mono text-gray-400">{projectRefLabel(p)}</span>
                             <span
                               className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${stageBadgeClass(p.projectStage)}`}
                             >
