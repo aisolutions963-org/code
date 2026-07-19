@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getTaskById, updateTask, createCalendarEvent, createTasksBatch, getTaskTemplates, getProjectById, getProjectItemNameMap } from '@/lib/airtable'
+import { getTaskById, updateTask, createCalendarEvent, createTasksBatch, getTaskTemplates, getProjectById, getProjectItemNameMap, supersedeGatewayMeasurementTasks } from '@/lib/airtable'
 import { projectRefLabel } from '@/lib/projectRef'
 import { TASKS } from '@/lib/fieldMap'
 import { createNotification } from '@/lib/notifications'
@@ -68,18 +68,24 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
       [TASKS.TASK_START_DATE]: date,
       [TASKS.TASK_TEMPLATES_LINK]: [template.id],
     }
-    // Carry the template's path condition so the spawned task is never path-less: a path-less
-    // Take-Measurement at a low order would otherwise block the order-chain AND-join (see
-    // isTaskDone/isMeasurementSideTask in lib/orderChain.ts).
-    if (template.pathCondition) {
-      newTask[TASKS.PATH_CONDITION] = template.pathCondition
-    }
+    // Deliberately NO pathCondition on the spawned task: a project-level task WITH a path renders
+    // as a SED gateway chip and escapes the SED feed's order-5 exclusion — the Installation team's
+    // measurement task must never appear in the SED's "Choose Actions". Path-less is safe for the
+    // order chain because isMeasurementSideTask (lib/orderChain.ts) treats it as non-blocking by name.
     if (isPerItem && task.projectItem?.length) {
       newTask[TASKS.PROJECT_ITEM] = task.projectItem
     }
 
     // Create the Installation task first — if this fails, no calendar event is orphaned.
     const [newTaskId] = await createTasksBatch([newTask])
+
+    // Retire the generated pathed "Take Measurement" gateway sibling (see helper docs) — the
+    // spawned Installation task above replaces it. Non-fatal: the assignment already succeeded.
+    if (!isPerItem) {
+      await supersedeGatewayMeasurementTasks(projectId).catch((err) =>
+        console.error('[assign-measurement] supersede failed:', err),
+      )
+    }
 
     await Promise.all([
       createCalendarEvent({

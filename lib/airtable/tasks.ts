@@ -677,6 +677,24 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
   }
 }
 
+// Preparing generation also creates a PATHED project-level "Take Measurement" task under the
+// gateway branch. Once the SED assigns the measurement (assign-measurement spawns the real
+// Installation task), that pathed sibling is superseded — complete it so the order chain can
+// never flip it to To Do and surface it as a SED gateway chip. Name check is prefix-anchored,
+// so the SED's "Ask installation team to Take Measurement" chip is untouched.
+export async function supersedeGatewayMeasurementTasks(projectId: string): Promise<number> {
+  const formula = `AND({${TASKS.PROJECT}} = "${projectId}", FIND("Take Measurement", {${TASKS.TASK_NAME}}) = 1, NOT({${TASKS.PATH_CONDITION}} = BLANK()), OR({${TASKS.STATUS}} = "Locked", {${TASKS.STATUS}} = "To Do", {${TASKS.STATUS}} = "In Progress"), {${TASKS.PROJECT_ITEM}} = BLANK())`
+  const records = await fetchAll(TASKS.TABLE_ID, { filterByFormula: formula, fields: [TASKS.TASK_NAME] })
+  if (records.length === 0) return 0
+  const now = new Date().toISOString()
+  await Promise.all(
+    records.map((r) =>
+      updateTaskRaw(r.id, { [TASKS.STATUS]: 'Completed' as TaskStatus, [TASKS.COMPLETED_AT]: now }),
+    ),
+  )
+  return records.length
+}
+
 // The project's most recently touched task — lets the inactivity alert say exactly where
 // the project stalled ("Last task: F5 — Quotation Details (In Progress)").
 export async function getLastModifiedTaskForProject(projectId: string): Promise<Task | null> {
