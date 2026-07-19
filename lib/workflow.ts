@@ -22,6 +22,7 @@ import { notifyManagerEscalation, notifyCallClient, notifyAccountantEvent, notif
 import { createNotification, notifyTasksReady, DEPT_ROLE_MAP, ROLE_DASHBOARD, isArabicRole, arTaskReady, pickForRole } from './notifications'
 import { PHASE_CONFIG, TASK_MARKERS, isAutoTask, isHeadlineTask } from './phases'
 import { planUnlock, isTaskDone } from './orderChain'
+import { projectRefLabel } from './projectRef'
 
 const WORKFLOW_TIMEOUT_MS = 15_000
 const { CALL_CLIENT_PREFIX, GATE_PREFIX, TAKE_APPROVAL_PREFIX } = TASK_MARKERS
@@ -45,7 +46,7 @@ async function resolveProjectLabel(task: Task): Promise<string> {
   if (!recordId) return ''
   try {
     const p = await getProjectById(recordId)
-    return p.nickname ?? p.projectName ?? (p.projectId || recordId)
+    return p.nickname ?? p.projectName ?? (projectRefLabel(p) || recordId)
   } catch {
     return recordId
   }

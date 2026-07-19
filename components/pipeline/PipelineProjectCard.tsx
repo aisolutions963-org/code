@@ -2,6 +2,7 @@
 
 import { Project } from '@/lib/types'
 import { useDrawer } from '@/lib/drawer-context'
+import { projectRefLabel } from '@/lib/projectRef'
 import Link from 'next/link'
 
 // Keep in sync with COLUMN_DOT in PipelineColumn.tsx so a card's dot matches its column header.
@@ -30,7 +31,7 @@ function ProjectDetailContent({ project }: { project: Project }) {
         <p className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Project</p>
         <h3 className="text-lg font-semibold text-white/90">{project.projectName}</h3>
         {project.nickname && <p className="text-sm text-white/40 mt-0.5">"{project.nickname}"</p>}
-        <p className="text-xs text-white/40 mt-1 font-mono">{project.projectId}</p>
+        <p className="text-xs text-white/40 mt-1 font-mono">{projectRefLabel(project)}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -147,7 +148,7 @@ export default function PipelineProjectCard({ project }: { project: Project }) {
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-white/25 font-mono">{project.projectId}</span>
+        <span className="text-[10px] text-white/25 font-mono">{projectRefLabel(project)}</span>
         {project.lastModifiedTasks && (
           <span className="text-[10px] text-white/25">
             {new Date(project.lastModifiedTasks).toLocaleDateString('en-AE', { month: 'short', day: 'numeric' })}

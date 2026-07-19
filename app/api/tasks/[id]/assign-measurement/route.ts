@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getTaskById, updateTask, createCalendarEvent, createTasksBatch, getTaskTemplates, getProjectById, getProjectItemNameMap } from '@/lib/airtable'
+import { projectRefLabel } from '@/lib/projectRef'
 import { TASKS } from '@/lib/fieldMap'
 import { createNotification } from '@/lib/notifications'
 import { z } from 'zod'
@@ -48,7 +49,7 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
     // Include the item name for per-item measurements so the calendar event identifies exactly what
     // is being measured: "Take Measurements — <ref> · <project> › <item>".
     const project = await getProjectById(projectId).catch(() => null)
-    const ref = project?.projectId ?? task.projectRef ?? ''
+    const ref = project ? projectRefLabel(project) : (task.projectRef ?? '')
     const label = project?.nickname ?? project?.projectName ?? ''
     let itemName = ''
     const measuredItemId = task.projectItem?.[0]

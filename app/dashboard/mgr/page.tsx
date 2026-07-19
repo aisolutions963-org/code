@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { Task, TaskUpdateInput, Project } from '@/lib/types'
+import { projectRefLabel } from '@/lib/projectRef'
 import TaskList from '@/components/tasks/TaskList'
 import ProjectCard from '@/components/projects/ProjectCard'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
@@ -346,7 +347,7 @@ export default function MgrDashboard() {
                               <div key={p.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium text-gray-800 truncate">{p.projectName}</p>
-                                  <p className="text-xs text-gray-400 mt-0.5">{p.projectId} · {p.projectStage}</p>
+                                  <p className="text-xs text-gray-400 mt-0.5">{projectRefLabel(p)} · {p.projectStage}</p>
                                 </div>
                                 <button
                                   onClick={() => setAssignProject(p)}
@@ -378,7 +379,7 @@ export default function MgrDashboard() {
                         <div key={p.id} className="bg-white border border-orange-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-800 truncate">{p.projectName}</p>
-                            <p className="text-xs text-gray-400">{p.projectId} · {p.projectStage}</p>
+                            <p className="text-xs text-gray-400">{projectRefLabel(p)} · {p.projectStage}</p>
                           </div>
                           <button
                             onClick={() => setAssignProject(p)}

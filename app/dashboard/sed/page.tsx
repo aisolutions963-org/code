@@ -13,6 +13,7 @@ import NewProjectModal from '@/components/projects/NewProjectModal'
 import CommissionCard from '@/components/sed/CommissionCard'
 import AllMaterialsView from '@/components/materials/AllMaterialsView'
 import { stageBadgeClass, stageLabel } from '@/lib/stageDisplay'
+import { projectRefLabel } from '@/lib/projectRef'
 import FollowUpsView from '@/components/followups/FollowUpsView'
 import type { CalendarEvent } from '@/lib/airtable/calendar'
 
@@ -254,7 +255,7 @@ export default function SedDashboard() {
                       <div key={p.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-mono text-xs text-gray-400">{p.projectId}</span>
+                            <span className="font-mono text-xs text-gray-400">{projectRefLabel(p)}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${stageBadgeClass(p.projectStage)}`}>
                               {stageLabel(p.projectStage)}
                             </span>
@@ -573,7 +574,7 @@ function SiteVisitsView({
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   {p?.projectId && (
-                    <span className="font-mono text-[11px] text-gray-400">{p.projectId}</span>
+                    <span className="font-mono text-[11px] text-gray-400">{projectRefLabel(p)}</span>
                   )}
                   {p?.projectStage && (
                     <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${stageBadgeClass(p.projectStage)}`}>

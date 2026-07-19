@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS, PROJECT_ITEMS } from '@/lib/fieldMap'
 import { xlsxResponse } from '@/lib/xlsxHelper'
 import { formatProjectRef } from '@/lib/reportUtils'
+import { projectRefLabel } from '@/lib/projectRef'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,6 +56,8 @@ export const GET = requireRole('superadmin')(async () => {
   // Exclude Trade/Maintenance/Variance sub-projects (they surface under their parent).
   projectParams.set('filterByFormula', `AND(OR(${stageFilter}), {${PROJECTS.REQUEST_TYPE}}="")`)
   projectParams.append('fields[]', PROJECTS.PROJECT_ID)
+  projectParams.append('fields[]', PROJECTS.QUOTATION_NUMBER)
+  projectParams.append('fields[]', PROJECTS.QUOTATION_REFERENCE)
   projectParams.append('fields[]', PROJECTS.PROJECT_NAME)
   projectParams.append('fields[]', PROJECTS.CLIENT_NAME)
   projectParams.append('fields[]', PROJECTS.PROJECT_STAGE)
@@ -117,7 +120,7 @@ export const GET = requireRole('superadmin')(async () => {
     const sed = Array.isArray(ownerLookup) ? String(ownerLookup[0] ?? '') : ''
 
     const projRow = ws.addRow([
-      formatProjectRef((f[PROJECTS.PROJECT_ID] as string) ?? ''),
+      formatProjectRef(projectRefLabel({ quotationNumber: f[PROJECTS.QUOTATION_NUMBER] as string, quotationReference: f[PROJECTS.QUOTATION_REFERENCE] as string, projectId: (f[PROJECTS.PROJECT_ID] as string) ?? '' })),
       (f[PROJECTS.PROJECT_NAME] as string) ?? '',
       (f[PROJECTS.CLIENT_NAME] as string) ?? '',
       (f[PROJECTS.PROJECT_STAGE] as string) ?? '',

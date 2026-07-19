@@ -5,6 +5,7 @@ import Badge from '@/components/ui/Badge'
 import { MaintenanceWithExtra } from './types'
 import { fetcher, Spinner, MetricCard } from './shared'
 import { Project, ClientRequest } from '@/lib/types'
+import { projectRefLabel } from '@/lib/projectRef'
 
 const WARRANTY_STAGES = new Set(['Closed and active warranty', 'Warranty expired'])
 
@@ -64,7 +65,7 @@ export default function WarrantyPage() {
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{p.projectName}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName ?? '—'}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{p.projectId ?? '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{projectRefLabel(p) || '—'}</td>
                     <td className="px-4 py-3">
                       <Badge variant={p.projectStage === 'Warranty expired' ? 'red' : 'green'} size="sm">
                         {p.projectStage === 'Warranty expired' ? 'Expired' : 'Active'}

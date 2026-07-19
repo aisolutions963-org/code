@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
 import { getClientRequestLabelsByParent } from '@/lib/airtable'
+import { projectRefLabel } from '@/lib/projectRef'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +64,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   params.append('fields[]', PROJECTS.PROJECT_STAGE)
   params.append('fields[]', PROJECTS.SALES_OWNER)
   params.append('fields[]', PROJECTS.QUOTATION_NUMBER)
+  params.append('fields[]', PROJECTS.QUOTATION_REFERENCE)
   params.append('fields[]', PROJECTS.PROJECT_TOTAL_COST)
   params.append('fields[]', PROJECTS.TOTAL_PAID)
   params.append('fields[]', PROJECTS.REMAINING_BALANCE)
@@ -87,7 +89,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       client:       (f[PROJECTS.CLIENT_NAME] as string) ?? '',
       stage:        (f[PROJECTS.PROJECT_STAGE] as string) ?? '',
       sed:          owner?.name ?? '',
-      quotation:    (f[PROJECTS.QUOTATION_NUMBER] as string) ?? '',
+      quotation:    projectRefLabel({ quotationNumber: (f[PROJECTS.QUOTATION_NUMBER] as string) ?? '', quotationReference: (f[PROJECTS.QUOTATION_REFERENCE] as string) ?? '' }),
       emirate:      (f[PROJECTS.EMIRATE] as string) ?? '',
       totalCost:    typeof f[PROJECTS.PROJECT_TOTAL_COST] === 'number' ? f[PROJECTS.PROJECT_TOTAL_COST] as number : 0,
       totalPaid:    typeof f[PROJECTS.TOTAL_PAID] === 'number' ? f[PROJECTS.TOTAL_PAID] as number : 0,

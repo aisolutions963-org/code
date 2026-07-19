@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/apiHandler'
 import { PROJECTS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
 import { getClientRequestLabelsByParent } from '@/lib/airtable'
+import { projectRefLabel } from '@/lib/projectRef'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +47,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   params.append('fields[]', PROJECTS.PROJECT_STAGE)
   params.append('fields[]', PROJECTS.CLIENT_NAME)
   params.append('fields[]', PROJECTS.QUOTATION_NUMBER)
+  params.append('fields[]', PROJECTS.QUOTATION_REFERENCE)
   params.append('fields[]', PROJECTS.PAYMENT_MODE)
   params.append('fields[]', PROJECTS.PROJECT_TOTAL_COST)
   params.append('fields[]', PROJECTS.TOTAL_PAID)
@@ -78,7 +80,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
       projectId:    str(f[PROJECTS.PROJECT_ID]),
       projectName:  str(f[PROJECTS.PROJECT_NAME]),
       stage:        str(f[PROJECTS.PROJECT_STAGE]),
-      quotation:    str(f[PROJECTS.QUOTATION_NUMBER]),
+      quotation:    projectRefLabel({ quotationNumber: str(f[PROJECTS.QUOTATION_NUMBER]), quotationReference: str(f[PROJECTS.QUOTATION_REFERENCE]) }),
       paymentMode:  str(f[PROJECTS.PAYMENT_MODE]),
       totalCost,
       totalPaid,

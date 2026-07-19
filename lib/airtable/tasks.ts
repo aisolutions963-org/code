@@ -11,6 +11,7 @@ import {
   Attachment,
 } from '../types'
 import { ROLE_TO_DEPARTMENT } from '../permissions'
+import { projectRefLabel } from '../projectRef'
 import { notifyTasksReady } from '../notifications'
 import {
   TASKS,
@@ -249,7 +250,8 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
       projectRecordId: pid,
       ...(info
         ? {
-            projectRef: info.ref,
+            // Display label: quotation number+reference when available, else WW-xx projectId.
+            projectRef: projectRefLabel({ quotationNumber: info.quotationNumber, quotationReference: info.quotationReference, projectId: info.ref }),
             projectName: info.name,
             projectNickname: info.nickname ?? undefined,
             projectQuotationNumber: info.quotationNumber ?? undefined,

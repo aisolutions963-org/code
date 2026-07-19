@@ -19,6 +19,7 @@ import {
   deleteByProject,
 } from './_client'
 import { getProjectItemNameMap } from './tasks'
+import { projectRefLabel } from '../projectRef'
 
 export interface CalendarEvent {
   id: string
@@ -70,7 +71,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       sort: [{ field: INSTALLATION_LOGS.DATE, direction: 'asc' }],
     }),
     fetchAll(PROJECTS.TABLE_ID, {
-      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID, PROJECTS.NICKNAME, PROJECTS.DELETED_AT],
+      fields: [PROJECTS.PROJECT_NAME, PROJECTS.PROJECT_ID, PROJECTS.NICKNAME, PROJECTS.DELETED_AT, PROJECTS.QUOTATION_NUMBER, PROJECTS.QUOTATION_REFERENCE],
     }),
   ])
 
@@ -83,7 +84,11 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
   for (const p of allProjects) {
     const label = str(p.fields[PROJECTS.NICKNAME]) ?? str(p.fields[PROJECTS.PROJECT_NAME]) ?? str(p.fields[PROJECTS.PROJECT_ID])
     if (label) projectNameMap.set(p.id, label)
-    const ref = str(p.fields[PROJECTS.PROJECT_ID])
+    const ref = projectRefLabel({
+      quotationNumber: str(p.fields[PROJECTS.QUOTATION_NUMBER]),
+      quotationReference: str(p.fields[PROJECTS.QUOTATION_REFERENCE]),
+      projectId: str(p.fields[PROJECTS.PROJECT_ID]),
+    })
     if (ref) projectRefMap.set(p.id, ref)
     if (!str(p.fields[PROJECTS.DELETED_AT])) validProjectIds.add(p.id)
   }

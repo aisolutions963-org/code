@@ -9,6 +9,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import ProjectNotesEditor from '@/components/projects/ProjectNotesEditor'
 import { stageBadgeVariant, stageLabel } from '@/lib/stageDisplay'
+import { projectRefLabel } from '@/lib/projectRef'
 import { fetcher, Spinner, isStale } from './shared'
 
 const CLOSED_STAGES = new Set(['Closed', 'Closed and active warranty', 'Warranty expired'])
@@ -42,7 +43,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
   return (
     <>
       <tr className={`hover:bg-gray-50 transition-colors ${stale ? 'bg-yellow-50/30' : ''}`}>
-        <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.projectId}</td>
+        <td className="px-4 py-3 font-mono text-xs text-gray-500">{projectRefLabel(p)}</td>
         <td className="px-4 py-3 max-w-xs">
           <button
             onClick={() => setExpanded((e) => !e)}
@@ -436,7 +437,7 @@ export default function ProjectsPage() {
                   <tbody className="divide-y divide-gray-50">
                     {deletedProjects.map((p) => (
                       <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.projectId}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500">{projectRefLabel(p)}</td>
                         <td className="px-4 py-3 font-medium text-gray-900">{p.projectName}</td>
                         <td className="px-4 py-3 text-gray-500 text-xs">{p.clientName}</td>
                         <td className="px-4 py-3 text-gray-500 text-xs">
