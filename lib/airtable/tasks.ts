@@ -677,6 +677,16 @@ export async function checkAndUnlockCallClientTask(projectId: string): Promise<v
   }
 }
 
+// The project's most recently touched task — lets the inactivity alert say exactly where
+// the project stalled ("Last task: F5 — Quotation Details (In Progress)").
+export async function getLastModifiedTaskForProject(projectId: string): Promise<Task | null> {
+  const records = await fetchAll(TASKS.TABLE_ID, {
+    filterByFormula: `{${TASKS.PROJECT}} = "${projectId}"`,
+    sort: [{ field: TASKS.LAST_MODIFIED, direction: 'desc' }],
+  })
+  return records.length > 0 ? transformTask(records[0]) : null
+}
+
 export async function checkAndUnlockInactivityFollowUp(
   projectId: string,
 ): Promise<boolean> {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getProjects, checkAndUnlockInactivityFollowUp, expireOverdueMaintenanceRecords, getDeletedProjects } from '@/lib/airtable'
+import { getProjects, checkAndUnlockInactivityFollowUp, expireOverdueMaintenanceRecords, getDeletedProjects, getLastModifiedTaskForProject } from '@/lib/airtable'
+import { projectRefLabel } from '@/lib/projectRef'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
 import { purgeProjectCascade } from '@/lib/projectPurge'
 import { db } from '@/lib/db'
@@ -49,7 +50,9 @@ export async function GET(req: NextRequest) {
       console.error('[cron/inactivity-check] trash purge failed:', err)
     }
 
-    const projects = await getProjects({ stage: 'Open' })
+    // Every stage where work is actively expected — a project can stall in Preparing
+    // (client not responding), Production, or Closing just as easily as in Open.
+    const projects = await getProjects({ allowedStages: ['Preparing', 'Open', 'Production', 'Closing'] })
     let alerted = 0
     let skipped = 0
 
@@ -84,11 +87,15 @@ export async function GET(req: NextRequest) {
         args: [project.id],
       })
 
-      const projectRef = project.projectId ?? project.id
+      // Name the exact task the project stalled on so the superadmin knows where to look.
+      const lastTask = await getLastModifiedTaskForProject(project.id).catch(() => null)
+      const lastTaskInfo = lastTask ? ` Last task: "${lastTask.taskName}" (${lastTask.status}).` : ''
+
+      const projectRef = projectRefLabel(project) || project.id
       await createNotification({
         recipientRole: 'superadmin',
         title: `Inactivity alert — ${projectRef}`,
-        body: `Project "${project.projectName}" has had no task activity for ${Math.floor(daysSince)} days.${wasLocked ? ' A Follow Up task has been unlocked.' : ''}`,
+        body: `Project "${project.projectName}" (${project.projectStage}) has had no task activity for ${Math.floor(daysSince)} days.${lastTaskInfo}${wasLocked ? ' A Follow Up task has been unlocked.' : ''}`,
         link: ROLE_DASHBOARD['superadmin'],
       })
 
