@@ -37,6 +37,9 @@ next-env.d.ts
 # Credentials reference (never commit)
 CREDENTIALS.md
 
+# Test coverage output
+coverage/
+
 # Playwright
 e2e/.auth/
 playwright-report/
