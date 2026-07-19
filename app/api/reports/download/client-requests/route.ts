@@ -37,6 +37,7 @@ export const GET = requireRole('manager', 'superadmin')(async () => {
   }))
 
   const maintenanceRows = maintenance.map((r) => ({
+    ref:     r.tradeReference ?? '—',
     client:  r.clientName ?? '—',
     phone:   r.clientPhone ?? '—',
     parent:  r.parentProjectName ?? '—',
@@ -77,7 +78,7 @@ export const GET = requireRole('manager', 'superadmin')(async () => {
     },
     {
       name: 'Maintenance',
-      columns: [clientCol, phoneCol, parentCol, descCol, stageCol, tasksCol, detailCol, createdCol],
+      columns: [refCol, clientCol, phoneCol, parentCol, descCol, stageCol, tasksCol, detailCol, createdCol],
       rows: maintenanceRows,
     },
     {

@@ -274,6 +274,9 @@ function CreateModal({
   } else if (requestType === 'Variance') {
     // {projQuotNum}{varianceRef}{projQuotRef}  e.g. 2341VR1R3
     fullRef = [quotNum, refInputClean, quotRef].filter(Boolean).join('')
+  } else if (requestType === 'Maintenance') {
+    // {projQuotNum}{maintenanceRef}{projQuotRef}  e.g. 2341M1R3
+    fullRef = [quotNum, refInputClean, quotRef].filter(Boolean).join('')
   }
 
   // Reset fields when type changes
@@ -311,6 +314,10 @@ function CreateModal({
       setErr('Trade reference is required (e.g. Tr1)')
       return
     }
+    if (requestType === 'Maintenance' && !refInputClean) {
+      setErr('Maintenance reference is required (e.g. M1)')
+      return
+    }
     const tqn = tradeQuotNum.trim()
     if (requestType === 'Trade' && !tqn) {
       setErr('Trade Quotation Number is required')
@@ -330,7 +337,7 @@ function CreateModal({
       }
       if (clientPhone.trim()) body.clientPhone = clientPhone.trim()
       if (description.trim()) body.description = description.trim()
-      if ((requestType === 'Trade' || requestType === 'Variance') && fullRef) {
+      if (fullRef) {
         body.tradeReference = fullRef
       }
       if (showSedPicker && selectedSedId) body.salesOwnerCollaboratorId = selectedSedId
@@ -432,24 +439,24 @@ function CreateModal({
             )}
           </div>
 
-          {/* Variance Reference — Variance only */}
-          {requestType === 'Variance' && (
+          {/* Variance / Maintenance Reference — same quotNum + suffix + quotRef format */}
+          {(requestType === 'Variance' || requestType === 'Maintenance') && (
             <div>
               <label className="block text-xs text-gray-500 mb-1 font-medium">
-                Variance Reference <span className="text-red-500">*</span>
+                {requestType === 'Variance' ? 'Variance' : 'Maintenance'} Reference <span className="text-red-500">*</span>
               </label>
               <input
                 className={inp}
                 value={refInput}
                 onChange={(e) => setRefInput(e.target.value)}
-                placeholder="e.g. VR1"
+                placeholder={requestType === 'Variance' ? 'e.g. VR1' : 'e.g. M1'}
               />
               {refInputClean && !quotNum && (
                 <p className="text-[11px] text-orange-500 mt-1">Select a project to generate the full reference</p>
               )}
               {fullRef && (
                 <p className="text-[11px] text-gray-400 mt-1">
-                  Reference: <span className="font-mono font-semibold text-purple-700">{fullRef}</span>
+                  Reference: <span className={`font-mono font-semibold ${requestType === 'Variance' ? 'text-purple-700' : 'text-orange-700'}`}>{fullRef}</span>
                 </p>
               )}
             </div>

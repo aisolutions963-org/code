@@ -80,7 +80,7 @@ export async function createClientRequest(
   if (input.description) fields[PROJECTS.PROJECT_DESCRIPTION] = input.description
   if (input.salesOwnerCollaboratorId) fields[PROJECTS.SALES_OWNER] = [input.salesOwnerCollaboratorId]
   if (input.parentProjectId) fields[PROJECTS.PARENT_PROJECT] = [input.parentProjectId]
-  if ((isTrade || isVariance) && input.tradeReference) fields[PROJECTS.TRADE_REFERENCE] = input.tradeReference
+  if (input.tradeReference) fields[PROJECTS.TRADE_REFERENCE] = input.tradeReference
 
   const projRes = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
     method: 'POST',
