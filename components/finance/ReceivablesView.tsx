@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
+import toast from 'react-hot-toast'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -20,11 +21,15 @@ interface Receivable {
   notes: string
 }
 
+// Must match the Airtable "Debt Status" single-select choices exactly — an unknown
+// value makes Airtable reject the whole record.
+const DEBT_STATUS_OPTIONS = ['Active', 'Partial Promise', 'Disputed', 'Collected', 'Written Off'] as const
+
 const STATUS_COLORS: Record<string, string> = {
-  Settled:      'bg-green-100 text-green-700',
-  Overdue:      'bg-red-100 text-red-700',
-  Partial:      'bg-blue-100 text-blue-700',
-  'Written Off':'bg-gray-100 text-gray-500',
+  Collected:        'bg-green-100 text-green-700',
+  Disputed:         'bg-red-100 text-red-700',
+  'Partial Promise':'bg-blue-100 text-blue-700',
+  'Written Off':    'bg-gray-100 text-gray-500',
 }
 function statusColor(s: string) {
   return STATUS_COLORS[s] ?? 'bg-amber-100 text-amber-700'
@@ -37,7 +42,7 @@ function fmt(n: number) {
 const EMPTY_FORM = {
   clientCompany: '', invoiceRef: '', originalAmount: '', collected: '',
   invoiceDate: '', lastContact: '', agreedDate: '',
-  debtStatus: 'Pending', notes: '',
+  debtStatus: 'Active', notes: '',
 }
 
 export default function ReceivablesView() {
@@ -58,7 +63,7 @@ export default function ReceivablesView() {
     e.preventDefault()
     setSaving(true)
     try {
-      await fetch('/api/receivables', {
+      const res = await fetch('/api/receivables', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -73,9 +78,19 @@ export default function ReceivablesView() {
           notes: form.notes || undefined,
         }),
       })
+      if (!res.ok) {
+        // Surface the failure and keep the modal open — a silent close made rejected
+        // entries look like they vanished.
+        const d = await res.json().catch(() => ({}))
+        toast.error((d as { error?: string }).error ?? 'Failed to save receivable')
+        return
+      }
+      toast.success('Receivable added')
       mutate()
       setShowAdd(false)
       setForm(EMPTY_FORM)
+    } catch {
+      toast.error('Network error — receivable not saved')
     } finally {
       setSaving(false)
     }
@@ -85,7 +100,8 @@ export default function ReceivablesView() {
     if (!window.confirm('Delete this receivable entry?')) return
     setDeleting(id)
     try {
-      await fetch(`/api/receivables/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/receivables/${id}`, { method: 'DELETE' })
+      if (!res.ok) toast.error('Failed to delete receivable')
       mutate()
     } finally {
       setDeleting(null)
@@ -211,7 +227,7 @@ export default function ReceivablesView() {
                 <span className="text-xs font-medium text-gray-600">Debt Status</span>
                 <select value={form.debtStatus} onChange={(e) => setField('debtStatus', e.target.value)}
                   className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
-                  {['Pending','Partial','Overdue','Settled','Written Off'].map((s) => <option key={s}>{s}</option>)}
+                  {DEBT_STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
                 </select>
               </label>
               <label className="block">

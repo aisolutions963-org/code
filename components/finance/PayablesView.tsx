@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
+import toast from 'react-hot-toast'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -20,10 +21,15 @@ interface Payable {
   notes: string
 }
 
+// Both lists must match the Airtable single-select choices exactly — an unknown value
+// makes Airtable reject the whole record.
+const PAYMENT_STATUS_OPTIONS = ['Pending', 'Partially Paid', 'Paid', 'Cancelled'] as const
+const CATEGORY_OPTIONS = ['Supplier Invoice', 'Worker Salary', 'Subcontractor', 'Logistics', 'Equipment', 'Other'] as const
+
 const STATUS_COLORS: Record<string, string> = {
-  Paid:     'bg-green-100 text-green-700',
-  Overdue:  'bg-red-100 text-red-700',
-  'On Hold':'bg-gray-100 text-gray-500',
+  Paid:            'bg-green-100 text-green-700',
+  'Partially Paid':'bg-blue-100 text-blue-700',
+  Cancelled:       'bg-gray-100 text-gray-500',
 }
 function statusColor(s: string) {
   return STATUS_COLORS[s] ?? 'bg-amber-100 text-amber-700'
@@ -59,7 +65,7 @@ export default function PayablesView() {
     e.preventDefault()
     setSaving(true)
     try {
-      await fetch('/api/payables', {
+      const res = await fetch('/api/payables', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -75,9 +81,19 @@ export default function PayablesView() {
           notes: form.notes || undefined,
         }),
       })
+      if (!res.ok) {
+        // Surface the failure and keep the modal open — a silent close made rejected
+        // entries look like they vanished.
+        const d = await res.json().catch(() => ({}))
+        toast.error((d as { error?: string }).error ?? 'Failed to save payable')
+        return
+      }
+      toast.success('Payable added')
       mutate()
       setShowAdd(false)
       setForm(EMPTY_FORM)
+    } catch {
+      toast.error('Network error — payable not saved')
     } finally {
       setSaving(false)
     }
@@ -87,7 +103,8 @@ export default function PayablesView() {
     if (!window.confirm('Delete this payable entry?')) return
     setDeleting(id)
     try {
-      await fetch(`/api/payables/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/payables/${id}`, { method: 'DELETE' })
+      if (!res.ok) toast.error('Failed to delete payable')
       mutate()
     } finally {
       setDeleting(null)
@@ -180,8 +197,11 @@ export default function PayablesView() {
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-xs font-medium text-gray-600">Category</span>
-                  <input value={form.category} onChange={(e) => setField('category', e.target.value)}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400" />
+                  <select value={form.category} onChange={(e) => setField('category', e.target.value)}
+                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
+                    <option value="">—</option>
+                    {CATEGORY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
+                  </select>
                 </label>
                 <label className="block">
                   <span className="text-xs font-medium text-gray-600">Invoice #</span>
@@ -213,7 +233,7 @@ export default function PayablesView() {
                 <span className="text-xs font-medium text-gray-600">Payment Status</span>
                 <select value={form.paymentStatus} onChange={(e) => setField('paymentStatus', e.target.value)}
                   className="mt-1 w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400 bg-white">
-                  {['Pending','Paid','Overdue','On Hold'].map((s) => <option key={s}>{s}</option>)}
+                  {PAYMENT_STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
                 </select>
               </label>
               <label className="block">
