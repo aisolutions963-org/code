@@ -9,6 +9,7 @@
     "lint": "next lint",
     "db:reset": "tsx scripts/seed-users.ts",
     "test": "vitest run",
+    "test:contract": "vitest run --config vitest.contract.config.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
