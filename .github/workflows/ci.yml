@@ -53,3 +53,25 @@ jobs:
           AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
           SESSION_SECRET: ci-dummy-session-secret-at-least-32-characters
         run: npm run test:contract
+
+  integration:
+    name: Airtable integration (seeded)
+    runs-on: ubuntu-latest
+    # This suite WRITES records (then deletes them), so it uses its own secrets — point
+    # INTEGRATION_AIRTABLE_* at the PREVIEW base, never production. Without them the
+    # suite skips itself. Staging + manual only; never on main.
+    if: github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Seeded round-trip against the preview base
+        env:
+          AIRTABLE_API_KEY: ${{ secrets.INTEGRATION_AIRTABLE_API_KEY }}
+          AIRTABLE_BASE_ID: ${{ secrets.INTEGRATION_AIRTABLE_BASE_ID }}
+          SESSION_SECRET: ci-dummy-session-secret-at-least-32-characters
+          RUN_INTEGRATION: '1'
+        run: npm run test:integration
