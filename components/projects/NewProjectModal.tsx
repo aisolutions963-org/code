@@ -34,7 +34,15 @@ const DUBAI_LOCATIONS = [
   'The Springs', 'Tilal Al Ghaf', 'Town Square', 'Umm Suqeim',
 ]
 
-interface SedMember { id: string; name: string; projectCount?: number; isSelf?: boolean }
+interface SedMember { id: string; name: string; projectCount?: number; requestCount?: number; isSelf?: boolean }
+
+// "2 active" or "2 active + 1 request" — regular projects and Trade/Maintenance/Variance
+// sub-requests shown separately so the project count matches the SED chart.
+function sedLoadLabel(m: SedMember): string {
+  if (m.projectCount == null) return ''
+  const reqs = m.requestCount ? ` + ${m.requestCount} request${m.requestCount !== 1 ? 's' : ''}` : ''
+  return ` — ${m.projectCount} active${reqs}`
+}
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -287,7 +295,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
               <option value="">— select SED —</option>
               {sedMembers.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}{m.isSelf ? ' (You)' : ''}{m.projectCount != null ? ` — ${m.projectCount} active` : ''}
+                  {m.name}{m.isSelf ? ' (You)' : ''}{sedLoadLabel(m)}
                 </option>
               ))}
             </select>
@@ -475,7 +483,7 @@ export default function NewProjectModal({ onClose, onCreated }: NewProjectModalP
                       <span className="text-gray-700">
                         {m.name}
                         {m.projectCount != null && (
-                          <span className="text-gray-400"> — {m.projectCount} active</span>
+                          <span className="text-gray-400">{sedLoadLabel(m)}</span>
                         )}
                       </span>
                     </label>

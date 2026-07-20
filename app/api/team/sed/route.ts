@@ -28,13 +28,18 @@ export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, sess
       // they're a Commun (secondary) SED — otherwise a SED assigned only as a secondary
       // shows 0. SALES_OWNER / COMMUN_SEDS link to Team Members, so the ids are member
       // record ids (== airtable_member_id). Match owner by email too for robustness.
-      const projectCount = activeProjects.filter(
+      const mine = activeProjects.filter(
         (p) =>
           p.salesOwner?.id === u.airtable_member_id ||
           (!!email && p.salesOwner?.email?.toLowerCase() === email) ||
           (p.communSedIds ?? []).includes(u.airtable_member_id!),
-      ).length
-      return { id: u.airtable_member_id!, name: u.name, projectCount, isSelf: u.id === session.id }
+      )
+      // Split regular projects from Trade/Maintenance/Variance sub-requests so the picker
+      // can show "N projects + M requests" and its project count matches the SED chart
+      // (which counts regular projects only).
+      const projectCount = mine.filter((p) => !p.requestType).length
+      const requestCount = mine.length - projectCount
+      return { id: u.airtable_member_id!, name: u.name, projectCount, requestCount, isSelf: u.id === session.id }
     }),
   })
 })
