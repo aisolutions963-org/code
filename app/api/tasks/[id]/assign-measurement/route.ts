@@ -104,8 +104,10 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
       }),
     ])
 
-    // Mark the gateway chip completed — SED's job is done once they've assigned the team.
-    await updateTask(params.id, { taskStartDate: date, status: 'Completed' })
+    // The SED's chip goes In Progress (orange) — assigning the team starts the job; the SED
+    // marks it Completed themselves once measurements are received and confirmed (per the
+    // task's own instructions).
+    await updateTask(params.id, { taskStartDate: date, status: 'In Progress', startedAt: new Date().toISOString() })
 
     return NextResponse.json({ ok: true })
   },
