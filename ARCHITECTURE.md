@@ -119,15 +119,25 @@ lib/
   auth.ts                     JWT sessions (createSession, getSession, login)
   db.ts                       Turso SQLite (users, notifications, settings, mappings)
   apiHandler.ts               requireRole() HOC for API routes
-  permissions.ts              Per-role editable field lists
+  permissions.ts              Per-role editable field lists + department filters
   fieldMap.ts                 ALL Airtable table IDs and field IDs (single source of truth)
   types.ts                    All TypeScript interfaces
   validation.ts               All Zod schemas
-  notifications.ts            In-app notification helpers (Turso-backed)
+  notifications.ts            In-app notification helpers (Turso-backed) + Arabic role text
   email.ts                    Resend email functions
-  phases.ts                   Stage order constants + PHASE_CONFIG
-  workflow.ts                 Task workflow side-effects
+  phases.ts                   Stage order constants + PHASE_CONFIG + isAutoTask
+  workflow.ts                 Task workflow side-effects (completion → unlock → phase generation)
+  orderChain.ts               Pure order-chain unlock rules (planUnlock / isTaskDone) — unit-tested
+  projectRef.ts               projectRefLabel(): quotation number+reference display id, WW-xx fallback
+  stageDisplay.ts             Single source for stage labels/badge colors across all UIs
+  projectPurge.ts             Cascading project delete (tasks, payments, items, events, …)
+  sedAccess.ts                SED project-visibility resolution (Airtable owner + SQLite mapping)
+  reportUtils.ts              Report helpers (formatProjectRef WW normalisation)
+  xlsxHelper.ts               Excel workbook builders for report downloads
+  commission.ts               SED commission calculation
+  dateUtils.ts                UAE-timezone date helpers (todayUAE)
   env.ts                      Startup env var validation
+  logger.ts / metrics.ts / metricsSnapshot.ts / failedRequests.ts   Observability plumbing
 
 scripts/                      DB seeding + maintenance scripts
 e2e/                          Playwright end-to-end tests
@@ -487,9 +497,11 @@ Routes follow Next.js App Router conventions at `app/api/`. All use either `requ
 ### Cron Routes (authenticated by `CRON_SECRET` header, called from GitHub Actions)
 | Route | Schedule | Description |
 |-------|----------|-------------|
-| `/api/cron/inactivity-check` | Daily | Projects in Open stage with >3 days since last task modification → unlock "Follow Up" task → notify superadmin. Records in `inactivity_alerts` to prevent double-alerts. |
+| `/api/cron/inactivity-check` | Daily 08:00 UAE | Projects in **Preparing/Open/Production/Closing** with >3 days since last task modification → unlock "Follow Up" task → notify superadmin, naming the last-touched task and its status. Also auto-expires overdue warranties and purges projects trashed >30 days. Dedup via Turso `inactivity_alerts` (one alert per project per day). |
 | `/api/cron/weekly-reminder` | Weekly (Friday) | Notifies manager + superadmin about Preparing-stage projects. Upserts calendar event. |
 | `/api/cron/monthly-audit` | Monthly | Monthly audit report. |
+
+All three are triggered by GitHub Actions workflows in `.github/workflows/` (`APP_URL` + `CRON_SECRET` repo secrets), not Vercel crons.
 
 ---
 
@@ -499,10 +511,10 @@ Routes follow Next.js App Router conventions at `app/api/`. All use either `requ
 
 Defined in `lib/phases.ts`:
 ```ts
-STAGE_ORDER = ['Preparing', 'Open', 'Production', 'Closed and active warranty', 'Warranty expired']
+STAGE_ORDER = ['Preparing', 'Open', 'Production', 'Closing', 'Closed', 'Closed and active warranty', 'Warranty expired']
 ```
 
-Other stages referenced in code: `Not-Approved` (rejected projects), `Closed` (post-handover, pre-final-payment).
+Off-ramp stage referenced in code: `Not-Approved` (rejected projects; superadmin reopen deletes its tasks and regenerates Preparing from scratch). `Closed` = delivered, administrative work (final payment) still pending. Display names/colors for every stage come from `lib/stageDisplay.ts` — all badges and the home pipeline read the project's real `projectStage`.
 
 **Active stages** (appear in dashboards, dropdowns, follow-up pickers): all except `Closed`, `Closed and active warranty`, `Warranty expired`.
 
@@ -510,13 +522,13 @@ Other stages referenced in code: `Not-Approved` (rejected projects), `Closed` (p
 
 Three types are stored as PROJECTS records with `REQUEST_TYPE` set:
 
-| Type | Project name prefix | Auto-generated tasks |
-|------|--------------------|--------------------|
-| `Trade` | `[Trade] {parentName}` | "F3 — Order Trade Material" (SED) → "F4 — Trade Payment" (Manager) → "Handover to Client" (SED) |
-| `Maintenance` | `[Maintenance] {parentName}` | "Site Visit & Assessment" → "Carry Out Maintenance Work" → "Client Sign-off" (all SED dept) |
-| `Variance` | `[Variance] {parentName}` | Runs standard `generateTasksForProject('Preparing')` |
+| Type | Project name prefix | Reference (stored in `TRADE_REFERENCE`) | Auto-generated tasks |
+|------|--------------------|------------------------------------------|--------------------|
+| `Trade` | `[Trade] {parentName}` | `{quotNum}{Trx}{quotRef}{tradeQuotNum}` e.g. `2341Tr1R354327` | "F3 — Order Trade Material" (SED) → "F4 — Trade Payment" (Manager) → "Handover to Client" (SED) |
+| `Maintenance` | `[Maintenance] {parentName}` | `{quotNum}{Mx}{quotRef}` e.g. `2341M1R3` (Mx typed at creation, required) | "Site Visit & Assessment" → "Carry Out Maintenance Work" → "Client Sign-off" (all SED dept) |
+| `Variance` | `[Variance] {parentName}` | `{quotNum}{VRx}{quotRef}` e.g. `2341VR1R3` | Runs standard `generateTasksForProject('Preparing')` — the full project workflow |
 
-All types inherit SED, clientName, clientPhone from the parent project and are mapped in SQLite `sed_projects`.
+Trade/Maintenance unlock sequentially via the `CR_TASK_SEQUENCE` name→position map (their tasks have no template order); Variance is driven by the normal order-chain engine. All types inherit SED, clientName, clientPhone from the parent project and are mapped in SQLite `sed_projects`.
 
 ### Gate Pass / Handover
 
@@ -574,15 +586,26 @@ These are measurement-related tasks that only get created through specific user 
 | Phase 3 per-item | Task at order 29 completes (`maybeGeneratePhase3`) |
 | Phase 4 (Closing+Warranty) | All per-item tasks done (`maybeGeneratePhase4`) or superadmin force-advance |
 
-### Task Unlock / AND-Join
+### Task Unlock / Order Chain (`lib/orderChain.ts` — pure + unit-tested)
 
-When multiple tasks share the same `templateOrder`, they act as an AND-join: the next order only unlocks after ALL siblings at the current order are completed. Exception: a task whose name contains "fabrication done" bypasses the AND-join immediately.
+On every task completion, `unlockNextTasks` (lib/workflow.ts) calls `planUnlock(task, allProjectTasks, perItemOrderMin)`:
+
+- **Strict scope separation** — a per-item completion only considers that item's tasks; a project-level completion only project-level tasks. Items advance independently.
+- **AND-join** — the next `templateOrder` unlocks only when EVERY lower-order task in scope is "done".
+- **`isTaskDone` rules** (what counts as done / never blocks):
+  - `Completed`, or name contains "optional"
+  - **Fabrication branches** — Carpentry/Paint (by path OR by name, since Phase-3 generation creates them path-less): branches, never gates
+  - **Measurement side-tasks** — any task named "Take Measurement…": an assigned installation side-job, never gates the admin chain
+  - **Unchosen/abandoned gateway alternatives** — `pathCondition` set + To Do or Locked
+  - The triggering task itself is excluded from the blocked-scan (F3 big-order stays In Progress by design)
+- Tasks matched by `isAutoTask` (lib/phases.ts — "(auto)" names, headline banners, the order-64 closing transition) auto-complete on unlock, apply closing stage transitions, and re-trigger the chain once.
+- Gate-controlled tasks ("Call the Client", "Take Approval") never unlock via the order chain — only via `maybeUnlockCallClient` when all `[GATE]` tasks complete.
 
 ### Measurement Flow
 
 1. **SED requests measurement** → `POST /api/projects/[id]/request-measurement` → `createAdHocTask({ taskName: 'Take Measurements', projectId, departments: ['Installation'] })` → notification to installation role
 
-2. **Installation assigns date & team** → `POST /api/tasks/[id]/assign-measurement` → reads task's `projectRecordId` → looks up measurement template (order 5 for project-level Preparing / order 25 for per-item Open) → creates new task via `createTasksBatch` → creates calendar event → sends notification → marks original task Completed
+2. **SED/Manager assigns date & team** (MeasurementTeamPanel → `POST /api/tasks/[id]/assign-measurement`): looks up the measurement template (order 5 project-level / order 25 per-item) → spawns the Installation task via `createTasksBatch` — **deliberately path-less** (a pathed project-level task would render as a SED gateway chip and leak into the SED feed) → retires the generation-created pathed "Take Measurement" gateway sibling (`supersedeGatewayMeasurementTasks`) → creates a calendar event titled `Take Measurements — {ref} · {project} › {item}` (upserted on `task:{id}`) → Arabic notification to installation → marks the SED chip Completed.
 
 3. **Per-item measurement tasks (order 25)** behave as plain status tasks (To Do → In Progress → Completed + notes). No Assign & Notify panel.
 
@@ -615,6 +638,10 @@ When multiple tasks share the same `templateOrder`, they act as an AND-join: the
    - Set project stage → `Closed and active warranty`
    - Email accountant via `notifyAccountantEvent`
    - In-app notification to sed, manager, superadmin
+
+### Task-side completion guards (`PATCH /api/tasks/[id]`)
+- **Make Quotation / any F4 task** cannot complete until the project has BOTH a quotation number and reference (the F4 form auto-fills them read-only when set, and saves them to the project when entered).
+- **Final F4 (order 62)** additionally requires a recorded, non-cancelled `Final` payment — the project can't reach active warranty without the money booked.
 
 ### Payment Visibility
 Only `manager` and `superadmin` can see payments. Controlled by `canSeePayments(role)` in `lib/permissions.ts` and enforced in `GET /api/projects/[id]`.
@@ -747,6 +774,10 @@ Each role has a primary dashboard page. All dashboard pages are **server compone
 
 **`components/followups/FollowUpsView.tsx`** — Follow-up log display. Project reference format: `{quotationNumber}{quotationReference}` (direct concatenation, e.g. `3457r4`).
 
+**`components/tasks/NextUpPreview.tsx` + `/api/projects/[id]/next-steps`** — per-scope "what's next" hint on the project page. Role-aware: when the scope's active head belongs to a department the viewer can't see (mirrors the task-feed filter), it renders an amber **"Waiting on {dept}: {task}"** instead of a misleading "Next up" (cross-department handoffs like SED → Manager's "Choose Installation Team").
+
+**`components/finance/PayablesView.tsx` / `ReceivablesView.tsx`** — manual finance ledgers (superadmin + manager, Finance sidebar group). Data comes only from their "+ Add" forms into the Airtable Payables/Receivables tables. Select options in the forms MUST exactly match the Airtable single-select choices — a mismatched value makes Airtable reject the record (save/delete failures surface as toasts and keep the modal open).
+
 ### SWR Data Fetching
 
 All client-side data uses SWR. Global provider at `components/providers/SWRProvider.tsx`. Standard pattern:
@@ -847,6 +878,8 @@ quotationNumber only               → "3457"
 quotationReference only            → "r4"
 neither                            → WW number (PROJECTS.PROJECT_ID field, legacy fallback)
 ```
+
+The same rule is packaged as **`projectRefLabel()` in `lib/projectRef.ts`** — use it whenever building a display id from raw fields (task enrichment sets `task.projectRef` with it; calendar events, report cells, and email subjects go through it too). Raw `PROJECTS.PROJECT_ID` (WW number) is display-fallback only — never key logic on it.
 
 ### 4. Server components vs `'use client'`
 
