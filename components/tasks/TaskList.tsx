@@ -73,6 +73,13 @@ function renderTasksInOrder(
   projectId?: string,
   nextStep?: NextStepHint | null,
 ): React.ReactNode[] {
+  // The Installation measurement job is never a SED action — its chip is "Ask installation team…".
+  // Generated pathed "Take Measurement" siblings (any status, incl. Completed/Round-2) must not
+  // render in the project-level gateway. Per-item measurement chips are real actions — untouched.
+  tasks = tasks.filter(
+    (t) => !(!t.projectItem?.length && t.pathCondition && t.taskName.trim().toLowerCase().startsWith('take measurement')),
+  )
+
   // Split per-item (Phase 2) tasks from project-level tasks
   const itemTasks = tasks.filter((t) => t.projectItem && t.projectItem.length > 0)
   const projectLevelTasks = tasks.filter((t) => !t.projectItem || t.projectItem.length === 0)
