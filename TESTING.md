@@ -86,10 +86,24 @@ fails the build. `integration` never runs on `main`.
 ### Required GitHub secrets
 Settings → Secrets and variables → Actions:
 
-| Secret | Point it at |
-|---|---|
-| `AIRTABLE_API_KEY` / `AIRTABLE_BASE_ID` | the base whose schema should be guarded (read-only) |
-| `INTEGRATION_AIRTABLE_API_KEY` / `INTEGRATION_AIRTABLE_BASE_ID` | **the preview base** (it gets written to) |
+| Secret | Point it at | Why |
+|---|---|---|
+| `AIRTABLE_API_KEY` / `AIRTABLE_BASE_ID` | the **production** base | read-only — guards the schema real users hit |
+| `INTEGRATION_AIRTABLE_API_KEY` / `INTEGRATION_AIRTABLE_BASE_ID` | the **preview** base ⚠️ | this one gets written to |
+
+#### Setting them up
+
+1. **Create an Airtable token** at [airtable.com/create/tokens](https://airtable.com/create/tokens).
+   - Scopes: `schema.bases:read` (contract), plus `data.records:read` and `data.records:write`
+     (integration).
+   - Under *Access*, explicitly add the base(s). Airtable PATs are per-base — a token without the
+     base added returns 403.
+   - One token can serve both pairs, or use a read-only one for the contract secrets.
+2. **Find the base ids.** Production is in your `.env.local` (`AIRTABLE_BASE_ID`). The preview base
+   id is in Vercel → *Settings → Environment Variables* → filter **Preview** → `AIRTABLE_BASE_ID`.
+3. **Add the four secrets** at *Settings → Secrets and variables → Actions → New repository secret*.
+4. **Confirm.** Push to `staging` and open the Actions tab — `schema-contract` and `integration`
+   should now run instead of skip.
 
 ---
 
@@ -107,3 +121,59 @@ Rule of thumb: **if a bug can be written as an assertion, it belongs in a test, 
 Contract and integration read `.env.local` automatically (see `tests/contract/setup.ts`), so no
 extra flags are needed — but remember `.env.local` decides *which base* they hit. Check it before
 running the integration suite.
+
+---
+
+# Before deploying to production
+
+Promotion is `staging → main`. The manual checklist is **derived per release, not fixed** — it
+shrinks as more checks become tests.
+
+### 1. Confirm the branches are clean
+```bash
+git fetch origin
+git rev-list --left-right --count origin/main...origin/staging
+```
+The **left** number (commits on main that staging lacks) should be `0` — that means a clean
+fast-forward with no conflicts. Also check CI is green on `staging`.
+
+### 2. See what's shipping
+```bash
+git log --oneline origin/main..origin/staging
+```
+
+### 3. Derive the manual checklist
+Only app-facing files need a human look. Filter out everything that can't change runtime behaviour:
+```bash
+git diff --name-only origin/main origin/staging \
+  | grep -vE '^(tests/|coverage/|docs?/|public/manuals/|scripts/|.*\.md$|vitest|package|\.github/)'
+```
+Whatever survives is your checklist. Test-only, docs-only and CI-only commits need **no** manual
+testing at all — that's the point of the layers above.
+
+Then walk the surviving files back to the user-visible behaviour they control and click exactly
+those paths. A worked example, for a release whose filter returned five files:
+
+| File(s) | What to check by hand |
+|---|---|
+| `app/api/team/sed/route.ts`, `components/projects/NewProjectModal.tsx` | New Project form: SED picker shows projects and requests separately; a Commun-only SED shows a non-zero count; numbers match the SED chart |
+| `app/api/tasks/[id]/assign-measurement/route.ts` | "Assign & Notify" leaves the SED chip **In Progress** (not Completed); installation receives the spawned task |
+| `components/tasks/TaskList.tsx`, `lib/airtable/tasks.ts` (`supersedeGatewayMeasurementTasks`) | After assigning measurement, the pathed project-level "Take Measurement" task is Completed and never reappears as a SED gateway chip; the SED's "Ask installation team to Take Measurement" chip is untouched |
+| `app/api/cron/inactivity-check/route.ts`, `lib/airtable/tasks.ts` (`getLastModifiedTaskForProject`) | Actions → *Inactivity Check* → Run workflow; the alert **names the stalled task** ("Last task: …") and fires across all active stages |
+
+> Note how two features here span both a route/component **and** `lib/`. Walk every surviving file
+> back to the behaviour it supports — several files often collapse into one thing to click.
+
+### 4. Promote and deploy
+```bash
+git checkout main && git pull --ff-only origin main
+git merge --no-ff staging -m "Merge staging → main: <summary>"
+git push origin main
+npm run deploy            # vercel --prod --yes
+git checkout staging
+```
+
+### 5. Close the loop
+Anything you just checked by hand that could have been an assertion should become one, so it drops
+off this list for good. Pure decisions (count predicates, chip-visibility rules) → **unit**;
+read/write round-trips → **integration**.
