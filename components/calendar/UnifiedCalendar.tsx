@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import useSWR from 'swr'
+import toast from 'react-hot-toast'
 import type { CalendarEvent } from '@/lib/airtable'
 import { todayUAE } from '@/lib/dateUtils'
 
@@ -359,10 +360,29 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode, 
 }
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
-function EventCard({ ev, showInstallAssign }: { ev: CalendarEvent; showInstallAssign: boolean }) {
+function EventCard({ ev, showInstallAssign, onDeleted }: { ev: CalendarEvent; showInstallAssign: boolean; onDeleted: () => void }) {
   const cfg = TYPE_CFG[ev.type] ?? TYPE_CFG.activity
   const [assigning, setAssigning] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const dateLabel = isoToLocal(ev.date).toLocaleDateString('en-AE', { weekday: 'short', month: 'short', day: 'numeric' })
+
+  async function handleDelete() {
+    if (!window.confirm(`Delete "${ev.title}"?`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/calendar/${ev.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error ?? 'Failed to delete')
+      }
+      toast.success('Event deleted')
+      onDeleted()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className={`bg-white border border-gray-200 border-l-4 ${cfg.border} rounded-xl p-3.5 shadow-sm`}>
@@ -427,6 +447,18 @@ function EventCard({ ev, showInstallAssign }: { ev: CalendarEvent; showInstallAs
               }`}
             >
               Assign Team
+            </button>
+          )}
+          {ev.source === 'custom' && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              title="Delete event"
+              className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40 p-0.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
             </button>
           )}
         </div>
@@ -747,7 +779,7 @@ export default function UnifiedCalendar({
               </div>
             ) : (
               panelEvents.map(ev => (
-                <EventCard key={ev.id} ev={ev} showInstallAssign={effectiveAssign} />
+                <EventCard key={ev.id} ev={ev} showInstallAssign={effectiveAssign} onDeleted={() => mutate()} />
               ))
             )}
           </div>
