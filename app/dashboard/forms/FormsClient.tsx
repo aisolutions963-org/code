@@ -448,7 +448,10 @@ function ProjectCard({ project, canPay, canHandover, onRefresh }: { project: Pro
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
       <div>
-        <p className="text-sm font-semibold text-gray-900">{project.projectName}</p>
+        <p className="text-sm font-semibold text-gray-900">
+          <span className="font-mono text-xs text-gray-400 mr-1.5">{projectRefLabel(project)}</span>
+          {project.projectName}
+        </p>
         <p className="text-xs text-gray-400 mt-0.5">
           {project.clientName ?? '—'} · {project.projectStage ?? '—'}
         </p>
