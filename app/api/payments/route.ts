@@ -101,7 +101,7 @@ export const POST = requireRole('manager', 'superadmin')(
     // For Trade/Variance sub-projects, auto-set the payment name to the trade reference
     // so the calendar event title shows the reference instead of the generic payment type.
     const name =
-      (project?.requestType === 'Trade' || project?.requestType === 'Variance') && project.tradeReference
+      (project?.requestType === 'Trade' || project?.requestType === 'Variation') && project.tradeReference
         ? project.tradeReference
         : undefined
 

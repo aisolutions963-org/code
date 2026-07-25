@@ -30,7 +30,7 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
   const isClientRequest = !!(task.projectRequestType)
   const [paymentType, setPaymentType] = useState(() => {
     if (task.projectRequestType === 'Trade') return 'Trade'
-    if (task.projectRequestType === 'Variance') return 'Variance'
+    if (task.projectRequestType === 'Variation') return 'Variation'
     if (task.projectRequestType === 'Maintenance') return 'Maintenance'
     const name = task.taskName.toLowerCase()
     if (name.includes('delivery')) return 'Delivery'
@@ -420,10 +420,11 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
             <option>Advance</option>
             <option>Delivery</option>
             <option>Material</option>
+            <option>Full Payment</option>
             <option>Progressive Payment</option>
             <option>Final</option>
             <option>Trade</option>
-            <option>Variance</option>
+            <option>Variation</option>
             <option>Maintenance</option>
           </select>
         </div>

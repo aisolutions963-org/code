@@ -26,7 +26,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
   const payments = data?.project?.payments ?? []
 
   const today = todayUAE()
-  const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variance'
+  const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variation'
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     amount: '',
@@ -202,7 +202,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
               }}
               className={sel}
             >
-              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
+              {['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>

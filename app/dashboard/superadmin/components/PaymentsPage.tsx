@@ -42,7 +42,7 @@ function PaymentDetail({
   const payments = data?.payments ?? []
 
   const today = todayUAE()
-  const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variance'
+  const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variation'
   const [form, setForm] = useState({
     amount: '',
     paymentType: 'Advance',
@@ -290,7 +290,7 @@ function PaymentDetail({
                               <label className="text-xs text-gray-500 block mb-1">Type</label>
                               <select value={editForm.paymentType} onChange={(e) => setEF('paymentType', e.target.value)}
                                 className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                                {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
+                                {['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
                               </select>
                             </div>
                             <div>

@@ -101,7 +101,7 @@ export interface Task {
   projectQuotationReference?: string
   projectSalesOwner?: string
   projectCommunSeds?: string[]
-  projectRequestType?: 'Trade' | 'Maintenance' | 'Variance'
+  projectRequestType?: 'Trade' | 'Maintenance' | 'Variation'
   projectTradeReference?: string
   taskDocLinks?: DocLink[]
   fillersDocLinks?: DocLink[]
@@ -186,7 +186,7 @@ export interface Project {
   communSeds?: string[]
   communSedIds?: string[]
   fabricationActive?: boolean
-  requestType?: 'Trade' | 'Maintenance' | 'Variance'
+  requestType?: 'Trade' | 'Maintenance' | 'Variation'
   parentProjectId?: string
   parentProjectName?: string
   parentProjectRef?: string
@@ -199,7 +199,7 @@ export interface ClientRequest {
   projectName: string
   clientName: string
   clientPhone?: string
-  requestType: 'Trade' | 'Maintenance' | 'Variance'
+  requestType: 'Trade' | 'Maintenance' | 'Variation'
   projectStage: string
   createdAt?: string
   description?: string
@@ -213,7 +213,7 @@ export interface ClientRequest {
 }
 
 export interface ClientRequestCreateInput {
-  requestType: 'Trade' | 'Maintenance' | 'Variance'
+  requestType: 'Trade' | 'Maintenance' | 'Variation'
   clientName: string
   clientPhone?: string
   description?: string

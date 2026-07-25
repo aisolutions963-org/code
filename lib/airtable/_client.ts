@@ -247,6 +247,13 @@ export function selectName(val: unknown): string | undefined {
   }
   return undefined
 }
+
+// Client-request type was renamed "Variance" → "Variation". Existing Airtable records still
+// store the literal old value (not retroactively migrated), so every read of REQUEST_TYPE goes
+// through this to normalize old → new — the rest of the app only ever needs to know 'Variation'.
+export function normalizeRequestType<T extends string | null | undefined>(raw: T): T | 'Variation' {
+  return (raw === 'Variance' ? 'Variation' : raw) as T | 'Variation'
+}
 // Extracts the first linked record from a multipleRecordLinks field.
 // Handles both string IDs (["recXXXX"]) and expanded objects ([{id, name, email}]).
 export function firstLinkedRecord(val: unknown): { id: string; name: string; email: string } | undefined {
@@ -423,7 +430,7 @@ export function transformProject(record: RawRecord): import('../types').Project 
     projectDescription: str(f[PROJECTS.PROJECT_DESCRIPTION]),
     communSeds: communSeds.length > 0 ? communSeds : undefined,
     communSedIds: communSedIds.length > 0 ? communSedIds : undefined,
-    requestType: (str(f[PROJECTS.REQUEST_TYPE]) as 'Trade' | 'Maintenance' | 'Variance' | undefined) ?? undefined,
+    requestType: (normalizeRequestType(str(f[PROJECTS.REQUEST_TYPE])) as 'Trade' | 'Maintenance' | 'Variation' | undefined) ?? undefined,
     parentProjectId: firstLinkedRecord(f[PROJECTS.PARENT_PROJECT])?.id ?? undefined,
     // Linked-record fields return only IDs over REST (no .name), so read the parent's name
     // and reference from their lookup fields — otherwise both are blank on every client request.

@@ -235,7 +235,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
       items: [
         { label: 'Pipeline', href: '/dashboard/pipeline', icon: <PipelineIcon /> },
         { label: 'All Projects', href: '/dashboard/superadmin?view=projects', icon: <FolderIcon /> },
-        { label: 'Activity', href: '/dashboard/superadmin?view=activity', icon: <ActivityIcon /> },
+        { label: 'Follow-Ups', href: '/dashboard/superadmin?view=follow-ups', icon: <ClipboardIcon /> },
         { label: 'Client Requests', href: '/dashboard/client-requests', icon: <RequestsIcon /> },
       ],
     },

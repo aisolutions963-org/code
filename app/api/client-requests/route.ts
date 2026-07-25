@@ -85,7 +85,7 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
   }
 
   const warning = taskGenerationFailed
-    ? 'Variance project created but task generation failed — open the project and regenerate tasks.'
+    ? 'Variation project created but task generation failed — open the project and regenerate tasks.'
     : undefined
 
   return NextResponse.json(

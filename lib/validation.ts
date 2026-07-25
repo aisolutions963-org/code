@@ -58,7 +58,7 @@ export const UpdateTaskSchema = z.object({
 export const CreatePaymentSchema = z.object({
   project: z.array(z.string().min(1)).min(1),
   amount: z.number().positive().max(10_000_000),
-  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance']),
+  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance']),
   paymentStatus: z.enum(['Received', 'Pending', 'Overdue']),
   paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Cheque']),
   referenceNo: z.string().max(100).optional(),
@@ -75,7 +75,7 @@ export const CreatePaymentSchema = z.object({
 
 export const UpdatePaymentSchema = z.object({
   amount: z.number().positive().max(10_000_000).optional(),
-  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance']).optional(),
+  paymentType: z.enum(['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance']).optional(),
   paymentStatus: z.enum(['Received', 'Pending', 'Overdue', 'Cancelled']).optional(),
   paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Cheque']).optional(),
   referenceNo: z.string().max(100).optional(),
@@ -108,7 +108,7 @@ export const MaterialDecisionSchema = z.object({
 })
 
 export const CreateQuotationItemsSchema = z.object({
-  quotationNumber: z.string().min(1, 'Quotation number is required').regex(/^\d{4,}$/, 'Quotation number must be at least 4 digits').max(100).transform((v) => v.trim()),
+  quotationNumber: z.string().min(1, 'Quotation number is required').max(100).transform((v) => v.trim()),
   quotationReference: z.string().min(1, 'Quotation reference is required').max(100).transform((v) => v.trim()),
   quotationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid quotation date'),
   items: z
@@ -240,7 +240,7 @@ export const CreateProjectSchema = z.object({
 
 export const CreateClientRequestSchema = z
   .object({
-    requestType: z.enum(['Trade', 'Maintenance', 'Variance']),
+    requestType: z.enum(['Trade', 'Maintenance', 'Variation']),
     clientName: z.string().min(1, 'Client name is required').max(200).transform((v) => v.trim()),
     clientPhone: z.string().max(30).optional(),
     description: z.string().max(1000).optional(),
@@ -255,8 +255,8 @@ export const CreateClientRequestSchema = z
         path: ['parentProjectId'],
         message: d.requestType === 'Trade'
           ? 'Parent project is required for Trade requests'
-          : d.requestType === 'Variance'
-          ? 'Parent project is required for Variance requests'
+          : d.requestType === 'Variation'
+          ? 'Parent project is required for Variation requests'
           : 'Select the project under warranty for this maintenance request',
       })
     }

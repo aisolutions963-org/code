@@ -4,6 +4,7 @@ import { useState } from 'react'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { Project, Role, Material } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
+import { projectRefLabel } from '@/lib/projectRef'
 import Button from '@/components/ui/Button'
 import NewProjectModal from '@/components/projects/NewProjectModal'
 import HandoverModal from '@/components/projects/HandoverModal'
@@ -128,7 +129,7 @@ function PaymentForm({ project }: { project: Project }) {
           <div>
             <label className={lbl}>Type</label>
             <select value={form.paymentType} onChange={(e) => setF('paymentType', e.target.value)} className={sel}>
-              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
+              {['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>
@@ -296,7 +297,7 @@ function F3Modal({
                   >
                     <option value="">Select project…</option>
                     {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.projectName}</option>
+                      <option key={p.id} value={p.id}>{projectRefLabel(p)} — {p.projectName}</option>
                     ))}
                   </select>
                 </div>

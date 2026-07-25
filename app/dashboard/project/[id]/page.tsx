@@ -389,7 +389,7 @@ function TimesheetSection({ summary }: { summary: TimesheetSummary }) {
 const TYPE_BADGE: Record<string, string> = {
   Trade:       'bg-blue-100 text-blue-700',
   Maintenance: 'bg-orange-100 text-orange-700',
-  Variance:    'bg-purple-100 text-purple-700',
+  Variation:   'bg-purple-100 text-purple-700',
 }
 
 function LinkedRequestCard({
@@ -503,7 +503,7 @@ function LinkedRequestsSection({
   return (
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
       <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-        Trade / Variance / Maintenance ({requests.length})
+        Trade / Variation / Maintenance ({requests.length})
       </h2>
       <div className="space-y-2">
         {requests.map((req) => (
