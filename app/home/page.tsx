@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import useSWR from 'swr'
+import useSWR, { mutate as globalMutate } from 'swr'
 import { Announcement, Project, Task } from '@/lib/types'
 import { projectRefLabel } from '@/lib/projectRef'
 import { useSession } from '@/app/dashboard/layout-client'
@@ -702,7 +702,7 @@ export default function HomePage() {
           date={activityDate}
           role={role}
           onClose={() => setActivityDate(null)}
-          onSuccess={() => { mutate() }}
+          onSuccess={() => { mutate(); globalMutate('/api/calendar') }}
         />
       )}
 
