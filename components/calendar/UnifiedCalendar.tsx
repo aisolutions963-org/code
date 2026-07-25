@@ -201,21 +201,32 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode, 
       finalNotes = finalNotes ? `${prefix}\n${finalNotes}` : prefix
     }
 
-    await fetch('/api/calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: title.trim(),
-        date,
-        notes: finalNotes || undefined,
-        projectId: !isFactory && !personalMode ? (projectId || undefined) : undefined,
-        eventType,
-        teamMemberIds: showFactory && selectedMembers.length > 0 ? selectedMembers : undefined,
-      }),
-    })
-    setSaving(false)
-    mutate()
-    onDone()
+    try {
+      const res = await fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          date,
+          notes: finalNotes || undefined,
+          projectId: !isFactory && !personalMode ? (projectId || undefined) : undefined,
+          eventType,
+          teamMemberIds: showFactory && selectedMembers.length > 0 ? selectedMembers : undefined,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const msg = typeof body.error === 'string' ? body.error : 'Failed to add activity'
+        throw new Error(msg)
+      }
+      toast.success('Activity added')
+      mutate()
+      onDone()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add activity')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
