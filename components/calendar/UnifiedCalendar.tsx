@@ -741,7 +741,7 @@ export default function UnifiedCalendar({
                           className={`text-[10px] leading-snug px-1.5 py-0.5 rounded font-medium truncate border ${cfg.pill}`}
                           title={ev.title}
                         >
-                          {ev.projectName
+                          {ev.source !== 'custom' && ev.projectName
                             ? `${ev.projectRef ? ev.projectRef + ' · ' : ''}${ev.projectName}`
                             : ev.title}
                         </span>
