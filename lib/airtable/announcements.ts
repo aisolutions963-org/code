@@ -35,7 +35,7 @@ const ROLE_TO_AUDIENCE: Record<string, string> = {
   superadmin: 'Superadmin',
 }
 
-export async function getAnnouncements(role?: string): Promise<Announcement[]> {
+export async function getAnnouncements(role?: string, options?: { includeExpired?: boolean }): Promise<Announcement[]> {
   const today = todayUAE()
   const expiryFilter = `OR(IS_AFTER({${ANNOUNCEMENTS.EXPIRES_AT}}, "${today}"), {${ANNOUNCEMENTS.EXPIRES_AT}}=BLANK())`
 
@@ -49,7 +49,7 @@ export async function getAnnouncements(role?: string): Promise<Announcement[]> {
       : `OR({${ANNOUNCEMENTS.VISIBLE_TO}}="Everyone", {${ANNOUNCEMENTS.VISIBLE_TO}}=BLANK())`
   }
 
-  const formula = `AND(${expiryFilter}, ${visibilityFilter})`
+  const formula = options?.includeExpired ? visibilityFilter : `AND(${expiryFilter}, ${visibilityFilter})`
   const records = await fetchAll(ANNOUNCEMENTS.TABLE_ID, {
     filterByFormula: formula,
     sort: [{ field: ANNOUNCEMENTS.PINNED, direction: 'desc' }],

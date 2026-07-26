@@ -3,8 +3,9 @@ import { requireRole } from '@/lib/apiHandler'
 import { getAnnouncements, createAnnouncement } from '@/lib/airtable'
 import { CreateAnnouncementSchema } from '@/lib/validation'
 
-export const GET = requireRole()(async (_req: NextRequest, session) => {
-  const announcements = await getAnnouncements(session.role)
+export const GET = requireRole()(async (req: NextRequest, session) => {
+  const includeExpired = session.role === 'superadmin' && req.nextUrl.searchParams.get('includeExpired') === 'true'
+  const announcements = await getAnnouncements(session.role, { includeExpired })
   return NextResponse.json({ announcements })
 })
 
