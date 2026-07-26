@@ -416,7 +416,7 @@ function EventCard({ ev, showInstallAssign, canEdit, onDeleted, onUpdated }: {
         const d = await res.json().catch(() => ({}))
         throw new Error(d.error ?? 'Failed to delete')
       }
-      toast.success('Event deleted')
+      toast.success('Activity deleted')
       onDeleted()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete')
@@ -571,7 +571,7 @@ function EventEditForm({ ev, onCancel, onSaved }: { ev: CalendarEvent; onCancel:
         const d = await res.json().catch(() => ({}))
         throw new Error(d.error ?? 'Failed to save changes')
       }
-      toast.success('Event updated')
+      toast.success('Activity updated')
       onSaved()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save changes')

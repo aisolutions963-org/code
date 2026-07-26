@@ -83,11 +83,11 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatCard({ label, value, sub, muted }: { label: string; value: string; sub?: string; muted?: boolean }) {
   return (
     <div className="bg-gray-50 rounded-xl border border-gray-100 px-4 py-3">
       <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-lg font-bold text-gray-900">{value}</p>
+      <p className={`text-lg font-bold ${muted ? 'text-gray-400 italic' : 'text-gray-900'}`}>{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
     </div>
   )
@@ -284,7 +284,7 @@ function PaymentsSection({ project, payments }: { project: Project; payments: Pa
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard label="Contract value"  value={quotationPending ? '—' : fmt(total)} />
             <StatCard label="Collected"       value={fmt(paid)}  sub={quotationPending ? undefined : `${progress}%`} />
-            <StatCard label="Remaining"       value={quotationPending ? 'Quotation pending' : fmt(remaining)} />
+            <StatCard label="Remaining"       value={quotationPending ? 'Quotation pending' : fmt(remaining)} muted={quotationPending} />
             <StatCard label="Payment mode"    value={project.paymentMode ?? '—'} />
           </div>
 
