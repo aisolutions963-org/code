@@ -81,9 +81,11 @@ const OPTION_LABELS_AR: Partial<Record<string, string>> = {
   'Purchase Missing Items': 'شراء مواد ناقصة',
 }
 
+// fillersDocLinks intentionally excluded — it rendered as a second, near-identical box
+// (installation/superadmin roles only). Existing links in that field aren't lost: the
+// project page's "Attachments & Links" summary reads it independently of this list.
 const DOC_LINK_FIELDS: (keyof TaskUpdateInput)[] = [
   'taskDocLinks',
-  'fillersDocLinks',
 ]
 
 function DocLinksField({
