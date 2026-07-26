@@ -269,6 +269,7 @@ function PaymentsSection({ project, payments }: { project: Project; payments: Pa
   const total   = project.projectTotalCost ?? 0
   const paid    = project.totalPaid ?? 0
   const remaining = project.remainingBalance ?? (total - paid)
+  const quotationPending = project.projectTotalCost == null
   const progress = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0
 
   const activePayments = payments.filter((p) => p.paymentStatus !== 'Cancelled')
@@ -278,24 +279,26 @@ function PaymentsSection({ project, payments }: { project: Project; payments: Pa
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
       <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payments</h2>
 
-      {total > 0 && (
+      {(total > 0 || paid > 0) && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Contract value"  value={fmt(total)} />
-            <StatCard label="Collected"       value={fmt(paid)}  sub={`${progress}%`} />
-            <StatCard label="Remaining"       value={fmt(remaining)} />
+            <StatCard label="Contract value"  value={quotationPending ? '—' : fmt(total)} />
+            <StatCard label="Collected"       value={fmt(paid)}  sub={quotationPending ? undefined : `${progress}%`} />
+            <StatCard label="Remaining"       value={quotationPending ? 'Quotation pending' : fmt(remaining)} />
             <StatCard label="Payment mode"    value={project.paymentMode ?? '—'} />
           </div>
 
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-2 rounded-full transition-all"
-              style={{
-                width: `${progress}%`,
-                background: progress >= 100 ? '#22c55e' : 'linear-gradient(90deg,#d95e1a,#b84a14)',
-              }}
-            />
-          </div>
+          {!quotationPending && (
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-2 rounded-full transition-all"
+                style={{
+                  width: `${progress}%`,
+                  background: progress >= 100 ? '#22c55e' : 'linear-gradient(90deg,#d95e1a,#b84a14)',
+                }}
+              />
+            </div>
+          )}
         </>
       )}
 

@@ -160,9 +160,11 @@ export default function ClientsReportView() {
                           )}
                         </div>
                         <div className="text-right shrink-0 text-xs">
-                          {(p.projectTotalCost ?? 0) > 0 && (
+                          {p.projectTotalCost == null ? (
+                            (p.totalPaid ?? 0) > 0 && <p className="text-gray-400 italic">Quotation pending</p>
+                          ) : (
                             <>
-                              <p className="font-semibold text-gray-700">AED {(p.projectTotalCost ?? 0).toLocaleString()}</p>
+                              <p className="font-semibold text-gray-700">AED {p.projectTotalCost.toLocaleString()}</p>
                               <p className="text-gray-400">Paid: {(p.totalPaid ?? 0).toLocaleString()}</p>
                               {(p.remainingBalance ?? 0) > 0 && (
                                 <p className="text-red-500">Due: {(p.remainingBalance ?? 0).toLocaleString()}</p>
