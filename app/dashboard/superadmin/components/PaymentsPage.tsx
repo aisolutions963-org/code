@@ -428,7 +428,7 @@ function PaymentDetail({
                 })
               }}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
+              {['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>

@@ -72,10 +72,14 @@ describe('CreatePaymentSchema', () => {
   })
 
   it('accepts all valid paymentType values', () => {
-    const types = ['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment']
+    const types = ['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance']
     types.forEach((t) => {
       expect(CreatePaymentSchema.safeParse({ ...base, paymentType: t }).success).toBe(true)
     })
+  })
+
+  it('rejects the retired paymentType value "Variance"', () => {
+    expect(CreatePaymentSchema.safeParse({ ...base, paymentType: 'Variance' }).success).toBe(false)
   })
 })
 

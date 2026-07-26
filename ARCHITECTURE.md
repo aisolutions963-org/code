@@ -453,7 +453,7 @@ Routes follow Next.js App Router conventions at `app/api/`. All use either `requ
 | Route | Method | Auth | Description |
 |-------|--------|------|-------------|
 | `/api/payments` | GET | manager, superadmin | Params: `projectId`, `projectIds` (comma-sep), `all=true`. |
-| `/api/payments` | POST | manager, superadmin | Creates payment with duplicate guards; creates calendar event; emails accountant; Final payment → closes project. |
+| `/api/payments` | POST | manager, superadmin | Creates payment with duplicate guards; creates calendar event; emails accountant; Final or Full Payment → closes project. |
 | `/api/payments/[id]` | GET | manager, superadmin | Single payment. |
 | `/api/payments/[id]` | PATCH | manager, superadmin | Updates payment (void = status → Cancelled). |
 
@@ -624,7 +624,7 @@ On every task completion, `unlockNextTasks` (lib/workflow.ts) calls `planUnlock(
 `Received`, `Pending`, `Overdue`, `Cancelled` (void)
 
 ### Duplicate Guards (both checked before creation)
-1. **Final payment guard**: Only one non-Cancelled Final payment per project (409 Conflict)
+1. **Final/Full Payment guard**: Only one non-Cancelled Final-or-Full-Payment payment per project (409 Conflict) — `Full Payment` closes the project the same way `Final` does, so it's treated as the same bucket for this guard
 2. **General guard**: Same type + amount + received date already exists → 409 Conflict
 
 ### On Payment Create (`POST /api/payments`)
@@ -633,7 +633,7 @@ On every task completion, `unlockNextTasks` (lib/workflow.ts) calls `planUnlock(
 3. Create payment record
 4. Create calendar event server-side using `body.receivedDate` (title: `"{type} — {project}"`)
 5. Email accountant (fire-and-forget)
-6. If `paymentType === 'Final'` → `closeProjectAfterFinalPayment()`:
+6. If `paymentType === 'Final'` or `'Full Payment'` → `closeProjectAfterFinalPayment()`:
    - Activate / create maintenance record (1-year warranty)
    - Set project stage → `Closed and active warranty`
    - Email accountant via `notifyAccountantEvent`
@@ -641,7 +641,7 @@ On every task completion, `unlockNextTasks` (lib/workflow.ts) calls `planUnlock(
 
 ### Task-side completion guards (`PATCH /api/tasks/[id]`)
 - **Make Quotation / any F4 task** cannot complete until the project has BOTH a quotation number and reference (the F4 form auto-fills them read-only when set, and saves them to the project when entered).
-- **Final F4 (order 62)** additionally requires a recorded, non-cancelled `Final` payment — the project can't reach active warranty without the money booked.
+- **Final F4 (order 62)** additionally requires a recorded, non-cancelled `Final` **or** `Full Payment` — the project can't reach active warranty without the money booked. When a `Full Payment` already exists, any open F4 task (Advance/Delivery/Final) shows a one-click "already paid in full — mark complete" skip instead of the normal payment form, but still only completes when the order chain naturally reaches that task.
 
 ### Payment Visibility
 Only `manager` and `superadmin` can see payments. Controlled by `canSeePayments(role)` in `lib/permissions.ts` and enforced in `GET /api/projects/[id]`.
@@ -900,9 +900,9 @@ The same rule is packaged as **`projectRefLabel()` in `lib/projectRef.ts`** — 
 
 In Airtable formulas, `{PROJECT} = "recXXXXXXXXXXXXXX"` (comparing a linked-record field to a record ID) works — Airtable resolves it correctly. This is used throughout `tasks.ts` for filter formulas. Do not use primary-field-value comparisons for record ID lookups.
 
-### 8. filterStalePhase1Tasks
+### 8. filterTasksByProjectStage
 
-Tasks with `templateOrder <= 18` (Phase 1 action range) are filtered out if their project is no longer in 'Preparing' stage. This prevents stale P1 tasks appearing in dashboards after the project advances. Applied in `getTasksByRole`.
+Tasks with `templateOrder <= 18` (Phase 1 action range) are filtered out if their project is no longer in 'Preparing' stage. This prevents stale P1 tasks appearing in dashboards after the project advances. The same per-project stage lookup also drops every task whose project is in `'Not-Approved'` stage, but only when the caller didn't ask for a specific `projectId` — opening a rejected project directly still shows its tasks. Applied in `getTasksByRole` (its only caller, `GET /api/tasks`).
 
 ### 9. `requireRole()` wraps the handler, returns the handler
 

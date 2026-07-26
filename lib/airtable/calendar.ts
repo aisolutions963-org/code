@@ -18,6 +18,10 @@ import {
   strArr,
   deleteByProject,
 } from './_client'
+
+// Cron-authored recurring reminder events (see upsertReminderEvent) — not user-created, but not
+// task/payment-derived either. Shared with app/api/calendar/route.ts's role-based visibility filter.
+export const REVIEW_TASK_PREFIXES = ['weekly-review:', 'monthly-audit:']
 import { getProjectItemNameMap } from './tasks'
 import { projectRefLabel } from '../projectRef'
 
@@ -291,9 +295,12 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     }
     // A calendar event upserted from a task's own date field (via createCalendarEvent({ taskId })
     // — e.g. "Take Measurements") is physically a CALENDAR_EVENTS record, but deleting it would
-    // just leave the task's date to silently recreate it next save. Only a genuinely standalone
-    // custom event (no task:/f2: link) is safe to let a user delete outright.
-    const isTaskLinked = segs.some((s) => s.startsWith('task:') || s.startsWith('f2:'))
+    // just leave the task's date to silently recreate it next save. Same for the cron-authored
+    // weekly-review/monthly-audit reminders (upsertReminderEvent) — they'd just reappear on the
+    // next cron run. Only a genuinely standalone custom event is safe to let a user delete outright.
+    const isTaskLinked = segs.some((s) =>
+      s.startsWith('task:') || s.startsWith('f2:') || REVIEW_TASK_PREFIXES.some((p) => s.startsWith(p)),
+    )
     events.push({
       id: r.id,
       title,
