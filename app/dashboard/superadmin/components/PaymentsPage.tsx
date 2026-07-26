@@ -4,6 +4,7 @@ import { useState, Fragment } from 'react'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { Project, Payment } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
+import { remainingBalanceLabel } from '@/lib/projectRef'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import UnifiedCalendar from '@/components/calendar/UnifiedCalendar'
@@ -502,7 +503,9 @@ export default function PaymentsPage() {
 
   const totalRevenue = projects.reduce((s, p) => s + (p.projectTotalCost ?? 0), 0)
   const totalPaid = projects.reduce((s, p) => s + (p.totalPaid ?? 0), 0)
-  const totalRemaining = projects.reduce((s, p) => s + (p.remainingBalance ?? 0), 0)
+  const totalRemaining = projects
+    .filter((p) => p.projectTotalCost != null)
+    .reduce((s, p) => s + (p.remainingBalance ?? 0), 0)
   const collectionRate = totalRevenue > 0 ? Math.round((totalPaid / totalRevenue) * 100) : 0
 
   if (isLoading) return <Spinner />
@@ -521,7 +524,7 @@ export default function PaymentsPage() {
         <MetricCard label="Collection Rate" value={`${collectionRate}%`} color={collectionRate >= 70 ? 'text-green-600' : 'text-orange-500'} />
       </div>
 
-      <UnifiedCalendar filterTypes={['payment-received', 'payment-due']} />
+      <UnifiedCalendar filterTypes={['payment-received', 'payment-due']} role="superadmin" />
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -566,8 +569,8 @@ export default function PaymentsPage() {
                       <td className="px-4 py-3 text-right font-mono text-xs text-green-700">
                         {p.totalPaid != null ? `AED ${p.totalPaid.toLocaleString()}` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-red-600">
-                        {p.remainingBalance != null ? `AED ${p.remainingBalance.toLocaleString()}` : '—'}
+                      <td className={`px-4 py-3 text-right font-mono text-xs ${p.projectTotalCost == null ? 'text-gray-400 italic' : 'text-red-600'}`}>
+                        {remainingBalanceLabel(p)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">

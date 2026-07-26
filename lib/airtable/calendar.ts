@@ -29,6 +29,8 @@ export interface CalendarEvent {
   id: string
   title: string
   date: string
+  /** 24-hour HH:mm, optional — absent means an all-day activity. Only meaningful for source:'custom'. */
+  time?: string
   endDate?: string
   type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication' | 'personal'
   /** What this event is materialized from. Only 'custom' events are real, standalone
@@ -71,7 +73,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       fields: [PAYMENTS.NAME, PAYMENTS.AMOUNT, PAYMENTS.PAYMENT_TYPE, PAYMENTS.DUE_DATE, PAYMENTS.RECEIVED_DATE, PAYMENTS.PROJECT, PAYMENTS.RECORDED_BY],
     }),
     fetchAll(CALENDAR_EVENTS.TABLE_ID, {
-      fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY, CALENDAR_EVENTS.CUSTOM_TASK],
+      fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.TIME, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY, CALENDAR_EVENTS.CUSTOM_TASK],
       sort: [{ field: CALENDAR_EVENTS.DATE, direction: 'asc' }],
     }),
     fetchAll(INSTALLATION_LOGS.TABLE_ID, {
@@ -305,6 +307,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       id: r.id,
       title,
       date,
+      time: str(f[CALENDAR_EVENTS.TIME]) || undefined,
       type: evType,
       source: isTaskLinked ? 'task' : 'custom',
       notes: str(f[CALENDAR_EVENTS.NOTES]),
@@ -351,6 +354,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
 export async function createCalendarEvent(input: {
   title: string
   date: string
+  time?: string
   notes?: string
   projectId?: string
   createdBy?: string
@@ -365,6 +369,7 @@ export async function createCalendarEvent(input: {
     [CALENDAR_EVENTS.TITLE]: input.title,
     [CALENDAR_EVENTS.DATE]: input.date,
   }
+  if (input.time) fields[CALENDAR_EVENTS.TIME] = input.time
   if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
   if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
   if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
@@ -496,6 +501,30 @@ export async function deleteCalendarEvent(id: string): Promise<void> {
   const res = await fetchWithRetry(recUrl(CALENDAR_EVENTS.TABLE_ID, id), {
     method: 'DELETE',
     headers: airtableHeaders(),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+}
+
+// Edits a single custom calendar event record. Same caveat as deleteCalendarEvent: callers must
+// have already verified `source === 'custom'` before calling this.
+export async function updateCalendarEvent(
+  id: string,
+  input: { title?: string; date?: string; time?: string; notes?: string; projectId?: string | null },
+): Promise<void> {
+  const fields: Record<string, unknown> = {}
+  if (input.title !== undefined) fields[CALENDAR_EVENTS.TITLE] = input.title
+  if (input.date !== undefined) fields[CALENDAR_EVENTS.DATE] = input.date
+  if (input.time !== undefined) fields[CALENDAR_EVENTS.TIME] = input.time || null
+  if (input.notes !== undefined) fields[CALENDAR_EVENTS.NOTES] = input.notes || null
+  if (input.projectId !== undefined) fields[CALENDAR_EVENTS.PROJECT] = input.projectId ? [input.projectId] : null
+
+  const res = await fetchWithRetry(recUrl(CALENDAR_EVENTS.TABLE_ID, id), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
   })
   if (!res.ok) {
     const body = await res.text()

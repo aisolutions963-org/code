@@ -78,10 +78,12 @@ function HomeCalendar({
   canAddActivity,
   canAddInstallation,
   onActivityDate,
+  role,
 }: {
   canAddActivity: boolean
   canAddInstallation: boolean
   onActivityDate: (date: string) => void
+  role?: string
 }) {
   const tabs: TabDef[] = [
     { id: 'all',          label: 'All',                     dot: 'bg-gray-400',  types: null,                                         noAdd: true },
@@ -92,6 +94,7 @@ function HomeCalendar({
   return (
     <UnifiedCalendar
       tabs={tabs}
+      role={role}
       onDayClick={(date, tabId) => {
         if (tabId === 'activity' && canAddActivity) onActivityDate(date)
       }}
@@ -115,6 +118,7 @@ function AddActivityModal({
 }) {
   const [title, setTitle] = useState('')
   const [selectedDate, setSelectedDate] = useState(date)
+  const [time, setTime] = useState('')
   const [notes, setNotes] = useState('')
   const [customTask, setCustomTask] = useState('')
   const [projectId, setProjectId] = useState('')
@@ -181,6 +185,7 @@ function AddActivityModal({
         body: JSON.stringify({
           title: title.trim(),
           date: selectedDate,
+          time: time || undefined,
           notes: notes.trim() || undefined,
           customTask: customTask.trim() || undefined,
           projectId: projectId || undefined,
@@ -255,15 +260,26 @@ function AddActivityModal({
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Date *</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              required
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Date *</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                required
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <div className="w-28">
+              <label className="block text-xs font-medium text-gray-700 mb-1">Time</label>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Project</label>
@@ -694,6 +710,7 @@ export default function HomePage() {
           canAddActivity={canAddActivity}
           canAddInstallation={canAddInstallation}
           onActivityDate={setActivityDate}
+          role={role}
         />
       </div>
 

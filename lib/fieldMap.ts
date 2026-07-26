@@ -291,10 +291,19 @@ export const HANDOVER_SHEETS = {
   RECORDED_BY: 'fldJnCNmhWS3yMsrH',
 } as const
 
+// Unlike every other field above, TIME was added independently to each Airtable base (after the
+// preview base's original duplication from production), so it has a different field ID per base —
+// every other CALENDAR_EVENTS field is a single ID shared by both. Not a pattern to repeat; a one-off.
+const CALENDAR_EVENTS_TIME_BY_BASE: Record<string, string> = {
+  app3dfYnArFbZ6dpy: 'fld539FcXtB7cYtwp', // production
+  app2dcaTitMNZthHh: 'fld3uuESskCndH1IW', // preview
+}
+
 export const CALENDAR_EVENTS = {
   TABLE_ID: 'tblnG8M3db73zeiNS',
   TITLE: 'fldp3dfc2382m6c1C',
   DATE: 'fld8saVnwII9nstoP',
+  TIME: CALENDAR_EVENTS_TIME_BY_BASE[process.env.AIRTABLE_BASE_ID ?? ''] ?? CALENDAR_EVENTS_TIME_BY_BASE.app3dfYnArFbZ6dpy,
   NOTES: 'fldRWcbihUAdmyBIg',
   PROJECT: 'fldvK1majrFSNWVxy',
   CREATED_BY: 'flduWnzsPZeIAmprs',
