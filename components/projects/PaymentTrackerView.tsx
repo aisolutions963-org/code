@@ -6,6 +6,7 @@ import { Project, Payment } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { todayUAE } from '@/lib/dateUtils'
+import { remainingBalanceLabel } from '@/lib/projectRef'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -26,7 +27,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
   const payments = data?.project?.payments ?? []
 
   const today = todayUAE()
-  const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variance'
+  const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variation'
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     amount: '',
@@ -202,7 +203,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
               }}
               className={sel}
             >
-              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
+              {['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>
@@ -372,7 +373,9 @@ export default function PaymentTrackerView({ projects }: PaymentTrackerViewProps
 
   const totalRevenue = projects.reduce((s, p) => s + (p.projectTotalCost ?? 0), 0)
   const totalPaid = projects.reduce((s, p) => s + (p.totalPaid ?? 0), 0)
-  const totalRemaining = projects.reduce((s, p) => s + (p.remainingBalance ?? 0), 0)
+  const totalRemaining = projects
+    .filter((p) => p.projectTotalCost != null)
+    .reduce((s, p) => s + (p.remainingBalance ?? 0), 0)
   const collectionRate = totalRevenue > 0 ? Math.round((totalPaid / totalRevenue) * 100) : 0
 
   const sorted = [...projects].sort((a, b) => (b.remainingBalance ?? 0) - (a.remainingBalance ?? 0))
@@ -455,8 +458,8 @@ export default function PaymentTrackerView({ projects }: PaymentTrackerViewProps
                     <td className="px-4 py-3 text-right font-mono text-xs text-green-700">
                       {p.totalPaid != null ? `AED ${p.totalPaid.toLocaleString()}` : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-xs text-red-600">
-                      {p.remainingBalance != null ? `AED ${p.remainingBalance.toLocaleString()}` : '—'}
+                    <td className={`px-4 py-3 text-right font-mono text-xs ${p.projectTotalCost == null ? 'text-gray-400 italic' : 'text-red-600'}`}>
+                      {remainingBalanceLabel(p)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">

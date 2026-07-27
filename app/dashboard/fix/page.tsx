@@ -289,7 +289,7 @@ export default function FixDashboard() {
 
       {/* Calendar view */}
       {view === 'calendar' && (
-        <UnifiedCalendar filterTypes={['installation', 'fabrication', 'delivery']} />
+        <UnifiedCalendar filterTypes={['installation', 'fabrication', 'delivery']} role="installation" />
       )}
 
       {view !== 'materials' && view !== 'calendar' && view !== 'warranty' && (

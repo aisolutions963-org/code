@@ -47,7 +47,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
         <td className="px-4 py-3 max-w-xs">
           <button
             onClick={() => setExpanded((e) => !e)}
-            className="flex items-center gap-1.5 text-left group"
+            className="flex items-center gap-1.5 text-left group min-w-0 w-full"
           >
             <svg
               className={`w-3 h-3 text-gray-400 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
@@ -55,7 +55,7 @@ function ProjectRow({ project: p, onAdvance, onDelete, onReopen, onDisapprove, o
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-            <span className="font-medium text-gray-900 truncate group-hover:text-brand-600">{p.projectName}</span>
+            <span className="font-medium text-gray-900 truncate group-hover:text-brand-600 min-w-0">{p.projectName}</span>
           </button>
           {p.nickname && <p className="text-xs text-gray-500 truncate mt-0.5 pl-5">{p.nickname}</p>}
           <div className="mt-1 pl-5">

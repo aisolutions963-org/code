@@ -55,6 +55,18 @@ interface ReportResponse {
   timesheetSummary?: TimesheetSummary
 }
 
+interface ReportItem {
+  id: string
+  itemName: string
+  quantity?: number
+  status?: string
+  quotation?: {
+    description?: string | null
+    quantity?: number | null
+    unitPrice?: number | null
+  } | null
+}
+
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
@@ -83,11 +95,11 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatCard({ label, value, sub, muted }: { label: string; value: string; sub?: string; muted?: boolean }) {
   return (
     <div className="bg-gray-50 rounded-xl border border-gray-100 px-4 py-3">
       <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-lg font-bold text-gray-900">{value}</p>
+      <p className={`text-lg font-bold ${muted ? 'text-gray-400 italic' : 'text-gray-900'}`}>{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
     </div>
   )
@@ -269,6 +281,7 @@ function PaymentsSection({ project, payments }: { project: Project; payments: Pa
   const total   = project.projectTotalCost ?? 0
   const paid    = project.totalPaid ?? 0
   const remaining = project.remainingBalance ?? (total - paid)
+  const quotationPending = project.projectTotalCost == null
   const progress = total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : 0
 
   const activePayments = payments.filter((p) => p.paymentStatus !== 'Cancelled')
@@ -278,24 +291,26 @@ function PaymentsSection({ project, payments }: { project: Project; payments: Pa
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
       <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payments</h2>
 
-      {total > 0 && (
+      {(total > 0 || paid > 0) && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Contract value"  value={fmt(total)} />
-            <StatCard label="Collected"       value={fmt(paid)}  sub={`${progress}%`} />
-            <StatCard label="Remaining"       value={fmt(remaining)} />
+            <StatCard label="Contract value"  value={quotationPending ? '—' : fmt(total)} />
+            <StatCard label="Collected"       value={fmt(paid)}  sub={quotationPending ? undefined : `${progress}%`} />
+            <StatCard label="Remaining"       value={quotationPending ? 'Quotation pending' : fmt(remaining)} muted={quotationPending} />
             <StatCard label="Payment mode"    value={project.paymentMode ?? '—'} />
           </div>
 
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-2 rounded-full transition-all"
-              style={{
-                width: `${progress}%`,
-                background: progress >= 100 ? '#22c55e' : 'linear-gradient(90deg,#d95e1a,#b84a14)',
-              }}
-            />
-          </div>
+          {!quotationPending && (
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-2 rounded-full transition-all"
+                style={{
+                  width: `${progress}%`,
+                  background: progress >= 100 ? '#22c55e' : 'linear-gradient(90deg,#d95e1a,#b84a14)',
+                }}
+              />
+            </div>
+          )}
         </>
       )}
 
@@ -389,7 +404,7 @@ function TimesheetSection({ summary }: { summary: TimesheetSummary }) {
 const TYPE_BADGE: Record<string, string> = {
   Trade:       'bg-blue-100 text-blue-700',
   Maintenance: 'bg-orange-100 text-orange-700',
-  Variance:    'bg-purple-100 text-purple-700',
+  Variation:   'bg-purple-100 text-purple-700',
 }
 
 function LinkedRequestCard({
@@ -425,9 +440,10 @@ function LinkedRequestCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-gray-800 truncate">{req.projectName}</p>
-          {req.tradeReference && (
-            <p className="text-[11px] font-mono text-gray-500">{req.tradeReference}</p>
-          )}
+          <p className="text-[11px] text-gray-500 truncate">
+            {req.clientName}
+            {req.tradeReference && <span className="font-mono text-gray-400"> · {req.tradeReference}</span>}
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-gray-400">{done}/{tasks.length} tasks</span>
@@ -503,7 +519,7 @@ function LinkedRequestsSection({
   return (
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
       <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-        Trade / Variance / Maintenance ({requests.length})
+        Trade / Variation / Maintenance ({requests.length})
       </h2>
       <div className="space-y-2">
         {requests.map((req) => (
@@ -514,6 +530,37 @@ function LinkedRequestsSection({
             canSeePayments={canSeePayments}
             onUpdate={onUpdate}
           />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function ItemsReportSection({ items }: { items: ReportItem[] }) {
+  if (items.length === 0) return null
+  return (
+    <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-3">
+      <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        Items ({items.length})
+      </h2>
+      <div className="divide-y divide-gray-50">
+        {items.map((item) => (
+          <div key={item.id} className="py-2.5 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate">{item.itemName}</p>
+              {item.quotation?.description && (
+                <p className="text-xs text-gray-500 whitespace-pre-line mt-0.5">{item.quotation.description}</p>
+              )}
+            </div>
+            <div className="text-right shrink-0 text-xs text-gray-500">
+              {item.quantity != null && <p>Qty: {item.quantity}</p>}
+              {item.quotation?.unitPrice != null && (
+                <p className="text-gray-400">
+                  AED {item.quotation.unitPrice.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/unit
+                </p>
+              )}
+            </div>
+          </div>
         ))}
       </div>
     </section>
@@ -558,6 +605,11 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
   const canSeeRequests = role === 'sed' || role === 'manager' || role === 'superadmin'
   const { data: requestsData } = useSWR<{ requests: ClientRequest[] }>(
     tab === 'report' && canSeeRequests ? `/api/projects/${id}/requests` : null,
+    fetcher,
+  )
+
+  const { data: reportItemsData } = useSWR<{ items: ReportItem[] }>(
+    tab === 'report' ? `/api/projects/${id}/items` : null,
     fetcher,
   )
 
@@ -790,6 +842,7 @@ export default function ProjectItemBoardPage({ params }: { params: Promise<{ id:
                 </div>
               )}
               <ProjectOverview project={reportData.project} role={role} projectId={id} onSaved={mutateReport} />
+              {reportItemsData && <ItemsReportSection items={reportItemsData.items} />}
               {reportData.payments && (
                 <PaymentsSection project={reportData.project} payments={reportData.payments} />
               )}

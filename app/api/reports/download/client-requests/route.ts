@@ -10,7 +10,7 @@ export const GET = requireRole('manager', 'superadmin')(async () => {
 
   const trade       = requests.filter((r) => r.requestType === 'Trade')
   const maintenance = requests.filter((r) => r.requestType === 'Maintenance')
-  const variance    = requests.filter((r) => r.requestType === 'Variance')
+  const variance    = requests.filter((r) => r.requestType === 'Variation')
 
   function taskSummary(req: typeof requests[0]) {
     const tasks = req.tasks ?? []
@@ -82,7 +82,7 @@ export const GET = requireRole('manager', 'superadmin')(async () => {
       rows: maintenanceRows,
     },
     {
-      name: 'Variance',
+      name: 'Variation',
       columns: [refCol, clientCol, phoneCol, parentCol, descCol, stageCol, tasksCol, detailCol, createdCol],
       rows: varianceRows,
     },

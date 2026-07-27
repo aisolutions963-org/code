@@ -48,8 +48,8 @@ const FIELD_LABELS: Partial<Record<keyof TaskUpdateInput, string>> = {
   qcCheckAtSiteDone: 'QC Check @ Site Done',
   fillersDone: 'Fillers Done',
   priorityFlag: 'Priority Flag',
-  taskDocLinks: 'Notes & Links',
-  fillersDocLinks: 'Fillers & Missing Items List',
+  taskDocLinks: 'Attachments & Notes',
+  fillersDocLinks: 'Attachments',
   installationNote: 'Task Notes',
 }
 
@@ -66,8 +66,8 @@ const FIELD_LABELS_AR: Partial<Record<keyof TaskUpdateInput, string>> = {
   qcCheckAtSiteDone: 'فحص الجودة في الموقع',
   fillersDone: 'تم الفيلر',
   installationNote: 'ملاحظات',
-  taskDocLinks: 'ملاحظات وروابط',
-  fillersDocLinks: 'قائمة الفيلر والمواد الناقصة',
+  taskDocLinks: 'مرفقات وملاحظات',
+  fillersDocLinks: 'مرفقات',
 }
 
 const OPTION_LABELS_AR: Partial<Record<string, string>> = {
@@ -81,9 +81,11 @@ const OPTION_LABELS_AR: Partial<Record<string, string>> = {
   'Purchase Missing Items': 'شراء مواد ناقصة',
 }
 
+// fillersDocLinks intentionally excluded — it rendered as a second, near-identical box
+// (installation/superadmin roles only). Existing links in that field aren't lost: the
+// project page's "Attachments & Links" summary reads it independently of this list.
 const DOC_LINK_FIELDS: (keyof TaskUpdateInput)[] = [
   'taskDocLinks',
-  'fillersDocLinks',
 ]
 
 function DocLinksField({
@@ -131,7 +133,12 @@ function DocLinksField({
 
   return (
     <div className="space-y-2" dir={ar ? 'rtl' : 'ltr'}>
-      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
+      <div>
+        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
+        <p className="text-[11px] text-gray-400 mt-0.5">
+          {ar ? 'أضف أي مرفقات أو ملاحظات هنا' : 'Add any needed attachments or notes here'}
+        </p>
+      </div>
 
       {legacyFiles && legacyFiles.length > 0 && (
         <ul className="space-y-1.5">

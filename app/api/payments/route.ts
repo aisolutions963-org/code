@@ -65,14 +65,15 @@ export const POST = requireRole('manager', 'superadmin')(
     // Fetch existing payments: used for duplicate guards
     const existing = await getPaymentsByProject(body.project[0])
 
-    // Final payment guard — prevent double-closure
-    if (body.paymentType === 'Final') {
+    // Final/Full Payment guard — prevent double-closure (Full Payment closes the project the
+    // same way Final does — see the closure trigger below)
+    if (body.paymentType === 'Final' || body.paymentType === 'Full Payment') {
       const alreadyHasFinal = existing.some(
-        (p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled',
+        (p) => (p.paymentType === 'Final' || p.paymentType === 'Full Payment') && p.paymentStatus !== 'Cancelled',
       )
       if (alreadyHasFinal) {
         return NextResponse.json(
-          { error: 'A Final payment already exists for this project. Void it first if you need to re-record.' },
+          { error: 'A Final or Full Payment already exists for this project. Void it first if you need to re-record.' },
           { status: 409 },
         )
       }
@@ -101,7 +102,7 @@ export const POST = requireRole('manager', 'superadmin')(
     // For Trade/Variance sub-projects, auto-set the payment name to the trade reference
     // so the calendar event title shows the reference instead of the generic payment type.
     const name =
-      (project?.requestType === 'Trade' || project?.requestType === 'Variance') && project.tradeReference
+      (project?.requestType === 'Trade' || project?.requestType === 'Variation') && project.tradeReference
         ? project.tradeReference
         : undefined
 
@@ -135,9 +136,9 @@ export const POST = requireRole('manager', 'superadmin')(
       }).catch((err: unknown) => console.error('Accountant email failed:', err))
     }
 
-    // Final payment → close project + start 1-year maintenance period
+    // Final or Full Payment → close project + start 1-year maintenance period
     let closureWarning: string | undefined
-    if (body.paymentType === 'Final') {
+    if (body.paymentType === 'Final' || body.paymentType === 'Full Payment') {
       try {
         await closeProjectAfterFinalPayment(body.project[0], session.name)
       } catch (err) {

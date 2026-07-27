@@ -14,6 +14,7 @@ import {
   firstLinkedRecord,
   transformProject,
   transformTask,
+  normalizeRequestType,
 } from './_client'
 import { getProjectById, updateProject } from './projects'
 import { generateTasksForProject } from './tasks'
@@ -25,7 +26,10 @@ const CR_TEMPLATE_PAYMENT = 'recRX4dqaaY5RsPdH' // Department = Manager
 
 // Belt-and-suspenders: guarantee these functions can never return a plain project,
 // regardless of what the Airtable-side {REQUEST_TYPE} != "" formula did.
-const VALID_REQUEST_TYPES = new Set(['Trade', 'Maintenance', 'Variance'])
+// Checks the RAW Airtable value (pre-normalizeRequestType) — keep 'Variance' here even though the
+// app now calls it 'Variation', or existing Variance-typed records would silently drop out of
+// every client-request list instead of just displaying under the new name.
+const VALID_REQUEST_TYPES = new Set(['Trade', 'Maintenance', 'Variance', 'Variation'])
 
 const TRADE_TASKS = [
   { name: 'F3 — Order Trade Material',    order: 100, templateId: CR_TEMPLATE_SED },
@@ -55,7 +59,7 @@ export async function createClientRequest(
     throw new Error('Client Requests feature requires Airtable field IDs to be configured in fieldMap.ts')
   }
   const isTrade    = input.requestType === 'Trade'
-  const isVariance = input.requestType === 'Variance'
+  const isVariance = input.requestType === 'Variation'
   let parentProjectName: string | undefined
 
   if (input.parentProjectId) {
@@ -67,7 +71,7 @@ export async function createClientRequest(
     }
   }
 
-  const prefix = isTrade ? '[Trade]' : isVariance ? '[Variance]' : '[Maintenance]'
+  const prefix = isTrade ? '[Trade]' : isVariance ? '[Variation]' : '[Maintenance]'
   const projectName = `${prefix} ${parentProjectName ?? input.clientName}`
 
   const fields: Record<string, unknown> = {
@@ -85,7 +89,9 @@ export async function createClientRequest(
   const projRes = await fetchWithRetry(tblUrl(PROJECTS.TABLE_ID), {
     method: 'POST',
     headers: airtableHeaders(),
-    body: JSON.stringify({ fields }),
+    // typecast: REQUEST_TYPE is a singleSelect — 'Variation' is a newer choice than whatever
+    // exists on the base historically ('Variance'); typecast auto-adds it instead of a 422.
+    body: JSON.stringify({ fields, typecast: true }),
   })
   if (!projRes.ok) {
     const body = await projRes.text()
@@ -99,7 +105,7 @@ export async function createClientRequest(
       const result = await generateTasksForProject(project.id, 'Preparing')
       return { project, tasksCreated: result.created }
     } catch (err) {
-      console.error('[createClientRequest] Variance task generation failed:', err)
+      console.error('[createClientRequest] Variation task generation failed:', err)
       return { project, tasksCreated: 0, taskGenerationFailed: true }
     }
   }
@@ -181,7 +187,7 @@ export async function getClientRequests(options?: {
       projectName: p.projectName,
       clientName: p.clientName,
       clientPhone: p.clientPhone,
-      requestType: p.requestType as 'Trade' | 'Maintenance' | 'Variance',
+      requestType: p.requestType as 'Trade' | 'Maintenance' | 'Variation',
       projectStage: p.projectStage,
       createdAt: p.projectCreatedAt,
       description: p.projectDescription,
@@ -244,7 +250,7 @@ export async function getClientRequestsByParentProject(parentProjectId: string):
       projectName: p.projectName,
       clientName: p.clientName,
       clientPhone: p.clientPhone,
-      requestType: p.requestType as 'Trade' | 'Maintenance' | 'Variance',
+      requestType: p.requestType as 'Trade' | 'Maintenance' | 'Variation',
       projectStage: p.projectStage,
       createdAt: p.projectCreatedAt,
       description: p.projectDescription,
@@ -275,7 +281,7 @@ export async function getClientRequestLabelsByParent(): Promise<Map<string, stri
   for (const r of records) {
     const parentId = firstLinkedRecord(r.fields[PROJECTS.PARENT_PROJECT])?.id
     if (!parentId) continue
-    const type = selectName(r.fields[PROJECTS.REQUEST_TYPE]) ?? ''
+    const type = normalizeRequestType(selectName(r.fields[PROJECTS.REQUEST_TYPE])) ?? ''
     const ref = str(r.fields[PROJECTS.TRADE_REFERENCE])
     const label = ref ? `${type} (${ref})` : type
     if (!labelsByParent.has(parentId)) labelsByParent.set(parentId, [])

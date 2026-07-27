@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import useSWR from 'swr'
+import toast from 'react-hot-toast'
 import type { CalendarEvent } from '@/lib/airtable'
 import { todayUAE } from '@/lib/dateUtils'
 
@@ -52,11 +53,24 @@ interface Props {
   creatorFilter?: string
   onDayClick?: (date: string, tabId: string) => void
   personalMode?: boolean
+  /** Current user's role — only manager/superadmin get the edit affordance on custom events. */
+  role?: string
 }
 
 function isoToLocal(d: string) {
   const [y, m, day] = d.split('-').map(Number)
   return new Date(y, m - 1, day)
+}
+
+// Sorts by date first, then time within the same day — events with no time (all-day) sort
+// before timed ones on that date.
+function compareByDateTime(a: CalendarEvent, b: CalendarEvent) {
+  const dateCmp = a.date.localeCompare(b.date)
+  if (dateCmp !== 0) return dateCmp
+  if (!a.time && !b.time) return 0
+  if (!a.time) return -1
+  if (!b.time) return 1
+  return a.time.localeCompare(b.time)
 }
 
 // ─── Assign Team Inline ───────────────────────────────────────────────────────
@@ -135,6 +149,7 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode, 
 }) {
   const [title, setTitle]             = useState('')
   const [date, setDate]               = useState(defaultDate)
+  const [time, setTime]               = useState('')
   const [notes, setNotes]             = useState('')
   const [projectId, setProject]       = useState('')
   const [eventType, setType]          = useState<CalendarEventType>(
@@ -200,21 +215,33 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode, 
       finalNotes = finalNotes ? `${prefix}\n${finalNotes}` : prefix
     }
 
-    await fetch('/api/calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: title.trim(),
-        date,
-        notes: finalNotes || undefined,
-        projectId: !isFactory && !personalMode ? (projectId || undefined) : undefined,
-        eventType,
-        teamMemberIds: showFactory && selectedMembers.length > 0 ? selectedMembers : undefined,
-      }),
-    })
-    setSaving(false)
-    mutate()
-    onDone()
+    try {
+      const res = await fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          date,
+          time: time || undefined,
+          notes: finalNotes || undefined,
+          projectId: !isFactory && !personalMode ? (projectId || undefined) : undefined,
+          eventType,
+          teamMemberIds: showFactory && selectedMembers.length > 0 ? selectedMembers : undefined,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const msg = typeof body.error === 'string' ? body.error : 'Failed to add activity'
+        throw new Error(msg)
+      }
+      toast.success('Activity added')
+      mutate()
+      onDone()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add activity')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -256,11 +283,19 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode, 
         onKeyDown={e => { if (e.key === 'Enter' && (personalMode || !showFactory)) save() }}
       />
 
-      <input type="date"
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-        value={date}
-        onChange={e => setDate(e.target.value)}
-      />
+      <div className="flex gap-2">
+        <input type="date"
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+        />
+        <input type="time"
+          className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          value={time}
+          onChange={e => setTime(e.target.value)}
+          title="Time (optional — leave blank for an all-day activity)"
+        />
+      </div>
 
       {/* Project picker (not for factory or personal) */}
       {!isFactory && !personalMode && (
@@ -359,10 +394,46 @@ function AddEventForm({ defaultDate, onDone, mutate, showFactory, personalMode, 
 }
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
-function EventCard({ ev, showInstallAssign }: { ev: CalendarEvent; showInstallAssign: boolean }) {
+function EventCard({ ev, showInstallAssign, canEdit, onDeleted, onUpdated }: {
+  ev: CalendarEvent
+  showInstallAssign: boolean
+  canEdit: boolean
+  onDeleted: () => void
+  onUpdated: () => void
+}) {
   const cfg = TYPE_CFG[ev.type] ?? TYPE_CFG.activity
   const [assigning, setAssigning] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [editing, setEditing] = useState(false)
   const dateLabel = isoToLocal(ev.date).toLocaleDateString('en-AE', { weekday: 'short', month: 'short', day: 'numeric' })
+
+  async function handleDelete() {
+    if (!window.confirm(`Delete "${ev.title}"?`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/calendar/${ev.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error ?? 'Failed to delete')
+      }
+      toast.success('Activity deleted')
+      onDeleted()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <EventEditForm
+        ev={ev}
+        onCancel={() => setEditing(false)}
+        onSaved={() => { setEditing(false); onUpdated() }}
+      />
+    )
+  }
 
   return (
     <div className={`bg-white border border-gray-200 border-l-4 ${cfg.border} rounded-xl p-3.5 shadow-sm`}>
@@ -370,7 +441,7 @@ function EventCard({ ev, showInstallAssign }: { ev: CalendarEvent; showInstallAs
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${cfg.pill}`}>{cfg.label}</span>
-            <span className="text-xs text-gray-400 font-medium">{dateLabel}</span>
+            <span className="text-xs text-gray-400 font-medium">{dateLabel}{ev.time ? ` · ${ev.time}` : ''}</span>
             {ev.endDate && ev.endDate !== ev.date && (
               <span className="text-xs text-gray-400">
                 → {isoToLocal(ev.endDate).toLocaleDateString('en-AE', { month: 'short', day: 'numeric' })}
@@ -429,11 +500,132 @@ function EventCard({ ev, showInstallAssign }: { ev: CalendarEvent; showInstallAs
               Assign Team
             </button>
           )}
+          {ev.source === 'custom' && (
+            <div className="flex items-center gap-1">
+              {canEdit && (
+                <button
+                  onClick={() => setEditing(true)}
+                  title="Edit event"
+                  className="text-gray-300 hover:text-brand-600 transition-colors p-0.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                title="Delete event"
+                className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40 p-0.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {assigning && ev.projectId && (
         <AssignTeamInline projectId={ev.projectId} onDone={() => setAssigning(false)} />
       )}
+    </div>
+  )
+}
+
+// ─── Event Edit Form ────────────────────────────────────────────────────────────
+// Edits title/date/time/notes/project on a custom event. Deliberately doesn't support
+// switching type or team assignment — those are set once at creation and rarely need to
+// change; keeping this form small avoids pulling in AddEventForm's conflict-detection logic.
+function EventEditForm({ ev, onCancel, onSaved }: { ev: CalendarEvent; onCancel: () => void; onSaved: () => void }) {
+  const [title, setTitle]       = useState(ev.title)
+  const [date, setDate]         = useState(ev.date)
+  const [time, setTime]         = useState(ev.time ?? '')
+  const [notes, setNotes]       = useState(ev.notes ?? '')
+  const [projectId, setProject] = useState(ev.projectId ?? '')
+  const [saving, setSaving]     = useState(false)
+
+  const showProjectPicker = ev.type !== 'installation' && ev.type !== 'fabrication' && ev.type !== 'personal'
+  const { data: projData } = useSWR<{ projects: CalendarProject[] }>('/api/calendar/projects', fetcher, {
+    revalidateOnFocus: false,
+  })
+  const projects = projData?.projects ?? []
+
+  async function save() {
+    if (!title.trim() || !date) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/calendar/${ev.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          date,
+          time,
+          notes,
+          projectId: showProjectPicker ? (projectId || null) : undefined,
+        }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error ?? 'Failed to save changes')
+      }
+      toast.success('Activity updated')
+      onSaved()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save changes')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white border border-brand-200 rounded-xl p-3.5 shadow-sm space-y-2.5">
+      <input
+        autoFocus
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+      />
+      <div className="flex gap-2">
+        <input type="date"
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+        />
+        <input type="time"
+          className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+          value={time}
+          onChange={e => setTime(e.target.value)}
+        />
+      </div>
+      {showProjectPicker && (
+        <select
+          value={projectId}
+          onChange={e => setProject(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="">— No project —</option>
+          {projects.map(p => {
+            const label = [p.quotationNumber, p.quotationReference].filter(Boolean).join(' — ') || p.name
+            return <option key={p.id} value={p.id}>{label}</option>
+          })}
+        </select>
+      )}
+      <textarea rows={2}
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
+        placeholder="Notes (optional)…"
+        value={notes}
+        onChange={e => setNotes(e.target.value)}
+      />
+      <div className="flex gap-2">
+        <button onClick={save} disabled={saving || !title.trim() || !date}
+          className="px-4 py-2 text-sm font-semibold bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+      </div>
     </div>
   )
 }
@@ -447,7 +639,9 @@ export default function UnifiedCalendar({
   creatorFilter,
   onDayClick,
   personalMode,
+  role,
 }: Props) {
+  const canEditEvents = role === 'manager' || role === 'superadmin'
   const now = new Date()
   const todayStr = todayUAE()
 
@@ -479,7 +673,7 @@ export default function UnifiedCalendar({
   const monthEvents = useMemo(() =>
     allEvents
       .filter(e => { const d = isoToLocal(e.date); return d.getFullYear() === year && d.getMonth() === month })
-      .sort((a, b) => a.date.localeCompare(b.date)),
+      .sort(compareByDateTime),
     [allEvents, year, month])
 
   const eventsByDay = useMemo(() => {
@@ -505,7 +699,7 @@ export default function UnifiedCalendar({
     const cutoff = cutoffDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
     return allEvents
       .filter(e => e.date.slice(0, 10) >= todayStr && e.date.slice(0, 10) <= cutoff)
-      .sort((a, b) => a.date.localeCompare(b.date))
+      .sort(compareByDateTime)
       .slice(0, 20)
   }, [allEvents, todayStr])
 
@@ -698,7 +892,8 @@ export default function UnifiedCalendar({
                           className={`text-[10px] leading-snug px-1.5 py-0.5 rounded font-medium truncate border ${cfg.pill}`}
                           title={ev.title}
                         >
-                          {ev.projectName
+                          {ev.time ? `${ev.time} ` : ''}
+                          {ev.source !== 'custom' && ev.projectName
                             ? `${ev.projectRef ? ev.projectRef + ' · ' : ''}${ev.projectName}`
                             : ev.title}
                         </span>
@@ -747,7 +942,7 @@ export default function UnifiedCalendar({
               </div>
             ) : (
               panelEvents.map(ev => (
-                <EventCard key={ev.id} ev={ev} showInstallAssign={effectiveAssign} />
+                <EventCard key={ev.id} ev={ev} showInstallAssign={effectiveAssign} canEdit={canEditEvents} onDeleted={() => mutate()} onUpdated={() => mutate()} />
               ))
             )}
           </div>

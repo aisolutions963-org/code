@@ -30,7 +30,7 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
   const isClientRequest = !!(task.projectRequestType)
   const [paymentType, setPaymentType] = useState(() => {
     if (task.projectRequestType === 'Trade') return 'Trade'
-    if (task.projectRequestType === 'Variance') return 'Variance'
+    if (task.projectRequestType === 'Variation') return 'Variation'
     if (task.projectRequestType === 'Maintenance') return 'Maintenance'
     const name = task.taskName.toLowerCase()
     if (name.includes('delivery')) return 'Delivery'
@@ -51,11 +51,10 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
   const isFinalPaymentTask = task.taskName.toLowerCase().includes('final')
 
   const { data: paymentsData } = useSWR<{ payments: Payment[] }>(
-    // For Final-payment tasks we also fetch while still open, to detect a Final payment that
-    // was already recorded elsewhere (Payment Tracker) and offer a plain "Mark Complete".
-    variant === 'f4' && projectId && (task.status === 'Completed' || isFinalPaymentTask)
-      ? `/api/payments?projectId=${projectId}`
-      : null,
+    // Fetch while still open (any F4 task) to detect a payment already recorded elsewhere —
+    // a Final payment logged via Payment Tracker, or a Full Payment that covers this whole
+    // contract — so we can offer a plain "Mark Complete" instead of the record-payment form.
+    variant === 'f4' && projectId ? `/api/payments?projectId=${projectId}` : null,
     fetcher,
     { revalidateOnFocus: false },
   )
@@ -63,6 +62,12 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
   const existingFinalPayment = isFinalPaymentTask
     ? payments.find((p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled')
     : undefined
+  // A Full Payment already covers this project's entire contract — every other F4 payment
+  // task (Advance/Delivery/Final) can skip straight to complete instead of recording another
+  // payment. Deliberately NOT force-completed the instant Full Payment is recorded elsewhere —
+  // this only offers the skip once the order chain naturally reaches this task, so operational
+  // progress (fabrication/delivery/installation) is never jumped ahead of where it really is.
+  const existingFullPayment = payments.find((p) => p.paymentType === 'Full Payment' && p.paymentStatus !== 'Cancelled')
 
   async function patchProjectQuotation(qn: string, ref: string): Promise<void> {
     if (!projectId) throw new Error('No project linked to this task')
@@ -298,15 +303,19 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
     )
   }
 
-  // Final payment already recorded elsewhere (e.g. Payment Tracker) — offer a plain complete
-  // instead of the record form, so the task isn't stranded by the duplicate-Final guard.
-  if (isFinalPaymentTask && existingFinalPayment) {
+  // Final payment already recorded elsewhere (e.g. Payment Tracker), or a Full Payment already
+  // covers the whole contract — offer a plain complete instead of the record form, so the task
+  // isn't stranded by the duplicate-Final guard or a redundant re-record.
+  if ((isFinalPaymentTask && existingFinalPayment) || existingFullPayment) {
+    const shown = existingFinalPayment ?? existingFullPayment!
     return (
       <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3 space-y-2">
-        <p className="text-xs font-semibold text-blue-800">Final payment already recorded</p>
+        <p className="text-xs font-semibold text-blue-800">
+          {existingFullPayment ? 'Project paid in full' : 'Final payment already recorded'}
+        </p>
         <p className="text-xs text-blue-700">
-          AED {existingFinalPayment.amount.toLocaleString()} · {existingFinalPayment.paymentMethod}
-          {existingFinalPayment.receivedDate ? ` · ${existingFinalPayment.receivedDate}` : ''}
+          AED {shown.amount.toLocaleString()} · {shown.paymentMethod}
+          {shown.receivedDate ? ` · ${shown.receivedDate}` : ''}
         </p>
         <button
           onClick={async () => {
@@ -420,10 +429,11 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
             <option>Advance</option>
             <option>Delivery</option>
             <option>Material</option>
+            <option>Full Payment</option>
             <option>Progressive Payment</option>
             <option>Final</option>
             <option>Trade</option>
-            <option>Variance</option>
+            <option>Variation</option>
             <option>Maintenance</option>
           </select>
         </div>

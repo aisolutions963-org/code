@@ -4,6 +4,7 @@ import { useState } from 'react'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { Project, Role, Material } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
+import { projectRefLabel } from '@/lib/projectRef'
 import Button from '@/components/ui/Button'
 import NewProjectModal from '@/components/projects/NewProjectModal'
 import HandoverModal from '@/components/projects/HandoverModal'
@@ -128,7 +129,7 @@ function PaymentForm({ project }: { project: Project }) {
           <div>
             <label className={lbl}>Type</label>
             <select value={form.paymentType} onChange={(e) => setF('paymentType', e.target.value)} className={sel}>
-              {['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment', 'Trade', 'Variance', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
+              {['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance'].map((v) => <option key={v}>{v}</option>)}
             </select>
           </div>
           <div>
@@ -296,7 +297,7 @@ function F3Modal({
                   >
                     <option value="">Select project…</option>
                     {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.projectName}</option>
+                      <option key={p.id} value={p.id}>{projectRefLabel(p)} — {p.projectName}</option>
                     ))}
                   </select>
                 </div>
@@ -447,7 +448,10 @@ function ProjectCard({ project, canPay, canHandover, onRefresh }: { project: Pro
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
       <div>
-        <p className="text-sm font-semibold text-gray-900">{project.projectName}</p>
+        <p className="text-sm font-semibold text-gray-900">
+          <span className="font-mono text-xs text-gray-400 mr-1.5">{projectRefLabel(project)}</span>
+          {project.projectName}
+        </p>
         <p className="text-xs text-gray-400 mt-0.5">
           {project.clientName ?? '—'} · {project.projectStage ?? '—'}
         </p>

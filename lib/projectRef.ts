@@ -12,3 +12,15 @@ export function projectRefLabel(p: {
   if (qn) return `${qn}${(p.quotationReference ?? '').trim()}`
   return (p.projectId ?? '').trim()
 }
+
+// remainingBalance is an Airtable formula field (Total Cost − Total Paid) computed against a blank
+// Total Cost as 0 — so it goes negative once a payment is recorded before the quotation exists.
+// projectTotalCost is only ever set when the F5 quotation is actually submitted, so its absence is
+// the direct, single cause of that negative figure — use it to show "Quotation pending" instead.
+export function remainingBalanceLabel(p: {
+  projectTotalCost?: number | null
+  remainingBalance?: number | null
+}): string {
+  if (p.projectTotalCost == null) return 'Quotation pending'
+  return `AED ${(p.remainingBalance ?? 0).toLocaleString()}`
+}

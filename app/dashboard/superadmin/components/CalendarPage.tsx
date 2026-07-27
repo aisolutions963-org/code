@@ -21,7 +21,7 @@ export default function CalendarPage() {
         <h2 className="text-lg font-semibold text-gray-900">Calendars</h2>
         <p className="text-sm text-gray-500">All project and operational timelines in one place</p>
       </div>
-      <UnifiedCalendar tabs={tabs} />
+      <UnifiedCalendar tabs={tabs} role="superadmin" />
     </div>
   )
 }

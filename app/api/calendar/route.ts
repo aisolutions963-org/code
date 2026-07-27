@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
-import { getCalendarEvents, createCalendarEvent } from '@/lib/airtable'
+import { getCalendarEvents, createCalendarEvent, REVIEW_TASK_PREFIXES } from '@/lib/airtable'
 import { CreateCalendarEventSchema } from '@/lib/validation'
 import { getUserByAirtableMemberId, getUserById } from '@/lib/db'
 import { createNotification } from '@/lib/notifications'
 
 const PAYMENT_EVENT_TYPES = new Set(['payment-due', 'payment-received'])
-const REVIEW_TASK_PREFIXES = ['weekly-review:', 'monthly-audit:']
 
 export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(async (req: NextRequest, session) => {
   try {

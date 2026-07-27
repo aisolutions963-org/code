@@ -295,7 +295,7 @@ export default function MgrDashboard() {
 
       {/* Payment Calendar view */}
       {view === 'calendar' && (
-        <UnifiedCalendar tabs={MGR_CALENDAR_TABS} />
+        <UnifiedCalendar tabs={MGR_CALENDAR_TABS} role="manager" />
       )}
 
       {/* Installation team view — members with assigned projects */}

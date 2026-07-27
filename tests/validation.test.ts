@@ -72,10 +72,14 @@ describe('CreatePaymentSchema', () => {
   })
 
   it('accepts all valid paymentType values', () => {
-    const types = ['Advance', 'Delivery', 'Material', 'Final', 'Progressive Payment']
+    const types = ['Advance', 'Delivery', 'Material', 'Final', 'Full Payment', 'Progressive Payment', 'Trade', 'Variation', 'Maintenance']
     types.forEach((t) => {
       expect(CreatePaymentSchema.safeParse({ ...base, paymentType: t }).success).toBe(true)
     })
+  })
+
+  it('rejects the retired paymentType value "Variance"', () => {
+    expect(CreatePaymentSchema.safeParse({ ...base, paymentType: 'Variance' }).success).toBe(false)
   })
 })
 
@@ -426,12 +430,16 @@ describe('CreateQuotationItemsSchema', () => {
     expect(CreateQuotationItemsSchema.safeParse(base).success).toBe(true)
   })
 
-  it('rejects quotation number shorter than 4 digits', () => {
-    expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationNumber: '123' }).success).toBe(false)
+  it('accepts a short quotation number (no minimum digit count)', () => {
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationNumber: '123' }).success).toBe(true)
   })
 
-  it('rejects non-numeric quotation number', () => {
-    expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationNumber: 'AB12' }).success).toBe(false)
+  it('accepts a non-numeric quotation number', () => {
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationNumber: 'AB12' }).success).toBe(true)
+  })
+
+  it('rejects an empty quotation number', () => {
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationNumber: '' }).success).toBe(false)
   })
 
   it('rejects empty items array', () => {

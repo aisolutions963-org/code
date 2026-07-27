@@ -18,6 +18,10 @@ import {
   strArr,
   deleteByProject,
 } from './_client'
+
+// Cron-authored recurring reminder events (see upsertReminderEvent) — not user-created, but not
+// task/payment-derived either. Shared with app/api/calendar/route.ts's role-based visibility filter.
+export const REVIEW_TASK_PREFIXES = ['weekly-review:', 'monthly-audit:']
 import { getProjectItemNameMap } from './tasks'
 import { projectRefLabel } from '../projectRef'
 
@@ -25,8 +29,15 @@ export interface CalendarEvent {
   id: string
   title: string
   date: string
+  /** 24-hour HH:mm, optional — absent means an all-day activity. Only meaningful for source:'custom'. */
+  time?: string
   endDate?: string
   type: 'installation' | 'delivery' | 'activity' | 'payment-due' | 'payment-received' | 'fabrication' | 'personal'
+  /** What this event is materialized from. Only 'custom' events are real, standalone
+   *  CALENDAR_EVENTS records — everything else is a read-only view derived from another
+   *  table (a task's date, a payment's due/received date, an installation log), so it can
+   *  never be deleted on its own; deleting "it" would mean deleting the underlying record. */
+  source: 'custom' | 'task' | 'fabrication' | 'payment' | 'installation-log'
   projectId?: string
   projectName?: string
   projectRef?: string
@@ -62,7 +73,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       fields: [PAYMENTS.NAME, PAYMENTS.AMOUNT, PAYMENTS.PAYMENT_TYPE, PAYMENTS.DUE_DATE, PAYMENTS.RECEIVED_DATE, PAYMENTS.PROJECT, PAYMENTS.RECORDED_BY],
     }),
     fetchAll(CALENDAR_EVENTS.TABLE_ID, {
-      fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY, CALENDAR_EVENTS.CUSTOM_TASK],
+      fields: [CALENDAR_EVENTS.TITLE, CALENDAR_EVENTS.DATE, CALENDAR_EVENTS.TIME, CALENDAR_EVENTS.NOTES, CALENDAR_EVENTS.PROJECT, CALENDAR_EVENTS.CREATED_BY, CALENDAR_EVENTS.CUSTOM_TASK],
       sort: [{ field: CALENDAR_EVENTS.DATE, direction: 'asc' }],
     }),
     fetchAll(INSTALLATION_LOGS.TABLE_ID, {
@@ -202,6 +213,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       title: taskName,
       date,
       type,
+      source: 'task',
       projectId: str(f[TASKS.PROJECT_ID]),
       projectName: projectLabel,
       projectRef: getProjectRef(f[TASKS.PROJECT]),
@@ -230,6 +242,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
         date: d,
         endDate: endDate || d,
         type: 'fabrication',
+        source: 'fabrication',
         projectId,
         projectName: getProjectName(f[TASKS.PROJECT]),
         projectRef: getProjectRef(f[TASKS.PROJECT]),
@@ -252,10 +265,10 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const projectRef = getProjectRef(f[PAYMENTS.PROJECT])
     const createdBy = str(f[PAYMENTS.RECORDED_BY])
     if (receivedDate) {
-      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', amount, projectName, projectRef, createdBy, responsible: createdBy, department: ['Finance'], createdAt: r.createdTime })
+      events.push({ id: `${r.id}-rcv`, title: name, date: receivedDate, type: 'payment-received', source: 'payment', amount, projectName, projectRef, createdBy, responsible: createdBy, department: ['Finance'], createdAt: r.createdTime })
     }
     if (dueDate && dueDate !== receivedDate) {
-      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', amount, projectName, projectRef, createdBy, responsible: createdBy, department: ['Finance'], createdAt: r.createdTime })
+      events.push({ id: `${r.id}-due`, title: name, date: dueDate, type: 'payment-due', source: 'payment', amount, projectName, projectRef, createdBy, responsible: createdBy, department: ['Finance'], createdAt: r.createdTime })
     }
   }
 
@@ -282,11 +295,21 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       const tid = seg.startsWith('task:') ? seg.slice(5) : seg.startsWith('f2:') ? seg.slice(3) : undefined
       if (tid && taskItemId.has(tid)) { custItemName = itemNameMap[taskItemId.get(tid)!]; break }
     }
+    // A calendar event upserted from a task's own date field (via createCalendarEvent({ taskId })
+    // — e.g. "Take Measurements") is physically a CALENDAR_EVENTS record, but deleting it would
+    // just leave the task's date to silently recreate it next save. Same for the cron-authored
+    // weekly-review/monthly-audit reminders (upsertReminderEvent) — they'd just reappear on the
+    // next cron run. Only a genuinely standalone custom event is safe to let a user delete outright.
+    const isTaskLinked = segs.some((s) =>
+      s.startsWith('task:') || s.startsWith('f2:') || REVIEW_TASK_PREFIXES.some((p) => s.startsWith(p)),
+    )
     events.push({
       id: r.id,
       title,
       date,
+      time: str(f[CALENDAR_EVENTS.TIME]) || undefined,
       type: evType,
+      source: isTaskLinked ? 'task' : 'custom',
       notes: str(f[CALENDAR_EVENTS.NOTES]),
       customTask,
       createdBy: str(f[CALENDAR_EVENTS.CREATED_BY]),
@@ -312,6 +335,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
       title: desc || name || 'Installation Day',
       date,
       type: 'installation',
+      source: 'installation-log',
       notes: desc,
       createdBy: recordedByTeam,
       // Installation crews work as teams (one shared login per team), so the
@@ -330,6 +354,7 @@ export async function getCalendarEvents(): Promise<CalendarEvent[]> {
 export async function createCalendarEvent(input: {
   title: string
   date: string
+  time?: string
   notes?: string
   projectId?: string
   createdBy?: string
@@ -344,6 +369,7 @@ export async function createCalendarEvent(input: {
     [CALENDAR_EVENTS.TITLE]: input.title,
     [CALENDAR_EVENTS.DATE]: input.date,
   }
+  if (input.time) fields[CALENDAR_EVENTS.TIME] = input.time
   if (input.notes) fields[CALENDAR_EVENTS.NOTES] = input.notes
   if (input.projectId) fields[CALENDAR_EVENTS.PROJECT] = [input.projectId]
   if (input.createdBy) fields[CALENDAR_EVENTS.CREATED_BY] = input.createdBy
@@ -465,4 +491,43 @@ export async function upsertReminderEvent(input: {
 
 export async function deleteCalendarEventsByProject(projectId: string): Promise<number> {
   return deleteByProject(CALENDAR_EVENTS.TABLE_ID, CALENDAR_EVENTS.PROJECT, projectId)
+}
+
+// Deletes a single custom calendar event record. Callers must have already verified the event's
+// `source === 'custom'` (see CalendarEvent) — this function has no way to re-check that itself,
+// since by the time it has only an id it can no longer tell a real CALENDAR_EVENTS record from a
+// derived event's synthetic id (e.g. `${taskId}-fab`, `instlog-${id}`).
+export async function deleteCalendarEvent(id: string): Promise<void> {
+  const res = await fetchWithRetry(recUrl(CALENDAR_EVENTS.TABLE_ID, id), {
+    method: 'DELETE',
+    headers: airtableHeaders(),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
+}
+
+// Edits a single custom calendar event record. Same caveat as deleteCalendarEvent: callers must
+// have already verified `source === 'custom'` before calling this.
+export async function updateCalendarEvent(
+  id: string,
+  input: { title?: string; date?: string; time?: string; notes?: string; projectId?: string | null },
+): Promise<void> {
+  const fields: Record<string, unknown> = {}
+  if (input.title !== undefined) fields[CALENDAR_EVENTS.TITLE] = input.title
+  if (input.date !== undefined) fields[CALENDAR_EVENTS.DATE] = input.date
+  if (input.time !== undefined) fields[CALENDAR_EVENTS.TIME] = input.time || null
+  if (input.notes !== undefined) fields[CALENDAR_EVENTS.NOTES] = input.notes || null
+  if (input.projectId !== undefined) fields[CALENDAR_EVENTS.PROJECT] = input.projectId ? [input.projectId] : null
+
+  const res = await fetchWithRetry(recUrl(CALENDAR_EVENTS.TABLE_ID, id), {
+    method: 'PATCH',
+    headers: airtableHeaders(),
+    body: JSON.stringify({ fields }),
+  })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Airtable error ${res.status}: ${body}`)
+  }
 }

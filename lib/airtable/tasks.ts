@@ -35,6 +35,7 @@ import {
   lookupSelectNames,
   firstLinkedRecord,
   transformTask,
+  normalizeRequestType,
 } from './_client'
 
 // ─── Field ID → TaskUpdateInput key mapping ──────────────────────────────────
@@ -258,7 +259,7 @@ async function enrichTasksWithProjectRef(tasks: Task[]): Promise<Task[]> {
             projectQuotationReference: info.quotationReference ?? undefined,
             projectSalesOwner: info.salesOwnerName ?? undefined,
             projectCommunSeds: info.communSeds.length > 0 ? info.communSeds : undefined,
-            projectRequestType: (info.requestType as 'Trade' | 'Maintenance' | 'Variance' | null) ?? undefined,
+            projectRequestType: (normalizeRequestType(info.requestType) as 'Trade' | 'Maintenance' | 'Variation' | null) ?? undefined,
             projectTradeReference: info.tradeReference ?? undefined,
             projectDescription: info.description ?? undefined,
             installationTeamNames: info.installationTeamNames.length > 0 ? info.installationTeamNames : undefined,
@@ -298,15 +299,25 @@ async function enrichTasksWithAssigneeNames(tasks: Task[]): Promise<Task[]> {
   })
 }
 
-async function filterStalePhase1Tasks(tasks: Task[]): Promise<Task[]> {
+// task.templateOrder/projectStage are template-level lookups — NOT the project's live stage —
+// so both filters below need a real per-project stage lookup. Shares one Airtable round-trip:
+//   1. Stale Phase-1 tasks: once a project has moved past Preparing, its lower-order "universal
+//      action" tasks that never got completed are dead branches from unchosen gateway paths.
+//   2. Not-Approved tasks (hideNotApproved only — broad feeds, not a single project's own page):
+//      a rejected project's tasks shouldn't clutter My Tasks/role dashboards. Superadmin can
+//      still see them by opening that project directly (its detail page passes false here) to
+//      decide on reopening.
+async function filterTasksByProjectStage(tasks: Task[], hideNotApproved: boolean): Promise<Task[]> {
   const preparingMax = PHASE_CONFIG.Preparing.universalActionOrderMax
   const phase1Pending = tasks.filter((t) => {
     const order = t.templateOrder?.[0]
     return typeof order === 'number' && order <= preparingMax && t.status !== 'Completed'
   })
-  if (phase1Pending.length === 0) return tasks
+  if (!hideNotApproved && phase1Pending.length === 0) return tasks
 
-  const projectIds = Array.from(new Set(phase1Pending.flatMap((t) => t.project ?? [])))
+  const projectIds = Array.from(
+    new Set((hideNotApproved ? tasks : phase1Pending).flatMap((t) => t.project ?? [])),
+  )
   if (projectIds.length === 0) return tasks
 
   const stageMap: Record<string, string> = {}
@@ -328,13 +339,16 @@ async function filterStalePhase1Tasks(tasks: Task[]): Promise<Task[]> {
   )
 
   return tasks.filter((t) => {
-    const order = t.templateOrder?.[0]
-    if (typeof order !== 'number' || order > preparingMax) return true
-    if (t.status === 'Completed') return true
     const projectId = t.project?.[0]
-    if (!projectId) return true
-    const stage = stageMap[projectId]
-    return !stage || stage === 'Preparing'
+    const stage = projectId ? stageMap[projectId] : undefined
+
+    if (hideNotApproved && stage === 'Not-Approved') return false
+
+    const order = t.templateOrder?.[0]
+    if (typeof order === 'number' && order <= preparingMax && t.status !== 'Completed') {
+      if (stage && stage !== 'Preparing') return false
+    }
+    return true
   })
 }
 
@@ -483,7 +497,7 @@ export async function getTasksByRole(
   tasks = await enrichTasksWithProjectItemNames(tasks)
   tasks = await enrichTasksWithAssigneeNames(tasks)
   tasks = await enrichTasksWithProjectRef(tasks)
-  tasks = await filterStalePhase1Tasks(tasks)
+  tasks = await filterTasksByProjectStage(tasks, !options.projectId)
   return tasks
 }
 

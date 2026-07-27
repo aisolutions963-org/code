@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react'
 import useSWR from 'swr'
 import { Announcement } from '@/lib/types'
 import Button from '@/components/ui/Button'
+import Badge from '@/components/ui/Badge'
+import { todayUAE } from '@/lib/dateUtils'
 import { AnnouncementForm } from './types'
 import { fetcher, Spinner } from './shared'
 
@@ -17,7 +19,7 @@ const EMPTY_FORM: AnnouncementForm = {
 
 export default function AnnouncementsPage() {
   const { data, isLoading, mutate } = useSWR<{ announcements: Announcement[] }>(
-    '/api/announcements', fetcher, { refreshInterval: 300_000 },
+    '/api/announcements?includeExpired=true', fetcher, { refreshInterval: 300_000 },
   )
   const announcements = data?.announcements ?? []
   const [editing, setEditing] = useState<string | null>(null)
@@ -167,14 +169,19 @@ export default function AnnouncementsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {announcements.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50">
+                <tr key={a.id} className={`hover:bg-gray-50 ${a.expiresAt && a.expiresAt < todayUAE() ? 'opacity-60' : ''}`}>
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-900">{a.title}</p>
                     {a.message && <p className="text-xs text-gray-400 truncate max-w-xs mt-0.5">{a.message}</p>}
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{a.visibleTo ?? 'All'}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{a.pinned ? '📌' : '—'}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{a.expiresAt ?? 'Never'}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span>{a.expiresAt ?? 'Never'}</span>
+                      {a.expiresAt && a.expiresAt < todayUAE() && <Badge variant="red">Expired</Badge>}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button onClick={() => startEdit(a)} className="text-xs text-brand-600 hover:underline">Edit</button>

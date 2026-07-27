@@ -162,14 +162,17 @@ export const PATCH = requireRole()(
       const isF4Task = taskNameLC.startsWith('f4 —')
 
       // Final Payment F4 (order 62): must have a recorded Final payment before it can complete,
-      // so the project can't reach active warranty without the money being booked.
+      // so the project can't reach active warranty without the money being booked. A Full
+      // Payment (covers the entire contract) satisfies this the same as a Final payment.
       const isFinalF4 = taskNameLC.includes('final') &&
         (taskNameLC.includes('f4') || (taskForValidation.templateOrder ?? []).includes(62))
       if (isFinalF4) {
         const projectId = taskForValidation.project?.[0]
         if (projectId) {
           const payments = await getPaymentsByProject(projectId)
-          const hasFinal = payments.some((p) => p.paymentType === 'Final' && p.paymentStatus !== 'Cancelled')
+          const hasFinal = payments.some(
+            (p) => (p.paymentType === 'Final' || p.paymentType === 'Full Payment') && p.paymentStatus !== 'Cancelled',
+          )
           if (!hasFinal) {
             return NextResponse.json(
               { error: 'Record the final payment first before completing this task' },

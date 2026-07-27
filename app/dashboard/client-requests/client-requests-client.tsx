@@ -8,7 +8,7 @@ import { ClientRequest, Project, Role } from '@/lib/types'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-type RequestType = 'Trade' | 'Maintenance' | 'Variance'
+type RequestType = 'Trade' | 'Maintenance' | 'Variation'
 
 interface SedMember {
   id: string
@@ -33,7 +33,7 @@ function isCompleted(req: ClientRequest): boolean {
 const TYPE_BADGE: Record<RequestType, string> = {
   Trade:       'bg-blue-100 text-blue-700',
   Maintenance: 'bg-orange-100 text-orange-700',
-  Variance:    'bg-purple-100 text-purple-700',
+  Variation:    'bg-purple-100 text-purple-700',
 }
 
 const TASK_STATUS_STYLE: Record<string, string> = {
@@ -106,11 +106,31 @@ function ReassignControl({ requestId, onReassigned }: { requestId: string; onRea
 
 // ─── Request Card ─────────────────────────────────────────────────────────────
 
-function RequestCard({ req, onReassigned }: { req: ClientRequest; onReassigned: () => void }) {
+function RequestCard({ req, role, onReassigned }: { req: ClientRequest; role: Role; onReassigned: () => void }) {
   const { done, total } = taskProgress(req)
   const completed = isCompleted(req)
   const [expanded, setExpanded] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const tasks = req.tasks ?? []
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!window.confirm(`Delete this ${req.requestType} request for ${req.clientName}? It can be restored from Trash.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/projects/${req.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error ?? 'Failed to delete')
+      }
+      toast.success('Request deleted')
+      onReassigned()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow transition-shadow">
@@ -146,7 +166,7 @@ function RequestCard({ req, onReassigned }: { req: ClientRequest; onReassigned: 
               <span>
                 Ref:{' '}
                 <span className={`font-mono font-semibold ${
-                  req.requestType === 'Variance' ? 'text-purple-700' : 'text-blue-700'
+                  req.requestType === 'Variation' ? 'text-purple-700' : 'text-blue-700'
                 }`}>
                   {req.tradeReference || req.parentProjectRef}
                 </span>
@@ -193,6 +213,15 @@ function RequestCard({ req, onReassigned }: { req: ClientRequest; onReassigned: 
             Open project →
           </Link>
           <ReassignControl requestId={req.id} onReassigned={onReassigned} />
+          {role === 'superadmin' && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-[11px] font-medium text-red-500 hover:text-red-700 hover:underline disabled:opacity-40 ml-auto"
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -236,7 +265,7 @@ function CreateModal({
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
-  // Maintenance needs warranty-stage projects; Trade + Variance need all active projects
+  // Maintenance needs warranty-stage projects; Trade + Variation need all active projects
   const projectsUrl = requestType === 'Maintenance'
     ? '/api/projects?stage=Closed+and+active+warranty'
     : '/api/projects'
@@ -271,8 +300,8 @@ function CreateModal({
   if (requestType === 'Trade') {
     // {projQuotNum}{tradeRef}{projQuotRef}{tradeQuotNum}  e.g. 2341Tr1R354327
     fullRef = [quotNum, refInputClean, quotRef, tradeQuotNum.trim()].filter(Boolean).join('')
-  } else if (requestType === 'Variance') {
-    // {projQuotNum}{varianceRef}{projQuotRef}  e.g. 2341VR1R3
+  } else if (requestType === 'Variation') {
+    // {projQuotNum}{variationRef}{projQuotRef}  e.g. 2341V1R3
     fullRef = [quotNum, refInputClean, quotRef].filter(Boolean).join('')
   } else if (requestType === 'Maintenance') {
     // {projQuotNum}{maintenanceRef}{projQuotRef}  e.g. 2341M1R3
@@ -299,15 +328,15 @@ function CreateModal({
       setErr(
         requestType === 'Trade'
           ? 'Select the parent project for this trade'
-          : requestType === 'Variance'
+          : requestType === 'Variation'
           ? 'Select the parent project this variance belongs to'
           : 'Select the project under warranty for this maintenance request',
       )
       return
     }
     if (!clientName.trim()) { setErr('Client name is required'); return }
-    if (requestType === 'Variance' && !refInputClean) {
-      setErr('Variance reference is required (e.g. VR1)')
+    if (requestType === 'Variation' && !refInputClean) {
+      setErr('Variation reference is required (e.g. V1)')
       return
     }
     if (requestType === 'Trade' && !refInputClean) {
@@ -381,7 +410,7 @@ function CreateModal({
           <div>
             <p className="text-xs text-gray-500 mb-1.5 font-medium">Request Type</p>
             <div className="flex rounded-lg overflow-hidden border border-gray-200">
-              {(['Trade', 'Maintenance', 'Variance'] as const).map((t) => (
+              {(['Trade', 'Maintenance', 'Variation'] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -390,7 +419,7 @@ function CreateModal({
                     requestType === t
                       ? t === 'Trade'
                         ? 'bg-blue-600 text-white'
-                        : t === 'Variance'
+                        : t === 'Variation'
                         ? 'bg-purple-600 text-white'
                         : 'bg-orange-500 text-white'
                       : 'bg-white text-gray-500 hover:bg-gray-50'
@@ -400,7 +429,7 @@ function CreateModal({
                 </button>
               ))}
             </div>
-            {requestType === 'Variance' && (
+            {requestType === 'Variation' && (
               <p className="text-[11px] text-purple-600 mt-1.5 font-medium">
                 Adds a scoped item to an existing project — inherits the project&apos;s client and SED.
               </p>
@@ -412,7 +441,7 @@ function CreateModal({
             <label className="block text-xs text-gray-500 mb-1 font-medium">
               {requestType === 'Trade'
                 ? 'Parent Project *'
-                : requestType === 'Variance'
+                : requestType === 'Variation'
                 ? 'Parent Project *'
                 : 'Project Under Warranty *'}
             </label>
@@ -432,31 +461,31 @@ function CreateModal({
             {requestType === 'Maintenance' && filteredProjects.length === 0 && (
               <p className="text-[11px] text-orange-500 mt-1">No projects in active warranty found</p>
             )}
-            {(requestType === 'Trade' || requestType === 'Variance') && parentProjectId && !selectedProject?.quotationNumber && (
+            {(requestType === 'Trade' || requestType === 'Variation') && parentProjectId && !selectedProject?.quotationNumber && (
               <p className="text-[11px] text-orange-500 mt-1">
                 This project has no quotation number — the reference will be missing its project prefix
               </p>
             )}
           </div>
 
-          {/* Variance / Maintenance Reference — same quotNum + suffix + quotRef format */}
-          {(requestType === 'Variance' || requestType === 'Maintenance') && (
+          {/* Variation / Maintenance Reference — same quotNum + suffix + quotRef format */}
+          {(requestType === 'Variation' || requestType === 'Maintenance') && (
             <div>
               <label className="block text-xs text-gray-500 mb-1 font-medium">
-                {requestType === 'Variance' ? 'Variance' : 'Maintenance'} Reference <span className="text-red-500">*</span>
+                {requestType === 'Variation' ? 'Variation' : 'Maintenance'} Reference <span className="text-red-500">*</span>
               </label>
               <input
                 className={inp}
                 value={refInput}
                 onChange={(e) => setRefInput(e.target.value)}
-                placeholder={requestType === 'Variance' ? 'e.g. VR1' : 'e.g. M1'}
+                placeholder={requestType === 'Variation' ? 'e.g. V1' : 'e.g. M1'}
               />
               {refInputClean && !quotNum && (
                 <p className="text-[11px] text-orange-500 mt-1">Select a project to generate the full reference</p>
               )}
               {fullRef && (
                 <p className="text-[11px] text-gray-400 mt-1">
-                  Reference: <span className={`font-mono font-semibold ${requestType === 'Variance' ? 'text-purple-700' : 'text-orange-700'}`}>{fullRef}</span>
+                  Reference: <span className={`font-mono font-semibold ${requestType === 'Variation' ? 'text-purple-700' : 'text-orange-700'}`}>{fullRef}</span>
                 </p>
               )}
             </div>
@@ -543,7 +572,7 @@ function CreateModal({
           {/* Description */}
           <div>
             <label className="block text-xs text-gray-500 mb-1 font-medium">
-              {requestType === 'Variance'
+              {requestType === 'Variation'
                 ? 'What was added / changed?'
                 : requestType === 'Trade'
                 ? 'Trade Description'
@@ -555,7 +584,7 @@ function CreateModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={
-                requestType === 'Variance'
+                requestType === 'Variation'
                   ? 'Describe the additional scope or item noticed…'
                   : requestType === 'Trade'
                   ? 'Describe the trade work needed…'
@@ -599,7 +628,7 @@ function CreateModal({
             onClick={handleSubmit}
             disabled={saving}
             className={`flex-1 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-colors ${
-              requestType === 'Variance'
+              requestType === 'Variation'
                 ? 'bg-purple-600 hover:bg-purple-700'
                 : requestType === 'Trade'
                 ? 'bg-blue-600 hover:bg-blue-700'
@@ -648,7 +677,7 @@ export default function ClientRequestsClient({ role }: { role: Role }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-gray-800">Client Requests</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Trade, Maintenance &amp; Variance requests</p>
+          <p className="text-xs text-gray-400 mt-0.5">Trade, Maintenance &amp; Variation requests</p>
         </div>
         <button
           type="button"
@@ -663,7 +692,7 @@ export default function ClientRequestsClient({ role }: { role: Role }) {
         <button className={chipCls(typeFilter === 'all')} onClick={() => setTypeFilter('all')}>All types</button>
         <button className={chipCls(typeFilter === 'Trade')} onClick={() => setTypeFilter('Trade')}>Trade</button>
         <button className={chipCls(typeFilter === 'Maintenance')} onClick={() => setTypeFilter('Maintenance')}>Maintenance</button>
-        <button className={chipCls(typeFilter === 'Variance')} onClick={() => setTypeFilter('Variance')}>Variance</button>
+        <button className={chipCls(typeFilter === 'Variation')} onClick={() => setTypeFilter('Variation')}>Variation</button>
         <span className="w-px bg-gray-200 mx-1 self-stretch" />
         <button className={chipCls(filter === 'all')} onClick={() => setFilter('all')}>All</button>
         <button className={chipCls(filter === 'active')} onClick={() => setFilter('active')}>Active</button>
@@ -681,7 +710,7 @@ export default function ClientRequestsClient({ role }: { role: Role }) {
       ) : (
         <div className="space-y-3">
           {filtered.map((req) => (
-            <RequestCard key={req.id} req={req} onReassigned={() => mutate()} />
+            <RequestCard key={req.id} req={req} role={role} onReassigned={() => mutate()} />
           ))}
         </div>
       )}
