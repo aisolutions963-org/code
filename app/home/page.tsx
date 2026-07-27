@@ -120,7 +120,6 @@ function AddActivityModal({
   const [selectedDate, setSelectedDate] = useState(date)
   const [time, setTime] = useState('')
   const [notes, setNotes] = useState('')
-  const [customTask, setCustomTask] = useState('')
   const [projectId, setProjectId] = useState('')
   const [eventType, setEventType] = useState<'activity' | 'fabrication'>('activity')
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
@@ -187,7 +186,6 @@ function AddActivityModal({
           date: selectedDate,
           time: time || undefined,
           notes: notes.trim() || undefined,
-          customTask: customTask.trim() || undefined,
           projectId: projectId || undefined,
           eventType,
           teamMemberIds: isFactory ? selectedMemberIds : [],
@@ -366,18 +364,6 @@ function AddActivityModal({
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
-          {!isManager && (
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Custom Task</label>
-              <input
-                type="text"
-                value={customTask}
-                onChange={(e) => setCustomTask(e.target.value)}
-                placeholder="e.g. Follow up with supplier…"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </div>
-          )}
         </div>
 
         <div className="mt-4 flex gap-2 justify-end">
