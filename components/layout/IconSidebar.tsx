@@ -262,6 +262,7 @@ const NAV_GROUPS: Record<Role, NavGroup[]> = {
         { label: 'Users', href: '/dashboard/superadmin?view=users', icon: <UsersIcon /> },
         { label: 'Workers', href: '/dashboard/superadmin/workers', icon: <WorkerIcon /> },
         { label: 'Timesheets', href: '/dashboard/superadmin/timesheets', icon: <ClockIcon /> },
+        { label: 'Log Timesheet', href: '/dashboard/mgr?view=timesheets', icon: <ClockIcon /> },
       ],
     },
     {
