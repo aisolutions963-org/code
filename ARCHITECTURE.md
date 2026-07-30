@@ -114,7 +114,7 @@ lib/
     quotations.ts             Quotations, project items, POs, installation logs
     maintenance.ts            Warranty / maintenance record CRUD
     announcements.ts          Announcements CRUD
-    client-requests.ts        Sub-project (Trade/Variance/Maintenance) creation
+    client-requests.ts        Sub-project (Trade/Variation/Maintenance) creation
     timesheets.ts             Timesheet CRUD + weekly summary
   auth.ts                     JWT sessions (createSession, getSession, login)
   db.ts                       Turso SQLite (users, notifications, settings, mappings)
@@ -231,7 +231,7 @@ Fields marked **(link)** are `multipleRecordLinks` — when reading they return 
 | COMMUN_SEDS | fldEs8LgBmhAC4XyQ | multipleCollaborators |
 | NICKNAME | fldChERvQwVlxO1nR | |
 | CLIENT_STATUS | fldwHeIOIoC4yXoua | singleSelect: Broker / End-to-End Client / Designer / Contractor / Developer / Other |
-| REQUEST_TYPE | fldDlEFv0as7eOxuS | singleSelect: Trade / Maintenance / Variance (sub-projects only) |
+| REQUEST_TYPE | fldDlEFv0as7eOxuS | singleSelect: Trade / Maintenance / Variation (sub-projects only) — the choice list also still has the old `Variance` name from before the rename; old records keep it in Airtable but the app normalizes it to "Variation" on every read (`normalizeRequestType()`), so it's never written again |
 | PARENT_PROJECT | flds3nCf54kT4Ss3s | **(link)** → PROJECTS |
 | TRADE_REFERENCE | fldt1VT7rmjxcbo2q | |
 | TASKS | fldCezGrdho4OveCs | **(link)** → TASKS |
@@ -330,7 +330,7 @@ Fields: NAME, NOTES, PROJECT **(link)**, AMOUNT, PAYMENT_TYPE, PAYMENT_STATUS, P
 | Purchase Orders | PURCHASE_ORDERS | tblXyum6bJJltk2vE | PROJECT (link), SUPPLIER, TOTAL_AMOUNT, PO_STATUS |
 | Installation Logs | INSTALLATION_LOGS | tbljrel5tmlHMmJxt | PROJECT (link), DATE, WORK_DESCRIPTION, INSTALLATION_TEAM |
 | Handover Sheets | HANDOVER_SHEETS | tblm5eS4DqQvxELPw | PROJECT (link), STATUS, FINAL_INSTALLATION_DATE, CUSTOMER_SATISFACTION |
-| Calendar Events | CALENDAR_EVENTS | tblnG8M3db73zeiNS | TITLE, DATE, PROJECT (link), CREATED_BY, CUSTOM_TASK |
+| Calendar Events | CALENDAR_EVENTS | tblnG8M3db73zeiNS | TITLE, DATE, TIME, PROJECT (link), CREATED_BY, CUSTOM_TASK |
 | Timesheets | PRODUCTION_TIMESHEETS | tblEAgsiTCNCQmTZl | WORKER (link), PROJECT (link), WORK_DATE, REGULAR_HOURS, OVERTIME_HOURS |
 | Announcements | ANNOUNCEMENTS | tbluhehjxkkNcmTMl | TITLE, MESSAGE, PINNED, VISIBLE_TO, EXPIRES_AT |
 | System Logs | SYSTEM_LOGS | tblfiHmuJYwiOXRVX | EVENT, LEVEL, REQUEST_ID, DURATION_MS, METADATA, TIMESTAMP |
@@ -427,7 +427,7 @@ Routes follow Next.js App Router conventions at `app/api/`. All use either `requ
 | `/api/projects/[id]/assign-installation` | POST | manager, superadmin | Assigns installation team members. |
 | `/api/projects/[id]/disapprove` | POST | manager, superadmin | Marks project not-approved. |
 | `/api/projects/[id]/reopen` | POST | superadmin | Reopens a rejected project. |
-| `/api/projects/[id]/report` | GET | manager, superadmin | Project report export. |
+| `/api/projects/[id]/report` | GET | superadmin, manager, sed, fabrication, installation | Project report tab — project overview, payments (manager/superadmin only), linked Trade/Maintenance/Variation requests (with their own client names), items list, timesheet summary. Items come from a separate `/api/projects/[id]/items` fetch, not this route's own response. |
 | `/api/projects/[id]/materials` | GET | Any | Materials for the project. |
 | `/api/projects/[id]/purchase-orders` | GET | Any | POs for the project. |
 | `/api/projects/[id]/installation-logs` | GET | Any | Installation logs. |
@@ -462,13 +462,13 @@ Routes follow Next.js App Router conventions at `app/api/`. All use either `requ
 |-------|------|-------------|
 | `/api/notifications` GET/PATCH | Any | In-app notifications for user. PATCH marks as read. |
 | `/api/follow-ups` GET/POST | sed, manager, superadmin | Follow-up logs + active quotation picker. |
-| `/api/client-requests` GET/POST | sed, manager, superadmin, installation | Sub-project (Trade/Variance/Maintenance) listing + creation. |
+| `/api/client-requests` GET/POST | sed, manager, superadmin, installation | Sub-project (Trade/Variation/Maintenance) listing + creation. |
 | `/api/calendar` GET/POST | Any | Aggregated calendar events + custom event creation. |
 | `/api/materials` GET | manager, superadmin | All active materials. |
 | `/api/materials/[id]` PATCH | manager, superadmin | Update material order status. |
 | `/api/maintenance` GET | manager, superadmin, sed | Warranty/maintenance records. |
 | `/api/clients` GET | Any | All client records. |
-| `/api/announcements` GET | Any | Role/expiry-filtered announcements. |
+| `/api/announcements` GET | Any | Role/expiry-filtered announcements. `?includeExpired=true` (superadmin only, ignored for everyone else) skips the expiry filter — used solely by superadmin's Announcements management page so expired ones stay visible there (with an "Expired" badge) instead of disappearing; every other caller, including the general `/home` dashboard feed, is unaffected. |
 | `/api/announcements` POST/PATCH/DELETE | superadmin | Announcement CRUD. |
 | `/api/users` GET/POST | superadmin | User management. |
 | `/api/users/[id]` GET/PATCH/DELETE | superadmin | Single user. PATCH syncs Airtable team member. |
@@ -526,9 +526,11 @@ Three types are stored as PROJECTS records with `REQUEST_TYPE` set:
 |------|--------------------|------------------------------------------|--------------------|
 | `Trade` | `[Trade] {parentName}` | `{quotNum}{Trx}{quotRef}{tradeQuotNum}` e.g. `2341Tr1R354327` | "F3 — Order Trade Material" (SED) → "F4 — Trade Payment" (Manager) → "Handover to Client" (SED) |
 | `Maintenance` | `[Maintenance] {parentName}` | `{quotNum}{Mx}{quotRef}` e.g. `2341M1R3` (Mx typed at creation, required) | "Site Visit & Assessment" → "Carry Out Maintenance Work" → "Client Sign-off" (all SED dept) |
-| `Variance` | `[Variance] {parentName}` | `{quotNum}{VRx}{quotRef}` e.g. `2341VR1R3` | Runs standard `generateTasksForProject('Preparing')` — the full project workflow |
+| `Variation` | `[Variation] {parentName}` | `{quotNum}{Vx}{quotRef}` e.g. `2341V1R3` | Runs standard `generateTasksForProject('Preparing')` — the full project workflow |
 
-Trade/Maintenance unlock sequentially via the `CR_TASK_SEQUENCE` name→position map (their tasks have no template order); Variance is driven by the normal order-chain engine. All types inherit SED, clientName, clientPhone from the parent project and are mapped in SQLite `sed_projects`.
+Trade/Maintenance unlock sequentially via the `CR_TASK_SEQUENCE` name→position map (their tasks have no template order); Variation is driven by the normal order-chain engine. All types inherit SED, clientName, clientPhone from the parent project and are mapped in SQLite `sed_projects`.
+
+(`Variation` was renamed from `Variance` — see the REQUEST_TYPE field note above; the prefix/reference format changed at the same time, old records keep their original `[Variance]`/`VR`-prefixed text as-is, only new ones use the new naming.)
 
 ### Gate Pass / Handover
 
@@ -618,7 +620,13 @@ On every task completion, `unlockNextTasks` (lib/workflow.ts) calls `planUnlock(
 ## 10. Payment Flow
 
 ### Payment Types
-`Advance`, `Delivery`, `Material`, `Final`, `Progressive Payment`, `Trade`, `Variance`, `Maintenance`
+`Advance`, `Delivery`, `Material`, `Final`, `Full Payment`, `Progressive Payment`, `Trade`, `Variation`, `Maintenance`
+
+`Full Payment` covers the entire contract in one payment — treated as equivalent to `Final`
+everywhere a "is this project paid off" check happens (see the duplicate guard and closure
+trigger below, and the F4 task-completion gate). `Variation` was renamed from the old `Variance` —
+old Airtable records may still say "Variance", normalized to "Variation" on read
+(`normalizeRequestType()` in `lib/airtable/_client.ts`), never migrated in place.
 
 ### Payment Statuses
 `Received`, `Pending`, `Overdue`, `Cancelled` (void)
@@ -645,6 +653,16 @@ On every task completion, `unlockNextTasks` (lib/workflow.ts) calls `planUnlock(
 
 ### Payment Visibility
 Only `manager` and `superadmin` can see payments. Controlled by `canSeePayments(role)` in `lib/permissions.ts` and enforced in `GET /api/projects/[id]`.
+
+### Remaining balance before a quotation exists
+`REMAINING_BALANCE` is an Airtable formula field (`Total Cost − Total Paid`), computed against a
+blank Total Cost as 0 — so if a payment is recorded before the F5 quotation is ever submitted (the
+Forms page allows this directly), the formula goes negative. Every UI that displays this figure
+checks `project.projectTotalCost == null` first and shows "Quotation pending" instead of the raw
+number — the actual paid amount is still shown alongside it, never hidden. See
+`remainingBalanceLabel()` in `lib/projectRef.ts` for the shared logic; `PaymentBar.tsx`,
+`PaymentsPage.tsx`, `PaymentTrackerView.tsx`, the project detail page, and `ClientsReportView.tsx`
+all apply the same check independently (no single component owns every render site).
 
 ---
 
@@ -896,6 +914,15 @@ The same rule is packaged as **`projectRefLabel()` in `lib/projectRef.ts`** — 
 
 `taskDocLinks`, `fillersDocLinks`, and `installationSchedule` are stored as JSON strings in singleLineText Airtable fields. When reading: use `parseDocLinks(val)`. When writing: `updateTask` serializes them automatically via the `DOC_LINK_KEYS` set.
 
+Only `taskDocLinks` ("Attachments & Notes") renders as an editable box on task cards
+(`FieldEditor.tsx`'s `DOC_LINK_FIELDS`) — `fillersDocLinks` ("Attachments") was dropped from card
+display since installation/superadmin were the only roles that ever saw both, stacked as two
+near-identical boxes. `fillersDocLinks` still exists as a field and still holds whatever was saved
+there before; it just can't be added to from a task card anymore. The project page's "Attachments &
+Links" summary (`getProjectAttachments()`, `GET /api/projects/[id]/attachments`) is a separate,
+non-role-filtered read path that still aggregates both fields, so nothing already saved becomes
+invisible — only new links have to go through `taskDocLinks`.
+
 ### 7. Airtable formula linked-record comparisons
 
 In Airtable formulas, `{PROJECT} = "recXXXXXXXXXXXXXX"` (comparing a linked-record field to a record ID) works — Airtable resolves it correctly. This is used throughout `tasks.ts` for filter formulas. Do not use primary-field-value comparisons for record ID lookups.
@@ -934,3 +961,20 @@ When a SED creates a project or client request, `addSedProjectMapping(userId, pr
 4. Custom `CALENDAR_EVENTS` records (created via `createCalendarEvent`)
 
 Event type and team member IDs are encoded into the `CUSTOM_TASK` field as `type:{eventType}|team:{id1},{id2}`.
+
+Every event also carries a `source: 'custom' | 'task' | 'fabrication' | 'payment' |
+'installation-log'` field — only `'custom'` events are real, standalone `CALENDAR_EVENTS` records;
+everything else is a read-only view derived from another table, so it can never be deleted or
+edited on its own (deleting "it" would mean deleting the underlying task/payment/log). Cron-authored
+recurring reminders (`weekly-review:`/`monthly-audit:` prefixed, via `upsertReminderEvent`) are
+also bucketed as non-`'custom'` even though they're standalone records, for the same reason —
+deleting one would just get silently recreated by the next cron run. `manager`/`superadmin` can
+edit and delete `'custom'` events (`PATCH`/`DELETE /api/calendar/[id]`); every other calendar-facing
+role can create and delete but not edit.
+
+Calendar events optionally carry a `TIME` field (`HH:mm`, blank for all-day) — this is the one
+field in the whole schema where production and preview have **different** field IDs (every other
+field's ID is shared because preview was created as a duplicate of production; `TIME` was added to
+each base independently afterward). `lib/fieldMap.ts` resolves it via a small per-`AIRTABLE_BASE_ID`
+lookup rather than a single constant — if you ever add another field the same way, follow that
+pattern rather than assuming one ID works everywhere.

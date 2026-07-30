@@ -83,6 +83,16 @@ maintain, so keep it to the few critical journeys and let the layers above cover
 Both real-base jobs **skip themselves** when their secrets are absent, so a missing secret never
 fails the build. `integration` never runs on `main`.
 
+> **Known issue, as of this writing**: `integration` has failed on *every* run since it was added —
+> not skipped, actually failed, in about a second (consistent with hitting a real API auth/config
+> error immediately, not a genuine test assertion failing after seeding real data). Since it fails
+> that fast rather than skipping, the most likely explanation is the `INTEGRATION_AIRTABLE_API_KEY`
+> / `INTEGRATION_AIRTABLE_BASE_ID` secrets were never actually added (the setup walkthrough below
+> was written, but maybe never completed) — worth checking Settings → Secrets and variables →
+> Actions first. This doesn't block deploys (`verify` and `schema-contract` are what actually gate
+> correctness, and both pass), but it does mean the seeded round-trip checks this suite exists for
+> aren't currently running at all.
+
 ### Required GitHub secrets
 Settings → Secrets and variables → Actions:
 

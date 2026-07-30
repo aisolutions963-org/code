@@ -22,20 +22,22 @@ Tasks drive everything: each stage generates tasks from templates; completing a 
 
 ## Superadmin
 
-**Dashboard:** `Overview` KPIs (incl. Closing count), My Tasks / View-all, All Projects, Activity, Payments, Warranty, Payables & Receivables, Users/Workers/Timesheets, Announcements, Materials, Deliveries, Calendar.
+**Dashboard:** `Overview` KPIs (incl. Closing count), My Tasks / View-all, All Projects, Follow-Ups, Activity, Payments, Warranty, Payables & Receivables, Users/Workers/Timesheets/**Log Timesheet**, Announcements, Materials, Deliveries, Calendar.
 
 - **My Tasks** shows your own actionable items individually: pending approvals, "Call the Client" decisions, inactivity Follow-Up decisions, and payment tasks (e.g. the per-item **Payment** step).
 - **Call the Client** — after the SED clears the three approval gates (Design / Sample / Quotation), you call the client and record the outcome: approved (project opens), needs review, or refused.
 - **Inactivity alerts** — if a project in any active stage has no task activity for 3 days, you get a daily notification naming the project *and the last task it stalled on*, and a Follow-Up decision task unlocks: send back to SED, to Manager, or reject the project.
 - **Stage control** — advance a stage manually, reopen a Not-Approved project (its tasks regenerate from Preparing), soft-delete projects (Trash auto-purges after 30 days).
-- **Finance** — Payments view (record/void, edit), Payables & Receivables (manual ledgers via "+ Add"), fiscal-year reports and Excel downloads.
+- **Finance** — Payments view (record/void, edit), Payables & Receivables (manual ledgers via "+ Add"), fiscal-year reports and Excel downloads. If a project has a payment recorded but no quotation submitted yet, the remaining balance shows as "Quotation pending" instead of a negative number — the amount actually paid still shows normally.
 - **Users** — create/sync logins, roles, and Airtable team links.
+- **Timesheets** — two separate tools, both available to you: **Timesheets** is a reporting view (filter by date/worker, Excel export, edit or delete an entry). **Log Timesheet** is the same day-to-day logging tool Manager uses (Log Daily Entry + Weekly Summary) — use this one to actually record a day's hours.
+- **Announcements** — unlike every other view in the app, this one keeps showing expired announcements (with a red "Expired" badge) instead of hiding them, so you can still find and manage old ones. The announcement cards everyone else sees (e.g. on Home) still hide expired ones as normal.
 
 ## Manager
 
 **Dashboard:** My Tasks, All Projects, Payments + Pay Calendar, Payables/Receivables, Materials, Deliveries, Install Teams, Timesheets, Follow-Ups, Client Requests.
 
-- **Payments** — record every payment type (Advance, Delivery, Material, Final, Progressive, Trade/Variance/Maintenance). The F4 forms auto-fill the project's quotation number + reference (editable only when not yet set). A Final payment closes the project into Active Warranty; a second Final is blocked.
+- **Payments** — record every payment type (Advance, Delivery, Material, Final, **Full Payment**, Progressive, Trade/Variation/Maintenance). The F4 forms auto-fill the project's quotation number + reference (editable only when not yet set). A Final **or Full Payment** closes the project into Active Warranty; a second one is blocked. **Full Payment** covers the whole contract in one go — once recorded, any F4 task you open later (Advance/Delivery/Final) shows a one-click "already paid in full" skip instead of the normal payment form, but only when the task's own turn actually comes up.
 - **Production chain** — your steps include *Choose Installation Team* (per item, right after the SED's Attach-7), *All Material Estimation Price*, *Submit Final Material List*, *Order Material*, *Schedule the Delivery Date*, *Get installation ready*, and the Delivery/Final F4 forms.
 - **Assign installation teams** from the Install Teams view (unassigned projects are flagged on your action center).
 - **Review** — approve/reject tasks that require manager review; notes flow back to the submitter.
@@ -47,7 +49,7 @@ Tasks drive everything: each stage generates tasks from templates; completing a 
 - **Preparing** — create the project, then work the **Choose Actions** gateway: Site Visit, Order Sample, Proposal/Design Idea, Make Quotation (sets quotation number + reference), *Ask installation team to Take Measurement* (pick date + member — the measurement task goes to the installation team; it never appears in your actions), Need More Details. Clear the three approval gates; the superadmin then calls the client.
 - **Open** — after the Manager records the F4 advance: submit **F5** (quotation line items — creates the project items), then per item run the item gateway (Design / Site Visit / Sample / Measurement), get both per-item gates approved, *Take Approval From Client to Start Fabrication*, and finish with **Click Done: Attach 7 documents**.
 - **Production** — your steps: **F3 material order** (Order Directly, or Big Order → fabrication store check first), *Inform Client of Estimated Date of Supply*, site/QC checks, delivery-payment nudges. Between your steps the item shows "Waiting on {Manager/Fabrication}" — that's normal.
-- **Client Requests** — raise Trade (`2341Tr1R354327`-style ref), Variance (`2341VR1R3`, full project workflow), or Maintenance (`2341M1R3`, requires the `Mx` reference; parent must be under warranty).
+- **Client Requests** — raise Trade (`2341Tr1R354327`-style ref), Variation (`2341V1R3`, full project workflow — renamed from "Variance"; old requests still say Variance in places they haven't been touched since), or Maintenance (`2341M1R3`, requires the `Mx` reference; parent must be under warranty). You can also delete a client request you no longer need.
 - You see only your own projects (owner or communal SED).
 
 ## Fabrication (Arabic UI)
@@ -70,7 +72,7 @@ Tasks drive everything: each stage generates tasks from templates; completing a 
 
 ## Shared surfaces
 
-- **Home** — announcements, live clock, the **Pipeline** (projects by real stage), and the unified calendar (Installation & Delivery / Activity tabs; managers can add factory events with team assignment and conflict warnings).
-- **Project page** — item board with per-item task groups, "Next up"/"Waiting on" hints, forms section, payments (manager/superadmin), report tab, linked client requests.
+- **Home** — announcements, live clock, the **Pipeline** (projects by real stage), and the unified calendar (Installation & Delivery / Activity tabs; managers can add factory events with team assignment and conflict warnings). Activities can optionally have a time of day, not just a date. Manager/superadmin can edit an activity they or someone else added (title/date/time/notes/project); anyone who can add one can also delete it — except events that are really just a view onto a task, payment, or system reminder, which were never separate records to begin with and don't get a delete option.
+- **Project page** — item board with per-item task groups, "Next up"/"Waiting on" hints, forms section, payments (manager/superadmin), and a **Report tab**: project overview, payments, linked Trade/Maintenance/Variation requests (each showing its own client name), the item list, and a timesheet summary.
 - **Notifications** (bell) — in-app, per role or per user; Arabic for fabrication/installation. Clear-all supported.
 - **Search** — project lists match name, client, phone, quotation number/reference, and the WW fallback id.
