@@ -50,6 +50,16 @@ const STAGE_HEX = {
 
 export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
   const [selectedSed, setSelectedSed] = useState<string | null>(null)
+  const [expandedSeds, setExpandedSeds] = useState<Set<string>>(new Set())
+
+  function toggleExpanded(name: string) {
+    setExpandedSeds((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
 
   const chartData = selectedSed
     ? [
@@ -150,18 +160,44 @@ export function SedChart({ data, seds }: { data: SedStat[]; seds: string[] }) {
           <div className="space-y-1">
             {(selectedSed ? data.filter((d) => d.sedName === selectedSed) : data).map((d) => {
               const tier = d.totalPaid >= 600_000 ? 'gold' : d.totalPaid >= 300_000 ? 'silver' : null
+              const expanded = expandedSeds.has(d.sedName)
               return (
-              <div key={d.sedName} className="flex items-start flex-wrap justify-between gap-1 text-xs">
-                <span className="text-gray-600 font-medium truncate">{d.sedName}</span>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {tier && (
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${tier === 'gold' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {tier}
-                    </span>
-                  )}
-                  <span className="text-gray-400">Paid: AED {d.totalPaid.toLocaleString()}</span>
-                  <span className="font-semibold text-emerald-600">AED {d.commission.toLocaleString()}</span>
+              <div key={d.sedName} className="text-xs">
+                <div className="flex items-start flex-wrap justify-between gap-1">
+                  <span className="text-gray-600 font-medium truncate">{d.sedName}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {tier && (
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${tier === 'gold' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {tier}
+                      </span>
+                    )}
+                    <span className="text-gray-400">Paid: AED {d.totalPaid.toLocaleString()}</span>
+                    <span className="font-semibold text-emerald-600">AED {d.commission.toLocaleString()}</span>
+                  </div>
                 </div>
+                {d.breakdown && d.breakdown.length > 0 && (
+                  <div className="mt-1">
+                    <button
+                      onClick={() => toggleExpanded(d.sedName)}
+                      className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 font-medium"
+                    >
+                      <svg className={`w-2.5 h-2.5 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      {expanded ? 'Hide' : 'View'} breakdown ({d.breakdown.length})
+                    </button>
+                    {expanded && (
+                      <div className="mt-1 pl-3.5 space-y-0.5">
+                        {d.breakdown.map((b) => (
+                          <div key={b.projectId} className="flex items-center justify-between gap-3 text-[11px]">
+                            <span className="text-gray-500 truncate">{b.name}</span>
+                            <span className="font-mono font-medium text-gray-700 shrink-0">AED {b.revenue.toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )})}
           </div>

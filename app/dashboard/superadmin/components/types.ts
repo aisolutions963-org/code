@@ -53,6 +53,7 @@ export interface SedStat {
   notApproved: number
   totalPaid: number
   commission: number
+  breakdown?: { projectId: string; name: string; revenue: number }[]
 }
 
 export interface WorkHourEntry {
