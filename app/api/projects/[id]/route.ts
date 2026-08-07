@@ -8,6 +8,7 @@ import {
   getPaymentsByProject,
   updateProject,
   softDeleteProject,
+  deleteUnorderedMaterialsByProject,
 } from '@/lib/airtable'
 import { PROJECTS } from '@/lib/fieldMap'
 import { isSedAuthorizedForProject } from '@/lib/sedAccess'
@@ -164,6 +165,11 @@ export async function DELETE(
   if (!permanent) {
     try {
       await softDeleteProject(id)
+      // Best-effort cleanup — a material nothing has happened with yet shouldn't linger on a
+      // deleted project. Never blocks the delete itself from succeeding.
+      deleteUnorderedMaterialsByProject(id).catch((err) =>
+        console.error('DELETE (soft) /api/projects/[id] material cleanup failed:', err),
+      )
       return NextResponse.json({ deleted: true, soft: true })
     } catch (error) {
       console.error('DELETE (soft) /api/projects/[id] error:', error)

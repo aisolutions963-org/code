@@ -16,7 +16,7 @@ import {
   num,
   bool,
   strArr,
-  deleteByProject,
+  deleteByLinkedProjectField,
 } from './_client'
 
 // ─── Project Items ────────────────────────────────────────────────────────────
@@ -130,7 +130,8 @@ export async function getQuotationsByProject(projectId: string): Promise<Quotati
 }
 
 export async function deleteQuotationsByProject(projectId: string): Promise<number> {
-  return deleteByProject(QUOTATIONS.TABLE_ID, QUOTATIONS.PROJECT, projectId)
+  // QUOTATIONS.PROJECT is a linked-record field — needs the client-side-filtered variant.
+  return deleteByLinkedProjectField(QUOTATIONS.TABLE_ID, QUOTATIONS.PROJECT, projectId)
 }
 
 // ─── Purchase Orders ─────────────────────────────────────────────────────────

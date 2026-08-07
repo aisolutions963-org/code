@@ -10,7 +10,7 @@ import {
   tblUrl,
   RawRecord,
   transformPayment,
-  deleteByProject,
+  deleteByLinkedProjectField,
   getDeletedProjectIds,
 } from './_client'
 
@@ -106,7 +106,8 @@ export async function updatePayment(id: string, input: PaymentUpdateInput): Prom
 }
 
 export async function deletePaymentsByProject(projectId: string): Promise<number> {
-  return deleteByProject(PAYMENTS.TABLE_ID, PAYMENTS.PROJECT, projectId)
+  // PAYMENTS.PROJECT is a linked-record field — needs the client-side-filtered variant.
+  return deleteByLinkedProjectField(PAYMENTS.TABLE_ID, PAYMENTS.PROJECT, projectId)
 }
 
 export async function getSedQuarterlyRevenue(

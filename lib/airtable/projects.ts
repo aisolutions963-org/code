@@ -30,7 +30,7 @@ import {
   attachments,
   firstLinkedRecord,
   transformProject,
-  deleteByProject,
+  deleteByLinkedProjectField,
 } from './_client'
 import { todayUAE } from '../dateUtils'
 
@@ -372,30 +372,40 @@ export async function deleteProjectById(projectId: string): Promise<void> {
   }
 }
 
+// All five of these link to Projects via a genuine linked-record field (values come back as
+// record-ID arrays over the read API but resolve to the linked project's NAME in a formula) —
+// deleteByProject's `{field} = "id"` equality silently matched nothing for every one of these
+// until this fix; deleteByLinkedProjectField filters client-side instead, which actually works.
 export async function deleteProjectItemsByProject(projectId: string): Promise<number> {
-  return deleteByProject(PROJECT_ITEMS.TABLE_ID, PROJECT_ITEMS.PROJECT, projectId)
+  return deleteByLinkedProjectField(PROJECT_ITEMS.TABLE_ID, PROJECT_ITEMS.PROJECT, projectId)
 }
 
 export async function deletePurchaseOrdersByProject(projectId: string): Promise<number> {
-  return deleteByProject(PURCHASE_ORDERS.TABLE_ID, PURCHASE_ORDERS.PROJECT, projectId)
+  return deleteByLinkedProjectField(PURCHASE_ORDERS.TABLE_ID, PURCHASE_ORDERS.PROJECT, projectId)
 }
 
 export async function deleteInstallationLogsByProject(projectId: string): Promise<number> {
-  return deleteByProject(INSTALLATION_LOGS.TABLE_ID, INSTALLATION_LOGS.PROJECT, projectId)
+  return deleteByLinkedProjectField(INSTALLATION_LOGS.TABLE_ID, INSTALLATION_LOGS.PROJECT, projectId)
 }
 
 export async function deleteHandoverSheetsByProject(projectId: string): Promise<number> {
-  return deleteByProject(HANDOVER_SHEETS.TABLE_ID, HANDOVER_SHEETS.PROJECT, projectId)
+  return deleteByLinkedProjectField(HANDOVER_SHEETS.TABLE_ID, HANDOVER_SHEETS.PROJECT, projectId)
 }
 
 export async function deleteTimesheetsByProject(projectId: string): Promise<number> {
-  return deleteByProject(PRODUCTION_TIMESHEETS.TABLE, PRODUCTION_TIMESHEETS.PROJECT, projectId)
+  return deleteByLinkedProjectField(PRODUCTION_TIMESHEETS.TABLE, PRODUCTION_TIMESHEETS.PROJECT, projectId)
 }
 
 export async function deleteChildProjectsByProject(projectId: string): Promise<string[]> {
-  const records = await fetchAll(PROJECTS.TABLE_ID, {
-    filterByFormula: `{${PROJECTS.PARENT_PROJECT}} = "${projectId}"`,
-    fields: [PROJECTS.PROJECT_NAME],
+  // PARENT_PROJECT is a linked-record field — `{field} = "id"` in filterByFormula compares
+  // against the linked project's NAME, not its ID, so it never matched here either. Fetch
+  // broadly and filter client-side instead, same as deleteByLinkedProjectField.
+  const allRecords = await fetchAll(PROJECTS.TABLE_ID, {
+    fields: [PROJECTS.PARENT_PROJECT],
+  })
+  const records = allRecords.filter((r) => {
+    const v = r.fields[PROJECTS.PARENT_PROJECT]
+    return Array.isArray(v) && (v as string[]).includes(projectId)
   })
   if (records.length === 0) return []
   const ids = records.map((r) => r.id)

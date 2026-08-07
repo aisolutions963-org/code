@@ -352,6 +352,7 @@ export interface Material {
   purpose?: string
   requestedBy?: string
   requestDate?: string
+  projectDeleted?: boolean
 }
 
 export interface MaterialCreateInput {

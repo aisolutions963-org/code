@@ -16,7 +16,7 @@ import {
   str,
   num,
   strArr,
-  deleteByProject,
+  deleteByLinkedProjectField,
 } from './_client'
 
 // Cron-authored recurring reminder events (see upsertReminderEvent) — not user-created, but not
@@ -490,7 +490,8 @@ export async function upsertReminderEvent(input: {
 }
 
 export async function deleteCalendarEventsByProject(projectId: string): Promise<number> {
-  return deleteByProject(CALENDAR_EVENTS.TABLE_ID, CALENDAR_EVENTS.PROJECT, projectId)
+  // CALENDAR_EVENTS.PROJECT is a linked-record field — needs the client-side-filtered variant.
+  return deleteByLinkedProjectField(CALENDAR_EVENTS.TABLE_ID, CALENDAR_EVENTS.PROJECT, projectId)
 }
 
 // Deletes a single custom calendar event record. Callers must have already verified the event's

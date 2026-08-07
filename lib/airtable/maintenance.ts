@@ -11,7 +11,7 @@ import {
   tblUrl,
   RawRecord,
   transformMaintenance,
-  deleteByProject,
+  deleteByLinkedProjectField,
   getDeletedProjectIds,
 } from './_client'
 import { updateProject } from './projects'
@@ -120,5 +120,6 @@ export async function expireMaintenanceRecord(recordId: string): Promise<void> {
 }
 
 export async function deleteMaintenanceByProject(projectId: string): Promise<number> {
-  return deleteByProject(MAINTENANCE.TABLE_ID, MAINTENANCE.PROJECTS, projectId)
+  // MAINTENANCE.PROJECTS is a linked-record field — needs the client-side-filtered variant.
+  return deleteByLinkedProjectField(MAINTENANCE.TABLE_ID, MAINTENANCE.PROJECTS, projectId)
 }
