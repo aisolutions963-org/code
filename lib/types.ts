@@ -36,6 +36,7 @@ export interface DocLink {
   url?: string
   label: string
   notes?: string
+  done?: boolean
 }
 
 export interface Task {

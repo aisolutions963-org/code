@@ -161,7 +161,13 @@ export async function getClientRequests(options?: {
         return communIds.includes(memberId)
       })
     : allRecords
-  const projects = scopedRecords.filter((r) => VALID_REQUEST_TYPES.has(str(r.fields[PROJECTS.REQUEST_TYPE]) ?? ''))
+  // A client request is itself a PROJECTS row (see createClientRequest) — its own DELETED_AT
+  // field tells us whether it's been soft-deleted, no separate lookup needed.
+  const projects = scopedRecords.filter(
+    (r) =>
+      VALID_REQUEST_TYPES.has(str(r.fields[PROJECTS.REQUEST_TYPE]) ?? '') &&
+      !str(r.fields[PROJECTS.DELETED_AT]),
+  )
   if (projects.length === 0) return []
 
   const projectIds = projects.map((r) => r.id)
@@ -208,8 +214,13 @@ export async function getClientRequestsByParentProject(parentProjectId: string):
     sort: [{ field: PROJECTS.PROJECT_CREATED_AT, direction: 'desc' }],
   })
   // Belt-and-suspenders: only records with a genuine request type qualify as
-  // "linked requests" — a PARENT_PROJECT link alone isn't enough.
-  const projects = allProjects.filter((r) => VALID_REQUEST_TYPES.has(str(r.fields[PROJECTS.REQUEST_TYPE]) ?? ''))
+  // "linked requests" — a PARENT_PROJECT link alone isn't enough. Also drop the request
+  // itself if it's been soft-deleted (own DELETED_AT field, same row).
+  const projects = allProjects.filter(
+    (r) =>
+      VALID_REQUEST_TYPES.has(str(r.fields[PROJECTS.REQUEST_TYPE]) ?? '') &&
+      !str(r.fields[PROJECTS.DELETED_AT]),
+  )
   if (projects.length === 0) return []
 
   const projectIds = projects.map((r) => r.id)
@@ -274,11 +285,12 @@ export async function getClientRequestLabelsByParent(): Promise<Map<string, stri
 
   const records = await fetchAll(PROJECTS.TABLE_ID, {
     filterByFormula: `{${PROJECTS.REQUEST_TYPE}} != ""`,
-    fields: [PROJECTS.REQUEST_TYPE, PROJECTS.PARENT_PROJECT, PROJECTS.TRADE_REFERENCE],
+    fields: [PROJECTS.REQUEST_TYPE, PROJECTS.PARENT_PROJECT, PROJECTS.TRADE_REFERENCE, PROJECTS.DELETED_AT],
   })
 
   const labelsByParent = new Map<string, string[]>()
   for (const r of records) {
+    if (str(r.fields[PROJECTS.DELETED_AT])) continue
     const parentId = firstLinkedRecord(r.fields[PROJECTS.PARENT_PROJECT])?.id
     if (!parentId) continue
     const type = normalizeRequestType(selectName(r.fields[PROJECTS.REQUEST_TYPE])) ?? ''

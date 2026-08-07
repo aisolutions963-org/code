@@ -137,8 +137,12 @@ export default function OverviewPage() {
     ...myTasks.filter((t) => t.status === 'To Do'),
   ]
 
-  const followUpTasks = myTasks.filter((t) => t.taskName === 'Follow Up' && t.status === 'To Do')
-  const regularTasks = sortedTasks.filter((t) => !(t.taskName === 'Follow Up' && t.status === 'To Do'))
+  // Follow Up unlocks straight to 'In Progress' (not 'To Do') since the decision panel shows the
+  // instant it's actionable — match both so one still at 'To Do' from before that change isn't orphaned.
+  const isPendingFollowUp = (t: Task) =>
+    t.taskName === 'Follow Up' && (t.status === 'To Do' || t.status === 'In Progress')
+  const followUpTasks = myTasks.filter(isPendingFollowUp)
+  const regularTasks = sortedTasks.filter((t) => !isPendingFollowUp(t))
 
   async function handleTaskUpdate(id: string, fields: Partial<TaskUpdateInput>) {
     const res = await fetch(`/api/tasks/${id}`, {

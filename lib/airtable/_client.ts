@@ -157,6 +157,35 @@ export async function fetchAll(
   return records
 }
 
+// Soft-deleted projects are hidden from every project list, but broad/unscoped fetches in other
+// domain modules (payments, materials, client requests, etc.) don't re-derive that on their own —
+// this batches a RECORD_ID() lookup against PROJECTS.DELETED_AT so each of those call sites can
+// filter out records belonging to a deleted project. Same chunked-OR-formula shape as the
+// project-stage lookup in filterTasksByProjectStage (lib/airtable/tasks.ts), generalized and shared.
+export async function getDeletedProjectIds(candidateIds: string[]): Promise<Set<string>> {
+  const uniqueIds = Array.from(new Set(candidateIds))
+  const deletedSet = new Set<string>()
+  if (uniqueIds.length === 0) return deletedSet
+
+  const chunks: string[][] = []
+  for (let i = 0; i < uniqueIds.length; i += 10) chunks.push(uniqueIds.slice(i, i + 10))
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
+      const records = await fetchAll(PROJECTS.TABLE_ID, {
+        filterByFormula: formula,
+        fields: [PROJECTS.DELETED_AT],
+      })
+      for (const r of records) {
+        if (str(r.fields[PROJECTS.DELETED_AT])) deletedSet.add(r.id)
+      }
+    }),
+  )
+
+  return deletedSet
+}
+
 export async function deleteByProject(tableId: string, projectField: string, projectId: string): Promise<number> {
   const records = await fetchAll(tableId, {
     filterByFormula: `{${projectField}} = "${projectId}"`,

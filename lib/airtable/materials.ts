@@ -13,6 +13,7 @@ import {
   num,
   strArr,
   deleteByProject,
+  getDeletedProjectIds,
 } from './_client'
 
 function transformMaterial(record: RawRecord): Material {
@@ -44,7 +45,16 @@ export async function getAllActiveMaterials(options?: { projectIds?: string[] })
     formula = `OR(${projectFilters})`
   }
   const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, formula ? { filterByFormula: formula } : {})
-  return records.map(transformMaterial)
+  const materials = records.map(transformMaterial)
+
+  // Broad/unscoped call (no projectIds) needs to exclude soft-deleted projects' materials —
+  // a scoped call only ever receives IDs from an already-filtered project list.
+  if (!options?.projectIds?.length) {
+    const projectIds = Array.from(new Set(materials.flatMap((m) => m.projects ?? [])))
+    const deletedProjectIds = await getDeletedProjectIds(projectIds)
+    return materials.filter((m) => !m.projects?.some((id) => deletedProjectIds.has(id)))
+  }
+  return materials
 }
 
 export async function getMaterialsByProject(projectId: string): Promise<Material[]> {
