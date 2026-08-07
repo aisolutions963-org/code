@@ -307,6 +307,10 @@ async function enrichTasksWithAssigneeNames(tasks: Task[]): Promise<Task[]> {
 //      a rejected project's tasks shouldn't clutter My Tasks/role dashboards. Superadmin can
 //      still see them by opening that project directly (its detail page passes false here) to
 //      decide on reopening.
+//   3. Soft-deleted projects (hideNotApproved only, same carve-out): getProjects()/getAllProjects()
+//      already hide these from every project list, but nothing did the equivalent for tasks — a
+//      deleted project's tasks kept appearing in feeds with nowhere to click through to. Opening
+//      the project directly from Trash still shows its tasks, same as the Not-Approved case.
 async function filterTasksByProjectStage(tasks: Task[], hideNotApproved: boolean): Promise<Task[]> {
   const preparingMax = PHASE_CONFIG.Preparing.universalActionOrderMax
   const phase1Pending = tasks.filter((t) => {
@@ -321,6 +325,7 @@ async function filterTasksByProjectStage(tasks: Task[], hideNotApproved: boolean
   if (projectIds.length === 0) return tasks
 
   const stageMap: Record<string, string> = {}
+  const deletedSet = new Set<string>()
   const chunks: string[][] = []
   for (let i = 0; i < projectIds.length; i += 10) chunks.push(projectIds.slice(i, i + 10))
 
@@ -329,11 +334,12 @@ async function filterTasksByProjectStage(tasks: Task[], hideNotApproved: boolean
       const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
       const records = await fetchAll(PROJECTS.TABLE_ID, {
         filterByFormula: formula,
-        fields: [PROJECTS.PROJECT_STAGE],
+        fields: [PROJECTS.PROJECT_STAGE, PROJECTS.DELETED_AT],
       })
       for (const r of records) {
         const stage = str(r.fields[PROJECTS.PROJECT_STAGE])
         if (stage) stageMap[r.id] = stage
+        if (str(r.fields[PROJECTS.DELETED_AT])) deletedSet.add(r.id)
       }
     }),
   )
@@ -343,6 +349,12 @@ async function filterTasksByProjectStage(tasks: Task[], hideNotApproved: boolean
     const stage = projectId ? stageMap[projectId] : undefined
 
     if (hideNotApproved && stage === 'Not-Approved') return false
+    // Soft-deleted projects are already hidden from every project list — their tasks
+    // shouldn't keep showing up in feeds either, pointing at a project no longer
+    // reachable from anywhere else in the app. Same carve-out as Not-Approved: only on
+    // broad feeds, never when a specific project's own page asked for its tasks directly
+    // (e.g. reviewing it from Trash before restoring or purging).
+    if (hideNotApproved && projectId && deletedSet.has(projectId)) return false
 
     const order = t.templateOrder?.[0]
     if (typeof order === 'number' && order <= preparingMax && t.status !== 'Completed') {
