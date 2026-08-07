@@ -43,6 +43,7 @@ export const GET = requireRole('superadmin')(async () => {
   projParams.append('fields[]', PROJECTS.PROJECT_NAME)
   projParams.append('fields[]', PROJECTS.NICKNAME)
   projParams.append('fields[]', PROJECTS.CLIENT_NAME)
+  projParams.append('fields[]', PROJECTS.DELETED_AT)
 
   const [logs, projects] = await Promise.all([
     fetchAll<{ id: string; fields: Record<string, unknown> }>(FOLLOW_UP_LOG.TABLE, logParams),
@@ -61,7 +62,18 @@ export const GET = requireRole('superadmin')(async () => {
     ]),
   )
 
-  const rows = logs.map((r) => {
+  const deletedProjectIds = new Set(
+    projects.filter((p) => !!p.fields[PROJECTS.DELETED_AT]).map((p) => p.id),
+  )
+
+  const rows = logs
+    .filter((r) => {
+      const projectIds = Array.isArray(r.fields[FOLLOW_UP_LOG.PROJECT])
+        ? (r.fields[FOLLOW_UP_LOG.PROJECT] as string[])
+        : []
+      return !projectIds.some((id) => deletedProjectIds.has(id))
+    })
+    .map((r) => {
     const f = r.fields
     const projectIds = Array.isArray(f[FOLLOW_UP_LOG.PROJECT])
       ? (f[FOLLOW_UP_LOG.PROJECT] as string[])

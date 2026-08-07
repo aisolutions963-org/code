@@ -46,6 +46,7 @@ export const GET = requireRole('superadmin')(async () => {
 
   const projParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   projParams.append('fields[]', PROJECTS.PROJECT_NAME)
+  projParams.append('fields[]', PROJECTS.DELETED_AT)
 
   const [records, projects] = await Promise.all([
     fetchAll<{ id: string; fields: Record<string, unknown> }>(RECEIVABLES.TABLE, params),
@@ -53,8 +54,16 @@ export const GET = requireRole('superadmin')(async () => {
   ])
 
   const projectById = new Map(projects.map((p) => [p.id, p.fields]))
+  const deletedProjectIds = new Set(
+    projects.filter((p) => !!p.fields[PROJECTS.DELETED_AT]).map((p) => p.id),
+  )
 
-  const rows = records.map((r) => {
+  const rows = records
+    .filter((r) => {
+      const projIds = Array.isArray(r.fields[RECEIVABLES.LINKED_PROJECT]) ? (r.fields[RECEIVABLES.LINKED_PROJECT] as string[]) : []
+      return !projIds.some((id) => deletedProjectIds.has(id))
+    })
+    .map((r) => {
     const f = r.fields
     const projIds = Array.isArray(f[RECEIVABLES.LINKED_PROJECT]) ? (f[RECEIVABLES.LINKED_PROJECT] as string[]) : []
     const proj = projIds[0] ? projectById.get(projIds[0]) : undefined

@@ -13,3 +13,6 @@ export * from './announcements'
 export * from './client-requests'
 export * from './timesheets'
 export * from './closing'
+// _client.ts is otherwise internal — named re-export only, not a wildcard, so its other
+// internals (fetchAll, raw table constants, etc.) don't leak into the public barrel.
+export { getDeletedProjectIds } from './_client'

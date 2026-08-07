@@ -55,7 +55,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   for (const f of [
     PROJECTS.PROJECT_ID, PROJECTS.PROJECT_NAME, PROJECTS.NICKNAME, PROJECTS.CLIENT_NAME,
     PROJECTS.PROJECT_STAGE, PROJECTS.PROJECT_DESCRIPTION, PROJECTS.QUOTATION_NUMBER,
-    PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER_NAME,
+    PROJECTS.QUOTATION_REFERENCE, PROJECTS.SALES_OWNER_NAME, PROJECTS.DELETED_AT,
   ]) projParams.append('fields[]', f)
 
   const fuParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
@@ -69,6 +69,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   ])
 
   const projById = new Map(projects.map((p) => [p.id, p.fields]))
+  const deletedProjectIds = new Set(
+    projects.filter((p) => !!p.fields[PROJECTS.DELETED_AT]).map((p) => p.id),
+  )
 
   // Follow-ups → per-project last/next date (mapped quotation → project).
   const quoteToProject = new Map(quotes.map((q) => [q.id, firstLink(q.fields[QUOTATIONS.PROJECT])]))
@@ -93,7 +96,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   for (const q of quotes) {
     if (!inWindow(q.createdTime)) continue
     const f = q.fields
-    const projId = firstLink(f[QUOTATIONS.PROJECT]) ?? `__noproj_${q.id}`
+    const linkedProjId = firstLink(f[QUOTATIONS.PROJECT])
+    if (linkedProjId && deletedProjectIds.has(linkedProjId)) continue
+    const projId = linkedProjId ?? `__noproj_${q.id}`
     let g = groups.get(projId)
     if (!g) {
       g = { projId: firstLink(f[QUOTATIONS.PROJECT]), quoteNumber: '', quoteDate: '', clientName: '', status: '', sales: '', amount: 0, var1: 0, var2: 0, notes: '' }

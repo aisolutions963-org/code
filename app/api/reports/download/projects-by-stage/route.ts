@@ -55,7 +55,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
 
   // Exclude Trade/Maintenance/Variance sub-projects — they show up via the
   // "Client Requests" column on their parent project's row instead.
-  formula = `AND(${formula}, {${PROJECTS.REQUEST_TYPE}}="")`
+  formula = `AND(${formula}, {${PROJECTS.REQUEST_TYPE}}="", {${PROJECTS.DELETED_AT}} = BLANK())`
 
   params.set('filterByFormula', formula)
   params.append('fields[]', PROJECTS.PROJECT_ID)
