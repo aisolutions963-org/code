@@ -5,7 +5,6 @@ import useSWR, { mutate as globalMutate } from 'swr'
 import { Project, Payment } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
-import { todayUAE } from '@/lib/dateUtils'
 import { remainingBalanceLabel } from '@/lib/projectRef'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -26,7 +25,6 @@ function PaymentDetail({ project: p }: { project: Project }) {
   )
   const payments = data?.project?.payments ?? []
 
-  const today = todayUAE()
   const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variation'
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
@@ -39,7 +37,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
       : composeQuoteRef(p.quotationNumber, p.quotationReference),
     quotationNumber: p.quotationNumber ?? '',
     quotationReference: p.quotationReference ?? '',
-    receivedDate: today,
+    receivedDate: '',
     dueDate: '',
     payerType: '',
     payerName: '',
@@ -98,7 +96,7 @@ function PaymentDetail({ project: p }: { project: Project }) {
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
       setSaved(true)
-      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : composeQuoteRef(p.quotationNumber, p.quotationReference), quotationNumber: p.quotationNumber ?? '', quotationReference: p.quotationReference ?? '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
+      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : composeQuoteRef(p.quotationNumber, p.quotationReference), quotationNumber: p.quotationNumber ?? '', quotationReference: p.quotationReference ?? '', receivedDate: '', dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
       mutate()
       globalMutate('/api/projects')
       globalMutate('/api/projects?all=true')

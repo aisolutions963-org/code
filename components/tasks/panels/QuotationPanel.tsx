@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import toast from 'react-hot-toast'
-import { todayUAE } from '@/lib/dateUtils'
 import { Task, TaskUpdateInput, Payment } from '@/lib/types'
 
 interface QuotationPanelProps {
@@ -13,7 +12,6 @@ interface QuotationPanelProps {
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-const today = todayUAE()
 
 const inp = 'w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'
 const sel = 'w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white'
@@ -40,7 +38,9 @@ export default function QuotationPanel({ task, variant, onUpdate }: QuotationPan
   const [paymentStatus, setPaymentStatus] = useState('Received')
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer')
   const [referenceNo, setReferenceNo] = useState('')
-  const [receivedDate, setReceivedDate] = useState(today)
+  // No silent default — the recorder must pick the actual date the payment was received,
+  // so it can never accidentally be dated "today". Required on submit.
+  const [receivedDate, setReceivedDate] = useState('')
   const [payerType, setPayerType] = useState('')
   const [payerName, setPayerName] = useState('')
   const [commission, setCommission] = useState('')
