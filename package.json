@@ -18,6 +18,7 @@
     "e2e:debug": "playwright test --debug",
     "deploy": "vercel --prod --yes",
     "deploy:preview": "vercel --yes",
+    "smoke": "node scripts/smoke.mjs",
     "ship": "git push origin HEAD && vercel --prod --yes"
   },
   "dependencies": {
