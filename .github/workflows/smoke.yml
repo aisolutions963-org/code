@@ -1,0 +1,28 @@
+name: Smoke
+
+# Vercel's GitHub integration emits a deployment_status for every preview + production
+# deploy. When one succeeds, confirm the deployed app actually serves its public /login
+# page (HTTP 200) — the automated "is it alive?" check, the CD complement to CI.
+#
+# Note: deployment_status workflows run from the DEFAULT branch, so this only starts firing
+# once smoke.yml reaches main. Until then, run `npm run smoke -- <url>` manually.
+on:
+  deployment_status
+
+jobs:
+  smoke:
+    name: Post-deploy /login check
+    # Only act on a successful deploy (the event also fires for pending/error/etc.).
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Smoke-check the deployed /login page
+        env:
+          # Needed to get past Vercel Deployment Protection and reach the real app.
+          # Absent → the script self-skips (green) with a note.
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/smoke.mjs "${{ github.event.deployment_status.target_url || github.event.deployment_status.environment_url }}"
