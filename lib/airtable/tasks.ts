@@ -740,7 +740,9 @@ export async function checkAndUnlockInactivityFollowUp(
     fields: [TASKS.TASK_NAME],
   })
   if (records.length === 0) return false
-  await Promise.all(records.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'To Do' as TaskStatus })))
+  // 'In Progress', not 'To Do' — the decision panel is shown the instant this unlocks (no separate
+  // "open" step), so the project's stalled state is genuinely being worked from this point on.
+  await Promise.all(records.map((r) => updateTaskRaw(r.id, { [TASKS.STATUS]: 'In Progress' as TaskStatus })))
   return true
 }
 

@@ -56,9 +56,22 @@ export default function AllMaterialsView({ role }: { role: string }) {
     { refreshInterval: 300_000 },
   )
 
+  // Superadmin also needs deleted projects' names resolvable, so the "Project Deleted" badge
+  // can show which project rather than "Unknown Project" — /api/projects only returns one or
+  // the other, never both, so this is a second fetch merged into the same map.
+  const { data: deletedProjectsData } = useSWR<{ projects: Project[] }>(
+    role === 'superadmin' ? '/api/projects?deleted=true' : null,
+    fetcher,
+    { refreshInterval: 300_000 },
+  )
+
   const materials = materialsData?.materials ?? []
   const projects = projectsData?.projects ?? []
-  const projectMap = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects])
+  const deletedProjects = deletedProjectsData?.projects ?? []
+  const projectMap = useMemo(
+    () => new Map([...projects, ...deletedProjects].map((p) => [p.id, p])),
+    [projects, deletedProjects],
+  )
 
   // For a material's linked project, resolve what to display. Trade/Variance/Maintenance
   // orders link to a sub-project (client request) — surface the PARENT project instead,
@@ -236,6 +249,7 @@ export default function AllMaterialsView({ role }: { role: string }) {
           (m) => m.orderStatus === 'Not ordered' || m.orderStatus === 'Pending approval',
         ).length
         const delayed = mats.filter((m) => m.orderStatus === 'Delayed').length
+        const projectDeleted = role === 'superadmin' && mats.some((m) => m.projectDeleted)
         const sortedMats = [...mats].sort(
           (a, b) => (STATUS_ORDER[a.orderStatus ?? ''] ?? 99) - (STATUS_ORDER[b.orderStatus ?? ''] ?? 99),
         )
@@ -263,6 +277,11 @@ export default function AllMaterialsView({ role }: { role: string }) {
                   {d.stage && (
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/60 text-gray-600 font-medium border border-gray-200/60">
                       {d.stage}
+                    </span>
+                  )}
+                  {projectDeleted && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-600 font-semibold border border-red-200/60">
+                      Project Deleted
                     </span>
                   )}
                 </div>

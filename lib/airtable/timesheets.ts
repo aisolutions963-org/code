@@ -14,6 +14,7 @@ import {
   num,
   strArr,
   selectName,
+  getDeletedProjectIds,
 } from './_client'
 import { getAllWorkers } from './team'
 
@@ -55,8 +56,22 @@ export async function getTimesheetEntries(filters: TimesheetFilters = {}): Promi
     filterByFormula,
     sort: [{ field: PRODUCTION_TIMESHEETS.WORK_DATE, direction: 'desc' }],
   })
-  const entries = records.map(transformTimesheetEntry)
+  let entries = records.map(transformTimesheetEntry)
 
+  if (entries.length === 0) return entries
+
+  // Exclude entries linked to a soft-deleted project — same soft-delete-hides-everything
+  // rule as every other domain list. A `filters.projectId` call already targets one specific
+  // project deliberately, but broad calls (superadmin Timesheets page, work-hours chart, the
+  // weekly-summary/worker-assignment helpers below that call this with no projectId) need this.
+  // Entries with no linked project (e.g. Factory-location rows) are left untouched.
+  const linkedProjectIds = Array.from(new Set(entries.flatMap((e) => e.projectIds)))
+  if (linkedProjectIds.length > 0) {
+    const deletedProjectIds = await getDeletedProjectIds(linkedProjectIds)
+    if (deletedProjectIds.size > 0) {
+      entries = entries.filter((e) => !e.projectIds.some((id) => deletedProjectIds.has(id)))
+    }
+  }
   if (entries.length === 0) return entries
 
   // Enrich with worker/supervisor names and estimated cost

@@ -10,7 +10,8 @@ import {
   tblUrl,
   RawRecord,
   transformPayment,
-  deleteByProject,
+  deleteByLinkedProjectField,
+  getDeletedProjectIds,
 } from './_client'
 
 export async function getPaymentsByProjectIds(projectIds: string[]): Promise<Payment[]> {
@@ -34,7 +35,13 @@ export async function getAllPayments(): Promise<Payment[]> {
   const records = await fetchAll(PAYMENTS.TABLE_ID, {
     sort: [{ field: PAYMENTS.RECEIVED_DATE, direction: 'desc' }],
   })
-  return records.map(transformPayment)
+  const payments = records.map(transformPayment)
+  // Unlike getPaymentsByProjectIds (always called with an already-filtered project list),
+  // this is the broad/unscoped "All Payments" view — soft-deleted projects' payments need
+  // to be excluded explicitly here.
+  const projectIds = Array.from(new Set(payments.flatMap((p) => p.project ?? [])))
+  const deletedProjectIds = await getDeletedProjectIds(projectIds)
+  return payments.filter((p) => !p.project?.some((id) => deletedProjectIds.has(id)))
 }
 
 export async function createPayment(input: PaymentCreateInput): Promise<Payment> {
@@ -99,7 +106,8 @@ export async function updatePayment(id: string, input: PaymentUpdateInput): Prom
 }
 
 export async function deletePaymentsByProject(projectId: string): Promise<number> {
-  return deleteByProject(PAYMENTS.TABLE_ID, PAYMENTS.PROJECT, projectId)
+  // PAYMENTS.PROJECT is a linked-record field — needs the client-side-filtered variant.
+  return deleteByLinkedProjectField(PAYMENTS.TABLE_ID, PAYMENTS.PROJECT, projectId)
 }
 
 export async function getSedQuarterlyRevenue(

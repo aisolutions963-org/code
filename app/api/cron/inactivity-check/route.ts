@@ -51,8 +51,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Every stage where work is actively expected — a project can stall in Preparing
-    // (client not responding), Production, or Closing just as easily as in Open.
-    const projects = await getProjects({ allowedStages: ['Preparing', 'Open', 'Production', 'Closing'] })
+    // (client not responding), Production, or Closing just as easily as in Open. Closed
+    // still has real pending work (final payment/admin) before warranty starts, so it's
+    // included too; Closed and active warranty is the deliberate stopping point — the
+    // project is meant to sit idle there until warranty expires or a claim comes in.
+    const projects = await getProjects({ allowedStages: ['Preparing', 'Open', 'Production', 'Closing', 'Closed'] })
     let alerted = 0
     let skipped = 0
 

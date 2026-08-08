@@ -67,6 +67,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const projParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   projParams.append('fields[]', PROJECTS.PROJECT_ID)
   projParams.append('fields[]', PROJECTS.PROJECT_NAME)
+  projParams.append('fields[]', PROJECTS.DELETED_AT)
 
   const [materials, allProjects] = await Promise.all([
     fetchAll(MATERIALS_NEEDED.TABLE_ID, matParams),
@@ -74,8 +75,16 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   ])
 
   const projectById = new Map(allProjects.map((p) => [p.id, p.fields]))
+  const deletedProjectIds = new Set(
+    allProjects.filter((p) => !!p.fields[PROJECTS.DELETED_AT]).map((p) => p.id),
+  )
 
-  const rows = materials.map((r) => {
+  const rows = materials
+    .filter((r) => {
+      const projIds = Array.isArray(r.fields[MATERIALS_NEEDED.PROJECTS]) ? (r.fields[MATERIALS_NEEDED.PROJECTS] as string[]) : []
+      return !projIds.some((id) => deletedProjectIds.has(id))
+    })
+    .map((r) => {
     const f = r.fields
     const projIds = Array.isArray(f[MATERIALS_NEEDED.PROJECTS]) ? (f[MATERIALS_NEEDED.PROJECTS] as string[]) : []
     const proj = projIds[0] ? projectById.get(projIds[0]) : undefined

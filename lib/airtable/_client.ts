@@ -157,6 +157,40 @@ export async function fetchAll(
   return records
 }
 
+// Soft-deleted projects are hidden from every project list, but broad/unscoped fetches in other
+// domain modules (payments, materials, client requests, etc.) don't re-derive that on their own —
+// this batches a RECORD_ID() lookup against PROJECTS.DELETED_AT so each of those call sites can
+// filter out records belonging to a deleted project. Same chunked-OR-formula shape as the
+// project-stage lookup in filterTasksByProjectStage (lib/airtable/tasks.ts), generalized and shared.
+export async function getDeletedProjectIds(candidateIds: string[]): Promise<Set<string>> {
+  const uniqueIds = Array.from(new Set(candidateIds))
+  const deletedSet = new Set<string>()
+  if (uniqueIds.length === 0) return deletedSet
+
+  const chunks: string[][] = []
+  for (let i = 0; i < uniqueIds.length; i += 10) chunks.push(uniqueIds.slice(i, i + 10))
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const formula = `OR(${chunk.map((id) => `RECORD_ID()="${id}"`).join(',')})`
+      const records = await fetchAll(PROJECTS.TABLE_ID, {
+        filterByFormula: formula,
+        fields: [PROJECTS.DELETED_AT],
+      })
+      for (const r of records) {
+        if (str(r.fields[PROJECTS.DELETED_AT])) deletedSet.add(r.id)
+      }
+    }),
+  )
+
+  return deletedSet
+}
+
+// Only correct for `projectField`s that store the project's record ID as plain text (e.g.
+// MATERIALS_NEEDED.PROJECT_RECORD_ID) — a genuine Airtable LINKED-record field resolves to the
+// linked record's primary field value (its name, not its ID) in filterByFormula context, so
+// `{field} = "recXXX"` silently matches nothing for those. Use deleteByLinkedProjectField below
+// for any field that's an actual link to Projects.
 export async function deleteByProject(tableId: string, projectField: string, projectId: string): Promise<number> {
   const records = await fetchAll(tableId, {
     filterByFormula: `{${projectField}} = "${projectId}"`,
@@ -166,6 +200,34 @@ export async function deleteByProject(tableId: string, projectField: string, pro
   let deleted = 0
   for (let i = 0; i < records.length; i += 10) {
     const chunk = records.slice(i, i + 10)
+    const qs = chunk.map((r) => `records[]=${r.id}`).join('&')
+    const res = await fetchWithRetry(`${BASE_URL}/${process.env.AIRTABLE_BASE_ID}/${tableId}?${qs}`, {
+      method: 'DELETE',
+      headers: airtableHeaders(),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable delete error (${tableId}) ${res.status}: ${body}`)
+    }
+    deleted += chunk.length
+  }
+  return deleted
+}
+
+// For genuine linked-record `projectField`s (values come back as arrays of record-ID strings
+// over the REST read API, unlike in a formula) — fetches broadly and filters client-side instead
+// of relying on filterByFormula equality, which doesn't work for link fields (see deleteByProject
+// above). Same client-side-array-check approach already used by reads like getPaymentsByProjectIds.
+export async function deleteByLinkedProjectField(tableId: string, projectField: string, projectId: string): Promise<number> {
+  const records = await fetchAll(tableId, { fields: [projectField] })
+  const matching = records.filter((r) => {
+    const v = r.fields[projectField]
+    return Array.isArray(v) && (v as string[]).includes(projectId)
+  })
+  if (matching.length === 0) return 0
+  let deleted = 0
+  for (let i = 0; i < matching.length; i += 10) {
+    const chunk = matching.slice(i, i + 10)
     const qs = chunk.map((r) => `records[]=${r.id}`).join('&')
     const res = await fetchWithRetry(`${BASE_URL}/${process.env.AIRTABLE_BASE_ID}/${tableId}?${qs}`, {
       method: 'DELETE',

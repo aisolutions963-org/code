@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { QUOTATION_LINE_ITEMS, QUOTATIONS } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
+import { getDeletedProjectIds } from '@/lib/airtable'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,6 +55,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   quotParams.append('fields[]', QUOTATIONS.QUOTE_NUMBER)
   quotParams.append('fields[]', QUOTATIONS.CLIENT_NAME)
   quotParams.append('fields[]', QUOTATIONS.SENT_DATE)
+  quotParams.append('fields[]', QUOTATIONS.PROJECT)
 
   if (from || to) {
     const dateParts: string[] = []
@@ -73,12 +75,31 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   // If date filter applied, only keep line items linked to matching quotations
   const validQuotIds = from || to ? new Set(allQuotations.map((q) => q.id)) : null
 
+  const linkedProjectIds = Array.from(
+    new Set(
+      allQuotations.flatMap((q) =>
+        Array.isArray(q.fields[QUOTATIONS.PROJECT]) ? (q.fields[QUOTATIONS.PROJECT] as string[]) : [],
+      ),
+    ),
+  )
+  const deletedProjectIds = await getDeletedProjectIds(linkedProjectIds)
+  // Quotations whose project was soft-deleted — their line items are excluded below.
+  const deletedQuotIds = new Set(
+    allQuotations
+      .filter((q) => {
+        const projIds = Array.isArray(q.fields[QUOTATIONS.PROJECT]) ? (q.fields[QUOTATIONS.PROJECT] as string[]) : []
+        return projIds.some((id) => deletedProjectIds.has(id))
+      })
+      .map((q) => q.id),
+  )
+
   const rows = lineItems
     .filter((li) => {
-      if (!validQuotIds) return true
       const ids = Array.isArray(li.fields[QUOTATION_LINE_ITEMS.QUOTATION])
         ? (li.fields[QUOTATION_LINE_ITEMS.QUOTATION] as string[])
         : []
+      if (ids.some((id) => deletedQuotIds.has(id))) return false
+      if (!validQuotIds) return true
       return ids.some((id) => validQuotIds.has(id))
     })
     .map((li) => {

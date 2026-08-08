@@ -21,30 +21,37 @@ export default function MyTasksPage() {
   // Superadmin sees: tasks pending their approval, Call the Client decisions, Follow Up decisions,
   // payment tasks (F4 / any task with "payment" in the name), and tasks in the
   // Superadmin or Management department.
-  const tasks = allTasks.filter(
-    (t) => {
-      if (t.status === 'Pending Approval') return true
-      if (t.taskName.toLowerCase().includes('call the client')) return true
-      if (t.taskName === 'Follow Up') return true
-      const active = t.status === 'To Do' || t.status === 'In Progress'
-      if (!active) return false
-      const name = t.taskName.toLowerCase()
-      if (name.startsWith('f4 —') || name.includes('payment')) return true
-      return t.department.some((d) => d.toLowerCase() === 'superadmin' || d === 'Management')
-    },
-  )
+  const tasks = allTasks
+    .filter(
+      (t) => {
+        if (t.status === 'Pending Approval') return true
+        if (t.taskName.toLowerCase().includes('call the client')) return true
+        if (t.taskName === 'Follow Up') return true
+        const active = t.status === 'To Do' || t.status === 'In Progress'
+        if (!active) return false
+        const name = t.taskName.toLowerCase()
+        if (name.startsWith('f4 —') || name.includes('payment')) return true
+        return t.department.some((d) => d.toLowerCase() === 'superadmin' || d === 'Management')
+      },
+    )
+    // Call the Client / Follow Up are matched above regardless of status (so they surface the
+    // instant they're unlocked) — once resolved they're done, not still-actionable, so drop them
+    // here rather than letting a Completed one linger forever as an ordinary card.
+    .filter((t) => t.status !== 'Locked' && t.status !== 'Completed')
 
   const callClientReady = allTasks.filter(
     (t) => t.taskName.toLowerCase().startsWith('call the client') && t.status === 'To Do',
   )
 
-  const followUpTasks = tasks.filter(
-    (t) => t.taskName === 'Follow Up' && t.status === 'To Do',
-  )
+  // Follow Up is unlocked straight to 'In Progress' (checkAndUnlockInactivityFollowUp) rather than
+  // 'To Do', since the decision panel below is shown the moment it's actionable — but match both
+  // here so a Follow Up already sitting at 'To Do' from before that change isn't orphaned.
+  const isPendingFollowUp = (t: Task) =>
+    t.taskName === 'Follow Up' && (t.status === 'To Do' || t.status === 'In Progress')
 
-  const regularTasks = tasks.filter(
-    (t) => !(t.taskName === 'Follow Up' && t.status === 'To Do'),
-  )
+  const followUpTasks = tasks.filter(isPendingFollowUp)
+
+  const regularTasks = tasks.filter((t) => !isPendingFollowUp(t))
 
   // "All tasks" view — every non-locked task in the system, searchable.
   const allFiltered = (() => {

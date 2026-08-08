@@ -36,6 +36,7 @@ export interface DocLink {
   url?: string
   label: string
   notes?: string
+  done?: boolean
 }
 
 export interface Task {
@@ -351,6 +352,7 @@ export interface Material {
   purpose?: string
   requestedBy?: string
   requestDate?: string
+  projectDeleted?: boolean
 }
 
 export interface MaterialCreateInput {

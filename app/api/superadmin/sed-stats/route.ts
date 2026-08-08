@@ -9,6 +9,8 @@ const BASE_ID = process.env.AIRTABLE_BASE_ID!
 const API_KEY = process.env.AIRTABLE_API_KEY!
 
 interface AirtableProject {
+  id: string
+  name: string
   stage: string
   ownerId: string
   communIds: string[]
@@ -29,6 +31,7 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
     params.append('fields[]', PROJECTS.SALES_OWNER)
     params.append('fields[]', PROJECTS.COMMUN_SEDS)
     params.append('fields[]', PROJECTS.TOTAL_PAID)
+    params.append('fields[]', PROJECTS.PROJECT_NAME)
     if (offset) params.set('offset', offset)
     const res = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${PROJECTS.TABLE_ID}?${params}`,
@@ -36,7 +39,7 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
     )
     if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`)
     const data = await res.json() as {
-      records: { fields: Record<string, unknown> }[]
+      records: { id: string; fields: Record<string, unknown> }[]
       offset?: string
     }
     for (const r of data.records) {
@@ -55,6 +58,8 @@ async function fetchProjectsForStats(): Promise<AirtableProject[]> {
         .filter(Boolean)
 
       results.push({
+        id: r.id,
+        name: (r.fields[PROJECTS.PROJECT_NAME] as string) ?? '',
         stage: (r.fields[PROJECTS.PROJECT_STAGE] as string) ?? '',
         ownerId,
         communIds,
@@ -98,11 +103,12 @@ async function fetchTeamMemberMap(): Promise<Map<string, { name: string; isSed: 
   return map
 }
 
-type SedEntry = { preparing: number; open: number; production: number; closed: number; warranty: number; warrantyExpired: number; notApproved: number; totalPaid: number }
+type SedBreakdownEntry = { projectId: string; name: string; revenue: number }
+type SedEntry = { preparing: number; open: number; production: number; closed: number; warranty: number; warrantyExpired: number; notApproved: number; totalPaid: number; breakdown: SedBreakdownEntry[] }
 
 function ensureSed(map: Record<string, SedEntry>, sedNames: string[], name: string) {
   if (!map[name]) {
-    map[name] = { preparing: 0, open: 0, production: 0, closed: 0, warranty: 0, warrantyExpired: 0, notApproved: 0, totalPaid: 0 }
+    map[name] = { preparing: 0, open: 0, production: 0, closed: 0, warranty: 0, warrantyExpired: 0, notApproved: 0, totalPaid: 0, breakdown: [] }
     sedNames.push(name)
   }
 }
@@ -140,6 +146,9 @@ export const GET = requireRole('superadmin')(async () => {
         ensureSed(map, sedNames, owner.name)
         incrementStage(map[owner.name], p.stage)
         map[owner.name].totalPaid += p.totalPaid
+        if (p.totalPaid > 0) {
+          map[owner.name].breakdown.push({ projectId: p.id, name: p.name, revenue: p.totalPaid })
+        }
       }
     }
 
@@ -156,6 +165,7 @@ export const GET = requireRole('superadmin')(async () => {
   const data = sedNames.map((name) => ({
     sedName: name,
     ...map[name],
+    breakdown: [...map[name].breakdown].sort((a, b) => b.revenue - a.revenue),
     commission: Math.round(calcCommission(map[name].totalPaid).amount),
   }))
 

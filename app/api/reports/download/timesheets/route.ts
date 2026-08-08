@@ -86,6 +86,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
 
   const projParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   projParams.append('fields[]', PROJECTS.PROJECT_NAME)
+  projParams.append('fields[]', PROJECTS.DELETED_AT)
 
   const [entries, workers, projects] = await Promise.all([
     fetchAll(PRODUCTION_TIMESHEETS.TABLE, tsParams),
@@ -98,6 +99,9 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     nickname: (w.fields[WORKERS.NICKNAME] as string) ?? '',
   }]))
   const projectNameById = new Map(projects.map((p) => [p.id, (p.fields[PROJECTS.PROJECT_NAME] as string) ?? '']))
+  const deletedProjectIds = new Set(
+    projects.filter((p) => !!p.fields[PROJECTS.DELETED_AT]).map((p) => p.id),
+  )
 
   // Aggregate daily rows into weekly grid rows, keyed by worker × week × project.
   const weeks = new Map<string, Week>()
@@ -105,10 +109,12 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     const f = e.fields
     const wk = weekOf((f[PRODUCTION_TIMESHEETS.WORK_DATE] as string) ?? '')
     if (!wk) continue
+    const projectId = firstId(f[PRODUCTION_TIMESHEETS.PROJECT])
+    if (projectId && deletedProjectIds.has(projectId)) continue
     const workerId = firstId(f[PRODUCTION_TIMESHEETS.WORKER])
     const info = workerId ? workerById.get(workerId) : undefined
     const workerName = info?.name || ''
-    const projectName = projectNameById.get(firstId(f[PRODUCTION_TIMESHEETS.PROJECT])) ?? ''
+    const projectName = projectNameById.get(projectId) ?? ''
     const key = `${workerId || workerName}|${wk.weekStart}|${projectName}`
 
     let row = weeks.get(key)

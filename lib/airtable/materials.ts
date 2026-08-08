@@ -8,11 +8,13 @@ import {
   airtableHeaders,
   recUrl,
   tblUrl,
+  BASE_URL,
   RawRecord,
   str,
   num,
   strArr,
   deleteByProject,
+  getDeletedProjectIds,
 } from './_client'
 
 function transformMaterial(record: RawRecord): Material {
@@ -44,7 +46,21 @@ export async function getAllActiveMaterials(options?: { projectIds?: string[] })
     formula = `OR(${projectFilters})`
   }
   const records = await fetchAll(MATERIALS_NEEDED.TABLE_ID, formula ? { filterByFormula: formula } : {})
-  return records.map(transformMaterial)
+  const materials = records.map(transformMaterial)
+
+  // Broad/unscoped call (no projectIds): a material still sitting at 'Not ordered' when its
+  // project is soft-deleted gets hard-deleted at delete time (deleteUnorderedMaterialsByProject
+  // above), so anything still linked to a deleted project here is already ordered-or-further —
+  // real commitment, not hidden, just flagged so it's clear the project it belongs to is gone.
+  if (!options?.projectIds?.length) {
+    const projectIds = Array.from(new Set(materials.flatMap((m) => m.projects ?? [])))
+    const deletedProjectIds = await getDeletedProjectIds(projectIds)
+    return materials.map((m) => ({
+      ...m,
+      projectDeleted: m.projects?.some((id) => deletedProjectIds.has(id)) ?? false,
+    }))
+  }
+  return materials
 }
 
 export async function getMaterialsByProject(projectId: string): Promise<Material[]> {
@@ -108,7 +124,34 @@ export async function createMaterials(
 }
 
 export async function deleteMaterialsByProject(projectId: string): Promise<number> {
-  return deleteByProject(MATERIALS_NEEDED.TABLE_ID, MATERIALS_NEEDED.PROJECTS, projectId)
+  // PROJECT_RECORD_ID (not the PROJECTS link field) — see deleteByProject's own comment in
+  // _client.ts for why a linked-record field can't be matched this way.
+  return deleteByProject(MATERIALS_NEEDED.TABLE_ID, MATERIALS_NEEDED.PROJECT_RECORD_ID, projectId)
+}
+
+// Called when a project is soft-deleted: a material nothing has happened with yet (still
+// 'Not ordered') is harmless to remove outright. Anything further along (Pending approval,
+// Ordered, Delivered, etc.) is real commitment already in motion — left alone, and shown
+// marked instead (see the projectDeleted flag in getAllActiveMaterials below).
+export async function deleteUnorderedMaterialsByProject(projectId: string): Promise<number> {
+  const materials = await getMaterialsByProject(projectId)
+  const unordered = materials.filter((m) => m.orderStatus === 'Not ordered')
+  if (unordered.length === 0) return 0
+  let deleted = 0
+  for (let i = 0; i < unordered.length; i += 10) {
+    const chunk = unordered.slice(i, i + 10)
+    const qs = chunk.map((m) => `records[]=${m.id}`).join('&')
+    const res = await fetchWithRetry(`${BASE_URL}/${process.env.AIRTABLE_BASE_ID}/${MATERIALS_NEEDED.TABLE_ID}?${qs}`, {
+      method: 'DELETE',
+      headers: airtableHeaders(),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Airtable delete error (${MATERIALS_NEEDED.TABLE_ID}) ${res.status}: ${body}`)
+    }
+    deleted += chunk.length
+  }
+  return deleted
 }
 
 export async function createMaterialOrder(order: MaterialOrderInput): Promise<Material[]> {

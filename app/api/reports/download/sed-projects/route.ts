@@ -51,11 +51,10 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
     PROJECTS.SALES_OWNER_NAME, PROJECTS.PRODUCTION_START_DATE, PROJECTS.MANAGER_NOTES, PROJECTS.PROJECT_CREATED_AT,
   ]) params.append('fields[]', f)
 
-  const dateParts: string[] = []
+  const dateParts: string[] = [`{${PROJECTS.DELETED_AT}} = BLANK()`]
   if (from) dateParts.push(`IS_AFTER({${PROJECTS.PROJECT_CREATED_AT}}, "${from}")`)
   if (to)   dateParts.push(`IS_BEFORE({${PROJECTS.PROJECT_CREATED_AT}}, "${to}")`)
-  if (dateParts.length === 1) params.set('filterByFormula', dateParts[0])
-  if (dateParts.length === 2) params.set('filterByFormula', `AND(${dateParts.join(',')})`)
+  params.set('filterByFormula', dateParts.length === 1 ? dateParts[0] : `AND(${dateParts.join(',')})`)
 
   const quoteParams = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   for (const f of [QUOTATIONS.PROJECT, QUOTATIONS.QUANTITY, QUOTATIONS.UNIT_PRICE, QUOTATIONS.VARIATION_1, QUOTATIONS.VARIATION_2])

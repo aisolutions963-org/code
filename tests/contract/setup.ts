@@ -14,3 +14,12 @@ if (existsSync(envPath)) {
     process.env[key] = rawValue.replace(/^["']|["']$/g, '')
   }
 }
+
+// Importing @/lib/airtable runs validateEnv() at module load, which THROWS if these are
+// missing — so the integration suite (which imports it) used to error out on load instead
+// of skipping when no real creds are present, failing CI on every run. Fill dummy values
+// only when unset: real creds (CI secrets or .env.local) always win, and each suite's own
+// hasCreds check rejects these dummies, so a dummy still results in a clean skip.
+process.env.SESSION_SECRET ||= 'contract-suite-dummy-session-secret-32-characters-min'
+process.env.AIRTABLE_API_KEY ||= 'test'
+process.env.AIRTABLE_BASE_ID ||= 'test'

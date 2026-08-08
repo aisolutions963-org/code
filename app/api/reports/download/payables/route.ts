@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { PAYABLES } from '@/lib/fieldMap'
 import { buildXlsx, xlsxResponse } from '@/lib/xlsxHelper'
+import { getDeletedProjectIds } from '@/lib/airtable'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,7 @@ export const GET = requireRole('superadmin')(async () => {
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   params.append('fields[]', PAYABLES.PAYABLE_NAME)
   params.append('fields[]', PAYABLES.PAYABLE_TO)
+  params.append('fields[]', PAYABLES.LINKED_PROJECT)
   params.append('fields[]', PAYABLES.CATEGORY)
   params.append('fields[]', PAYABLES.INVOICE_NUMBER)
   params.append('fields[]', PAYABLES.INVOICE_DATE)
@@ -45,7 +47,21 @@ export const GET = requireRole('superadmin')(async () => {
 
   const records = await fetchAll<{ id: string; fields: Record<string, unknown> }>(PAYABLES.TABLE, params)
 
-  const rows = records.map((r) => {
+  const linkedProjectIds = Array.from(
+    new Set(
+      records.flatMap((r) =>
+        Array.isArray(r.fields[PAYABLES.LINKED_PROJECT]) ? (r.fields[PAYABLES.LINKED_PROJECT] as string[]) : [],
+      ),
+    ),
+  )
+  const deletedProjectIds = await getDeletedProjectIds(linkedProjectIds)
+
+  const rows = records
+    .filter((r) => {
+      const projIds = Array.isArray(r.fields[PAYABLES.LINKED_PROJECT]) ? (r.fields[PAYABLES.LINKED_PROJECT] as string[]) : []
+      return !projIds.some((id) => deletedProjectIds.has(id))
+    })
+    .map((r) => {
     const f = r.fields
     return {
       payableName:   (f[PAYABLES.PAYABLE_NAME] as string) ?? '',

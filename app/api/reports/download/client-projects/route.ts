@@ -41,7 +41,7 @@ export const GET = requireRole('superadmin')(async (req: NextRequest) => {
   const params = new URLSearchParams({ returnFieldsByFieldId: 'true' })
   // Exclude Trade/Maintenance/Variance sub-projects — they show up via the
   // "Client Requests" column on their parent project's row instead.
-  params.set('filterByFormula', `AND(LOWER({${PROJECTS.CLIENT_NAME}}) = LOWER("${safe}"), {${PROJECTS.REQUEST_TYPE}}="")`)
+  params.set('filterByFormula', `AND(LOWER({${PROJECTS.CLIENT_NAME}}) = LOWER("${safe}"), {${PROJECTS.REQUEST_TYPE}}="", {${PROJECTS.DELETED_AT}} = BLANK())`)
   params.append('fields[]', PROJECTS.PROJECT_ID)
   params.append('fields[]', PROJECTS.PROJECT_NAME)
   params.append('fields[]', PROJECTS.PROJECT_STAGE)

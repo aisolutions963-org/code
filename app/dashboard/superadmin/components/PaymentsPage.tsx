@@ -3,7 +3,6 @@
 import { useState, Fragment } from 'react'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { Project, Payment } from '@/lib/types'
-import { todayUAE } from '@/lib/dateUtils'
 import { remainingBalanceLabel } from '@/lib/projectRef'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -42,7 +41,6 @@ function PaymentDetail({
   )
   const payments = data?.payments ?? []
 
-  const today = todayUAE()
   const isTradeOrVariance = p.requestType === 'Trade' || p.requestType === 'Variation'
   const [form, setForm] = useState({
     amount: '',
@@ -54,7 +52,7 @@ function PaymentDetail({
       : composeQuoteRef(p.quotationNumber, p.quotationReference),
     quotationNumber: p.quotationNumber ?? '',
     quotationReference: p.quotationReference ?? '',
-    receivedDate: today,
+    receivedDate: '',
     dueDate: '',
     payerType: '',
     payerName: '',
@@ -198,7 +196,7 @@ function PaymentDetail({
         throw new Error(d.error ?? 'Failed')
       }
       setSaved(true)
-      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : composeQuoteRef(p.quotationNumber, p.quotationReference), quotationNumber: p.quotationNumber ?? '', quotationReference: p.quotationReference ?? '', receivedDate: today, dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
+      setForm({ amount: '', paymentType: 'Advance', paymentStatus: 'Received', paymentMethod: 'Bank Transfer', referenceNo: isTradeOrVariance ? (p.tradeReference ?? '') : composeQuoteRef(p.quotationNumber, p.quotationReference), quotationNumber: p.quotationNumber ?? '', quotationReference: p.quotationReference ?? '', receivedDate: '', dueDate: '', payerType: '', payerName: '', commission: '', notes: '' })
       mutate()
       globalMutate('/api/projects?all=true')
     } catch (e) {

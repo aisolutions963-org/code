@@ -82,9 +82,6 @@ export default function MgrDashboard() {
   }
 
   const open = tasks.filter(t => t.status !== 'Completed')
-  const unassignedProjects = projects.filter(
-    (p) => !p.assignedInstallationTeam || p.assignedInstallationTeam.length === 0,
-  )
   const outstandingCount = projects.filter((p) => (p.remainingBalance ?? 0) > 0).length
 
   return (
@@ -108,28 +105,11 @@ export default function MgrDashboard() {
       </div>
 
       {/* Action Center — at-a-glance manager priorities on the default dashboard */}
-      {view === 'tasks' && (unassignedProjects.length > 0 || outstandingCount > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-          <Link
-            href="/dashboard/mgr?view=installation"
-            className={`rounded-xl border px-4 py-3 transition-colors ${
-              unassignedProjects.length === 0
-                ? 'border-gray-200 bg-white opacity-60'
-                : 'border-purple-200 bg-purple-50 hover:bg-purple-100'
-            }`}
-          >
-            <p className="text-2xl font-bold text-purple-600">{unassignedProjects.length}</p>
-            <p className="text-xs font-medium text-purple-900 mt-0.5">Need an installation team</p>
-            <p className="text-[11px] text-purple-500 mt-0.5">Assign teams →</p>
-          </Link>
-
+      {view === 'tasks' && outstandingCount > 0 && (
+        <div className="mb-6">
           <Link
             href="/dashboard/mgr?view=payments"
-            className={`rounded-xl border px-4 py-3 transition-colors ${
-              outstandingCount === 0
-                ? 'border-gray-200 bg-white opacity-60'
-                : 'border-red-200 bg-red-50 hover:bg-red-100'
-            }`}
+            className="block rounded-xl border px-4 py-3 transition-colors sm:max-w-xs border-red-200 bg-red-50 hover:bg-red-100"
           >
             <p className="text-2xl font-bold text-red-500">{outstandingCount}</p>
             <p className="text-xs font-medium text-red-900 mt-0.5">Projects with balance due</p>

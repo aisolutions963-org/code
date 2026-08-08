@@ -54,7 +54,7 @@ export const GET = requireRole('superadmin')(async () => {
   const activeStages = ['Preparing', 'Open', 'Fabrication', 'Installation']
   const stageFilter = activeStages.map(s => `{${PROJECTS.PROJECT_STAGE}}="${s}"`).join(',')
   // Exclude Trade/Maintenance/Variance sub-projects (they surface under their parent).
-  projectParams.set('filterByFormula', `AND(OR(${stageFilter}), {${PROJECTS.REQUEST_TYPE}}="")`)
+  projectParams.set('filterByFormula', `AND(OR(${stageFilter}), {${PROJECTS.REQUEST_TYPE}}="", {${PROJECTS.DELETED_AT}} = BLANK())`)
   projectParams.append('fields[]', PROJECTS.PROJECT_ID)
   projectParams.append('fields[]', PROJECTS.QUOTATION_NUMBER)
   projectParams.append('fields[]', PROJECTS.QUOTATION_REFERENCE)

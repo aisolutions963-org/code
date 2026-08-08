@@ -11,7 +11,8 @@ import {
   tblUrl,
   RawRecord,
   transformMaintenance,
-  deleteByProject,
+  deleteByLinkedProjectField,
+  getDeletedProjectIds,
 } from './_client'
 import { updateProject } from './projects'
 
@@ -19,7 +20,13 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
   const records = await fetchAll(MAINTENANCE.TABLE_ID, {
     sort: [{ field: MAINTENANCE.START_DATE, direction: 'desc' }],
   })
-  return records.map(transformMaintenance)
+  const maintenance = records.map(transformMaintenance)
+
+  // Broad/unscoped — getMaintenanceRecordForProject is always called with an already-filtered
+  // project ID and doesn't need this, but this one feeds the Warranty page's full list.
+  const projectIds = Array.from(new Set(maintenance.flatMap((m) => m.projects ?? [])))
+  const deletedProjectIds = await getDeletedProjectIds(projectIds)
+  return maintenance.filter((m) => !m.projects?.some((id) => deletedProjectIds.has(id)))
 }
 
 export async function createMaintenanceRecord(
@@ -113,5 +120,6 @@ export async function expireMaintenanceRecord(recordId: string): Promise<void> {
 }
 
 export async function deleteMaintenanceByProject(projectId: string): Promise<number> {
-  return deleteByProject(MAINTENANCE.TABLE_ID, MAINTENANCE.PROJECTS, projectId)
+  // MAINTENANCE.PROJECTS is a linked-record field — needs the client-side-filtered variant.
+  return deleteByLinkedProjectField(MAINTENANCE.TABLE_ID, MAINTENANCE.PROJECTS, projectId)
 }
