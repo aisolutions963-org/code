@@ -416,6 +416,7 @@ describe('CreateQuotationItemsSchema', () => {
     itemName: 'Wardrobe',
     description: 'Built-in oak wardrobe',
     quantity: 2,
+    unit: 'Pc',
     unitPrice: 5000,
     actions: ['Design (item)'],
   }
@@ -458,6 +459,18 @@ describe('CreateQuotationItemsSchema', () => {
 
   it('rejects empty quotationReference', () => {
     expect(CreateQuotationItemsSchema.safeParse({ ...base, quotationReference: '' }).success).toBe(false)
+  })
+
+  it('accepts every valid unit option', () => {
+    for (const unit of ['M', 'LM', 'M2', 'Pc', 'SET', 'Other']) {
+      const item = { ...validItem, unit }
+      expect(CreateQuotationItemsSchema.safeParse({ ...base, items: [item] }).success).toBe(true)
+    }
+  })
+
+  it('rejects an invalid unit value', () => {
+    const badItem = { ...validItem, unit: 'kg' }
+    expect(CreateQuotationItemsSchema.safeParse({ ...base, items: [badItem] }).success).toBe(false)
   })
 })
 

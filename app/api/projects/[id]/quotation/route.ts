@@ -52,6 +52,7 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
       projectItemId: projectItem.id,
       itemName: item.itemName,
       quantity: item.quantity,
+      unit: item.unit,
       unitPrice: item.unitPrice,
       description: item.description,
       notes: item.notes,

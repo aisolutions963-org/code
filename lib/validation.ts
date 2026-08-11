@@ -117,6 +117,7 @@ export const CreateQuotationItemsSchema = z.object({
         itemName: z.string().min(1, 'Item name is required').max(300).transform((v) => v.trim()),
         description: z.string().min(1, 'Item description is required').max(2000),
         quantity: z.number().int().min(1).max(9999),
+        unit: z.enum(['M', 'LM', 'M2', 'Pc', 'SET', 'Other']),
         unitPrice: z.number().min(0).max(10_000_000),
         notes: z.string().max(2000).optional(),
         // Actions are no longer chosen at F5 — all per-item action tasks are generated

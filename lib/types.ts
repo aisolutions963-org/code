@@ -463,6 +463,7 @@ export interface Quotation {
   projectItem: string[]
   description?: string
   quantity?: number
+  unit?: string
   unitPrice?: number
   quotationStatus?: string
   notes?: string

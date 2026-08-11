@@ -151,6 +151,13 @@ export const PROJECT_ITEMS = {
   ITEM_NOTES:             'fldgHxnBO4mMeD662',
 } as const
 
+// UNIT was added independently to each base after preview's duplication from production, so it
+// has a different field ID per base — same one-off shape as CALENDAR_EVENTS_TIME_BY_BASE above.
+const QUOTATIONS_UNIT_BY_BASE: Record<string, string> = {
+  app3dfYnArFbZ6dpy: 'fld9lyy33viK8WdJd', // production
+  app2dcaTitMNZthHh: 'fldjgJofpxA8TI1GA', // preview
+}
+
 export const QUOTATIONS = {
   TABLE_ID:            'tbllITZymuWCZ9tde',
   NAME:                'fldgHsELpxTIo2vnC',
@@ -160,6 +167,7 @@ export const QUOTATIONS = {
   DESCRIPTION:         'fldjyDMxYA33ML3K0',
   QUANTITY:            'fldZj6k5Gc23tpVaI',
   UNIT_PRICE:          'fldz9RIVU1xQZgUwT',
+  UNIT:                QUOTATIONS_UNIT_BY_BASE[process.env.AIRTABLE_BASE_ID ?? ''] ?? QUOTATIONS_UNIT_BY_BASE.app3dfYnArFbZ6dpy,
   QUOTATION_STATUS:    'fldJjktB8XgZkoYzr',
   SENT_DATE:           'fldxIMge4UKFxJeHV',
   APPROVED_DATE:       'fldURdaSenYkzkWpn',

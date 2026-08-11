@@ -16,6 +16,7 @@ import {
   num,
   bool,
   strArr,
+  selectName,
   deleteByLinkedProjectField,
 } from './_client'
 
@@ -77,6 +78,7 @@ function transformQuotation(record: RawRecord): Quotation {
     projectItem: strArr(f[QUOTATIONS.PROJECT_ITEM]),
     description: str(f[QUOTATIONS.DESCRIPTION]),
     quantity: num(f[QUOTATIONS.QUANTITY]),
+    unit: selectName(f[QUOTATIONS.UNIT]),
     unitPrice: num(f[QUOTATIONS.UNIT_PRICE]),
     quotationStatus: str(f[QUOTATIONS.QUOTATION_STATUS]),
     notes: str(f[QUOTATIONS.NOTES]),
@@ -91,6 +93,7 @@ export async function createQuotation(input: {
   projectItemId: string
   itemName: string
   quantity: number
+  unit: string
   unitPrice: number
   description?: string
   notes?: string
@@ -102,6 +105,7 @@ export async function createQuotation(input: {
     [QUOTATIONS.PROJECT]: [input.projectId],
     [QUOTATIONS.PROJECT_ITEM]: [input.projectItemId],
     [QUOTATIONS.QUANTITY]: input.quantity,
+    [QUOTATIONS.UNIT]: input.unit,
     [QUOTATIONS.UNIT_PRICE]: input.unitPrice,
   }
   if (input.description) fields[QUOTATIONS.DESCRIPTION] = input.description
