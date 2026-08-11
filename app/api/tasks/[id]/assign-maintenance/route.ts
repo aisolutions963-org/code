@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getTaskById, updateTask, createCalendarEvent } from '@/lib/airtable'
 import { createNotification } from '@/lib/notifications'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 import { z } from 'zod'
 
 const Schema = z.object({
@@ -21,6 +22,10 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
 
     const task = await getTaskById(params.id)
     const projectId = task.projectRecordId
+
+    if (session.role === 'sed' && (!projectId || !(await isSedAuthorizedForProject(session, projectId)))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const projectLabel = task.projectNickname
       ? task.projectName ? `${task.projectNickname} — ${task.projectName}` : task.projectNickname

@@ -12,9 +12,13 @@ import {
 import { CreateHandoverSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
 import { createNotification, ROLE_DASHBOARD } from '@/lib/notifications'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', 'fabrication')(
-  async (_req: NextRequest, _session, { params }) => {
+  async (_req: NextRequest, session, { params }) => {
+    if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, params.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     try {
       const sheets = await getHandoverSheetForProject(params.id)
       return NextResponse.json({ sheets })
@@ -27,6 +31,9 @@ export const GET = requireRole('manager', 'superadmin', 'sed', 'installation', '
 
 export const POST = requireRole('installation', 'manager', 'superadmin', 'sed', 'fabrication')(
   async (req: NextRequest, session, { params }) => {
+    if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, params.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     let formData: FormData
     try {
       formData = await req.formData()

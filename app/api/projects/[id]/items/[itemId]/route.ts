@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { generateItemTasksForProject } from '@/lib/airtable'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 import { z } from 'zod'
 
 const AddActionsSchema = z.object({
@@ -16,8 +17,12 @@ const AddActionsSchema = z.object({
     .min(1, 'Select at least one action'),
 })
 
-export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, _session, { params }) => {
+export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, session, { params }) => {
   const { id, itemId } = params
+
+  if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   let rawBody: unknown
   try {

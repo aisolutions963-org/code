@@ -4,6 +4,7 @@ import { getTaskById, updateTask, createCalendarEvent, createTasksBatch, getTask
 import { projectRefLabel } from '@/lib/projectRef'
 import { TASKS } from '@/lib/fieldMap'
 import { createNotification } from '@/lib/notifications'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 import { z } from 'zod'
 
 const Schema = z.object({
@@ -36,6 +37,9 @@ export const POST = requireRole('manager', 'sed', 'superadmin')(
     )
     if (!projectId) {
       return NextResponse.json({ error: 'Task is not linked to a project' }, { status: 400 })
+    }
+    if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, projectId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!template) {
       return NextResponse.json(

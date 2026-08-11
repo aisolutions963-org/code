@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { createMaterials, getMaterialsByProject } from '@/lib/airtable'
 import { CreateMaterialsSchema } from '@/lib/validation'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole('manager', 'fabrication', 'superadmin', 'sed')(
-  async (_req: NextRequest, _session, { params }) => {
+  async (_req: NextRequest, session, { params }) => {
+    if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, params.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     try {
       const materials = await getMaterialsByProject(params.id)
       return NextResponse.json({ materials })
@@ -16,7 +20,10 @@ export const GET = requireRole('manager', 'fabrication', 'superadmin', 'sed')(
 )
 
 export const POST = requireRole('sed', 'manager', 'fabrication', 'superadmin')(
-  async (req: NextRequest, _session, { params }) => {
+  async (req: NextRequest, session, { params }) => {
+    if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, params.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     let rawBody: unknown
     try {
       rawBody = await req.json()

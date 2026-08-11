@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiHandler'
 import { getPurchaseOrdersByProject, createPurchaseOrder } from '@/lib/airtable'
 import { CreatePurchaseOrderSchema } from '@/lib/validation'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 export const GET = requireRole()(
-  async (_req: NextRequest, _session, { params }) => {
+  async (_req: NextRequest, session, { params }) => {
+    if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, params.id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     try {
       const purchaseOrders = await getPurchaseOrdersByProject(params.id)
       return NextResponse.json({ purchaseOrders })
