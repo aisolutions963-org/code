@@ -11,6 +11,7 @@ import TaskList, { TaskListSkeleton } from '@/components/tasks/TaskList'
 import { ItemSummary } from '@/components/projects/ItemProgressCard'
 import ProjectAttachmentsSection from '@/components/projects/ProjectAttachmentsSection'
 import ProjectFormsSection from '@/components/projects/ProjectFormsSection'
+import ReassignSedControl from '@/components/projects/ReassignSedControl'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -181,6 +182,12 @@ function ProjectOverview({
             </div>
           )
         })()}
+        {role === 'superadmin' && projectId && (
+          <div className="flex gap-2 text-sm">
+            <span className="text-gray-400 w-36 shrink-0" />
+            <ReassignSedControl projectId={projectId} onReassigned={() => onSaved?.()} />
+          </div>
+        )}
         <InfoRow label="Quotation #"  value={project.quotationNumber} />
         <InfoRow label="Reference"    value={project.quotationReference} />
         {(project.assignedInstallationTeamNames?.length ?? 0) > 0 && (

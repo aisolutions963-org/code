@@ -4,10 +4,15 @@ import { updateProject, getProjectById } from '@/lib/airtable'
 import { getUserByAirtableMemberId, addSedProjectMapping } from '@/lib/db'
 import { createNotification } from '@/lib/notifications'
 import { PROJECTS } from '@/lib/fieldMap'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
 // Reassign a project / client-request to another SED (sales owner).
-export const PATCH = requireRole('sed', 'manager', 'superadmin')(async (req, _session, { params }) => {
+export const PATCH = requireRole('sed', 'manager', 'superadmin')(async (req, session, { params }) => {
   const { id } = params
+
+  if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   let body: { salesOwnerCollaboratorId?: string }
   try {

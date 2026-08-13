@@ -372,6 +372,41 @@ export async function deleteProjectById(projectId: string): Promise<void> {
   }
 }
 
+// Read the project's linked CLIENT record id — must be captured before the project itself
+// is deleted, since the link disappears along with the record. Used by purgeProjectCascade
+// to decide whether the client is now orphaned.
+export async function getProjectClientId(projectId: string): Promise<string | undefined> {
+  const res = await fetchWithRetry(recUrl(PROJECTS.TABLE_ID, projectId), {
+    headers: airtableHeaders(),
+  })
+  if (!res.ok) return undefined
+  const record = (await res.json()) as RawRecord
+  const client = record.fields[PROJECTS.CLIENT]
+  return Array.isArray(client) && typeof client[0] === 'string' ? client[0] : undefined
+}
+
+// Clients are shared across a person's/company's full project history (getOrCreateClient
+// reuses an existing client by name), so a client must only be deleted once it has ZERO
+// projects left — never unconditionally alongside "its" project. CLIENTS.PROJECTS is
+// Airtable's own reverse-link rollup, so it reflects link removal immediately.
+export async function deleteClientIfOrphaned(clientId: string): Promise<void> {
+  const res = await fetchWithRetry(recUrl(CLIENTS.TABLE_ID, clientId), {
+    headers: airtableHeaders(),
+  })
+  if (!res.ok) return
+  const record = (await res.json()) as RawRecord
+  const remainingProjects = record.fields[CLIENTS.PROJECTS]
+  if (Array.isArray(remainingProjects) && remainingProjects.length > 0) return
+  const del = await fetchWithRetry(recUrl(CLIENTS.TABLE_ID, clientId), {
+    method: 'DELETE',
+    headers: airtableHeaders(),
+  })
+  if (!del.ok) {
+    const body = await del.text()
+    console.error(`Failed to delete orphaned client ${clientId}: ${del.status} ${body}`)
+  }
+}
+
 // All five of these link to Projects via a genuine linked-record field (values come back as
 // record-ID arrays over the read API but resolve to the linked project's NAME in a formula) —
 // deleteByProject's `{field} = "id"` equality silently matched nothing for every one of these

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import toast from 'react-hot-toast'
 import { ClientRequest, Project, Role } from '@/lib/types'
+import ReassignSedControl from '@/components/projects/ReassignSedControl'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -42,66 +43,6 @@ const TASK_STATUS_STYLE: Record<string, string> = {
   'To Do':             'bg-amber-100 text-amber-700',
   'Pending Approval':  'bg-purple-100 text-purple-700',
   'Locked':            'bg-gray-100 text-gray-400',
-}
-
-// ─── Reassign SED control ─────────────────────────────────────────────────────
-
-function ReassignControl({ requestId, onReassigned }: { requestId: string; onReassigned: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [sedId, setSedId] = useState('')
-  const [saving, setSaving] = useState(false)
-  const { data } = useSWR<{ members: SedMember[] }>(open ? '/api/team/sed' : null, fetcher)
-  const seds = data?.members ?? []
-
-  async function save() {
-    if (!sedId) return
-    setSaving(true)
-    try {
-      const res = await fetch(`/api/projects/${requestId}/reassign-sed`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ salesOwnerCollaboratorId: sedId }),
-      })
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error ?? 'Failed') }
-      toast.success('Reassigned')
-      setOpen(false); setSedId('')
-      onReassigned()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to reassign')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  if (!open) {
-    return (
-      <button
-        onClick={(e) => { e.stopPropagation(); setOpen(true) }}
-        className="text-[11px] font-medium text-gray-500 hover:text-gray-700"
-      >
-        Reassign SED
-      </button>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-      <select
-        value={sedId}
-        onChange={(e) => setSedId(e.target.value)}
-        className="text-[11px] border border-gray-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-      >
-        <option value="">Select SED…</option>
-        {seds.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-      </select>
-      <button onClick={save} disabled={saving || !sedId} className="text-[11px] font-semibold text-blue-600 disabled:opacity-40">
-        {saving ? '…' : 'Save'}
-      </button>
-      <button onClick={() => { setOpen(false); setSedId('') }} className="text-[11px] text-gray-400 hover:text-gray-600">
-        Cancel
-      </button>
-    </div>
-  )
 }
 
 // ─── Request Card ─────────────────────────────────────────────────────────────
@@ -212,7 +153,7 @@ function RequestCard({ req, role, onReassigned }: { req: ClientRequest; role: Ro
           >
             Open project →
           </Link>
-          <ReassignControl requestId={req.id} onReassigned={onReassigned} />
+          <ReassignSedControl projectId={req.id} onReassigned={onReassigned} />
           {role === 'superadmin' && (
             <button
               onClick={handleDelete}

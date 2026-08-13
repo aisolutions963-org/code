@@ -4,15 +4,23 @@ import { createProjectItem, createQuotation, generateItemTasksForProject, getQuo
 import { notifyTasksReady } from '@/lib/notifications'
 import { CreateQuotationItemsSchema } from '@/lib/validation'
 import { PROJECTS } from '@/lib/fieldMap'
+import { isSedAuthorizedForProject } from '@/lib/sedAccess'
 
-export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, _session, { params }) => {
+export const GET = requireRole('sed', 'manager', 'superadmin')(async (_req, session, { params }) => {
   const { id } = params
+  if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   const quotations = await getQuotationsByProject(id)
   return NextResponse.json({ quotations })
 })
 
 export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, session, { params }) => {
   const { id } = params
+
+  if (session.role === 'sed' && !(await isSedAuthorizedForProject(session, id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   let rawBody: unknown
   try {
@@ -52,6 +60,7 @@ export const POST = requireRole('sed', 'manager', 'superadmin')(async (req, sess
       projectItemId: projectItem.id,
       itemName: item.itemName,
       quantity: item.quantity,
+      unit: item.unit,
       unitPrice: item.unitPrice,
       description: item.description,
       notes: item.notes,

@@ -5,15 +5,18 @@ import toast from 'react-hot-toast'
 import { Task, TaskUpdateInput } from '@/lib/types'
 import { todayUAE } from '@/lib/dateUtils'
 
+const UNIT_OPTIONS = ['M', 'LM', 'M2', 'Pc', 'SET', 'Other'] as const
+
 interface QuotationRow {
   itemName: string
   description: string
   quantity: string
+  unit: string
   unitPrice: string
 }
 
 function emptyRow(): QuotationRow {
-  return { itemName: '', description: '', quantity: '1', unitPrice: '' }
+  return { itemName: '', description: '', quantity: '1', unit: '', unitPrice: '' }
 }
 
 function rowTotal(r: QuotationRow): number {
@@ -68,6 +71,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
       if (!r.itemName.trim()) { setErr(`Item ${i + 1}: name is required`); return }
       if (!r.description.trim()) { setErr(`Item ${i + 1}: description is required`); return }
       if (!r.quantity || parseInt(r.quantity) < 1) { setErr(`Item ${i + 1}: quantity must be ≥ 1`); return }
+      if (!r.unit) { setErr(`Item ${i + 1}: unit is required`); return }
       if (r.unitPrice === '' || parseFloat(r.unitPrice) < 0) { setErr(`Item ${i + 1}: enter a unit price`); return }
     }
 
@@ -82,6 +86,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
           itemName: r.itemName.trim(),
           description: r.description.trim(),
           quantity: parseInt(r.quantity),
+          unit: r.unit,
           unitPrice: parseFloat(r.unitPrice),
         })),
       }
@@ -162,6 +167,7 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
             <tr className="border-b border-blue-200">
               <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[120px]">Item *</th>
               <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 min-w-[120px]">Description *</th>
+              <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-16">Unit *</th>
               <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-14">Qty *</th>
               <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-20">Unit Price *</th>
               <th className="text-left pb-1.5 pr-2 font-medium text-gray-500 w-20">Total</th>
@@ -188,6 +194,18 @@ export default function F5QuotationPanel({ task, onUpdate }: Props) {
                       onChange={(e) => updateRow(i, { description: e.target.value })}
                       placeholder="Dimensions, material…"
                     />
+                  </td>
+                  <td className="py-1 pr-2">
+                    <select
+                      className={inp}
+                      value={row.unit}
+                      onChange={(e) => updateRow(i, { unit: e.target.value })}
+                    >
+                      <option value="">—</option>
+                      {UNIT_OPTIONS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="py-1 pr-2">
                     <input
